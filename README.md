@@ -98,19 +98,69 @@ LOG_LEVEL=info
 
 ## Usage
 
-### Using the MCP Server with Claude
+### Installing the MCP Server in Claude Desktop
 
-Add the server to your Claude configuration:
+1. **Build the project first:**
+   ```bash
+   npm install
+   npm run build
+   npm run db:init  # Initialize the database
+   ```
+
+2. **Locate your Claude Desktop configuration:**
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+3. **Get your n8n API key:**
+   - Open n8n in your browser (http://localhost:5678)
+   - Go to Settings → API
+   - Enable "n8n API" if not already enabled
+   - Generate and copy your API key
+
+4. **Edit the configuration file:**
+   ```json
+   {
+     "mcpServers": {
+       "n8n": {
+         "command": "node",
+         "args": ["/absolute/path/to/n8n-mcp/dist/index.js"],
+         "env": {
+           "N8N_API_URL": "http://localhost:5678",
+           "N8N_API_KEY": "your-actual-n8n-api-key",
+           "NODE_DB_PATH": "/absolute/path/to/n8n-mcp/data/nodes.db"
+         }
+       }
+     }
+   }
+   ```
+
+5. **Important configuration notes:**
+   - Use **absolute paths** (not relative paths like `~/` or `./`)
+   - Replace `your-actual-n8n-api-key` with your real n8n API key from step 3
+   - Ensure n8n is running at the specified URL (default: http://localhost:5678)
+   - The `NODE_DB_PATH` should point to your database file
+
+6. **Restart Claude Desktop** after saving the configuration
+
+7. **Verify the connection:**
+   - In Claude, you should see "n8n" in the MCP connections
+   - Try asking: "Can you list my n8n workflows?" or "Search for webhook nodes in n8n"
+
+#### Example Configuration
+
+Here's a complete example for macOS with n8n-mcp installed in your home directory:
 
 ```json
 {
   "mcpServers": {
     "n8n": {
       "command": "node",
-      "args": ["/path/to/n8n-mcp/dist/index.js"],
+      "args": ["/Users/yourusername/n8n-mcp/dist/index.js"],
       "env": {
         "N8N_API_URL": "http://localhost:5678",
-        "N8N_API_KEY": "your-api-key"
+        "N8N_API_KEY": "n8n_api_key_from_settings",
+        "NODE_DB_PATH": "/Users/yourusername/n8n-mcp/data/nodes.db"
       }
     }
   }
@@ -323,22 +373,37 @@ Use the management script for production operations:
 
 ### Common Issues
 
-1. **MCP server keeps restarting in Docker**
+1. **Claude Desktop doesn't show the MCP server**
+   - Ensure you've restarted Claude Desktop after editing the config
+   - Check the config file is valid JSON (no trailing commas)
+   - Verify the absolute paths are correct
+   - Check Claude's developer console for errors (Help → Developer)
+
+2. **"Connection failed" in Claude**
+   - Verify n8n is running at the specified URL
+   - Check the API key is correct (get it from n8n settings → API)
+   - Ensure the MCP server is built (`npm run build`)
+   - Try running the server manually: `N8N_API_KEY=your-key node dist/index.js`
+
+3. **MCP server keeps restarting in Docker**
    - This is expected behavior. The MCP server uses stdio transport and waits for input from AI assistants.
    - For testing, use the development mode or invoke through Claude Desktop.
 
-2. **Database not found**
+4. **Database not found**
    - Run `npm run db:init` to create the database
    - Run `npm run db:rebuild` to populate with all nodes
+   - Ensure NODE_DB_PATH in Claude config points to the actual database file
 
-3. **n8n API connection failed**
+5. **n8n API connection failed**
    - Verify n8n is running and accessible
    - Check API key in `.env` file
    - Ensure n8n API is enabled in settings
+   - Try accessing `http://localhost:5678/api/v1/workflows` with your API key
 
-4. **Node extraction fails**
+6. **Node extraction fails**
    - Ensure Docker volume mounts are correct
    - Check read permissions on node_modules directory
+   - Run `npm run db:rebuild` to re-index all nodes
 
 ## Documentation
 
