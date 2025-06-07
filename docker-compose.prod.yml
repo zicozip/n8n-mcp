@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  n8n-mcp:
+    image: n8n-mcp:production
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: n8n-mcp-server
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NODE_DB_PATH=/app/data/nodes.db
+      - N8N_API_URL=http://n8n:5678
+      - N8N_API_KEY=${N8N_API_KEY}
+      - LOG_LEVEL=info
+    volumes:
+      - mcp-data:/app/data
+      - n8n-node-modules:/usr/local/lib/node_modules/n8n/node_modules:ro
+    networks:
+      - n8n-network
+    depends_on:
+      - n8n
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('fs').existsSync('/app/data/nodes.db') || process.exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - N8N_METRICS=true
+      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./dist/n8n:/home/node/.n8n/custom/nodes
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  n8n-data:
+    driver: local
+  mcp-data:
+    driver: local
+  n8n-node-modules:
+    driver: local
+
+networks:
+  n8n-network:
+    driver: bridge

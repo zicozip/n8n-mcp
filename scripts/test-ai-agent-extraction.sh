@@ -23,11 +23,11 @@ npm run build
 
 echo
 echo "2. Building Docker image..."
-docker-compose -f docker-compose.test.yml build
+docker compose -f docker-compose.test.yml build
 
 echo
 echo "3. Starting test environment..."
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml up -d
 
 echo
 echo "4. Waiting for services to be ready..."
@@ -36,7 +36,7 @@ sleep 10
 # Wait for n8n to be healthy
 echo "   Waiting for n8n to be ready..."
 for i in {1..30}; do
-    if docker-compose -f docker-compose.test.yml exec n8n wget --spider -q http://localhost:5678/healthz 2>/dev/null; then
+    if docker compose -f docker-compose.test.yml exec n8n wget --spider -q http://localhost:5678/healthz 2>/dev/null; then
         echo -e "   ${GREEN}✓ n8n is ready${NC}"
         break
     fi
@@ -48,7 +48,7 @@ echo
 echo "5. Running MCP client test..."
 
 # Create a simple test using the MCP server directly
-docker-compose -f docker-compose.test.yml exec n8n-mcp node -e "
+docker compose -f docker-compose.test.yml exec n8n-mcp node -e "
 const http = require('http');
 
 // Test data
@@ -107,12 +107,12 @@ if (!found) {
 
 echo
 echo "6. Alternative test - Direct file system check..."
-docker-compose -f docker-compose.test.yml exec n8n find /usr/local/lib/node_modules -name "*Agent*.node.js" -type f 2>/dev/null | head -10 || true
+docker compose -f docker-compose.test.yml exec n8n find /usr/local/lib/node_modules -name "*Agent*.node.js" -type f 2>/dev/null | head -10 || true
 
 echo
 echo "7. Test using curl to n8n API..."
 # Get available node types from n8n
-NODE_TYPES=$(docker-compose -f docker-compose.test.yml exec n8n curl -s http://localhost:5678/api/v1/node-types | jq -r '.data[].name' | grep -i agent | head -5) || true
+NODE_TYPES=$(docker compose -f docker-compose.test.yml exec n8n curl -s http://localhost:5678/api/v1/node-types | jq -r '.data[].name' | grep -i agent | head -5) || true
 
 if [ -n "$NODE_TYPES" ]; then
     echo -e "${GREEN}✓ Found Agent nodes in n8n:${NC}"
@@ -126,7 +126,7 @@ echo "8. Cleanup..."
 read -p "Stop test environment? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    docker-compose -f docker-compose.test.yml down
+    docker compose -f docker-compose.test.yml down
     echo -e "${GREEN}✓ Test environment stopped${NC}"
 fi
 

@@ -9,7 +9,9 @@
     "start": "node dist/index.js",
     "test": "jest",
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:rebuild": "node dist/scripts/rebuild-database.js",
+    "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\""
   },
   "repository": {
     "type": "git",
@@ -34,6 +36,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^11.10.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "n8n-core": "^1.14.1",

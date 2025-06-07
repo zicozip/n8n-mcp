@@ -16,15 +16,18 @@ import { N8NApiClient } from '../utils/n8n-client';
 import { N8NMCPBridge } from '../utils/bridge';
 import { logger } from '../utils/logger';
 import { NodeSourceExtractor } from '../utils/node-source-extractor';
+import { SQLiteStorageService } from '../services/sqlite-storage-service';
 
 export class N8NMCPServer {
   private server: Server;
   private n8nClient: N8NApiClient;
   private nodeExtractor: NodeSourceExtractor;
+  private nodeStorage: SQLiteStorageService;
 
   constructor(config: MCPServerConfig, n8nConfig: N8NConfig) {
     this.n8nClient = new N8NApiClient(n8nConfig);
     this.nodeExtractor = new NodeSourceExtractor();
+    this.nodeStorage = new SQLiteStorageService();
     logger.info('Initializing n8n MCP server', { config, n8nConfig });
     this.server = new Server(
       {
@@ -161,6 +164,12 @@ export class N8NMCPServer {
         return this.getNodeSourceCode(args);
       case 'list_available_nodes':
         return this.listAvailableNodes(args);
+      case 'extract_all_nodes':
+        return this.extractAllNodes(args);
+      case 'search_nodes':
+        return this.searchNodes(args);
+      case 'get_node_statistics':
+        return this.getNodeStatistics(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -311,6 +320,107 @@ export class N8NMCPServer {
     } catch (error) {
       logger.error(`Failed to list available nodes`, error);
       throw new Error(`Failed to list available nodes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async extractAllNodes(args: any): Promise<any> {
+    try {
+      logger.info(`Extracting all nodes`, args);
+      
+      // Get list of all nodes
+      const allNodes = await this.nodeExtractor.listAvailableNodes();
+      let nodesToExtract = allNodes;
+      
+      // Apply filters
+      if (args.packageFilter) {
+        nodesToExtract = nodesToExtract.filter(node => 
+          node.packageName === args.packageFilter || 
+          node.location?.includes(args.packageFilter)
+        );
+      }
+      
+      if (args.limit) {
+        nodesToExtract = nodesToExtract.slice(0, args.limit);
+      }
+      
+      logger.info(`Extracting ${nodesToExtract.length} nodes...`);
+      
+      const extractedNodes = [];
+      const errors = [];
+      
+      for (const node of nodesToExtract) {
+        try {
+          const nodeType = node.packageName ? `${node.packageName}.${node.name}` : node.name;
+          const nodeInfo = await this.nodeExtractor.extractNodeSource(nodeType);
+          await this.nodeStorage.storeNode(nodeInfo);
+          extractedNodes.push(nodeType);
+        } catch (error) {
+          errors.push({
+            node: node.name,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      const stats = await this.nodeStorage.getStatistics();
+      
+      return {
+        success: true,
+        extracted: extractedNodes.length,
+        failed: errors.length,
+        totalStored: stats.totalNodes,
+        errors: errors.slice(0, 10), // Limit error list
+        statistics: stats
+      };
+    } catch (error) {
+      logger.error(`Failed to extract all nodes`, error);
+      throw new Error(`Failed to extract all nodes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async searchNodes(args: any): Promise<any> {
+    try {
+      logger.info(`Searching nodes`, args);
+      
+      const results = await this.nodeStorage.searchNodes({
+        query: args.query,
+        packageName: args.packageName,
+        hasCredentials: args.hasCredentials,
+        limit: args.limit || 20
+      });
+      
+      return {
+        nodes: results.map(node => ({
+          nodeType: node.nodeType,
+          name: node.name,
+          packageName: node.packageName,
+          displayName: node.displayName,
+          description: node.description,
+          codeLength: node.codeLength,
+          hasCredentials: node.hasCredentials,
+          location: node.sourceLocation
+        })),
+        total: results.length
+      };
+    } catch (error) {
+      logger.error(`Failed to search nodes`, error);
+      throw new Error(`Failed to search nodes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async getNodeStatistics(args: any): Promise<any> {
+    try {
+      logger.info(`Getting node statistics`);
+      const stats = await this.nodeStorage.getStatistics();
+      
+      return {
+        ...stats,
+        formattedTotalSize: `${(stats.totalCodeSize / 1024 / 1024).toFixed(2)} MB`,
+        formattedAverageSize: `${(stats.averageNodeSize / 1024).toFixed(2)} KB`
+      };
+    } catch (error) {
+      logger.error(`Failed to get node statistics`, error);
+      throw new Error(`Failed to get node statistics: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

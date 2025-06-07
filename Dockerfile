@@ -1,22 +1,8 @@
-# Build stage
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build the project
-RUN npm run build
-
 # Production stage
 FROM node:18-alpine
+
+# Install SQLite (for database management)
+RUN apk add --no-cache sqlite
 
 WORKDIR /app
 
@@ -26,20 +12,43 @@ COPY package*.json ./
 # Install production dependencies only
 RUN npm ci --only=production
 
-# Copy built files from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy built files
+COPY dist ./dist
+COPY tests ./tests
+
+# Create data directory for SQLite database
+RUN mkdir -p /app/data
 
 # Create a non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
-# Change ownership
+# Change ownership (including data directory)
 RUN chown -R nodejs:nodejs /app
 
 # Switch to non-root user
 USER nodejs
 
+# Set environment variable for database location
+ENV NODE_DB_PATH=/app/data/nodes.db
+
+# Create a startup script
+RUN printf '#!/bin/sh\n\
+echo "🚀 Starting n8n-MCP server..."\n\
+\n\
+# Initialize database if it does not exist\n\
+if [ ! -f "$NODE_DB_PATH" ]; then\n\
+  echo "📦 Initializing database..."\n\
+  node dist/scripts/rebuild-database.js\n\
+fi\n\
+\n\
+echo "🎯 Database ready, starting MCP server..."\n\
+exec node dist/index.js\n' > /app/start.sh && chmod +x /app/start.sh
+
 # Expose the MCP server port (if using HTTP transport)
 EXPOSE 3000
 
-# Start the MCP server
-CMD ["node", "dist/index.js"]
+# Volume for persistent database storage
+VOLUME ["/app/data"]
+
+# Start the MCP server with database initialization
+CMD ["/bin/sh", "/app/start.sh"]

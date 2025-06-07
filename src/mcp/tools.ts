@@ -181,4 +181,55 @@ export const n8nTools: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'extract_all_nodes',
+    description: 'Extract and store all available n8n nodes in the database',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        packageFilter: {
+          type: 'string',
+          description: 'Optional package name to filter extraction',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of nodes to extract',
+        },
+      },
+    },
+  },
+  {
+    name: 'search_nodes',
+    description: 'Search for n8n nodes by name, package, or functionality',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query',
+        },
+        packageName: {
+          type: 'string',
+          description: 'Filter by package name',
+        },
+        hasCredentials: {
+          type: 'boolean',
+          description: 'Filter nodes that have credentials',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum results to return',
+          default: 20,
+        },
+      },
+    },
+  },
+  {
+    name: 'get_node_statistics',
+    description: 'Get statistics about stored n8n nodes',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ];
