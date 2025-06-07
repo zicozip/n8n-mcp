@@ -31,4 +31,10 @@ export const n8nResources: ResourceDefinition[] = [
     description: 'List of all available n8n nodes',
     mimeType: 'application/json',
   },
+  {
+    uri: 'nodes://source',
+    name: 'Node Source Code',
+    description: 'Source code of n8n nodes',
+    mimeType: 'text/javascript',
+  },
 ];

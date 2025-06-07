@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-test
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=UTC
+      # Enable API
+      - N8N_USER_MANAGEMENT_DISABLED=true
+      - N8N_PUBLIC_API_DISABLED=false
+      # Install additional nodes
+      - N8N_CUSTOM_EXTENSIONS=@n8n/n8n-nodes-langchain
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - n8n_modules:/usr/local/lib/node_modules/n8n/node_modules:ro
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  n8n-mcp:
+    build: .
+    container_name: n8n-mcp-test
+    restart: unless-stopped
+    environment:
+      - MCP_SERVER_PORT=3000
+      - MCP_SERVER_HOST=0.0.0.0
+      - N8N_API_URL=http://n8n:5678
+      - N8N_API_KEY=test-api-key
+      - MCP_AUTH_TOKEN=test-token
+      - LOG_LEVEL=debug
+    volumes:
+      # Mount n8n's node_modules to access source code
+      - n8n_modules:/usr/local/lib/node_modules/n8n/node_modules:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - test-network
+    depends_on:
+      n8n:
+        condition: service_healthy
+    command: node dist/index.js
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  n8n_data:
+  n8n_modules:

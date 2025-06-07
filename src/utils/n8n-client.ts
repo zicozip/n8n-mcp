@@ -138,4 +138,31 @@ export class N8NApiClient {
   async getNodeType(nodeType: string): Promise<any> {
     return this.request(`/node-types/${nodeType}`);
   }
+
+  // Extended methods for node source extraction
+  async getNodeSourceCode(nodeType: string): Promise<any> {
+    // This is a special endpoint we'll need to handle differently
+    // as n8n doesn't expose source code directly through API
+    // We'll need to implement this through file system access
+    throw new Error('Node source code extraction requires special implementation');
+  }
+
+  async getNodeDescription(nodeType: string): Promise<any> {
+    try {
+      const nodeTypeData = await this.getNodeType(nodeType);
+      return {
+        name: nodeTypeData.name,
+        displayName: nodeTypeData.displayName,
+        description: nodeTypeData.description,
+        version: nodeTypeData.version,
+        defaults: nodeTypeData.defaults,
+        inputs: nodeTypeData.inputs,
+        outputs: nodeTypeData.outputs,
+        properties: nodeTypeData.properties,
+        credentials: nodeTypeData.credentials,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get node description: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }

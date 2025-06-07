@@ -145,4 +145,40 @@ export const n8nTools: ToolDefinition[] = [
       required: ['executionId'],
     },
   },
+  {
+    name: 'get_node_source_code',
+    description: 'Extract source code of a specific n8n node',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nodeType: {
+          type: 'string',
+          description: 'The node type identifier (e.g., @n8n/n8n-nodes-langchain.Agent)',
+        },
+        includeCredentials: {
+          type: 'boolean',
+          description: 'Include credential type definitions if available',
+          default: false,
+        },
+      },
+      required: ['nodeType'],
+    },
+  },
+  {
+    name: 'list_available_nodes',
+    description: 'List all available n8n nodes with their types',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: 'Filter by category (e.g., AI, Data Transformation)',
+        },
+        search: {
+          type: 'string',
+          description: 'Search term to filter nodes',
+        },
+      },
+    },
+  },
 ];

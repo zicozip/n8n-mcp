@@ -15,13 +15,16 @@ import { n8nPrompts } from './prompts';
 import { N8NApiClient } from '../utils/n8n-client';
 import { N8NMCPBridge } from '../utils/bridge';
 import { logger } from '../utils/logger';
+import { NodeSourceExtractor } from '../utils/node-source-extractor';
 
 export class N8NMCPServer {
   private server: Server;
   private n8nClient: N8NApiClient;
+  private nodeExtractor: NodeSourceExtractor;
 
   constructor(config: MCPServerConfig, n8nConfig: N8NConfig) {
     this.n8nClient = new N8NApiClient(n8nConfig);
+    this.nodeExtractor = new NodeSourceExtractor();
     logger.info('Initializing n8n MCP server', { config, n8nConfig });
     this.server = new Server(
       {
@@ -154,16 +157,25 @@ export class N8NMCPServer {
         return this.getExecutions(args);
       case 'get_execution_data':
         return this.getExecutionData(args);
+      case 'get_node_source_code':
+        return this.getNodeSourceCode(args);
+      case 'list_available_nodes':
+        return this.listAvailableNodes(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
   }
 
   private async readResource(uri: string): Promise<any> {
-    // Resource reading logic will be implemented
+    // Resource reading logic
     if (uri.startsWith('workflow://')) {
       const workflowId = uri.replace('workflow://', '');
       return this.getWorkflow({ id: workflowId });
+    } else if (uri === 'nodes://available') {
+      return this.listAvailableNodes({});
+    } else if (uri.startsWith('nodes://source/')) {
+      const nodeType = uri.replace('nodes://source/', '');
+      return this.getNodeSourceCode({ nodeType });
     }
     throw new Error(`Unknown resource URI: ${uri}`);
   }
@@ -255,6 +267,50 @@ export class N8NMCPServer {
       return N8NMCPBridge.n8nExecutionToMCPResource(execution);
     } catch (error) {
       throw new Error(`Failed to get execution data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async getNodeSourceCode(args: any): Promise<any> {
+    try {
+      logger.info(`Getting source code for node: ${args.nodeType}`);
+      const nodeInfo = await this.nodeExtractor.extractNodeSource(args.nodeType);
+      
+      const result: any = {
+        nodeType: nodeInfo.nodeType,
+        sourceCode: nodeInfo.sourceCode,
+        location: nodeInfo.location,
+      };
+
+      if (args.includeCredentials && nodeInfo.credentialCode) {
+        result.credentialCode = nodeInfo.credentialCode;
+      }
+
+      if (nodeInfo.packageInfo) {
+        result.packageInfo = {
+          name: nodeInfo.packageInfo.name,
+          version: nodeInfo.packageInfo.version,
+          description: nodeInfo.packageInfo.description,
+        };
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`Failed to get node source code`, error);
+      throw new Error(`Failed to get node source code: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async listAvailableNodes(args: any): Promise<any> {
+    try {
+      logger.info('Listing available nodes', args);
+      const nodes = await this.nodeExtractor.listAvailableNodes(args.category, args.search);
+      return {
+        nodes,
+        total: nodes.length,
+      };
+    } catch (error) {
+      logger.error(`Failed to list available nodes`, error);
+      throw new Error(`Failed to list available nodes: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
