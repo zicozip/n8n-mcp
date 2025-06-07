@@ -1,35 +1,33 @@
-# n8n-MCP Integration
+# n8n Node Documentation MCP Server
 
-Complete integration between n8n workflow automation and Model Context Protocol (MCP), enabling bidirectional communication between n8n workflows and AI assistants.
+An MCP (Model Context Protocol) server that provides n8n node documentation, source code, and usage examples to AI assistants like Claude.
 
-## Overview
+## Purpose
 
-This project provides two main components:
-1. **MCP Server**: Allows AI assistants (like Claude) to interact with n8n workflows, execute them, and explore n8n nodes
-2. **n8n Custom Node**: Enables n8n workflows to connect to and use MCP servers
+This MCP server serves as a comprehensive knowledge base for AI assistants to understand and work with n8n nodes. It provides:
 
-**Important**: The MCP server uses stdio transport and is designed to be invoked by AI assistants like Claude Desktop. It's not a standalone HTTP server but rather a tool that AI assistants can call directly.
+- **Complete node source code** - The actual TypeScript/JavaScript implementation of each n8n node
+- **Official documentation** - Markdown documentation from the n8n-docs repository
+- **Usage examples** - Sample workflow JSON showing how to use each node
+- **Search capabilities** - Full-text search across node names, descriptions, and documentation
 
 ## Features
 
-- **Bidirectional Integration**: n8n workflows can call MCP tools, and MCP servers can execute n8n workflows
-- **Node Source Extraction**: Extract and search source code from any n8n node, including AI Agent nodes
-- **SQLite Database**: Full-text search for n8n node documentation and source code (500+ nodes indexed)
-- **Production Ready**: Docker-based deployment with persistent storage
-- **Comprehensive MCP Tools**: 12+ tools for workflow management, node exploration, and database search
-- **Custom n8n Node**: Connect to any MCP server from n8n workflows
-- **Auto-indexing**: Automatically builds a searchable database of all n8n nodes on first run
+- 🔍 **Full-text search** - Search nodes by name, description, or documentation content
+- 📚 **Complete documentation** - Fetches and indexes official n8n documentation
+- 💻 **Source code access** - Provides full source code for each node
+- 🎯 **Usage examples** - Auto-generates example workflows for each node type
+- 🔄 **Database rebuild** - Rebuilds the entire database with latest node information
+- ⚡ **Fast SQLite storage** - All data stored locally for instant access
 
-## Prerequisites
+## Installation
+
+### Prerequisites
 
 - Node.js 18+
-- Docker and Docker Compose (for production deployment)
-- n8n instance with API access enabled
-- (Optional) Claude Desktop for MCP integration
+- Git (for cloning n8n-docs)
 
-## Quick Start
-
-### Installation
+### Setup
 
 ```bash
 # Clone the repository
@@ -39,415 +37,219 @@ cd n8n-mcp
 # Install dependencies
 npm install
 
-# Copy environment template
-cp .env.example .env
-# Edit .env with your n8n credentials
-
 # Build the project
 npm run build
 
-# Initialize the database
-npm run db:init
-
-# (Optional) Rebuild database with all nodes
-npm run db:rebuild
+# Initialize and rebuild the database with all nodes
+npm run db:rebuild:v2
 ```
 
-### Development
+## Installing in Claude Desktop
+
+### 1. Build the project first
 
 ```bash
-# Run tests
-npm test
-
-# Start development server
-npm run dev
-
-# Type checking
-npm run typecheck
+npm install
+npm run build
+npm run db:rebuild:v2  # This indexes all n8n nodes
 ```
 
-### Production Deployment
+### 2. Locate your Claude Desktop configuration
 
-```bash
-# Use the automated deployment script
-./scripts/deploy-production.sh
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-# Or manually with Docker Compose
-docker compose -f docker-compose.prod.yml up -d
-```
-
-See [Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT.md) for detailed instructions.
-
-## Configuration
-
-Environment variables (`.env` file):
-
-```env
-# n8n Configuration
-N8N_BASIC_AUTH_USER=admin
-N8N_BASIC_AUTH_PASSWORD=your-password
-N8N_HOST=localhost
-N8N_API_KEY=your-api-key
-
-# Database
-NODE_DB_PATH=/app/data/nodes.db
-
-# Logging
-LOG_LEVEL=info
-```
-
-## Usage
-
-### Installing the MCP Server in Claude Desktop
-
-1. **Build the project first:**
-   ```bash
-   npm install
-   npm run build
-   npm run db:init  # Initialize the database
-   ```
-
-2. **Locate your Claude Desktop configuration:**
-   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-3. **Get your n8n API key:**
-   - Open n8n in your browser (http://localhost:5678)
-   - Go to Settings → API
-   - Enable "n8n API" if not already enabled
-   - Generate and copy your API key
-
-4. **Edit the configuration file:**
-   ```json
-   {
-     "mcpServers": {
-       "n8n": {
-         "command": "node",
-         "args": ["/absolute/path/to/n8n-mcp/dist/index.js"],
-         "env": {
-           "N8N_API_URL": "http://localhost:5678",
-           "N8N_API_KEY": "your-actual-n8n-api-key",
-           "NODE_DB_PATH": "/absolute/path/to/n8n-mcp/data/nodes.db"
-         }
-       }
-     }
-   }
-   ```
-
-5. **Important configuration notes:**
-   - Use **absolute paths** (not relative paths like `~/` or `./`)
-   - Replace `your-actual-n8n-api-key` with your real n8n API key from step 3
-   - Ensure n8n is running at the specified URL (default: http://localhost:5678)
-   - The `NODE_DB_PATH` should point to your database file
-
-6. **Restart Claude Desktop** after saving the configuration
-
-7. **Verify the connection:**
-   - In Claude, you should see "n8n" in the MCP connections
-   - Try asking: "Can you list my n8n workflows?" or "Search for webhook nodes in n8n"
-
-#### Example Configuration
-
-Here's a complete example for macOS with n8n-mcp installed in your home directory:
+### 3. Edit the configuration file
 
 ```json
 {
   "mcpServers": {
-    "n8n": {
+    "n8n-nodes": {
       "command": "node",
-      "args": ["/Users/yourusername/n8n-mcp/dist/index.js"],
+      "args": ["/absolute/path/to/n8n-mcp/dist/index-v2.js"],
       "env": {
-        "N8N_API_URL": "http://localhost:5678",
-        "N8N_API_KEY": "n8n_api_key_from_settings",
-        "NODE_DB_PATH": "/Users/yourusername/n8n-mcp/data/nodes.db"
+        "NODE_DB_PATH": "/absolute/path/to/n8n-mcp/data/nodes-v2.db"
       }
     }
   }
 }
 ```
 
-### Available MCP Tools
+**Important**: Use absolute paths, not relative paths like `~/` or `./`
 
-#### Workflow Management
-- `execute_workflow` - Execute an n8n workflow by ID
-- `list_workflows` - List all workflows with filtering options
-- `get_workflow` - Get detailed workflow information
-- `create_workflow` - Create new workflows programmatically
-- `update_workflow` - Update existing workflows
-- `delete_workflow` - Delete workflows
-- `get_executions` - Get workflow execution history
-- `get_execution_data` - Get detailed execution data
+### 4. Restart Claude Desktop
 
-#### Node Exploration & Search
-- `list_available_nodes` - List all available n8n nodes
-- `get_node_source_code` - Extract source code of any n8n node
-- `search_nodes` - Search nodes by name or content using full-text search
-- `extract_all_nodes` - Extract and index all nodes to database
-- `get_node_statistics` - Get database statistics (total nodes, packages, etc.)
+After saving the configuration, completely quit and restart Claude Desktop.
 
-### Using the n8n MCP Node
+### 5. Verify the connection
 
-1. Install the node in n8n:
-   ```bash
-   # Copy to n8n custom nodes directory
-   cp -r dist/n8n/* ~/.n8n/custom/
-   # Or use the install script
-   ./scripts/install-n8n-node.sh
-   ```
-2. Restart n8n
-3. The MCP node will appear in the nodes panel
-4. Configure with your MCP server credentials
-5. Select operations: Call Tool, List Tools, Read Resource, etc.
+In Claude, you should see "n8n-nodes" in the MCP connections. Try asking:
+- "What n8n nodes are available?"
+- "Show me how to use the IF node in n8n"
+- "Search for webhook nodes in n8n"
+- "Show me the source code for the HTTP Request node"
 
-### Example n8n Workflow
+## Available MCP Tools
+
+### `list_nodes`
+Lists all available n8n nodes with basic information.
+- Parameters: `category`, `packageName`, `isTrigger` (all optional)
+
+### `get_node_info`
+Gets complete information about a specific node including source code, documentation, and examples.
+- Parameters: `nodeType` (required) - e.g., "n8n-nodes-base.if", "If", "webhook"
+
+### `search_nodes`
+Searches for nodes by name, description, or documentation content.
+- Parameters: `query` (required), `category`, `hasDocumentation`, `limit` (optional)
+
+### `get_node_example`
+Gets example workflow JSON for a specific node.
+- Parameters: `nodeType` (required)
+
+### `get_node_source_code`
+Gets only the source code of a node.
+- Parameters: `nodeType` (required), `includeCredentials` (optional)
+
+### `get_node_documentation`
+Gets only the documentation for a node.
+- Parameters: `nodeType` (required), `format` (optional: "markdown" or "plain")
+
+### `rebuild_database`
+Rebuilds the entire node database with latest information.
+- Parameters: `includeDocumentation` (optional, default: true)
+
+### `get_database_statistics`
+Gets statistics about the node database.
+- No parameters required
+
+## Example Usage
+
+When you ask Claude about the IF node, it will use the MCP tools to provide:
 
 ```json
 {
-  "name": "MCP AI Assistant",
-  "nodes": [
-    {
-      "name": "MCP",
-      "type": "mcp",
+  "nodeType": "n8n-nodes-base.if",
+  "name": "If",
+  "displayName": "If",
+  "description": "Route items based on comparison operations",
+  "sourceCode": "// Full TypeScript source code...",
+  "documentation": "# If Node\n\nThe If node splits a workflow...",
+  "exampleWorkflow": {
+    "nodes": [{
       "parameters": {
-        "operation": "callTool",
-        "toolName": "generate_text",
-        "toolArguments": "{\"prompt\": \"Write a summary\"}"
+        "conditions": {
+          "conditions": [{
+            "leftValue": "={{ $json }}",
+            "rightValue": "",
+            "operator": {
+              "type": "object",
+              "operation": "notEmpty"
+            }
+          }]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "position": [220, 120],
+      "name": "If"
+    }],
+    "connections": {
+      "If": {
+        "main": [[], []]
       }
     }
-  ]
+  }
 }
 ```
 
-## Architecture
+## Database Management
 
-### Components
+### Initial Setup
 
-1. **MCP Server** (`src/mcp/`): Exposes n8n operations as MCP tools
-2. **n8n Custom Node** (`src/n8n/`): Allows n8n to connect to MCP servers
-3. **SQLite Storage** (`src/services/`): Persistent storage with full-text search
-4. **Bridge Layer** (`src/utils/`): Converts between n8n and MCP formats
-
-### Database Management
-
-The SQLite database stores n8n node documentation and source code with full-text search capabilities:
-
+The database is automatically created when you run:
 ```bash
-# Initialize empty database
-npm run db:init
-
-# Rebuild the entire database (indexes all nodes)
-npm run db:rebuild
-
-# In production
-./scripts/manage-production.sh rebuild-db
-
-# View statistics
-./scripts/manage-production.sh db-stats
+npm run db:rebuild:v2
 ```
 
-#### Search Examples
+This process:
+1. Clones/updates the n8n-docs repository
+2. Extracts source code from all n8n nodes
+3. Fetches documentation for each node
+4. Generates usage examples
+5. Stores everything in SQLite with full-text search
 
-```javascript
-// Search for nodes by name
-await mcp.callTool('search_nodes', { query: 'webhook' })
+### Manual Rebuild
 
-// Search in specific package
-await mcp.callTool('search_nodes', { 
-  query: 'http',
-  packageName: 'n8n-nodes-base'
-})
-
-// Get database statistics
-await mcp.callTool('get_node_statistics', {})
+To update the database with latest nodes:
+```bash
+npm run db:rebuild:v2
 ```
 
-## Testing
+### Database Location
 
-### Run All Tests
-```bash
-npm test
-```
+The SQLite database is stored at: `data/nodes-v2.db`
 
-### Test Specific Features
-```bash
-# Test node extraction
-node tests/test-mcp-extraction.js
-
-# Test database search
-node tests/test-sqlite-search.js
-
-# Test AI Agent extraction
-./scripts/test-ai-agent-extraction.sh
-```
-
-## API Reference
-
-### MCP Tools
-
-#### execute_workflow
-Execute an n8n workflow by ID.
-
-Parameters:
-- `workflowId` (string, required): The workflow ID
-- `data` (object, optional): Input data for the workflow
-
-#### list_workflows
-List all available workflows.
-
-Parameters:
-- `active` (boolean, optional): Filter by active status
-- `tags` (array, optional): Filter by tags
-
-#### get_node_source_code
-Extract source code of any n8n node.
-
-Parameters:
-- `nodeType` (string, required): The node type identifier (e.g., `n8n-nodes-base.Webhook`)
-- `includeCredentials` (boolean, optional): Include credential type definitions if available
-
-#### search_nodes
-Search nodes using full-text search in the SQLite database.
-
-Parameters:
-- `query` (string, optional): Search term for node names/descriptions
-- `packageName` (string, optional): Filter by package name
-- `nodeType` (string, optional): Filter by node type pattern
-- `hasCredentials` (boolean, optional): Filter nodes with credentials
-- `limit` (number, optional): Limit results (default: 20)
-
-#### extract_all_nodes
-Extract and index all available nodes to the database.
-
-Parameters:
-- `packageFilter` (string, optional): Filter by package name
-- `limit` (number, optional): Limit number of nodes to extract
-
-#### get_node_statistics
-Get database statistics including total nodes, packages, and size.
-
-No parameters required.
-
-#### list_available_nodes
-List all available n8n nodes in the system.
-
-Parameters:
-- `category` (string, optional): Filter by category
-- `search` (string, optional): Search term to filter nodes
-
-### MCP Resources
-
-- `workflow://active` - List of active workflows
-- `workflow://all` - List of all workflows
-- `execution://recent` - Recent execution history
-- `credentials://types` - Available credential types
-- `nodes://available` - Available n8n nodes
-- `nodes://source/{nodeType}` - Source code of specific n8n node
-
-### MCP Prompts
-
-- `create_workflow_prompt` - Generate workflow creation prompts
-- `debug_workflow_prompt` - Debug workflow issues
-- `optimize_workflow_prompt` - Optimize workflow performance
-- `explain_workflow_prompt` - Explain workflow functionality
-
-## Management
-
-Use the management script for production operations:
+## Development
 
 ```bash
-# Check status
-./scripts/manage-production.sh status
+# Run in development mode
+npm run dev:v2
 
-# View logs
-./scripts/manage-production.sh logs
+# Run tests
+npm run test:v2
 
-# Create backup
-./scripts/manage-production.sh backup
-
-# Update services
-./scripts/manage-production.sh update
+# Type checking
+npm run typecheck
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Claude Desktop doesn't show the MCP server
 
-1. **Claude Desktop doesn't show the MCP server**
-   - Ensure you've restarted Claude Desktop after editing the config
-   - Check the config file is valid JSON (no trailing commas)
-   - Verify the absolute paths are correct
-   - Check Claude's developer console for errors (Help → Developer)
+1. Ensure you've restarted Claude Desktop after editing the config
+2. Check the config file is valid JSON (no trailing commas)
+3. Verify the absolute paths are correct
+4. Check Claude's developer console for errors (Help → Developer)
 
-2. **"Connection failed" in Claude**
-   - Verify n8n is running at the specified URL
-   - Check the API key is correct (get it from n8n settings → API)
-   - Ensure the MCP server is built (`npm run build`)
-   - Try running the server manually: `N8N_API_KEY=your-key node dist/index.js`
+### "Connection failed" in Claude
 
-3. **MCP server keeps restarting in Docker**
-   - This is expected behavior. The MCP server uses stdio transport and waits for input from AI assistants.
-   - For testing, use the development mode or invoke through Claude Desktop.
+1. Ensure the MCP server is built (`npm run build`)
+2. Check that the database exists (`data/nodes-v2.db`)
+3. Verify the NODE_DB_PATH in Claude config points to the correct database file
 
-4. **Database not found**
-   - Run `npm run db:init` to create the database
-   - Run `npm run db:rebuild` to populate with all nodes
-   - Ensure NODE_DB_PATH in Claude config points to the actual database file
+### Database rebuild fails
 
-5. **n8n API connection failed**
-   - Verify n8n is running and accessible
-   - Check API key in `.env` file
-   - Ensure n8n API is enabled in settings
-   - Try accessing `http://localhost:5678/api/v1/workflows` with your API key
+Some nodes may fail to extract (deprecated nodes, triggers without main node file). This is normal. The rebuild will continue and index all available nodes.
 
-6. **Node extraction fails**
-   - Ensure Docker volume mounts are correct
-   - Check read permissions on node_modules directory
-   - Run `npm run db:rebuild` to re-index all nodes
+### No documentation for some nodes
 
-## Documentation
-
-- [Production Deployment Guide](docs/PRODUCTION_DEPLOYMENT.md)
-- [AI Agent Extraction Test](docs/AI_AGENT_EXTRACTION_TEST.md)
-
-## Security
-
-- Token-based authentication for n8n API
-- Read-only access to node source files
-- Isolated Docker containers
-- Persistent volume encryption (optional)
+Not all nodes have documentation in the n8n-docs repository. The server will still provide source code and generated examples for these nodes.
 
 ## Project Structure
 
 ```
 n8n-mcp/
 ├── src/
-│   ├── mcp/              # MCP server implementation
-│   ├── n8n/              # n8n custom node
-│   ├── services/         # SQLite storage service
-│   ├── utils/            # Utilities and helpers
-│   └── scripts/          # Database management scripts
-├── tests/                # Test suite
-├── docs/                 # Documentation
-├── scripts/              # Deployment and management scripts
-└── data/                 # SQLite database (created on init)
+│   ├── mcp/
+│   │   ├── server-v2.ts      # MCP server implementation
+│   │   └── tools-v2.ts       # MCP tool definitions
+│   ├── services/
+│   │   └── node-documentation-service.ts  # Database service
+│   ├── utils/
+│   │   ├── documentation-fetcher.ts       # n8n-docs fetcher
+│   │   ├── example-generator.ts           # Example generator
+│   │   └── node-source-extractor.ts       # Source extractor
+│   └── scripts/
+│       └── rebuild-database-v2.ts         # Database rebuild
+└── data/
+    └── nodes-v2.db          # SQLite database
 ```
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new features
-4. Ensure all tests pass
-5. Submit a pull request
 
 ## License
 
-ISC License
+ISC
 
 ## Support
 
-- GitHub Issues: [Report bugs or request features](https://github.com/yourusername/n8n-mcp/issues)
-- n8n Community: [n8n.io/community](https://community.n8n.io/)
-- MCP Documentation: [modelcontextprotocol.io](https://modelcontextprotocol.io/)
+For issues and questions, please use the GitHub issue tracker.

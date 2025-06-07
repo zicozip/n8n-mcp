@@ -6,12 +6,16 @@
   "scripts": {
     "build": "tsc",
     "dev": "nodemon --exec ts-node src/index.ts",
+    "dev:v2": "nodemon --exec ts-node src/index-v2.ts",
     "start": "node dist/index.js",
+    "start:v2": "node dist/index-v2.js",
     "test": "jest",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
-    "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\""
+    "db:rebuild:v2": "node dist/scripts/rebuild-database-v2.js",
+    "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
+    "test:v2": "node tests/test-node-documentation-service.js"
   },
   "repository": {
     "type": "git",
