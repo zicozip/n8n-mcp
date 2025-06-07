@@ -10,6 +10,7 @@ Integration between n8n workflow automation and Model Context Protocol (MCP). Th
 - **MCP Server**: Expose n8n workflows as tools, resources, and prompts for AI assistants
 - **n8n Node**: Connect to any MCP server from n8n workflows
 - **Bidirectional Integration**: Use AI capabilities in n8n and n8n automation in AI contexts
+- **Node Source Extraction**: Extract source code from any n8n node, including AI Agent nodes
 - **Authentication**: Secure token-based authentication
 - **Flexible Transport**: Support for WebSocket and stdio connections
 
@@ -106,6 +107,8 @@ Add the server to your Claude configuration:
 - `delete_workflow` - Delete a workflow
 - `get_executions` - Get workflow execution history
 - `get_execution_data` - Get detailed execution data
+- `get_node_source_code` - Extract source code of any n8n node
+- `list_available_nodes` - List all available n8n nodes
 
 ### Using the n8n MCP Node
 
@@ -194,6 +197,20 @@ Parameters:
 - `active` (boolean, optional): Filter by active status
 - `tags` (array, optional): Filter by tags
 
+#### get_node_source_code
+Extract source code of any n8n node.
+
+Parameters:
+- `nodeType` (string, required): The node type identifier (e.g., `@n8n/n8n-nodes-langchain.Agent`)
+- `includeCredentials` (boolean, optional): Include credential type definitions if available
+
+#### list_available_nodes
+List all available n8n nodes in the system.
+
+Parameters:
+- `category` (string, optional): Filter by category (e.g., AI, Data Transformation)
+- `search` (string, optional): Search term to filter nodes
+
 ### MCP Resources
 
 - `workflow://active` - List of active workflows
@@ -201,6 +218,7 @@ Parameters:
 - `execution://recent` - Recent execution history
 - `credentials://types` - Available credential types
 - `nodes://available` - Available n8n nodes
+- `nodes://source/{nodeType}` - Source code of specific n8n node
 
 ### MCP Prompts
 
@@ -223,6 +241,35 @@ Parameters:
 Enable debug logging:
 ```env
 LOG_LEVEL=debug
+```
+
+## Special Features
+
+### AI Agent Node Extraction
+
+The MCP server can extract source code from n8n nodes, particularly useful for AI Agent nodes:
+
+```bash
+# Test AI Agent extraction
+./scripts/test-ai-agent-extraction.sh
+
+# Or use the standalone test
+node tests/test-mcp-extraction.js
+```
+
+This feature allows AI assistants to:
+- Understand n8n node implementations
+- Generate compatible code
+- Debug workflow issues
+- Create custom variations
+
+### Docker Volumes for Node Access
+
+When running in Docker, mount n8n's node_modules for source extraction:
+
+```yaml
+volumes:
+  - n8n_modules:/usr/local/lib/node_modules/n8n/node_modules:ro
 ```
 
 ## Contributing
