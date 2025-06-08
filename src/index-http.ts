@@ -1,4 +1,12 @@
 #!/usr/bin/env node
+/**
+ * n8n Documentation MCP Server
+ * Copyright (c) 2025 n8n-mcp contributors
+ * 
+ * This software is licensed under the Sustainable Use License.
+ * See the LICENSE file in the root directory of this source tree.
+ */
+
 import dotenv from 'dotenv';
 import { N8NDocumentationRemoteServer } from './mcp/remote-server';
 import { logger } from './utils/logger';

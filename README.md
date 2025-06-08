@@ -300,8 +300,21 @@ n8n-mcp/
 
 ## License
 
-ISC
+This project is licensed under the [Sustainable Use License](LICENSE).
+
+### What does this mean?
+
+- ✅ **Free to use** for internal business purposes
+- ✅ **Free to use** for personal/non-commercial projects  
+- ✅ **Free to modify** for your own use
+- ✅ **Free to share** with others (non-commercially)
+- ❌ **Cannot** host as a service for others
+- ❌ **Cannot** include in commercial products without permission
+
+This is a "fair-code" license similar to n8n's approach. See [LICENSE_FAQ.md](LICENSE_FAQ.md) for more details.
 
 ## Support
 
 For issues and questions, please use the GitHub issue tracker.
+
+For commercial licensing inquiries, please open an issue with the "licensing" tag.
