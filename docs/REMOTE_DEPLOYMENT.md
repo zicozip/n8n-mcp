@@ -2,6 +2,8 @@
 
 This guide explains how to deploy the n8n Documentation MCP Server to a remote VM (such as Hetzner) and connect to it from Claude Desktop.
 
+**Quick Start**: For a streamlined deployment to n8ndocumentation.aiservices.pl, see [DEPLOYMENT_QUICKSTART.md](./DEPLOYMENT_QUICKSTART.md).
+
 ## Overview
 
 The n8n Documentation MCP Server can be deployed as a remote HTTP service, allowing Claude Desktop to access n8n node documentation over the internet. This is useful for:
