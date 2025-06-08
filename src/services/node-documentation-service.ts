@@ -47,7 +47,7 @@ export class NodeDocumentationService {
   private docsFetcher: DocumentationFetcher;
   
   constructor(dbPath?: string) {
-    const databasePath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes.db');
+    const databasePath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes-v2.db');
     
     // Ensure directory exists
     const dbDir = path.dirname(databasePath);
