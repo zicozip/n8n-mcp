@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
+import * as dotenv from 'dotenv';
 import { NodeDocumentationService } from '../services/node-documentation-service';
 import { logger } from '../utils/logger';
+
+// Load environment variables
+dotenv.config();
 
 /**
  * Rebuild the enhanced documentation database

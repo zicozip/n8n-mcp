@@ -15,6 +15,7 @@ RUN npm ci --only=production
 # Copy built files
 COPY dist ./dist
 COPY tests ./tests
+COPY scripts ./scripts
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
