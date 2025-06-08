@@ -44,6 +44,15 @@ npm run build
 npm run db:rebuild:v2
 ```
 
+### Deployment Options
+
+This MCP server can be deployed in two ways:
+
+1. **Local Installation** - Run on your machine and connect Claude Desktop locally
+2. **Remote Deployment** - Deploy to a VM/server and connect Claude Desktop over HTTPS
+
+For remote deployment instructions, see [docs/REMOTE_DEPLOYMENT.md](docs/REMOTE_DEPLOYMENT.md).
+
 ## Installing in Claude Desktop
 
 ### 1. Build the project first
@@ -89,6 +98,30 @@ In Claude, you should see "n8n-nodes" in the MCP connections. Try asking:
 - "Show me how to use the IF node in n8n"
 - "Search for webhook nodes in n8n"
 - "Show me the source code for the HTTP Request node"
+
+### Remote Server Configuration
+
+If you're connecting to a remote server instead of local installation:
+
+```json
+{
+  "mcpServers": {
+    "n8n-nodes-remote": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/client-http",
+        "https://n8ndocumentation.aiservices.pl/mcp"
+      ],
+      "env": {
+        "MCP_AUTH_TOKEN": "your-auth-token-from-server"
+      }
+    }
+  }
+}
+```
+
+Replace `n8ndocumentation.aiservices.pl` with your actual domain and use the auth token configured on your server.
 
 ## Available MCP Tools
 
@@ -193,14 +226,33 @@ The SQLite database is stored at: `data/nodes-v2.db`
 ## Development
 
 ```bash
-# Run in development mode
+# Run in development mode (local stdio)
 npm run dev:v2
+
+# Run HTTP server for remote access
+npm run dev:http
 
 # Run tests
 npm run test:v2
 
 # Type checking
 npm run typecheck
+```
+
+### Running Remote Server
+
+To run the server for remote access:
+
+```bash
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your domain and auth token
+
+# Run in production mode
+npm run start:http
+
+# Or with PM2 for production
+pm2 start dist/index-http.js --name n8n-mcp
 ```
 
 ## Troubleshooting
