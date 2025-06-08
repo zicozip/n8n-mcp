@@ -1,192 +1,210 @@
-# Production Deployment Guide for n8n-MCP
+# Production Deployment Guide
 
-This guide provides instructions for deploying n8n-MCP in a production environment.
+This guide covers deploying the n8n Documentation MCP Server in production environments.
 
-## Prerequisites
+## Overview
 
-- Docker and Docker Compose v2 installed
-- Node.js 18+ installed (for building)
-- At least 2GB of available RAM
-- 1GB of available disk space
+The n8n Documentation MCP Server provides node documentation and source code to AI assistants. It can be deployed:
+- **Locally** - Using stdio transport for Claude Desktop on the same machine
+- **Remotely** - Using HTTP transport for access over the internet
 
-## Quick Start
+For remote deployment with full VM setup instructions, see [REMOTE_DEPLOYMENT.md](./REMOTE_DEPLOYMENT.md).
 
-1. **Clone the repository**
+## Local Production Deployment
+
+### Prerequisites
+
+- Node.js 18+ installed
+- Git installed
+- 500MB available disk space
+
+### Quick Start
+
+1. **Clone and setup**
    ```bash
    git clone https://github.com/yourusername/n8n-mcp.git
    cd n8n-mcp
-   ```
-
-2. **Run the deployment script**
-   ```bash
-   ./scripts/deploy-production.sh
-   ```
-
-   This script will:
-   - Check prerequisites
-   - Create a secure `.env` file with generated passwords
-   - Build the project
-   - Create Docker images
-   - Start all services
-   - Initialize the node database
-
-3. **Access n8n**
-   - URL: `http://localhost:5678`
-   - Use the credentials displayed during deployment
-
-## Manual Deployment
-
-If you prefer manual deployment:
-
-1. **Create .env file**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-2. **Build the project**
-   ```bash
    npm install
    npm run build
    ```
 
-3. **Start services**
+2. **Initialize database**
    ```bash
-   docker compose -f docker-compose.prod.yml up -d
+   npm run db:rebuild:v2
    ```
 
-## Configuration
+3. **Configure Claude Desktop**
+   Edit Claude Desktop config (see README.md for paths):
+   ```json
+   {
+     "mcpServers": {
+       "n8n-nodes": {
+         "command": "node",
+         "args": ["/absolute/path/to/n8n-mcp/dist/index-v2.js"],
+         "env": {
+           "NODE_DB_PATH": "/absolute/path/to/n8n-mcp/data/nodes-v2.db"
+         }
+       }
+     }
+   }
+   ```
 
-### Environment Variables
+## Docker Deployment
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `N8N_BASIC_AUTH_USER` | n8n admin username | admin |
-| `N8N_BASIC_AUTH_PASSWORD` | n8n admin password | (generated) |
-| `N8N_HOST` | n8n hostname | localhost |
-| `N8N_API_KEY` | API key for n8n access | (generated) |
-| `NODE_DB_PATH` | SQLite database path | /app/data/nodes.db |
-| `LOG_LEVEL` | Logging level | info |
+### Using Docker Compose
 
-### Volumes
+1. **Create docker-compose.yml**
+   ```yaml
+   version: '3.8'
+   services:
+     n8n-docs-mcp:
+       build: .
+       volumes:
+         - ./data:/app/data
+       environment:
+         - NODE_ENV=production
+         - NODE_DB_PATH=/app/data/nodes-v2.db
+       command: node dist/index-v2.js
+   ```
 
-The deployment creates persistent volumes:
-- `n8n-data`: n8n workflows and credentials
-- `mcp-data`: MCP node database
-- `n8n-node-modules`: Read-only n8n node modules
+2. **Build and run**
+   ```bash
+   docker-compose up -d
+   ```
 
-## Management
+### Using Dockerfile
 
-Use the management script for common operations:
+```dockerfile
+FROM node:18-alpine
 
-```bash
-# Check service status
-./scripts/manage-production.sh status
+WORKDIR /app
 
-# View logs
-./scripts/manage-production.sh logs
+# Copy package files
+COPY package*.json ./
+RUN npm ci --only=production
 
-# Rebuild node database
-./scripts/manage-production.sh rebuild-db
+# Copy built files
+COPY dist/ ./dist/
+COPY data/ ./data/
 
-# Show database statistics
-./scripts/manage-production.sh db-stats
+# Set environment
+ENV NODE_ENV=production
+ENV NODE_DB_PATH=/app/data/nodes-v2.db
 
-# Create backup
-./scripts/manage-production.sh backup
-
-# Update services
-./scripts/manage-production.sh update
+# Run the server
+CMD ["node", "dist/index-v2.js"]
 ```
 
 ## Database Management
 
-### Initial Database Population
+### Automatic Rebuilds
 
-The database is automatically populated on first startup. To manually rebuild:
+Schedule regular database updates to get latest node documentation:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec n8n-mcp node dist/scripts/rebuild-database.js
+# Add to crontab
+0 2 * * * cd /path/to/n8n-mcp && npm run db:rebuild:v2
 ```
 
-### Database Queries
+### Manual Rebuild
 
-Search for nodes:
 ```bash
-docker compose -f docker-compose.prod.yml exec n8n-mcp sqlite3 /app/data/nodes.db \
-  "SELECT node_type, display_name FROM nodes WHERE name LIKE '%webhook%';"
+npm run db:rebuild:v2
 ```
 
-## Security Considerations
+### Database Location
 
-1. **Change default passwords**: Always change the generated passwords in production
-2. **Use HTTPS**: Configure a reverse proxy (nginx, traefik) for HTTPS
-3. **Firewall**: Restrict access to ports 5678
-4. **API Keys**: Keep API keys secure and rotate regularly
-5. **Backups**: Regular backup of data volumes
+The SQLite database is stored at: `data/nodes-v2.db`
+
+### Backup
+
+```bash
+# Simple backup
+cp data/nodes-v2.db data/nodes-v2.db.backup
+
+# Timestamped backup
+cp data/nodes-v2.db "data/nodes-v2-$(date +%Y%m%d-%H%M%S).db"
+```
 
 ## Monitoring
 
-### Health Checks
+### Database Statistics
 
-Both services include health checks:
-- n8n: `http://localhost:5678/healthz`
-- MCP: Database file existence check
+Check the database status:
+
+```bash
+# Using SQLite directly
+sqlite3 data/nodes-v2.db "SELECT COUNT(*) as total_nodes FROM nodes;"
+
+# Using the MCP tool (in Claude)
+# "Get database statistics for n8n nodes"
+```
 
 ### Logs
 
-View logs for debugging:
+For local deployment:
 ```bash
-# All services
-docker compose -f docker-compose.prod.yml logs -f
-
-# Specific service
-docker compose -f docker-compose.prod.yml logs -f n8n-mcp
+# Run with logging
+NODE_ENV=production node dist/index-v2.js 2>&1 | tee app.log
 ```
+
+## Performance Optimization
+
+### SQLite Optimization
+
+The database uses these optimizations by default:
+- WAL mode for better concurrency
+- Memory-mapped I/O
+- Full-text search indexes
+
+### System Requirements
+
+- **Minimum**: 256MB RAM, 500MB disk
+- **Recommended**: 512MB RAM, 1GB disk
+- **CPU**: Minimal requirements (mostly I/O bound)
+
+## Security
+
+### Local Deployment
+
+- No network exposure (stdio only)
+- File system permissions control access
+- No authentication needed
+
+### Remote Deployment
+
+See [REMOTE_DEPLOYMENT.md](./REMOTE_DEPLOYMENT.md) for:
+- HTTPS configuration
+- Authentication setup
+- Firewall rules
+- Security best practices
 
 ## Troubleshooting
 
 ### Database Issues
 
-If the database is corrupted or needs rebuilding:
+If the database is missing or corrupted:
 ```bash
-# Stop services
-docker compose -f docker-compose.prod.yml stop
-
-# Remove database
-docker compose -f docker-compose.prod.yml exec n8n-mcp rm /app/data/nodes.db
-
-# Start services (database will rebuild)
-docker compose -f docker-compose.prod.yml start
+# Rebuild from scratch
+rm data/nodes-v2.db
+npm run db:rebuild:v2
 ```
 
 ### Memory Issues
 
-If services run out of memory, increase Docker memory limits:
-```yaml
-# In docker-compose.prod.yml
-services:
-  n8n-mcp:
-    deploy:
-      resources:
-        limits:
-          memory: 1G
+If running on limited memory:
+```bash
+# Limit Node.js memory usage
+NODE_OPTIONS="--max-old-space-size=256" node dist/index-v2.js
 ```
 
-### Connection Issues
+### Permission Issues
 
-If n8n can't connect to MCP:
-1. Check both services are running: `docker compose -f docker-compose.prod.yml ps`
-2. Verify network connectivity: `docker compose -f docker-compose.prod.yml exec n8n ping n8n-mcp`
-3. Check MCP logs: `docker compose -f docker-compose.prod.yml logs n8n-mcp`
-
-## Scaling
-
-For high-availability deployments:
-
-1. **Database Replication**: Use external SQLite replication or migrate to PostgreSQL
-2. **Load Balancing**: Deploy multiple MCP instances behind a load balancer
-3. **Caching**: Implement Redis caching for frequently accessed nodes
+Ensure proper file permissions:
+```bash
+chmod 644 data/nodes-v2.db
+chmod 755 data/
+```
 
 ## Updates
 
@@ -196,12 +214,19 @@ To update to the latest version:
 # Pull latest code
 git pull
 
-# Rebuild and restart
-./scripts/manage-production.sh update
+# Install dependencies
+npm install
+
+# Rebuild
+npm run build
+
+# Rebuild database
+npm run db:rebuild:v2
 ```
 
 ## Support
 
 For issues and questions:
-- GitHub Issues: [your-repo-url]/issues
-- Documentation: [your-docs-url]
+- GitHub Issues: https://github.com/yourusername/n8n-mcp/issues
+- Check logs for error messages
+- Verify database integrity

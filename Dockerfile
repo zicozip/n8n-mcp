@@ -29,20 +29,20 @@ RUN chown -R nodejs:nodejs /app
 USER nodejs
 
 # Set environment variable for database location
-ENV NODE_DB_PATH=/app/data/nodes.db
+ENV NODE_DB_PATH=/app/data/nodes-v2.db
 
 # Create a startup script
 RUN printf '#!/bin/sh\n\
-echo "🚀 Starting n8n-MCP server..."\n\
+echo "🚀 Starting n8n Documentation MCP server..."\n\
 \n\
 # Initialize database if it does not exist\n\
 if [ ! -f "$NODE_DB_PATH" ]; then\n\
   echo "📦 Initializing database..."\n\
-  node dist/scripts/rebuild-database.js\n\
+  node dist/scripts/rebuild-database-v2.js\n\
 fi\n\
 \n\
-echo "🎯 Database ready, starting MCP server..."\n\
-exec node dist/index.js\n' > /app/start.sh && chmod +x /app/start.sh
+echo "🎯 Database ready, starting documentation server..."\n\
+exec node dist/index-v2.js\n' > /app/start.sh && chmod +x /app/start.sh
 
 # Expose the MCP server port (if using HTTP transport)
 EXPOSE 3000

@@ -2,6 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] - 2025-01-08
+
+### Added
+- Remote deployment capabilities via HTTP/JSON-RPC transport
+- Domain configuration through environment variables (`MCP_DOMAIN`)
+- Bearer token authentication for remote access
+- Comprehensive remote deployment documentation
+- PM2 and Nginx configuration examples
+- HTTP server mode (`npm run start:http`)
+
+### Enhanced
+- Support for both local (stdio) and remote (HTTP) deployment modes
+- Production deployment guide for VM/cloud environments
+- Claude Desktop configuration for remote servers
+
+## [2.0.0] - 2025-01-08
+
+### Major Refactoring
+- **BREAKING CHANGE**: Refocused project to serve only n8n node documentation
+- Removed all workflow execution and management features
+- Removed bidirectional n8n-MCP integration
+- Simplified to be a read-only documentation server
+
+### Added
+- SQLite database with full-text search (FTS5) for node documentation
+- Integration with n8n-docs repository for official documentation
+- Automatic example workflow generation for each node type
+- Comprehensive node information including:
+  - Source code
+  - Official documentation
+  - Usage examples
+  - Properties schema
+  - Credential definitions
+
+### New MCP Tools
+- `list_nodes` - List available nodes with filtering
+- `get_node_info` - Get complete node information
+- `search_nodes` - Full-text search across nodes
+- `get_node_example` - Get example workflow for a node
+- `get_node_source_code` - Get only source code
+- `get_node_documentation` - Get only documentation
+- `rebuild_database` - Rebuild entire node database
+- `get_database_statistics` - Database statistics
+
+### Infrastructure
+- New database schema optimized for documentation storage
+- `DocumentationFetcher` for n8n-docs repository integration
+- `ExampleGenerator` for creating node usage examples
+- `NodeDocumentationService` for database management
+
 ## [1.1.0] - 2024-01-07
 
 ### Added

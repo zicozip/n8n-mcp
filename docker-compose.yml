@@ -1,53 +1,42 @@
-# Development docker-compose configuration
-# For production deployment, use docker-compose.prod.yml
-# See docs/PRODUCTION_DEPLOYMENT.md for instructions
-
 version: '3.8'
 
 services:
-  n8n-mcp:
+  n8n-docs-mcp:
     build: .
-    container_name: n8n-mcp-server
-    restart: unless-stopped
-    environment:
-      - MCP_SERVER_PORT=${MCP_SERVER_PORT:-3000}
-      - MCP_SERVER_HOST=${MCP_SERVER_HOST:-0.0.0.0}
-      - N8N_API_URL=${N8N_API_URL:-http://n8n:5678}
-      - N8N_API_KEY=${N8N_API_KEY}
-      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-    ports:
-      - "${MCP_SERVER_PORT:-3000}:3000"
-    networks:
-      - n8n-network
-    depends_on:
-      - n8n
-
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: n8n
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-password}
-      - N8N_HOST=${N8N_HOST:-localhost}
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
-      - NODE_ENV=production
-      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
-      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-UTC}
+    container_name: n8n-docs-mcp
     volumes:
-      - n8n_data:/home/node/.n8n
-      - ./n8n-custom-nodes:/home/node/.n8n/custom
-    networks:
-      - n8n-network
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - NODE_DB_PATH=/app/data/nodes-v2.db
+      - MCP_LOG_LEVEL=info
+    ports:
+      - "3000:3000"  # Only needed if using HTTP mode
+    command: node dist/index-v2.js
+    restart: unless-stopped
 
-networks:
-  n8n-network:
-    driver: bridge
+  # HTTP mode (for remote access)
+  n8n-docs-mcp-http:
+    build: .
+    container_name: n8n-docs-mcp-http
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - NODE_DB_PATH=/app/data/nodes-v2.db
+      - MCP_LOG_LEVEL=info
+      - MCP_PORT=3000
+      - MCP_HOST=0.0.0.0
+      - MCP_DOMAIN=${MCP_DOMAIN:-localhost}
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - MCP_CORS=true
+    ports:
+      - "3000:3000"
+    command: node dist/index-http.js
+    restart: unless-stopped
+    profiles:
+      - http
 
-volumes:
-  n8n_data:
+# Usage:
+# Local mode: docker-compose up n8n-docs-mcp
+# HTTP mode: docker-compose --profile http up n8n-docs-mcp-http

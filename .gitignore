@@ -64,4 +64,8 @@ docker-compose.override.yml
 .lock-wscript
 .node_repl_history
 .npmrc
-.yarnrctemp/
+.yarnrc
+
+# Temporary files
+temp/
+tmp/

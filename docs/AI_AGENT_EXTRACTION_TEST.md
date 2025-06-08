@@ -1,22 +1,35 @@
 # AI Agent Node Extraction Test Guide
 
-This document describes how to test the MCP server's ability to extract and provide the AI Agent node source code from n8n.
+This document describes how to test the n8n Documentation MCP Server's ability to extract and provide node source code, including the AI Agent node from n8n.
+
+## Overview
+
+The n8n Documentation MCP Server provides comprehensive node information including:
+- Source code extraction
+- Official documentation
+- Usage examples
+- Node metadata
 
 ## Test Scenario
 
-An MCP client (like an AI assistant) requests the source code for n8n's AI Agent node, and the MCP server successfully extracts and returns it.
+An MCP client (like Claude) requests the source code for n8n's AI Agent node, and the documentation server successfully extracts and returns it.
 
 ## Implementation Overview
 
-### 1. New MCP Tools Added
+### 1. Available MCP Tools
 
 - **`get_node_source_code`**: Extracts source code for any n8n node
-- **`list_available_nodes`**: Lists all available n8n nodes
+- **`get_node_info`**: Gets complete node information including docs and examples
+- **`list_nodes`**: Lists all available n8n nodes
+- **`search_nodes`**: Search nodes by name or content
+- **`get_node_documentation`**: Gets only the documentation for a node
+- **`get_node_example`**: Gets example workflow for a node
 
-### 2. New Components
+### 2. Key Components
 
 - **`NodeSourceExtractor`** (`src/utils/node-source-extractor.ts`): Handles file system access to extract node source code
-- **Resource endpoint**: `nodes://source/{nodeType}` for accessing node code via resources
+- **`NodeDocumentationService`** (`src/services/node-documentation-service.ts`): Manages SQLite database with node information
+- **`DocumentationFetcher`** (`src/utils/documentation-fetcher.ts`): Fetches docs from n8n-docs repository
 
 ### 3. Test Infrastructure
 
