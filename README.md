@@ -27,7 +27,7 @@ This MCP server serves as a comprehensive knowledge base for AI assistants to un
 - Node.js 18+
 - Git (for cloning n8n-docs)
 
-### Setup
+### Quick Start
 
 ```bash
 # Clone the repository
@@ -37,11 +37,17 @@ cd n8n-mcp
 # Install dependencies
 npm install
 
+# Copy environment configuration
+cp .env.example .env
+
 # Build the project
 npm run build
 
 # Initialize and rebuild the database with all nodes
 npm run db:rebuild:v2
+
+# Start the local MCP server (for Claude Desktop)
+npm run start:v2
 ```
 
 ### Deployment Options
