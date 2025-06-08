@@ -16,18 +16,18 @@ import { N8NApiClient } from '../utils/n8n-client';
 import { N8NMCPBridge } from '../utils/bridge';
 import { logger } from '../utils/logger';
 import { NodeSourceExtractor } from '../utils/node-source-extractor';
-import { SQLiteStorageService } from '../services/sqlite-storage-service';
+import { NodeDocumentationService } from '../services/node-documentation-service';
 
 export class N8NMCPServer {
   private server: Server;
   private n8nClient: N8NApiClient;
   private nodeExtractor: NodeSourceExtractor;
-  private nodeStorage: SQLiteStorageService;
+  private nodeDocService: NodeDocumentationService;
 
   constructor(config: MCPServerConfig, n8nConfig: N8NConfig) {
     this.n8nClient = new N8NApiClient(n8nConfig);
     this.nodeExtractor = new NodeSourceExtractor();
-    this.nodeStorage = new SQLiteStorageService();
+    this.nodeDocService = new NodeDocumentationService();
     logger.info('Initializing n8n MCP server', { config, n8nConfig });
     this.server = new Server(
       {
@@ -164,12 +164,14 @@ export class N8NMCPServer {
         return this.getNodeSourceCode(args);
       case 'list_available_nodes':
         return this.listAvailableNodes(args);
-      case 'extract_all_nodes':
-        return this.extractAllNodes(args);
+      case 'get_node_info':
+        return this.getNodeInfo(args);
       case 'search_nodes':
         return this.searchNodes(args);
       case 'get_node_statistics':
         return this.getNodeStatistics(args);
+      case 'rebuild_documentation_database':
+        return this.rebuildDocumentationDatabase(args);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -323,84 +325,87 @@ export class N8NMCPServer {
     }
   }
 
-  private async extractAllNodes(args: any): Promise<any> {
+
+  private async getNodeInfo(args: any): Promise<any> {
     try {
-      logger.info(`Extracting all nodes`, args);
+      logger.info('Getting comprehensive node information', args);
+      const nodeInfo = await this.nodeDocService.getNodeInfo(args.nodeType);
       
-      // Get list of all nodes
-      const allNodes = await this.nodeExtractor.listAvailableNodes();
-      let nodesToExtract = allNodes;
-      
-      // Apply filters
-      if (args.packageFilter) {
-        nodesToExtract = nodesToExtract.filter(node => 
-          node.packageName === args.packageFilter || 
-          node.location?.includes(args.packageFilter)
-        );
+      if (!nodeInfo) {
+        throw new Error(`Node ${args.nodeType} not found`);
       }
-      
-      if (args.limit) {
-        nodesToExtract = nodesToExtract.slice(0, args.limit);
-      }
-      
-      logger.info(`Extracting ${nodesToExtract.length} nodes...`);
-      
-      const extractedNodes = [];
-      const errors = [];
-      
-      for (const node of nodesToExtract) {
-        try {
-          const nodeType = node.packageName ? `${node.packageName}.${node.name}` : node.name;
-          const nodeInfo = await this.nodeExtractor.extractNodeSource(nodeType);
-          await this.nodeStorage.storeNode(nodeInfo);
-          extractedNodes.push(nodeType);
-        } catch (error) {
-          errors.push({
-            node: node.name,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      }
-      
-      const stats = await this.nodeStorage.getStatistics();
-      
+
       return {
-        success: true,
-        extracted: extractedNodes.length,
-        failed: errors.length,
-        totalStored: stats.totalNodes,
-        errors: errors.slice(0, 10), // Limit error list
-        statistics: stats
+        nodeType: nodeInfo.nodeType,
+        name: nodeInfo.name,
+        displayName: nodeInfo.displayName,
+        description: nodeInfo.description,
+        category: nodeInfo.category,
+        subcategory: nodeInfo.subcategory,
+        icon: nodeInfo.icon,
+        documentation: {
+          markdown: nodeInfo.documentationMarkdown,
+          url: nodeInfo.documentationUrl,
+          title: nodeInfo.documentationTitle,
+        },
+        operations: nodeInfo.operations || [],
+        apiMethods: nodeInfo.apiMethods || [],
+        examples: nodeInfo.documentationExamples || [],
+        templates: nodeInfo.templates || [],
+        relatedResources: nodeInfo.relatedResources || [],
+        requiredScopes: nodeInfo.requiredScopes || [],
+        exampleWorkflow: nodeInfo.exampleWorkflow,
+        exampleParameters: nodeInfo.exampleParameters,
+        propertiesSchema: nodeInfo.propertiesSchema,
+        metadata: {
+          packageName: nodeInfo.packageName,
+          version: nodeInfo.version,
+          hasCredentials: nodeInfo.hasCredentials,
+          isTrigger: nodeInfo.isTrigger,
+          isWebhook: nodeInfo.isWebhook,
+          aliases: nodeInfo.aliases,
+        },
+        sourceCode: {
+          node: nodeInfo.sourceCode,
+          credential: nodeInfo.credentialCode,
+        },
       };
     } catch (error) {
-      logger.error(`Failed to extract all nodes`, error);
-      throw new Error(`Failed to extract all nodes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      logger.error(`Failed to get node info`, error);
+      throw new Error(`Failed to get node info: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   private async searchNodes(args: any): Promise<any> {
     try {
-      logger.info(`Searching nodes`, args);
-      
-      const results = await this.nodeStorage.searchNodes({
+      logger.info('Searching nodes with enhanced filtering', args);
+      const results = await this.nodeDocService.searchNodes({
         query: args.query,
+        category: args.category,
         packageName: args.packageName,
         hasCredentials: args.hasCredentials,
-        limit: args.limit || 20
+        isTrigger: args.isTrigger,
+        limit: args.limit || 20,
       });
-      
+
       return {
         nodes: results.map(node => ({
           nodeType: node.nodeType,
           name: node.name,
-          packageName: node.packageName,
           displayName: node.displayName,
           description: node.description,
-          codeLength: node.codeLength,
-          hasCredentials: node.hasCredentials,
-          location: node.sourceLocation
+          category: node.category,
+          packageName: node.packageName,
+          hasDocumentation: !!node.documentationMarkdown,
+          hasExamples: !!(node.documentationExamples && node.documentationExamples.length > 0),
+          operationCount: node.operations?.length || 0,
+          metadata: {
+            hasCredentials: node.hasCredentials,
+            isTrigger: node.isTrigger,
+            isWebhook: node.isWebhook,
+          },
         })),
-        total: results.length
+        total: results.length,
       };
     } catch (error) {
       logger.error(`Failed to search nodes`, error);
@@ -411,18 +416,34 @@ export class N8NMCPServer {
   private async getNodeStatistics(args: any): Promise<any> {
     try {
       logger.info(`Getting node statistics`);
-      const stats = await this.nodeStorage.getStatistics();
+      const stats = this.nodeDocService.getStatistics();
       
       return {
         ...stats,
-        formattedTotalSize: `${(stats.totalCodeSize / 1024 / 1024).toFixed(2)} MB`,
-        formattedAverageSize: `${(stats.averageNodeSize / 1024).toFixed(2)} KB`
+        formattedTotalSize: stats.totalCodeSize ? `${(stats.totalCodeSize / 1024 / 1024).toFixed(2)} MB` : '0 MB',
       };
     } catch (error) {
       logger.error(`Failed to get node statistics`, error);
       throw new Error(`Failed to get node statistics: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  private async rebuildDocumentationDatabase(args: any): Promise<any> {
+    try {
+      logger.info('Rebuilding documentation database', args);
+      const stats = await this.nodeDocService.rebuildDatabase();
+      
+      return {
+        success: true,
+        message: 'Documentation database rebuilt successfully',
+        statistics: stats,
+      };
+    } catch (error) {
+      logger.error(`Failed to rebuild documentation database`, error);
+      throw new Error(`Failed to rebuild documentation database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
 
   async start(): Promise<void> {
     try {

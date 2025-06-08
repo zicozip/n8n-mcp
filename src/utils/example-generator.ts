@@ -1,267 +1,140 @@
-import { logger } from './logger';
-
-interface NodeExample {
-  nodes: any[];
-  connections: any;
-  pinData?: any;
-  meta?: any;
-}
-
-interface NodeParameter {
-  name: string;
-  type: string;
-  default?: any;
-  options?: any[];
-  displayOptions?: any;
-}
-
+/**
+ * Generates example workflows and parameters for n8n nodes
+ */
 export class ExampleGenerator {
   /**
-   * Generate example workflow for a node
+   * Generate an example workflow from node definition
    */
-  static generateNodeExample(nodeType: string, nodeData: any): NodeExample {
-    const nodeName = this.getNodeName(nodeType);
-    const nodeId = this.generateNodeId();
+  static generateFromNodeDefinition(nodeDefinition: any): any {
+    const nodeName = nodeDefinition.displayName || 'Example Node';
+    const nodeType = nodeDefinition.name || 'n8n-nodes-base.exampleNode';
     
-    // Base example structure
-    const example: NodeExample = {
-      nodes: [{
-        parameters: this.generateExampleParameters(nodeType, nodeData),
-        type: nodeType,
-        typeVersion: nodeData.typeVersion || 1,
-        position: [220, 120],
-        id: nodeId,
-        name: nodeName
-      }],
-      connections: {
-        [nodeName]: {
-          main: [[]]
-        }
-      },
-      pinData: {},
-      meta: {
-        templateCredsSetupCompleted: true,
-        instanceId: this.generateInstanceId()
-      }
+    return {
+      name: `${nodeName} Example Workflow`,
+      nodes: [
+        {
+          parameters: this.generateExampleParameters(nodeDefinition),
+          id: this.generateNodeId(),
+          name: nodeName,
+          type: nodeType,
+          typeVersion: nodeDefinition.version || 1,
+          position: [250, 300],
+        },
+      ],
+      connections: {},
+      active: false,
+      settings: {},
+      tags: ['example', 'generated'],
     };
-
-    // Add specific configurations based on node type
-    this.addNodeSpecificConfig(nodeType, example, nodeData);
-
-    return example;
   }
 
   /**
-   * Generate example parameters based on node type
+   * Generate example parameters based on node properties
    */
-  private static generateExampleParameters(nodeType: string, nodeData: any): any {
+  static generateExampleParameters(nodeDefinition: any): any {
     const params: any = {};
     
-    // Extract node name for specific handling
-    const nodeName = nodeType.split('.').pop()?.toLowerCase() || '';
-
-    // Common node examples
-    switch (nodeName) {
-      case 'if':
-        return {
-          conditions: {
-            options: {
-              caseSensitive: true,
-              leftValue: "",
-              typeValidation: "strict",
-              version: 2
-            },
-            conditions: [{
-              id: this.generateNodeId(),
-              leftValue: "={{ $json }}",
-              rightValue: "",
-              operator: {
-                type: "object",
-                operation: "notEmpty",
-                singleValue: true
-              }
-            }],
-            combinator: "and"
-          },
-          options: {}
-        };
-        
-      case 'webhook':
-        return {
-          httpMethod: "POST",
-          path: "webhook-path",
-          responseMode: "onReceived",
-          responseData: "allEntries",
-          options: {}
-        };
-        
-      case 'httprequest':
-        return {
-          method: "GET",
-          url: "https://api.example.com/data",
-          authentication: "none",
-          options: {},
-          headerParametersUi: {
-            parameter: []
-          }
-        };
-        
-      case 'function':
-        return {
-          functionCode: "// Add your JavaScript code here\nreturn $input.all();"
-        };
-        
-      case 'set':
-        return {
-          mode: "manual",
-          duplicateItem: false,
-          values: {
-            string: [{
-              name: "myField",
-              value: "myValue"
-            }]
-          }
-        };
-        
-      case 'split':
-        return {
-          batchSize: 10,
-          options: {}
-        };
-        
-      default:
-        // Generate generic parameters from node properties
-        return this.generateGenericParameters(nodeData);
-    }
-  }
-
-  /**
-   * Generate generic parameters from node properties
-   */
-  private static generateGenericParameters(nodeData: any): any {
-    const params: any = {};
-    
-    if (nodeData.properties) {
-      for (const prop of nodeData.properties) {
-        if (prop.default !== undefined) {
-          params[prop.name] = prop.default;
-        } else if (prop.type === 'string') {
-          params[prop.name] = '';
-        } else if (prop.type === 'number') {
-          params[prop.name] = 0;
-        } else if (prop.type === 'boolean') {
-          params[prop.name] = false;
-        } else if (prop.type === 'options' && prop.options?.length > 0) {
-          params[prop.name] = prop.options[0].value;
+    // If properties are available, generate examples based on them
+    if (Array.isArray(nodeDefinition.properties)) {
+      for (const prop of nodeDefinition.properties) {
+        if (prop.name && prop.type) {
+          params[prop.name] = this.generateExampleValue(prop);
         }
       }
+    }
+    
+    // Add common parameters based on node type
+    if (nodeDefinition.displayName?.toLowerCase().includes('trigger')) {
+      params.pollTimes = {
+        item: [
+          {
+            mode: 'everyMinute',
+          },
+        ],
+      };
     }
     
     return params;
   }
 
   /**
-   * Add node-specific configurations
+   * Generate example value based on property definition
    */
-  private static addNodeSpecificConfig(nodeType: string, example: NodeExample, nodeData: any): void {
-    const nodeName = nodeType.split('.').pop()?.toLowerCase() || '';
-    
-    // Add specific connection structures for different node types
-    switch (nodeName) {
-      case 'if':
-        // IF node has true/false outputs
-        example.connections[example.nodes[0].name] = {
-          main: [[], []] // Two outputs: true, false
-        };
-        break;
+  private static generateExampleValue(property: any): any {
+    switch (property.type) {
+      case 'string':
+        if (property.name.toLowerCase().includes('url')) {
+          return 'https://example.com';
+        }
+        if (property.name.toLowerCase().includes('email')) {
+          return 'user@example.com';
+        }
+        if (property.name.toLowerCase().includes('name')) {
+          return 'Example Name';
+        }
+        return property.default || 'example-value';
         
-      case 'switch':
-        // Switch node can have multiple outputs
-        const outputs = nodeData.outputs || 3;
-        example.connections[example.nodes[0].name] = {
-          main: Array(outputs).fill([])
-        };
-        break;
+      case 'number':
+        return property.default || 10;
         
-      case 'merge':
-        // Merge node has multiple inputs
-        example.nodes[0].position = [400, 120];
-        // Add dummy input nodes
-        example.nodes.push({
-          parameters: {},
-          type: "n8n-nodes-base.noOp",
-          typeVersion: 1,
-          position: [200, 60],
-          id: this.generateNodeId(),
-          name: "Input 1"
-        });
-        example.nodes.push({
-          parameters: {},
-          type: "n8n-nodes-base.noOp",
-          typeVersion: 1,
-          position: [200, 180],
-          id: this.generateNodeId(),
-          name: "Input 2"
-        });
-        example.connections = {
-          "Input 1": { main: [[{ node: example.nodes[0].name, type: "main", index: 0 }]] },
-          "Input 2": { main: [[{ node: example.nodes[0].name, type: "main", index: 1 }]] },
-          [example.nodes[0].name]: { main: [[]] }
-        };
-        break;
-    }
-    
-    // Add credentials if needed
-    if (nodeData.credentials?.length > 0) {
-      example.nodes[0].credentials = {};
-      for (const cred of nodeData.credentials) {
-        example.nodes[0].credentials[cred.name] = {
-          id: this.generateNodeId(),
-          name: `${cred.name} account`
-        };
-      }
+      case 'boolean':
+        return property.default !== undefined ? property.default : true;
+        
+      case 'options':
+        if (property.options && property.options.length > 0) {
+          return property.options[0].value;
+        }
+        return property.default || '';
+        
+      case 'collection':
+      case 'fixedCollection':
+        return {};
+        
+      default:
+        return property.default || null;
     }
   }
 
   /**
-   * Extract display name from node type
-   */
-  private static getNodeName(nodeType: string): string {
-    const parts = nodeType.split('.');
-    const name = parts[parts.length - 1];
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  }
-
-  /**
-   * Generate a random node ID
+   * Generate a unique node ID
    */
   private static generateNodeId(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+    return Math.random().toString(36).substring(2, 15) + 
+           Math.random().toString(36).substring(2, 15);
   }
 
   /**
-   * Generate instance ID
+   * Generate example based on node operations
    */
-  private static generateInstanceId(): string {
-    return Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('');
-  }
-
-  /**
-   * Generate example from node definition
-   */
-  static generateFromNodeDefinition(nodeDefinition: any): NodeExample {
-    const nodeType = nodeDefinition.description?.name || 'n8n-nodes-base.node';
-    const nodeData = {
-      typeVersion: nodeDefinition.description?.version || 1,
-      properties: nodeDefinition.description?.properties || [],
-      credentials: nodeDefinition.description?.credentials || [],
-      outputs: nodeDefinition.description?.outputs || ['main']
-    };
+  static generateFromOperations(operations: any[]): any {
+    const examples: any[] = [];
     
-    return this.generateNodeExample(nodeType, nodeData);
+    if (!operations || operations.length === 0) {
+      return examples;
+    }
+    
+    // Group operations by resource
+    const resourceMap = new Map<string, any[]>();
+    for (const op of operations) {
+      if (!resourceMap.has(op.resource)) {
+        resourceMap.set(op.resource, []);
+      }
+      resourceMap.get(op.resource)!.push(op);
+    }
+    
+    // Generate example for each resource
+    for (const [resource, ops] of resourceMap) {
+      examples.push({
+        resource,
+        operation: ops[0].operation,
+        description: `Example: ${ops[0].description}`,
+        parameters: {
+          resource,
+          operation: ops[0].operation,
+        },
+      });
+    }
+    
+    return examples;
   }
 }

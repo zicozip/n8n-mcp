@@ -4,7 +4,15 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { logger } from '../utils/logger';
 import { NodeSourceExtractor } from '../utils/node-source-extractor';
-import { DocumentationFetcher } from '../utils/documentation-fetcher';
+import { 
+  EnhancedDocumentationFetcher,
+  EnhancedNodeDocumentation,
+  OperationInfo,
+  ApiMethodMapping,
+  CodeExample,
+  TemplateInfo,
+  RelatedResource
+} from '../utils/enhanced-documentation-fetcher';
 import { ExampleGenerator } from '../utils/example-generator';
 
 interface NodeInfo {
@@ -17,8 +25,15 @@ interface NodeInfo {
   icon?: string;
   sourceCode: string;
   credentialCode?: string;
-  documentation?: string;
+  documentationMarkdown?: string;
   documentationUrl?: string;
+  documentationTitle?: string;
+  operations?: OperationInfo[];
+  apiMethods?: ApiMethodMapping[];
+  documentationExamples?: CodeExample[];
+  templates?: TemplateInfo[];
+  relatedResources?: RelatedResource[];
+  requiredScopes?: string[];
   exampleWorkflow?: any;
   exampleParameters?: any;
   propertiesSchema?: any;
@@ -44,7 +59,7 @@ interface SearchOptions {
 export class NodeDocumentationService {
   private db: Database.Database;
   private extractor: NodeSourceExtractor;
-  private docsFetcher: DocumentationFetcher;
+  private docsFetcher: EnhancedDocumentationFetcher;
   
   constructor(dbPath?: string) {
     const databasePath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes-v2.db');
@@ -57,7 +72,7 @@ export class NodeDocumentationService {
     
     this.db = new Database(databasePath);
     this.extractor = new NodeSourceExtractor();
-    this.docsFetcher = new DocumentationFetcher();
+    this.docsFetcher = new EnhancedDocumentationFetcher();
     
     // Initialize database with new schema
     this.initializeDatabase();
@@ -88,6 +103,15 @@ CREATE TABLE IF NOT EXISTS nodes (
   -- Documentation
   documentation_markdown TEXT,
   documentation_url TEXT,
+  documentation_title TEXT,
+  
+  -- Enhanced documentation fields (stored as JSON)
+  operations TEXT,
+  api_methods TEXT,
+  documentation_examples TEXT,
+  templates TEXT,
+  related_resources TEXT,
+  required_scopes TEXT,
   
   -- Example usage
   example_workflow TEXT,
@@ -182,14 +206,16 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
       INSERT OR REPLACE INTO nodes (
         node_type, name, display_name, description, category, subcategory, icon,
         source_code, credential_code, code_hash, code_length,
-        documentation_markdown, documentation_url,
+        documentation_markdown, documentation_url, documentation_title,
+        operations, api_methods, documentation_examples, templates, related_resources, required_scopes,
         example_workflow, example_parameters, properties_schema,
         package_name, version, codex_data, aliases,
         has_credentials, is_trigger, is_webhook
       ) VALUES (
         @nodeType, @name, @displayName, @description, @category, @subcategory, @icon,
         @sourceCode, @credentialCode, @hash, @codeLength,
-        @documentation, @documentationUrl,
+        @documentation, @documentationUrl, @documentationTitle,
+        @operations, @apiMethods, @documentationExamples, @templates, @relatedResources, @requiredScopes,
         @exampleWorkflow, @exampleParameters, @propertiesSchema,
         @packageName, @version, @codexData, @aliases,
         @hasCredentials, @isTrigger, @isWebhook
@@ -208,8 +234,15 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
       credentialCode: nodeInfo.credentialCode || null,
       hash,
       codeLength: nodeInfo.sourceCode.length,
-      documentation: nodeInfo.documentation || null,
+      documentation: nodeInfo.documentationMarkdown || null,
       documentationUrl: nodeInfo.documentationUrl || null,
+      documentationTitle: nodeInfo.documentationTitle || null,
+      operations: nodeInfo.operations ? JSON.stringify(nodeInfo.operations) : null,
+      apiMethods: nodeInfo.apiMethods ? JSON.stringify(nodeInfo.apiMethods) : null,
+      documentationExamples: nodeInfo.documentationExamples ? JSON.stringify(nodeInfo.documentationExamples) : null,
+      templates: nodeInfo.templates ? JSON.stringify(nodeInfo.templates) : null,
+      relatedResources: nodeInfo.relatedResources ? JSON.stringify(nodeInfo.relatedResources) : null,
+      requiredScopes: nodeInfo.requiredScopes ? JSON.stringify(nodeInfo.requiredScopes) : null,
       exampleWorkflow: nodeInfo.exampleWorkflow ? JSON.stringify(nodeInfo.exampleWorkflow) : null,
       exampleParameters: nodeInfo.exampleParameters ? JSON.stringify(nodeInfo.exampleParameters) : null,
       propertiesSchema: nodeInfo.propertiesSchema ? JSON.stringify(nodeInfo.propertiesSchema) : null,
@@ -346,13 +379,13 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
             // Parse node definition to get metadata
             const nodeDefinition = this.parseNodeDefinition(nodeData.sourceCode);
             
-            // Get documentation
-            const docs = await this.docsFetcher.getNodeDocumentation(nodeType);
+            // Get enhanced documentation
+            const enhancedDocs = await this.docsFetcher.getEnhancedNodeDocumentation(nodeType);
             
             // Generate example
             const example = ExampleGenerator.generateFromNodeDefinition(nodeDefinition);
             
-            // Prepare node info
+            // Prepare node info with enhanced documentation
             const nodeInfo: NodeInfo = {
               nodeType: nodeType,
               name: node.name,
@@ -363,8 +396,15 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
               icon: nodeDefinition.icon,
               sourceCode: nodeData.sourceCode,
               credentialCode: nodeData.credentialCode,
-              documentation: docs?.markdown,
-              documentationUrl: docs?.url,
+              documentationMarkdown: enhancedDocs?.markdown,
+              documentationUrl: enhancedDocs?.url,
+              documentationTitle: enhancedDocs?.title,
+              operations: enhancedDocs?.operations,
+              apiMethods: enhancedDocs?.apiMethods,
+              documentationExamples: enhancedDocs?.examples,
+              templates: enhancedDocs?.templates,
+              relatedResources: enhancedDocs?.relatedResources,
+              requiredScopes: enhancedDocs?.requiredScopes,
               exampleWorkflow: example,
               exampleParameters: example.nodes[0]?.parameters,
               propertiesSchema: nodeDefinition.properties,
@@ -410,28 +450,88 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
    * Parse node definition from source code
    */
   private parseNodeDefinition(sourceCode: string): any {
-    try {
-      // Try to extract the description object from the source
-      const descMatch = sourceCode.match(/description\s*[:=]\s*({[\s\S]*?})\s*[,;]/);
-      if (descMatch) {
-        // Clean up the match and try to parse it
-        const descStr = descMatch[1]
-          .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?\s*:/g, '"$2":') // Quote property names
-          .replace(/:\s*'([^']*)'/g, ': "$1"') // Convert single quotes to double
-          .replace(/,\s*}/g, '}'); // Remove trailing commas
-        
-        return JSON.parse(descStr);
-      }
-    } catch (error) {
-      logger.debug('Failed to parse node definition:', error);
-    }
-    
-    // Return minimal definition if parsing fails
-    return {
+    const result: any = {
       displayName: '',
       description: '',
-      properties: []
+      properties: [],
+      category: null,
+      subcategory: null,
+      icon: null,
+      version: null,
+      codex: null,
+      alias: null
     };
+    
+    try {
+      // Extract individual properties using specific patterns
+      
+      // Display name
+      const displayNameMatch = sourceCode.match(/displayName\s*[:=]\s*['"`]([^'"`]+)['"`]/);
+      if (displayNameMatch) {
+        result.displayName = displayNameMatch[1];
+      }
+      
+      // Description
+      const descriptionMatch = sourceCode.match(/description\s*[:=]\s*['"`]([^'"`]+)['"`]/);
+      if (descriptionMatch) {
+        result.description = descriptionMatch[1];
+      }
+      
+      // Icon
+      const iconMatch = sourceCode.match(/icon\s*[:=]\s*['"`]([^'"`]+)['"`]/);
+      if (iconMatch) {
+        result.icon = iconMatch[1];
+      }
+      
+      // Category/group
+      const groupMatch = sourceCode.match(/group\s*[:=]\s*\[['"`]([^'"`]+)['"`]\]/);
+      if (groupMatch) {
+        result.category = groupMatch[1];
+      }
+      
+      // Version
+      const versionMatch = sourceCode.match(/version\s*[:=]\s*(\d+)/);
+      if (versionMatch) {
+        result.version = parseInt(versionMatch[1]);
+      }
+      
+      // Subtitle
+      const subtitleMatch = sourceCode.match(/subtitle\s*[:=]\s*['"`]([^'"`]+)['"`]/);
+      if (subtitleMatch) {
+        result.subtitle = subtitleMatch[1];
+      }
+      
+      // Try to extract properties array
+      const propsMatch = sourceCode.match(/properties\s*[:=]\s*(\[[\s\S]*?\])\s*[,}]/);
+      if (propsMatch) {
+        try {
+          // This is complex to parse from minified code, so we'll skip for now
+          result.properties = [];
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+      
+      // Check if it's a trigger node
+      if (sourceCode.includes('implements.*ITrigger') || 
+          sourceCode.includes('polling:.*true') ||
+          sourceCode.includes('webhook:.*true') ||
+          result.displayName.toLowerCase().includes('trigger')) {
+        result.isTrigger = true;
+      }
+      
+      // Check if it's a webhook node
+      if (sourceCode.includes('webhooks:') || 
+          sourceCode.includes('webhook:.*true') ||
+          result.displayName.toLowerCase().includes('webhook')) {
+        result.isWebhook = true;
+      }
+      
+    } catch (error) {
+      logger.debug('Error parsing node definition:', error);
+    }
+    
+    return result;
   }
 
   /**
@@ -448,8 +548,15 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
       icon: row.icon,
       sourceCode: row.source_code,
       credentialCode: row.credential_code,
-      documentation: row.documentation_markdown,
+      documentationMarkdown: row.documentation_markdown,
       documentationUrl: row.documentation_url,
+      documentationTitle: row.documentation_title,
+      operations: row.operations ? JSON.parse(row.operations) : null,
+      apiMethods: row.api_methods ? JSON.parse(row.api_methods) : null,
+      documentationExamples: row.documentation_examples ? JSON.parse(row.documentation_examples) : null,
+      templates: row.templates ? JSON.parse(row.templates) : null,
+      relatedResources: row.related_resources ? JSON.parse(row.related_resources) : null,
+      requiredScopes: row.required_scopes ? JSON.parse(row.required_scopes) : null,
       exampleWorkflow: row.example_workflow ? JSON.parse(row.example_workflow) : null,
       exampleParameters: row.example_parameters ? JSON.parse(row.example_parameters) : null,
       propertiesSchema: row.properties_schema ? JSON.parse(row.properties_schema) : null,

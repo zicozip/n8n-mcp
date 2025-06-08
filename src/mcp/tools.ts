@@ -182,31 +182,40 @@ export const n8nTools: ToolDefinition[] = [
     },
   },
   {
-    name: 'extract_all_nodes',
-    description: 'Extract and store all available n8n nodes in the database',
+    name: 'get_node_statistics',
+    description: 'Get statistics about stored n8n nodes',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'get_node_info',
+    description: 'Get comprehensive information about a specific n8n node including documentation, operations, API methods, and examples',
     inputSchema: {
       type: 'object',
       properties: {
-        packageFilter: {
+        nodeType: {
           type: 'string',
-          description: 'Optional package name to filter extraction',
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of nodes to extract',
+          description: 'The node type identifier (e.g., n8n-nodes-base.slack)',
         },
       },
+      required: ['nodeType'],
     },
   },
   {
     name: 'search_nodes',
-    description: 'Search for n8n nodes by name, package, or functionality',
+    description: 'Search n8n nodes with full-text search and advanced filtering',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Search query',
+          description: 'Search query for full-text search',
+        },
+        category: {
+          type: 'string',
+          description: 'Filter by node category',
         },
         packageName: {
           type: 'string',
@@ -214,7 +223,11 @@ export const n8nTools: ToolDefinition[] = [
         },
         hasCredentials: {
           type: 'boolean',
-          description: 'Filter nodes that have credentials',
+          description: 'Filter nodes that require credentials',
+        },
+        isTrigger: {
+          type: 'boolean',
+          description: 'Filter trigger nodes only',
         },
         limit: {
           type: 'number',
@@ -225,11 +238,16 @@ export const n8nTools: ToolDefinition[] = [
     },
   },
   {
-    name: 'get_node_statistics',
-    description: 'Get statistics about stored n8n nodes',
+    name: 'rebuild_documentation_database',
+    description: 'Rebuild the node documentation database with the latest information',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        packageFilter: {
+          type: 'string',
+          description: 'Optional: Only rebuild nodes from specific package',
+        },
+      },
     },
   },
 ];
