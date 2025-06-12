@@ -4,146 +4,180 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the n8n-mcp repository, a complete integration between n8n (workflow automation tool) and MCP (Model Context Protocol). The project enables bidirectional communication between n8n workflows and AI assistants through MCP.
+n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## Current State
+## 🚧 ACTIVE REFACTOR IN PROGRESS
 
-The repository contains a fully implemented integration with:
+**We are currently implementing a major refactor based on IMPLEMENTATION_PLAN.md v2.1 Final**
 
-### Core Components
-- **MCP Server** (`src/mcp/server.ts`): Exposes n8n workflows and operations as MCP tools
-- **n8n Custom Node** (`src/n8n/MCPNode.node.ts`): Allows n8n workflows to connect to MCP servers
-- **Bridge Layer** (`src/utils/bridge.ts`): Converts between n8n and MCP data formats
-- **Node Source Extractor** (`src/utils/node-source-extractor.ts`): Extracts n8n node source code
+### Refactor Goals:
+- Fix documentation mapping issues (HTTP Request, Code, Webhook nodes)
+- Add support for @n8n/n8n-nodes-langchain package
+- Simplify architecture to align with n8n's LoadNodesAndCredentials patterns
+- Implement proper VersionedNodeType handling
+- Add AI tool detection (usableAsTool flag)
 
-### Available MCP Tools
-- `execute_workflow` - Execute an n8n workflow by ID
-- `list_workflows` - List all available workflows
-- `get_workflow` - Get workflow details
-- `create_workflow` - Create new workflows
-- `update_workflow` - Update existing workflows
-- `delete_workflow` - Delete workflows
-- `get_executions` - Get workflow execution history
-- `get_execution_data` - Get detailed execution data
-- **`get_node_source_code`** - Extract source code of any n8n node (including AI Agent)
-- **`list_available_nodes`** - List all available n8n nodes
+### New Architecture (In Progress):
+```
+src/
+├── loaders/
+│   └── node-loader.ts         # Simple npm package loader
+├── parsers/
+│   └── simple-parser.ts       # Single parser for all nodes
+├── mappers/
+│   └── docs-mapper.ts         # Deterministic documentation mapping
+├── scripts/
+│   ├── rebuild.ts             # One-command rebuild
+│   └── validate.ts            # Validation script
+└── mcp/
+    └── server.ts              # Enhanced MCP server
+```
 
-### Infrastructure
-- TypeScript/Node.js project with full build system
-- Docker support with multiple compose configurations
-- Comprehensive test suite with 100% passing tests
-- Authentication and error handling systems
+### Timeline:
+- Week 1: Core implementation (loaders, parsers, mappers)
+- Week 2: Testing, validation, and MCP updates
 
-## Development Notes
+See IMPLEMENTATION_PLAN.md for complete details.
 
-### Building and Testing
+## Key Commands
+
 ```bash
-npm install        # Install dependencies
-npm run build      # Build TypeScript
-npm test          # Run tests
-npm run dev       # Development mode
+# Development
+npm install          # Install dependencies
+npm run build        # Build TypeScript (required before running)
+npm run dev          # Run in development mode with auto-reload
+npm test             # Run Jest tests
+npm run typecheck    # TypeScript type checking
+npm run lint         # Check TypeScript types (alias for typecheck)
+
+# NEW Commands (After Refactor):
+npm run rebuild      # Rebuild node database with new architecture
+npm run validate     # Validate critical nodes (HTTP Request, Code, Slack, AI Agent)
+
+# Database Management (Current - being replaced)
+npm run db:rebuild   # Rebuild the node database (run after build)
+npm run db:init      # Initialize empty database
+npm run docs:rebuild # Rebuild documentation from TypeScript source
+
+# Production
+npm start            # Run built application
 ```
 
-### Testing AI Agent Extraction
-The project includes special functionality to extract n8n node source code:
+## High-Level Architecture
+
+The project implements MCP (Model Context Protocol) to expose n8n node documentation, source code, and examples to AI assistants. Key architectural components:
+
+### Core Services
+- **NodeDocumentationService** (`src/services/node-documentation-service.ts`): Main database service using SQLite with FTS5 for fast searching
+- **MCP Server** (`src/mcp/server.ts`): Implements MCP protocol with tools for querying n8n nodes
+- **Node Source Extractor** (`src/utils/node-source-extractor.ts`): Extracts node implementations from n8n packages
+- **Enhanced Documentation Fetcher** (`src/utils/enhanced-documentation-fetcher.ts`): Fetches and parses official n8n documentation
+
+### MCP Tools Available
+- `list_nodes` - List all available n8n nodes with filtering
+- `get_node_info` - Get comprehensive information about a specific node
+- `search_nodes` - Full-text search across all node documentation
+- `get_node_example` - Generate example workflows for nodes
+- `get_node_source_code` - Extract complete node source code
+- `get_node_documentation` - Get parsed documentation from n8n-docs
+- `rebuild_database` - Rebuild the entire node database
+- `get_database_statistics` - Get database usage statistics
+
+### Database Structure
+Uses SQLite with enhanced schema:
+- **nodes** table: Core node information with FTS5 indexing
+- **node_documentation**: Parsed markdown documentation
+- **node_examples**: Generated workflow examples
+- **node_source_code**: Complete TypeScript/JavaScript implementations
+
+## Important Development Notes
+
+### Initial Setup Requirements
+
+#### Current Setup:
+1. **Build First**: Always run `npm run build` before any other commands
+2. **Database Initialization**: Run `npm run db:rebuild` after building to populate the node database
+3. **Documentation Fetching**: The rebuild process clones n8n-docs repository temporarily
+
+#### New Setup (After Refactor):
+1. **Clone n8n-docs**: `git clone https://github.com/n8n-io/n8n-docs.git ../n8n-docs`
+2. **Build**: `npm run build`
+3. **Rebuild Database**: `npm run rebuild`
+4. **Validate**: `npm run validate`
+
+### Current Implementation Status
+The existing implementation has several gaps that the active refactor addresses:
+- ✅ Documentation mapping issues → Being fixed with KNOWN_FIXES mapping
+- ✅ Limited to n8n-nodes-base → Adding @n8n/n8n-nodes-langchain support
+- ⏳ Incomplete property schemas → Keeping n8n's structure as-is (MVP approach)
+- ⏳ No version tracking → Only tracking current version (deferred post-MVP)
+- ⏳ Generic examples → Using actual n8n-docs examples (deferred enhancement)
+
+### Testing Workflow
 ```bash
-# Run the AI Agent extraction test
-./scripts/test-ai-agent-extraction.sh
-
-# Or test with standalone script
-node tests/test-mcp-extraction.js
+npm run build        # Always build first
+npm test             # Run all tests
+npm run typecheck    # Verify TypeScript types
 ```
 
-### Docker Operations
+### Docker Development
 ```bash
-# Development environment
-docker-compose -f docker-compose.dev.yml up
+# Local development with stdio
+docker-compose -f docker-compose.local.yml up
 
-# Test environment with AI node extraction
-docker-compose -f docker-compose.test.yml up
-
-# Production deployment
-docker-compose up
+# HTTP server mode
+docker-compose -f docker-compose.http.yml up
 ```
 
-## Repository Structure
-
+### Authentication (HTTP mode)
+When running in HTTP mode, use Bearer token authentication:
 ```
-n8n-mcp/
-├── src/
-│   ├── mcp/          # MCP server implementation
-│   │   ├── server.ts
-│   │   ├── tools.ts
-│   │   ├── resources.ts
-│   │   └── prompts.ts
-│   ├── n8n/          # n8n node implementation
-│   │   ├── MCPNode.node.ts
-│   │   └── MCPApi.credentials.ts
-│   ├── utils/        # Shared utilities
-│   │   ├── bridge.ts
-│   │   ├── n8n-client.ts
-│   │   ├── mcp-client.ts
-│   │   ├── node-source-extractor.ts
-│   │   ├── auth.ts
-│   │   ├── logger.ts
-│   │   └── error-handler.ts
-│   └── types/        # TypeScript definitions
-├── tests/            # Test files
-├── scripts/          # Utility scripts
-└── docs/             # Documentation
+Authorization: Bearer your-auth-token
 ```
 
-## Key Features Implemented
+## Architecture Patterns
 
-1. **Bidirectional Integration**
-   - n8n workflows can call MCP tools
-   - MCP servers can execute n8n workflows
+### Service Layer Pattern
+All major functionality is implemented as services in `src/services/`. When adding new features:
+1. Create a service class with clear responsibilities
+2. Use dependency injection where appropriate
+3. Implement proper error handling with custom error types
+4. Add comprehensive logging using the logger utility
 
-2. **Node Source Extraction**
-   - Extract source code of any n8n node
-   - Special support for AI Agent node from @n8n/n8n-nodes-langchain
-   - Includes credential definitions and package metadata
+### MCP Tool Implementation
+When adding new MCP tools:
+1. Define the tool in `src/mcp/tools.ts`
+2. Implement handler in `src/mcp/server.ts`
+3. Add proper input validation
+4. Return structured responses matching MCP expectations
 
-3. **Comprehensive API**
-   - Full CRUD operations on workflows
-   - Execution management and history
-   - Resource-based access patterns
+### Database Access Pattern
+- Use prepared statements for all queries
+- Implement proper transaction handling
+- Use FTS5 for text searching
+- Cache frequently accessed data in memory
 
-4. **Security**
-   - Token-based authentication
-   - Read-only file system access for node extraction
-   - Proper error handling and logging
+## Environment Configuration
 
-## Important Considerations
+Required environment variables (see `.env.example`):
+```
+# Server Configuration
+NODE_ENV=development
+PORT=3000
+AUTH_TOKEN=your-secure-token
 
-### When Adding New Features
-1. Update the corresponding tool definitions in `src/mcp/tools.ts`
-2. Implement handler methods in `src/mcp/server.ts`
-3. Add appropriate error handling
-4. Update tests and documentation
+# MCP Configuration  
+MCP_SERVER_NAME=n8n-documentation-mcp
+MCP_SERVER_VERSION=1.0.0
 
-### Node Source Extraction Paths
-The NodeSourceExtractor searches these paths:
-- `/usr/local/lib/node_modules/n8n/node_modules`
-- `/app/node_modules`
-- `/home/node/.n8n/custom/nodes`
-- `./node_modules`
+# Logging
+LOG_LEVEL=info
+```
 
-### Testing Considerations
-- Always run `npm run build` before testing
-- Use `npm run typecheck` to verify TypeScript types
-- Docker environments mount n8n's node_modules as read-only volumes
+## License Note
 
-## Current Capabilities
-
-The MCP server can:
-- ✅ Execute and manage n8n workflows
-- ✅ Extract source code from any n8n node
-- ✅ Provide AI assistants with workflow automation capabilities
-- ✅ Bridge between n8n's automation and AI decision-making
-
-The n8n node can:
-- ✅ Connect to any MCP server
-- ✅ Call MCP tools from workflows
-- ✅ Read MCP resources
-- ✅ Use MCP prompts in automation
+This project uses the Sustainable Use License. Key points:
+- ✅ Free for internal business and personal use
+- ✅ Modifications allowed for own use
+- ❌ Cannot host as a service without permission
+- ❌ Cannot include in commercial products without permission

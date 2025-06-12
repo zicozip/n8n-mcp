@@ -5,8 +5,10 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "dev": "nodemon --exec ts-node src/index.ts",
-    "start": "node dist/index.js",
+    "rebuild": "node dist/scripts/rebuild.js",
+    "validate": "node dist/scripts/validate.js",
+    "start": "node dist/mcp/index.js",
+    "dev": "npm run build && npm run rebuild && npm run validate",
     "test": "jest",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
@@ -38,6 +40,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "@n8n/n8n-nodes-langchain": "^0.3.0",
     "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^11.10.0",
     "dotenv": "^16.5.0",
