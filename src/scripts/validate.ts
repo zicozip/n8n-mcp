@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/**
+ * Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
+ * Licensed under the Sustainable Use License v1.0
+ */
 import Database from 'better-sqlite3';
 
 interface NodeRow {

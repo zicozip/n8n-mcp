@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2024-12-06
+
+### Added
+- PropertyExtractor class for dedicated property/operation extraction
+- NodeRepository for proper JSON serialization/deserialization  
+- Support for @n8n/n8n-nodes-langchain package (59 AI nodes)
+- AI tool detection (35 tools with usableAsTool property)
+- Test suite for critical node validation
+- Comprehensive documentation (README, SETUP, CHANGELOG)
+- Example configuration files for Claude Desktop
+- Node.js v20.17.0 wrapper scripts for compatibility
+
+### Fixed
+- Empty properties/operations arrays (now 98.7% nodes have properties)
+- Versioned node detection (HTTPRequest, Code properly identified)
+- Documentation mapping for nodes with directory-based docs
+- Critical node validation (httpRequest, slack, code all pass)
+
+### Changed
+- Refactored parser to handle instance-level properties
+- Updated MCP server to use NodeRepository
+- Improved rebuild script with validation
+- Enhanced database schema with proper typing
+
+### Metrics
+- 458 total nodes (100% success rate)
+- 452 nodes with properties (98.7%)
+- 265 nodes with operations (57.9%) 
+- 406 nodes with documentation (88.6%)
+- 35 AI-capable tools detected
+- All critical nodes validated
+
 ## [2.1.0] - 2025-01-08
 
 ### Added

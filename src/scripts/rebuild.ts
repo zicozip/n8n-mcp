@@ -1,22 +1,27 @@
 #!/usr/bin/env node
+/**
+ * Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
+ * Licensed under the Sustainable Use License v1.0
+ */
 import Database from 'better-sqlite3';
 import { N8nNodeLoader } from '../loaders/node-loader';
-import { SimpleParser } from '../parsers/simple-parser';
+import { NodeParser } from '../parsers/node-parser';
 import { DocsMapper } from '../mappers/docs-mapper';
-import { readFileSync } from 'fs';
-import path from 'path';
+import { NodeRepository } from '../database/node-repository';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function rebuild() {
   console.log('🔄 Rebuilding n8n node database...\n');
   
   const db = new Database('./data/nodes.db');
   const loader = new N8nNodeLoader();
-  const parser = new SimpleParser();
+  const parser = new NodeParser();
   const mapper = new DocsMapper();
+  const repository = new NodeRepository(db);
   
   // Initialize database
-  const schemaPath = path.join(__dirname, '../../src/database/schema.sql');
-  const schema = readFileSync(schemaPath, 'utf8');
+  const schema = fs.readFileSync(path.join(__dirname, '../../src/database/schema.sql'), 'utf8');
   db.exec(schema);
   
   // Clear existing data
@@ -28,72 +33,106 @@ async function rebuild() {
   console.log(`📦 Loaded ${nodes.length} nodes from packages\n`);
   
   // Statistics
-  let successful = 0;
-  let failed = 0;
-  let aiTools = 0;
+  const stats = {
+    successful: 0,
+    failed: 0,
+    aiTools: 0,
+    triggers: 0,
+    webhooks: 0,
+    withProperties: 0,
+    withOperations: 0,
+    withDocs: 0
+  };
   
   // Process each node
   for (const { packageName, nodeName, NodeClass } of nodes) {
     try {
-      // Debug: log what we're working with
-      // Don't check for description here since it might be an instance property
-      if (!NodeClass) {
-        console.error(`❌ Node ${nodeName} has no NodeClass`);
-        failed++;
-        continue;
-      }
-      
       // Parse node
-      const parsed = parser.parse(NodeClass);
+      const parsed = parser.parse(NodeClass, packageName);
+      
+      // Validate parsed data
+      if (!parsed.nodeType || !parsed.displayName) {
+        throw new Error('Missing required fields');
+      }
       
       // Get documentation
       const docs = await mapper.fetchDocumentation(parsed.nodeType);
+      parsed.documentation = docs || undefined;
       
-      // Insert into database
-      db.prepare(`
-        INSERT INTO nodes (
-          node_type, package_name, display_name, description,
-          category, development_style, is_ai_tool, is_trigger,
-          is_webhook, is_versioned, version, documentation,
-          properties_schema, operations, credentials_required
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        parsed.nodeType,
-        packageName,
-        parsed.displayName,
-        parsed.description,
-        parsed.category,
-        parsed.style,
-        parsed.isAITool ? 1 : 0,
-        parsed.isTrigger ? 1 : 0,
-        parsed.isWebhook ? 1 : 0,
-        parsed.isVersioned ? 1 : 0,
-        parsed.version,
-        docs,
-        JSON.stringify(parsed.properties),
-        JSON.stringify(parsed.operations),
-        JSON.stringify(parsed.credentials)
-      );
+      // Save to database
+      repository.saveNode(parsed);
       
-      successful++;
-      if (parsed.isAITool) aiTools++;
+      // Update statistics
+      stats.successful++;
+      if (parsed.isAITool) stats.aiTools++;
+      if (parsed.isTrigger) stats.triggers++;
+      if (parsed.isWebhook) stats.webhooks++;
+      if (parsed.properties.length > 0) stats.withProperties++;
+      if (parsed.operations.length > 0) stats.withOperations++;
+      if (docs) stats.withDocs++;
       
-      console.log(`✅ ${parsed.nodeType}`);
+      console.log(`✅ ${parsed.nodeType} [Props: ${parsed.properties.length}, Ops: ${parsed.operations.length}]`);
     } catch (error) {
-      failed++;
+      stats.failed++;
       console.error(`❌ Failed to process ${nodeName}: ${(error as Error).message}`);
     }
   }
   
+  // Validation check
+  console.log('\n🔍 Running validation checks...');
+  const validationResults = validateDatabase(repository);
+  
   // Summary
   console.log('\n📊 Summary:');
   console.log(`   Total nodes: ${nodes.length}`);
-  console.log(`   Successful: ${successful}`);
-  console.log(`   Failed: ${failed}`);
-  console.log(`   AI Tools: ${aiTools}`);
+  console.log(`   Successful: ${stats.successful}`);
+  console.log(`   Failed: ${stats.failed}`);
+  console.log(`   AI Tools: ${stats.aiTools}`);
+  console.log(`   Triggers: ${stats.triggers}`);
+  console.log(`   Webhooks: ${stats.webhooks}`);
+  console.log(`   With Properties: ${stats.withProperties}`);
+  console.log(`   With Operations: ${stats.withOperations}`);
+  console.log(`   With Documentation: ${stats.withDocs}`);
+  
+  if (!validationResults.passed) {
+    console.log('\n⚠️  Validation Issues:');
+    validationResults.issues.forEach(issue => console.log(`   - ${issue}`));
+  }
+  
   console.log('\n✨ Rebuild complete!');
   
   db.close();
+}
+
+function validateDatabase(repository: NodeRepository): { passed: boolean; issues: string[] } {
+  const issues = [];
+  
+  // Check critical nodes
+  const criticalNodes = ['nodes-base.httpRequest', 'nodes-base.code', 'nodes-base.webhook', 'nodes-base.slack'];
+  
+  for (const nodeType of criticalNodes) {
+    const node = repository.getNode(nodeType);
+    
+    if (!node) {
+      issues.push(`Critical node ${nodeType} not found`);
+      continue;
+    }
+    
+    if (node.properties.length === 0) {
+      issues.push(`Node ${nodeType} has no properties`);
+    }
+  }
+  
+  // Check AI tools
+  const aiTools = repository.getAITools();
+  if (aiTools.length === 0) {
+    issues.push('No AI tools found - check detection logic');
+  }
+  
+  return {
+    passed: issues.length === 0,
+    issues
+  };
 }
 
 // Run if called directly

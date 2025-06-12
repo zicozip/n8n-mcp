@@ -9,6 +9,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { n8nDocumentationTools } from './tools-update';
 import { logger } from '../utils/logger';
+import { NodeRepository } from '../database/node-repository';
 
 interface NodeRow {
   node_type: string;
@@ -31,6 +32,7 @@ interface NodeRow {
 export class N8NDocumentationMCPServer {
   private server: Server;
   private db: Database.Database;
+  private repository: NodeRepository;
 
   constructor() {
     // Try multiple database paths
@@ -55,6 +57,7 @@ export class N8NDocumentationMCPServer {
     
     try {
       this.db = new Database(dbPath);
+      this.repository = new NodeRepository(this.db);
       logger.info(`Initialized database from: ${dbPath}`);
     } catch (error) {
       logger.error('Failed to initialize database:', error);
@@ -184,31 +187,31 @@ export class N8NDocumentationMCPServer {
   }
 
   private getNodeInfo(nodeType: string): any {
-    const node = this.db.prepare(`
-      SELECT * FROM nodes WHERE node_type = ?
-    `).get(nodeType) as NodeRow | undefined;
+    let node = this.repository.getNode(nodeType);
     
     if (!node) {
-      throw new Error(`Node ${nodeType} not found`);
+      // Try alternative formats
+      const alternatives = [
+        nodeType,
+        nodeType.replace('n8n-nodes-base.', ''),
+        `n8n-nodes-base.${nodeType}`,
+        nodeType.toLowerCase()
+      ];
+      
+      for (const alt of alternatives) {
+        const found = this.repository.getNode(alt);
+        if (found) {
+          node = found;
+          break;
+        }
+      }
+      
+      if (!node) {
+        throw new Error(`Node ${nodeType} not found`);
+      }
     }
     
-    return {
-      nodeType: node.node_type,
-      displayName: node.display_name,
-      description: node.description,
-      category: node.category,
-      developmentStyle: node.development_style,
-      package: node.package_name,
-      isAITool: !!node.is_ai_tool,
-      isTrigger: !!node.is_trigger,
-      isWebhook: !!node.is_webhook,
-      isVersioned: !!node.is_versioned,
-      version: node.version,
-      properties: JSON.parse(node.properties_schema || '[]'),
-      operations: JSON.parse(node.operations || '[]'),
-      credentials: JSON.parse(node.credentials_required || '[]'),
-      hasDocumentation: !!node.documentation,
-    };
+    return node;
   }
 
   private searchNodes(query: string, limit: number = 20): any {
@@ -256,20 +259,10 @@ export class N8NDocumentationMCPServer {
   }
 
   private listAITools(): any {
-    const tools = this.db.prepare(`
-      SELECT node_type, display_name, description, package_name
-      FROM nodes 
-      WHERE is_ai_tool = 1
-      ORDER BY display_name
-    `).all() as NodeRow[];
+    const tools = this.repository.getAITools();
     
     return {
-      tools: tools.map(tool => ({
-        nodeType: tool.node_type,
-        displayName: tool.display_name,
-        description: tool.description,
-        package: tool.package_name,
-      })),
+      tools,
       totalCount: tools.length,
       requirements: {
         environmentVariable: 'N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true',

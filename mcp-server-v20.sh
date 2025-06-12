@@ -10,7 +10,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
 # Use Node v20.17.0 specifically (what Claude Desktop uses)
-export PATH="/Users/romualdczlonkowski/.nvm/versions/node/v20.17.0/bin:$PATH"
+# Update this path to match your nvm installation
+export PATH="$HOME/.nvm/versions/node/v20.17.0/bin:$PATH"
 
 # Verify we're using the right version
 NODE_VERSION=$(node --version)

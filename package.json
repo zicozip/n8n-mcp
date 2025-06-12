@@ -7,6 +7,7 @@
     "build": "tsc",
     "rebuild": "node dist/scripts/rebuild.js",
     "validate": "node dist/scripts/validate.js",
+    "test-nodes": "node dist/scripts/test-nodes.js",
     "start": "node dist/mcp/index.js",
     "dev": "npm run build && npm run rebuild && npm run validate",
     "test": "jest",
@@ -20,8 +21,8 @@
     "type": "git",
     "url": "git+https://github.com/czlonkowski/n8n-mcp.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["n8n", "mcp", "model-context-protocol", "ai", "workflow", "automation"],
+  "author": "AiAdvisors Romuald Czlonkowski",
   "license": "Sustainable-Use-1.0",
   "bugs": {
     "url": "https://github.com/czlonkowski/n8n-mcp/issues"

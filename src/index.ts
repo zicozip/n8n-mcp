@@ -1,3 +1,9 @@
+/**
+ * n8n-MCP - Model Context Protocol Server for n8n
+ * Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
+ * Licensed under the Sustainable Use License v1.0
+ */
+
 import dotenv from 'dotenv';
 import { N8NMCPServer } from './mcp/server';
 import { MCPServerConfig, N8NConfig } from './types';

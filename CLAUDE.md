@@ -6,38 +6,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## 🚧 ACTIVE REFACTOR IN PROGRESS
+## ✅ Refactor Complete (v2.2)
 
-**We are currently implementing a major refactor based on IMPLEMENTATION_PLAN.md v2.1 Final**
+**The major refactor has been successfully completed based on IMPLEMENTATION_PLAN.md v2.2**
 
-### Refactor Goals:
-- Fix documentation mapping issues (HTTP Request, Code, Webhook nodes)
-- Add support for @n8n/n8n-nodes-langchain package
-- Simplify architecture to align with n8n's LoadNodesAndCredentials patterns
-- Implement proper VersionedNodeType handling
-- Add AI tool detection (usableAsTool flag)
+### Achieved Goals:
+- ✅ Fixed property/operation extraction (452/458 nodes have properties)
+- ✅ Added AI tool detection (35 AI tools detected)
+- ✅ Full support for @n8n/n8n-nodes-langchain package
+- ✅ Proper VersionedNodeType handling
+- ✅ Fixed documentation mapping issues
 
-### New Architecture (In Progress):
+### Current Architecture:
 ```
 src/
 ├── loaders/
-│   └── node-loader.ts         # Simple npm package loader
+│   └── node-loader.ts         # NPM package loader for both packages
 ├── parsers/
-│   └── simple-parser.ts       # Single parser for all nodes
+│   ├── node-parser.ts         # Enhanced parser with version support
+│   └── property-extractor.ts  # Dedicated property/operation extraction
 ├── mappers/
-│   └── docs-mapper.ts         # Deterministic documentation mapping
+│   └── docs-mapper.ts         # Documentation mapping with fixes
+├── database/
+│   ├── schema.sql             # SQLite schema
+│   └── node-repository.ts     # Data access layer
 ├── scripts/
-│   ├── rebuild.ts             # One-command rebuild
-│   └── validate.ts            # Validation script
+│   ├── rebuild.ts             # Database rebuild with validation
+│   ├── validate.ts            # Node validation
+│   └── test-nodes.ts          # Critical node tests
 └── mcp/
-    └── server.ts              # Enhanced MCP server
+    └── server.ts              # MCP server with enhanced tools
 ```
 
-### Timeline:
-- Week 1: Core implementation (loaders, parsers, mappers)
-- Week 2: Testing, validation, and MCP updates
-
-See IMPLEMENTATION_PLAN.md for complete details.
+### Key Metrics:
+- 458 nodes successfully loaded (100%)
+- 452 nodes with properties (98.7%)
+- 265 nodes with operations (57.9%)
+- 406 nodes with documentation (88.6%)
+- 35 AI-capable tools detected
+- All critical nodes pass validation
 
 ## Key Commands
 
@@ -50,12 +57,13 @@ npm test             # Run Jest tests
 npm run typecheck    # TypeScript type checking
 npm run lint         # Check TypeScript types (alias for typecheck)
 
-# NEW Commands (After Refactor):
-npm run rebuild      # Rebuild node database with new architecture
-npm run validate     # Validate critical nodes (HTTP Request, Code, Slack, AI Agent)
+# Core Commands:
+npm run rebuild      # Rebuild node database
+npm run validate     # Validate critical nodes
+npm run test-nodes   # Test critical node properties/operations
 
-# Database Management (Current - being replaced)
-npm run db:rebuild   # Rebuild the node database (run after build)
+# Legacy Commands (deprecated):
+npm run db:rebuild   # Old rebuild command
 npm run db:init      # Initialize empty database
 npm run docs:rebuild # Rebuild documentation from TypeScript source
 
@@ -75,13 +83,11 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 
 ### MCP Tools Available
 - `list_nodes` - List all available n8n nodes with filtering
-- `get_node_info` - Get comprehensive information about a specific node
+- `get_node_info` - Get comprehensive information about a specific node (properties, operations, credentials)
 - `search_nodes` - Full-text search across all node documentation
-- `get_node_example` - Generate example workflows for nodes
-- `get_node_source_code` - Extract complete node source code
+- `list_ai_tools` - List all AI-capable nodes (usableAsTool: true)
 - `get_node_documentation` - Get parsed documentation from n8n-docs
-- `rebuild_database` - Rebuild the entire node database
-- `get_database_statistics` - Get database usage statistics
+- `get_database_statistics` - Get database usage statistics and metrics
 
 ### Database Structure
 Uses SQLite with enhanced schema:
@@ -94,24 +100,28 @@ Uses SQLite with enhanced schema:
 
 ### Initial Setup Requirements
 
-#### Current Setup:
-1. **Build First**: Always run `npm run build` before any other commands
-2. **Database Initialization**: Run `npm run db:rebuild` after building to populate the node database
-3. **Documentation Fetching**: The rebuild process clones n8n-docs repository temporarily
-
-#### New Setup (After Refactor):
 1. **Clone n8n-docs**: `git clone https://github.com/n8n-io/n8n-docs.git ../n8n-docs`
-2. **Build**: `npm run build`
-3. **Rebuild Database**: `npm run rebuild`
-4. **Validate**: `npm run validate`
+2. **Install Dependencies**: `npm install`
+3. **Build**: `npm run build`
+4. **Rebuild Database**: `npm run rebuild`
+5. **Validate**: `npm run test-nodes`
 
-### Current Implementation Status
-The existing implementation has several gaps that the active refactor addresses:
-- ✅ Documentation mapping issues → Being fixed with KNOWN_FIXES mapping
-- ✅ Limited to n8n-nodes-base → Adding @n8n/n8n-nodes-langchain support
-- ⏳ Incomplete property schemas → Keeping n8n's structure as-is (MVP approach)
-- ⏳ No version tracking → Only tracking current version (deferred post-MVP)
-- ⏳ Generic examples → Using actual n8n-docs examples (deferred enhancement)
+### Node.js Version Compatibility
+
+This project requires Node.js v20.17.0 for Claude Desktop compatibility. If using a different Node version locally:
+
+1. Install Node v20.17.0 via nvm: `nvm install 20.17.0`
+2. Use the provided wrapper script: `mcp-server-v20.sh`
+3. Or switch Node version: `nvm use 20.17.0`
+
+### Implementation Status
+- ✅ Property/operation extraction for 98.7% of nodes
+- ✅ Support for both n8n-nodes-base and @n8n/n8n-nodes-langchain
+- ✅ AI tool detection (35 tools with usableAsTool property)
+- ✅ Versioned node support (HTTPRequest, Code, etc.)
+- ✅ Documentation coverage for 88.6% of nodes
+- ⏳ Version history tracking (deferred - only current version)
+- ⏳ Workflow examples (deferred - using documentation)
 
 ### Testing Workflow
 ```bash
