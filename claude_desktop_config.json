@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "n8n-documentation": {
+      "command": "/Users/romualdczlonkowski/Pliki/n8n-mcp/n8n-mcp/mcp-server.sh",
+      "args": [],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}

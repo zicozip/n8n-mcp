@@ -49,11 +49,3 @@ Yes! Contributions are welcome. By contributing, you agree that your contributio
 
 For commercial licensing or custom terms, please contact the maintainers through the GitHub repository.
 
-## Comparison with n8n's licensing
-
-This project uses a similar approach to n8n:
-- Same Sustainable Use License for the core functionality
-- Source-available but with commercial restrictions
-- Designed to prevent exploitation while enabling legitimate use
-
-The main difference is that we don't currently have enterprise features (.ee. files) - all functionality is available under the single license.

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "n8n-documentation": {
+      "command": "node",
+      "args": [
+        "/Users/romualdczlonkowski/Pliki/n8n-mcp/n8n-mcp/dist/mcp/index.js"
+      ]
+    }
+  }
+}

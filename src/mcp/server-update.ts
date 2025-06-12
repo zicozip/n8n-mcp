@@ -5,6 +5,8 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import Database from 'better-sqlite3';
+import { existsSync } from 'fs';
+import path from 'path';
 import { n8nDocumentationTools } from './tools-update';
 import { logger } from '../utils/logger';
 
@@ -31,7 +33,34 @@ export class N8NDocumentationMCPServer {
   private db: Database.Database;
 
   constructor() {
-    this.db = new Database('./data/nodes.db');
+    // Try multiple database paths
+    const possiblePaths = [
+      path.join(process.cwd(), 'data', 'nodes.db'),
+      path.join(__dirname, '../../data', 'nodes.db'),
+      './data/nodes.db'
+    ];
+    
+    let dbPath: string | null = null;
+    for (const p of possiblePaths) {
+      if (existsSync(p)) {
+        dbPath = p;
+        break;
+      }
+    }
+    
+    if (!dbPath) {
+      logger.error('Database not found in any of the expected locations:', possiblePaths);
+      throw new Error('Database nodes.db not found. Please run npm run rebuild first.');
+    }
+    
+    try {
+      this.db = new Database(dbPath);
+      logger.info(`Initialized database from: ${dbPath}`);
+    } catch (error) {
+      logger.error('Failed to initialize database:', error);
+      throw new Error(`Failed to open database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    
     logger.info('Initializing n8n Documentation MCP server');
     
     this.server = new Server(
