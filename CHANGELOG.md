@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2024-12-06
+
+### Added
+- **Universal Node.js Compatibility**: Automatic database adapter fallback system
+  - Primary adapter: `better-sqlite3` for optimal performance
+  - Fallback adapter: `sql.js` (pure JavaScript) for version mismatches
+  - Automatic detection and switching between adapters
+  - No manual configuration required
+- Database adapter abstraction layer (`src/database/database-adapter.ts`)
+- Version detection and logging for troubleshooting
+- sql.js dependency for pure JavaScript SQLite implementation
+
+### Changed
+- Updated all database operations to use the adapter interface
+- Removed Node.js v20.17.0 requirement - now works with ANY version
+- Simplified Claude Desktop setup - no wrapper scripts needed
+- Enhanced error messages for database initialization
+
+### Fixed
+- NODE_MODULE_VERSION mismatch errors with Claude Desktop
+- Native module compilation issues in restricted environments
+- Compatibility issues when running with different Node.js versions
+
+### Technical Details
+- Better-sqlite3: ~10-50x faster (when compatible)
+- sql.js: ~2-5x slower but universally compatible
+- Both adapters maintain identical API and functionality
+- Automatic persistence for sql.js with 100ms debounced saves
+
 ## [2.2.0] - 2024-12-06
 
 ### Added

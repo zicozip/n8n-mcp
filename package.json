@@ -21,7 +21,14 @@
     "type": "git",
     "url": "git+https://github.com/czlonkowski/n8n-mcp.git"
   },
-  "keywords": ["n8n", "mcp", "model-context-protocol", "ai", "workflow", "automation"],
+  "keywords": [
+    "n8n",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "workflow",
+    "automation"
+  ],
   "author": "AiAdvisors Romuald Czlonkowski",
   "license": "Sustainable-Use-1.0",
   "bugs": {
@@ -41,12 +48,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "@n8n/n8n-nodes-langchain": "^0.3.0",
-    "@types/better-sqlite3": "^7.6.13",
+    "@n8n/n8n-nodes-langchain": "^1.0.0",
     "better-sqlite3": "^11.10.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "n8n": "^1.97.0",
     "n8n-core": "^1.14.1",
-    "n8n-workflow": "^1.82.0"
+    "n8n-workflow": "^1.82.0",
+    "sql.js": "^1.13.0"
   }
 }

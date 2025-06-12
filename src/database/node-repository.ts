@@ -1,8 +1,8 @@
-import Database from 'better-sqlite3';
+import { DatabaseAdapter } from './database-adapter';
 import { ParsedNode } from '../parsers/node-parser';
 
 export class NodeRepository {
-  constructor(private db: Database.Database) {}
+  constructor(private db: DatabaseAdapter) {}
   
   /**
    * Save node with proper JSON serialization

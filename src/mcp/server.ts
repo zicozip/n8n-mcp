@@ -416,7 +416,7 @@ export class N8NMCPServer {
   private async getNodeStatistics(args: any): Promise<any> {
     try {
       logger.info(`Getting node statistics`);
-      const stats = this.nodeDocService.getStatistics();
+      const stats = await this.nodeDocService.getStatistics();
       
       return {
         ...stats,

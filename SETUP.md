@@ -4,27 +4,29 @@ This guide will help you set up n8n-MCP with Claude Desktop.
 
 ## Prerequisites
 
-- Node.js v20.17.0 (required for Claude Desktop)
+- Node.js (any version - the project handles compatibility automatically)
 - npm (comes with Node.js)
 - Git
 - Claude Desktop app
 
-## Step 1: Install Node.js v20.17.0
+## Step 1: Install Node.js
 
-### Using nvm (recommended)
+### Using nvm (recommended for development)
 
 ```bash
 # Install nvm if you haven't already
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
 
-# Install Node v20.17.0
-nvm install 20.17.0
-nvm use 20.17.0
+# Install latest Node.js
+nvm install node
+nvm use node
 ```
 
 ### Direct installation
 
-Download and install Node.js v20.17.0 from [nodejs.org](https://nodejs.org/)
+Download and install the latest Node.js from [nodejs.org](https://nodejs.org/)
+
+> **Note**: Version 2.3+ includes automatic database adapter fallback. If your Node.js version doesn't match the native SQLite module, it will automatically use a pure JavaScript implementation.
 
 ## Step 2: Clone the Repository
 
@@ -66,23 +68,20 @@ Expected output:
 
 ### macOS
 
-1. Copy the example configuration:
-```bash
-cp claude_desktop_config.example.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-2. Edit the configuration file:
+1. Edit the Claude Desktop configuration:
 ```bash
 nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
-3. Update the path to your installation:
+2. Add the n8n-documentation server:
 ```json
 {
   "mcpServers": {
     "n8n-documentation": {
-      "command": "/Users/yourusername/path/to/n8n-mcp/mcp-server-v20.sh",
-      "args": []
+      "command": "node",
+      "args": [
+        "/Users/yourusername/path/to/n8n-mcp/dist/mcp/index.js"
+      ]
     }
   }
 }
@@ -90,24 +89,30 @@ nano ~/Library/Application\ Support/Claude/claude_desktop_config.json
 
 ### Windows
 
-1. Copy the example configuration:
+1. Edit the configuration:
 ```bash
-copy claude_desktop_config.example.json %APPDATA%\Claude\claude_desktop_config.json
+notepad %APPDATA%\Claude\claude_desktop_config.json
 ```
 
-2. Edit the configuration with the full path to your installation.
-
-## Step 5: Create the Wrapper Script
-
-1. Copy the example wrapper script:
-```bash
-cp mcp-server-v20.example.sh mcp-server-v20.sh
-chmod +x mcp-server-v20.sh
+2. Add the n8n-documentation server with your full path:
+```json
+{
+  "mcpServers": {
+    "n8n-documentation": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\yourusername\\path\\to\\n8n-mcp\\dist\\mcp\\index.js"
+      ]
+    }
+  }
+}
 ```
 
-2. Edit the script if your nvm path is different:
+## Step 5: Verify Installation
+
+Run the validation script to ensure everything is working:
 ```bash
-nano mcp-server-v20.sh
+npm run validate
 ```
 
 ## Step 6: Restart Claude Desktop
@@ -120,14 +125,11 @@ nano mcp-server-v20.sh
 
 ### Node version mismatch
 
-If you see errors about NODE_MODULE_VERSION:
-```bash
-# Make sure you're using Node v20.17.0
-node --version  # Should output: v20.17.0
-
-# Rebuild native modules
-npm rebuild better-sqlite3
-```
+**This is now handled automatically!** If you see messages about NODE_MODULE_VERSION:
+- The system will automatically fall back to sql.js (pure JavaScript)
+- No manual intervention required
+- Both adapters provide identical functionality
+- Check logs to see which adapter is active
 
 ### Database not found
 
@@ -184,9 +186,14 @@ npm run rebuild
 For development with hot reloading:
 
 ```bash
-# Make sure you're using Node v20.17.0
-nvm use 20.17.0
-
 # Run in development mode
 npm run dev
 ```
+
+### Database Adapter Information
+
+When the server starts, you'll see one of these messages:
+- `Successfully initialized better-sqlite3 adapter` - Using native SQLite (faster)
+- `Successfully initialized sql.js adapter` - Using pure JavaScript (compatible with any Node.js version)
+
+Both adapters provide identical functionality, so the user experience is the same regardless of which one is used.

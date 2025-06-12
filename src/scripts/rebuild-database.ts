@@ -41,7 +41,7 @@ async function rebuildDocumentationDatabase() {
     }
     
     // Get and display statistics
-    const stats = service.getStatistics();
+    const stats = await service.getStatistics();
     console.log('\n📈 Database Statistics:');
     console.log(`   Total nodes: ${stats.totalNodes}`);
     console.log(`   Nodes with documentation: ${stats.nodesWithDocs}`);
@@ -56,7 +56,7 @@ async function rebuildDocumentationDatabase() {
     });
     
     // Close database connection
-    service.close();
+    await service.close();
     
     console.log('\n✨ Enhanced documentation database is ready!');
     console.log('💡 The database now includes:');

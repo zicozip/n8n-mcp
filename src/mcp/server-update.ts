@@ -4,12 +4,12 @@ import {
   CallToolRequestSchema, 
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import Database from 'better-sqlite3';
 import { existsSync } from 'fs';
 import path from 'path';
 import { n8nDocumentationTools } from './tools-update';
 import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
+import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
 
 interface NodeRow {
   node_type: string;
@@ -31,8 +31,9 @@ interface NodeRow {
 
 export class N8NDocumentationMCPServer {
   private server: Server;
-  private db: Database.Database;
-  private repository: NodeRepository;
+  private db: DatabaseAdapter | null = null;
+  private repository: NodeRepository | null = null;
+  private initialized: Promise<void>;
 
   constructor() {
     // Try multiple database paths
@@ -55,14 +56,8 @@ export class N8NDocumentationMCPServer {
       throw new Error('Database nodes.db not found. Please run npm run rebuild first.');
     }
     
-    try {
-      this.db = new Database(dbPath);
-      this.repository = new NodeRepository(this.db);
-      logger.info(`Initialized database from: ${dbPath}`);
-    } catch (error) {
-      logger.error('Failed to initialize database:', error);
-      throw new Error(`Failed to open database: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // Initialize database asynchronously
+    this.initialized = this.initializeDatabase(dbPath);
     
     logger.info('Initializing n8n Documentation MCP server');
     
@@ -79,6 +74,24 @@ export class N8NDocumentationMCPServer {
     );
 
     this.setupHandlers();
+  }
+  
+  private async initializeDatabase(dbPath: string): Promise<void> {
+    try {
+      this.db = await createDatabaseAdapter(dbPath);
+      this.repository = new NodeRepository(this.db);
+      logger.info(`Initialized database from: ${dbPath}`);
+    } catch (error) {
+      logger.error('Failed to initialize database:', error);
+      throw new Error(`Failed to open database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  private async ensureInitialized(): Promise<void> {
+    await this.initialized;
+    if (!this.db || !this.repository) {
+      throw new Error('Database not initialized');
+    }
   }
 
   private setupHandlers(): void {
@@ -168,7 +181,7 @@ export class N8NDocumentationMCPServer {
       params.push(filters.limit);
     }
 
-    const nodes = this.db.prepare(query).all(...params) as NodeRow[];
+    const nodes = this.db!.prepare(query).all(...params) as NodeRow[];
     
     return {
       nodes: nodes.map(node => ({
@@ -187,6 +200,7 @@ export class N8NDocumentationMCPServer {
   }
 
   private getNodeInfo(nodeType: string): any {
+    if (!this.repository) throw new Error('Repository not initialized');
     let node = this.repository.getNode(nodeType);
     
     if (!node) {
@@ -199,7 +213,7 @@ export class N8NDocumentationMCPServer {
       ];
       
       for (const alt of alternatives) {
-        const found = this.repository.getNode(alt);
+        const found = this.repository!.getNode(alt);
         if (found) {
           node = found;
           break;
@@ -215,9 +229,10 @@ export class N8NDocumentationMCPServer {
   }
 
   private searchNodes(query: string, limit: number = 20): any {
+    if (!this.db) throw new Error('Database not initialized');
     // Simple search across multiple fields
     const searchQuery = `%${query}%`;
-    const nodes = this.db.prepare(`
+    const nodes = this.db!.prepare(`
       SELECT * FROM nodes 
       WHERE node_type LIKE ? 
          OR display_name LIKE ? 
@@ -259,6 +274,7 @@ export class N8NDocumentationMCPServer {
   }
 
   private listAITools(): any {
+    if (!this.repository) throw new Error('Repository not initialized');
     const tools = this.repository.getAITools();
     
     return {
@@ -272,7 +288,8 @@ export class N8NDocumentationMCPServer {
   }
 
   private getNodeDocumentation(nodeType: string): any {
-    const node = this.db.prepare(`
+    if (!this.db) throw new Error('Database not initialized');
+    const node = this.db!.prepare(`
       SELECT node_type, display_name, documentation 
       FROM nodes 
       WHERE node_type = ?
@@ -291,7 +308,8 @@ export class N8NDocumentationMCPServer {
   }
 
   private getDatabaseStatistics(): any {
-    const stats = this.db.prepare(`
+    if (!this.db) throw new Error('Database not initialized');
+    const stats = this.db!.prepare(`
       SELECT 
         COUNT(*) as total,
         SUM(is_ai_tool) as ai_tools,
@@ -303,7 +321,7 @@ export class N8NDocumentationMCPServer {
       FROM nodes
     `).get() as any;
     
-    const packages = this.db.prepare(`
+    const packages = this.db!.prepare(`
       SELECT package_name, COUNT(*) as count 
       FROM nodes 
       GROUP BY package_name
@@ -328,6 +346,9 @@ export class N8NDocumentationMCPServer {
   }
 
   async run(): Promise<void> {
+    // Ensure database is initialized before starting server
+    await this.ensureInitialized();
+    
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     logger.info('n8n Documentation MCP Server running on stdio transport');

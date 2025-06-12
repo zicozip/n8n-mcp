@@ -3,7 +3,7 @@
  * Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
  * Licensed under the Sustainable Use License v1.0
  */
-import Database from 'better-sqlite3';
+import { createDatabaseAdapter } from '../database/database-adapter';
 
 interface NodeRow {
   node_type: string;
@@ -25,7 +25,7 @@ interface NodeRow {
 }
 
 async function validate() {
-  const db = new Database('./data/nodes.db');
+  const db = await createDatabaseAdapter('./data/nodes.db');
   
   console.log('🔍 Validating critical nodes...\n');
   

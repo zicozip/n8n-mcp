@@ -3,7 +3,7 @@
  * Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
  * Licensed under the Sustainable Use License v1.0
  */
-import Database from 'better-sqlite3';
+import { createDatabaseAdapter } from '../database/database-adapter';
 import { NodeRepository } from '../database/node-repository';
 
 const TEST_CASES = [
@@ -34,7 +34,7 @@ const TEST_CASES = [
 ];
 
 async function runTests() {
-  const db = new Database('./data/nodes.db');
+  const db = await createDatabaseAdapter('./data/nodes.db');
   const repository = new NodeRepository(db);
   
   console.log('🧪 Running node tests...\n');

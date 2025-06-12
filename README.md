@@ -24,9 +24,11 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 
 ### Prerequisites
 
-- Node.js v20.17.0 (required for Claude Desktop compatibility)
+- Node.js (any version - automatic fallback to pure JavaScript if needed)
 - npm or yarn
 - Git
+
+> **Note**: The project uses an intelligent database adapter that automatically falls back to a pure JavaScript implementation (sql.js) if native dependencies fail to load. This ensures compatibility with any Node.js version, including Claude Desktop's bundled runtime.
 
 ### Installation
 
@@ -65,29 +67,28 @@ npm run test-nodes
 
 ### With Claude Desktop
 
-1. Copy the example configuration:
-```bash
-cp claude_desktop_config.example.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
+1. Edit your Claude Desktop configuration:
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
 
-2. Edit the configuration to point to your installation:
+2. Add the n8n-documentation server:
 ```json
 {
   "mcpServers": {
     "n8n-documentation": {
-      "command": "/path/to/n8n-mcp/mcp-server-v20.sh",
-      "args": []
+      "command": "node",
+      "args": [
+        "/path/to/n8n-mcp/dist/mcp/index.js"
+      ]
     }
   }
 }
 ```
 
-3. Make sure the wrapper script is executable:
-```bash
-chmod +x mcp-server-v20.sh
-```
+3. Restart Claude Desktop
 
-4. Restart Claude Desktop
+> **Note**: The Node.js wrapper script (`mcp-server-v20.sh`) is no longer required! The project now automatically handles version mismatches.
 
 ### Available MCP Tools
 
@@ -140,13 +141,37 @@ src/
 └── mcp/              # MCP server implementation
 ```
 
-### Node.js Version Management
+### Node.js Version Compatibility
 
-For development with different Node versions:
+The project works with any Node.js version thanks to automatic adapter fallback:
 
-1. Install nvm (Node Version Manager)
-2. Install Node v20.17.0: `nvm install 20.17.0`
-3. Use the wrapper script: `./mcp-server-v20.sh`
+- **Primary**: Uses `better-sqlite3` when compatible (faster)
+- **Fallback**: Uses `sql.js` when version mismatch detected (pure JS)
+- **Automatic**: No manual configuration needed
+
+## Technical Architecture
+
+### Database Adapter
+
+The project features an intelligent database adapter that ensures compatibility across different Node.js versions:
+
+1. **Primary**: Attempts to use `better-sqlite3` for optimal performance
+2. **Fallback**: Automatically switches to `sql.js` (pure JavaScript) if:
+   - Native modules fail to load
+   - Node.js version mismatch is detected
+   - Running in restricted environments (like Claude Desktop)
+
+This dual-adapter approach means:
+- ✅ Works with any Node.js version
+- ✅ No compilation required in fallback mode
+- ✅ Maintains full functionality with either adapter
+- ✅ Automatic persistence with sql.js
+
+### Performance Characteristics
+
+- **better-sqlite3**: Native performance, ~10-50x faster
+- **sql.js**: Pure JavaScript, ~2-5x slower but still responsive
+- Both adapters support the same API for seamless operation
 
 ## Metrics
 

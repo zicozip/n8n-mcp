@@ -1,4 +1,3 @@
-import Database from 'better-sqlite3';
 import { createHash } from 'crypto';
 import path from 'path';
 import { promises as fs } from 'fs';
@@ -14,6 +13,7 @@ import {
   RelatedResource
 } from '../utils/enhanced-documentation-fetcher';
 import { ExampleGenerator } from '../utils/example-generator';
+import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
 
 interface NodeInfo {
   nodeType: string;
@@ -57,30 +57,51 @@ interface SearchOptions {
 }
 
 export class NodeDocumentationService {
-  private db: Database.Database;
+  private db: DatabaseAdapter | null = null;
   private extractor: NodeSourceExtractor;
   private docsFetcher: EnhancedDocumentationFetcher;
+  private dbPath: string;
+  private initialized: Promise<void>;
   
   constructor(dbPath?: string) {
-    const databasePath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes-v2.db');
+    this.dbPath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes-v2.db');
     
     // Ensure directory exists
-    const dbDir = path.dirname(databasePath);
+    const dbDir = path.dirname(this.dbPath);
     if (!require('fs').existsSync(dbDir)) {
       require('fs').mkdirSync(dbDir, { recursive: true });
     }
     
-    this.db = new Database(databasePath);
     this.extractor = new NodeSourceExtractor();
     this.docsFetcher = new EnhancedDocumentationFetcher();
     
-    // Initialize database with new schema
-    this.initializeDatabase();
-    
-    logger.info('Node Documentation Service initialized');
+    // Initialize database asynchronously
+    this.initialized = this.initializeAsync();
+  }
+  
+  private async initializeAsync(): Promise<void> {
+    try {
+      this.db = await createDatabaseAdapter(this.dbPath);
+      
+      // Initialize database with new schema
+      this.initializeDatabase();
+      
+      logger.info('Node Documentation Service initialized');
+    } catch (error) {
+      logger.error('Failed to initialize database adapter', error);
+      throw error;
+    }
+  }
+  
+  private async ensureInitialized(): Promise<void> {
+    await this.initialized;
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
   }
 
   private initializeDatabase(): void {
+    if (!this.db) throw new Error('Database not initialized');
     // Execute the schema directly
     const schema = `
 -- Main nodes table with documentation and examples
@@ -193,16 +214,17 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
 );
     `;
     
-    this.db.exec(schema);
+    this.db!.exec(schema);
   }
 
   /**
    * Store complete node information including docs and examples
    */
   async storeNode(nodeInfo: NodeInfo): Promise<void> {
+    await this.ensureInitialized();
     const hash = this.generateHash(nodeInfo.sourceCode);
     
-    const stmt = this.db.prepare(`
+    const stmt = this.db!.prepare(`
       INSERT OR REPLACE INTO nodes (
         node_type, name, display_name, description, category, subcategory, icon,
         source_code, credential_code, code_hash, code_length,
@@ -260,7 +282,8 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
    * Get complete node information
    */
   async getNodeInfo(nodeType: string): Promise<NodeInfo | null> {
-    const stmt = this.db.prepare(`
+    await this.ensureInitialized();
+    const stmt = this.db!.prepare(`
       SELECT * FROM nodes WHERE node_type = ? OR name = ? COLLATE NOCASE
     `);
     
@@ -274,6 +297,7 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
    * Search nodes with various filters
    */
   async searchNodes(options: SearchOptions): Promise<NodeInfo[]> {
+    await this.ensureInitialized();
     let query = 'SELECT * FROM nodes WHERE 1=1';
     const params: any = {};
     
@@ -313,7 +337,7 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
     query += ' ORDER BY name LIMIT @limit';
     params.limit = options.limit || 20;
     
-    const stmt = this.db.prepare(query);
+    const stmt = this.db!.prepare(query);
     const rows = stmt.all(params);
     
     return rows.map(row => this.rowToNodeInfo(row));
@@ -323,7 +347,8 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
    * List all nodes
    */
   async listNodes(): Promise<NodeInfo[]> {
-    const stmt = this.db.prepare('SELECT * FROM nodes ORDER BY name');
+    await this.ensureInitialized();
+    const stmt = this.db!.prepare('SELECT * FROM nodes ORDER BY name');
     const rows = stmt.all();
     return rows.map(row => this.rowToNodeInfo(row));
   }
@@ -337,11 +362,12 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
     failed: number;
     errors: string[];
   }> {
+    await this.ensureInitialized();
     logger.info('Starting complete database rebuild...');
     
     // Clear existing data
-    this.db.exec('DELETE FROM nodes');
-    this.db.exec('DELETE FROM extraction_stats');
+    this.db!.exec('DELETE FROM nodes');
+    this.db!.exec('DELETE FROM extraction_stats');
     
     // Ensure documentation repository is available
     await this.docsFetcher.ensureDocsRepository();
@@ -581,6 +607,7 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
    * Store extraction statistics
    */
   private storeStatistics(stats: any): void {
+    if (!this.db) throw new Error('Database not initialized');
     const stmt = this.db.prepare(`
       INSERT INTO extraction_stats (
         total_nodes, nodes_with_docs, nodes_with_examples,
@@ -589,7 +616,7 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
     `);
     
     // Calculate sizes
-    const sizeStats = this.db.prepare(`
+    const sizeStats = this.db!.prepare(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN documentation_markdown IS NOT NULL THEN 1 ELSE 0 END) as with_docs,
@@ -611,8 +638,9 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
   /**
    * Get database statistics
    */
-  getStatistics(): any {
-    const stats = this.db.prepare(`
+  async getStatistics(): Promise<any> {
+    await this.ensureInitialized();
+    const stats = this.db!.prepare(`
       SELECT 
         COUNT(*) as totalNodes,
         COUNT(DISTINCT package_name) as totalPackages,
@@ -625,7 +653,7 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
       FROM nodes
     `).get() as any;
     
-    const packages = this.db.prepare(`
+    const packages = this.db!.prepare(`
       SELECT package_name as package, COUNT(*) as count
       FROM nodes
       GROUP BY package_name
@@ -648,7 +676,8 @@ CREATE TABLE IF NOT EXISTS extraction_stats (
   /**
    * Close database connection
    */
-  close(): void {
-    this.db.close();
+  async close(): Promise<void> {
+    await this.ensureInitialized();
+    this.db!.close();
   }
 }

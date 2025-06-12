@@ -3,7 +3,7 @@
  * Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
  * Licensed under the Sustainable Use License v1.0
  */
-import Database from 'better-sqlite3';
+import { createDatabaseAdapter } from '../database/database-adapter';
 import { N8nNodeLoader } from '../loaders/node-loader';
 import { NodeParser } from '../parsers/node-parser';
 import { DocsMapper } from '../mappers/docs-mapper';
@@ -14,7 +14,7 @@ import * as path from 'path';
 async function rebuild() {
   console.log('🔄 Rebuilding n8n node database...\n');
   
-  const db = new Database('./data/nodes.db');
+  const db = await createDatabaseAdapter('./data/nodes.db');
   const loader = new N8nNodeLoader();
   const parser = new NodeParser();
   const mapper = new DocsMapper();

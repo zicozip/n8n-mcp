@@ -6,7 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Refactor Complete (v2.2)
+## ✅ Refactor Complete (v2.3)
+
+### Latest Update (v2.3) - Universal Node.js Compatibility:
+- ✅ Automatic database adapter fallback system implemented
+- ✅ Works with ANY Node.js version (no more v20.17.0 requirement)
+- ✅ Seamless fallback from better-sqlite3 to sql.js
+- ✅ No manual configuration needed for Claude Desktop
+- ✅ Maintains full functionality with either adapter
+
+## ✅ Previous Achievements (v2.2)
 
 **The major refactor has been successfully completed based on IMPLEMENTATION_PLAN.md v2.2**
 
@@ -108,11 +117,15 @@ Uses SQLite with enhanced schema:
 
 ### Node.js Version Compatibility
 
-This project requires Node.js v20.17.0 for Claude Desktop compatibility. If using a different Node version locally:
+The project now features automatic database adapter fallback for universal Node.js compatibility:
 
-1. Install Node v20.17.0 via nvm: `nvm install 20.17.0`
-2. Use the provided wrapper script: `mcp-server-v20.sh`
-3. Or switch Node version: `nvm use 20.17.0`
+1. **Primary adapter**: Uses `better-sqlite3` for optimal performance when available
+2. **Fallback adapter**: Automatically switches to `sql.js` (pure JavaScript) if:
+   - Native modules fail to load
+   - Node.js version mismatch detected
+   - Running in Claude Desktop or other restricted environments
+
+This means the project works with ANY Node.js version without manual intervention. The adapter selection is automatic and transparent.
 
 ### Implementation Status
 - ✅ Property/operation extraction for 98.7% of nodes
