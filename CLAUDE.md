@@ -38,7 +38,8 @@ src/
 │   └── docs-mapper.ts         # Documentation mapping with fixes
 ├── database/
 │   ├── schema.sql             # SQLite schema
-│   └── node-repository.ts     # Data access layer
+│   ├── node-repository.ts     # Data access layer
+│   └── database-adapter.ts    # Universal database adapter (NEW in v2.3)
 ├── scripts/
 │   ├── rebuild.ts             # Database rebuild with validation
 │   ├── validate.ts            # Node validation
@@ -115,6 +116,26 @@ Uses SQLite with enhanced schema:
 4. **Rebuild Database**: `npm run rebuild`
 5. **Validate**: `npm run test-nodes`
 
+### Key Technical Decisions (v2.3)
+
+1. **Database Adapter Implementation**:
+   - Created `DatabaseAdapter` interface to abstract database operations
+   - Implemented `BetterSQLiteAdapter` and `SQLJSAdapter` classes
+   - Used factory pattern in `createDatabaseAdapter()` for automatic selection
+   - Added persistence layer for sql.js with debounced saves (100ms)
+
+2. **Compatibility Strategy**:
+   - Primary: Try better-sqlite3 first for performance
+   - Fallback: Catch native module errors and switch to sql.js
+   - Detection: Check for NODE_MODULE_VERSION errors specifically
+   - Logging: Clear messages about which adapter is active
+
+3. **Performance Considerations**:
+   - better-sqlite3: ~10-50x faster for most operations
+   - sql.js: ~2-5x slower but acceptable for this use case
+   - Auto-save: 100ms debounce prevents excessive disk writes with sql.js
+   - Memory: sql.js uses more memory but manageable for our dataset size
+
 ### Node.js Version Compatibility
 
 The project now features automatic database adapter fallback for universal Node.js compatibility:
@@ -180,6 +201,14 @@ When adding new MCP tools:
 - Use FTS5 for text searching
 - Cache frequently accessed data in memory
 
+### Database Adapter Pattern (NEW in v2.3)
+The project uses a database adapter pattern for universal compatibility:
+- **Primary adapter**: `better-sqlite3` - Native SQLite bindings for optimal performance
+- **Fallback adapter**: `sql.js` - Pure JavaScript implementation for compatibility
+- **Automatic selection**: The system detects and handles version mismatches automatically
+- **Unified interface**: Both adapters implement the same `DatabaseAdapter` interface
+- **Transparent operation**: Application code doesn't need to know which adapter is active
+
 ## Environment Configuration
 
 Required environment variables (see `.env.example`):
@@ -204,3 +233,29 @@ This project uses the Sustainable Use License. Key points:
 - ✅ Modifications allowed for own use
 - ❌ Cannot host as a service without permission
 - ❌ Cannot include in commercial products without permission
+
+## Recent Problem Solutions
+
+### SQLite Version Mismatch (Solved in v2.3)
+**Problem**: Claude Desktop bundles Node.js v16.19.1, causing NODE_MODULE_VERSION errors with better-sqlite3 compiled for different versions.
+
+**Solution**: Implemented dual-adapter system:
+1. Database adapter abstraction layer
+2. Automatic fallback from better-sqlite3 to sql.js
+3. Transparent operation regardless of Node.js version
+4. No manual configuration required
+
+**Technical Details**:
+- `src/database/database-adapter.ts` - Adapter interface and implementations
+- `createDatabaseAdapter()` - Factory function with automatic selection
+- Modified all database operations to use adapter interface
+- Added sql.js with persistence support
+
+### Property Extraction Issues (Solved in v2.2)
+**Problem**: Many nodes had empty properties/operations arrays.
+
+**Solution**: Created dedicated `PropertyExtractor` class that handles:
+1. Instance-level property extraction
+2. Versioned node support
+3. Both programmatic and declarative styles
+4. Complex nested property structures
