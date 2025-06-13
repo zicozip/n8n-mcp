@@ -184,6 +184,22 @@ Current implementation achieves:
 - ✅ 35 AI-capable tools detected
 - ✅ All critical nodes validated
 
+## Future Development
+
+### HTTP Remote Deployment (Planned)
+
+We are planning to add HTTP transport support to enable remote deployment of the MCP server. This will allow:
+- Centralized hosting on cloud servers
+- Multiple users connecting to a single instance
+- No local installation required
+- Enterprise-ready authentication
+
+For detailed planning documents, see:
+- [HTTP Remote Deployment Plan](./HTTP_REMOTE_DEPLOYMENT_PLAN.md)
+- [HTTP Implementation Guide](./HTTP_IMPLEMENTATION_GUIDE.md)
+- [HTTP Implementation Roadmap](./HTTP_IMPLEMENTATION_ROADMAP.md)
+- [HTTP Remote Summary](./HTTP_REMOTE_SUMMARY.md)
+
 ## Contributing
 
 1. Fork the repository
