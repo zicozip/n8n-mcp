@@ -184,21 +184,45 @@ Current implementation achieves:
 - ✅ 35 AI-capable tools detected
 - ✅ All critical nodes validated
 
-## Future Development
+## Remote Deployment
 
-### HTTP Remote Deployment (Planned)
+### HTTP Server Mode
 
-We are planning to add HTTP transport support to enable remote deployment of the MCP server. This will allow:
-- Centralized hosting on cloud servers
-- Multiple users connecting to a single instance
-- No local installation required
-- Enterprise-ready authentication
+n8n-MCP now supports HTTP mode for remote deployments. This allows you to:
+- Host the MCP server on a cloud VPS
+- Connect from Claude Desktop using mcp-remote
+- Single-user design for private use
+- Simple token-based authentication
 
-For detailed planning documents, see:
-- [HTTP Remote Deployment Plan](./HTTP_REMOTE_DEPLOYMENT_PLAN.md)
-- [HTTP Implementation Guide](./HTTP_IMPLEMENTATION_GUIDE.md)
-- [HTTP Implementation Roadmap](./HTTP_IMPLEMENTATION_ROADMAP.md)
-- [HTTP Remote Summary](./HTTP_REMOTE_SUMMARY.md)
+### Quick Start for HTTP Mode
+
+1. On your server:
+```bash
+# Set environment variables
+export MCP_MODE=http
+export AUTH_TOKEN=$(openssl rand -base64 32)
+
+# Start the server
+npm run start:http
+```
+
+2. On your client, configure Claude Desktop with mcp-remote:
+```json
+{
+  "mcpServers": {
+    "n8n-documentation": {
+      "command": "mcp-remote",
+      "args": [
+        "https://your-server.com/mcp",
+        "--header",
+        "Authorization: Bearer your-auth-token"
+      ]
+    }
+  }
+}
+```
+
+For detailed instructions, see [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md).
 
 ## Contributing
 

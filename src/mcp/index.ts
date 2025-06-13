@@ -18,13 +18,21 @@ process.on('unhandledRejection', (reason, promise) => {
 
 async function main() {
   try {
-    console.error('Starting n8n Documentation MCP Server...');
+    const mode = process.env.MCP_MODE || 'stdio';
+    
+    console.error(`Starting n8n Documentation MCP Server in ${mode} mode...`);
     console.error('Current directory:', process.cwd());
-    console.error('Script directory:', __dirname);
     console.error('Node version:', process.version);
     
-    const server = new N8NDocumentationMCPServer();
-    await server.run();
+    if (mode === 'http') {
+      // HTTP mode - for remote deployment
+      const { startHTTPServer } = await import('../http-server');
+      await startHTTPServer();
+    } else {
+      // Stdio mode - for local Claude Desktop
+      const server = new N8NDocumentationMCPServer();
+      await server.run();
+    }
   } catch (error) {
     console.error('Failed to start MCP server:', error);
     logger.error('Failed to start MCP server', error);

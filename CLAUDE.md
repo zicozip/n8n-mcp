@@ -72,13 +72,19 @@ npm run rebuild      # Rebuild node database
 npm run validate     # Validate critical nodes
 npm run test-nodes   # Test critical node properties/operations
 
+# HTTP Server Commands:
+npm run start:http   # Start server in HTTP mode
+npm run http         # Build and start HTTP server
+npm run dev:http     # HTTP server with auto-reload
+
 # Legacy Commands (deprecated):
 npm run db:rebuild   # Old rebuild command
 npm run db:init      # Initialize empty database
 npm run docs:rebuild # Rebuild documentation from TypeScript source
 
 # Production
-npm start            # Run built application
+npm start            # Run built application (stdio mode)
+npm run start:http   # Run in HTTP mode for remote access
 ```
 
 ## High-Level Architecture
@@ -233,6 +239,46 @@ This project uses the Sustainable Use License. Key points:
 - ✅ Modifications allowed for own use
 - ❌ Cannot host as a service without permission
 - ❌ Cannot include in commercial products without permission
+
+## HTTP Remote Deployment (v2.3.0)
+
+### ✅ HTTP Server Implementation Complete
+
+The project now includes a simplified HTTP server mode for remote deployments:
+- **Single-user design**: Stateless architecture for private deployments
+- **Simple token auth**: Bearer token authentication
+- **MCP-compatible**: Works with mcp-remote adapter for Claude Desktop
+- **Easy deployment**: Minimal configuration required
+
+### Quick Start
+```bash
+# Server setup
+export MCP_MODE=http
+export AUTH_TOKEN=$(openssl rand -base64 32)
+npm run start:http
+
+# Client setup (Claude Desktop config)
+{
+  "mcpServers": {
+    "n8n-documentation": {
+      "command": "mcp-remote",
+      "args": [
+        "https://your-server.com/mcp",
+        "--header",
+        "Authorization: Bearer your-auth-token"
+      ]
+    }
+  }
+}
+```
+
+### Available Scripts
+- `npm run start:http` - Start in HTTP mode
+- `npm run http` - Build and start HTTP server
+- `npm run dev:http` - Development mode with auto-reload
+- `./scripts/deploy-http.sh` - Deployment helper script
+
+For detailed deployment instructions, see [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md).
 
 ## Recent Problem Solutions
 

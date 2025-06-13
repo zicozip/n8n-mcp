@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [2.3.0] - 2024-12-06
 
 ### Added
+- **HTTP Remote Deployment**: Single-user HTTP server for remote access
+  - Stateless architecture for simple deployments
+  - Bearer token authentication
+  - Compatible with mcp-remote adapter for Claude Desktop
+  - New HTTP mode scripts and deployment helper
 - **Universal Node.js Compatibility**: Automatic database adapter fallback system
   - Primary adapter: `better-sqlite3` for optimal performance
   - Fallback adapter: `sql.js` (pure JavaScript) for version mismatches
@@ -13,23 +18,28 @@ All notable changes to this project will be documented in this file.
 - Database adapter abstraction layer (`src/database/database-adapter.ts`)
 - Version detection and logging for troubleshooting
 - sql.js dependency for pure JavaScript SQLite implementation
+- HTTP server implementation (`src/http-server.ts`)
+- Deployment documentation and scripts
 
 ### Changed
 - Updated all database operations to use the adapter interface
 - Removed Node.js v20.17.0 requirement - now works with ANY version
 - Simplified Claude Desktop setup - no wrapper scripts needed
 - Enhanced error messages for database initialization
+- Made all MCP tool handlers async for proper initialization
 
 ### Fixed
 - NODE_MODULE_VERSION mismatch errors with Claude Desktop
 - Native module compilation issues in restricted environments
 - Compatibility issues when running with different Node.js versions
+- Database initialization race conditions in HTTP mode
 
 ### Technical Details
 - Better-sqlite3: ~10-50x faster (when compatible)
 - sql.js: ~2-5x slower but universally compatible
 - Both adapters maintain identical API and functionality
 - Automatic persistence for sql.js with 100ms debounced saves
+- HTTP server uses StreamableHTTPServerTransport for MCP compatibility
 
 ## [2.2.0] - 2024-12-06
 

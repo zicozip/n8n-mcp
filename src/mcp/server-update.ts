@@ -150,7 +150,9 @@ export class N8NDocumentationMCPServer {
     }
   }
 
-  private listNodes(filters: any = {}): any {
+  private async listNodes(filters: any = {}): Promise<any> {
+    await this.ensureInitialized();
+    
     let query = 'SELECT * FROM nodes WHERE 1=1';
     const params: any[] = [];
 
@@ -199,7 +201,8 @@ export class N8NDocumentationMCPServer {
     };
   }
 
-  private getNodeInfo(nodeType: string): any {
+  private async getNodeInfo(nodeType: string): Promise<any> {
+    await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
     let node = this.repository.getNode(nodeType);
     
@@ -228,7 +231,8 @@ export class N8NDocumentationMCPServer {
     return node;
   }
 
-  private searchNodes(query: string, limit: number = 20): any {
+  private async searchNodes(query: string, limit: number = 20): Promise<any> {
+    await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
     // Simple search across multiple fields
     const searchQuery = `%${query}%`;
@@ -273,7 +277,8 @@ export class N8NDocumentationMCPServer {
     return 'low';
   }
 
-  private listAITools(): any {
+  private async listAITools(): Promise<any> {
+    await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
     const tools = this.repository.getAITools();
     
@@ -287,7 +292,8 @@ export class N8NDocumentationMCPServer {
     };
   }
 
-  private getNodeDocumentation(nodeType: string): any {
+  private async getNodeDocumentation(nodeType: string): Promise<any> {
+    await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
     const node = this.db!.prepare(`
       SELECT node_type, display_name, documentation 
@@ -307,7 +313,8 @@ export class N8NDocumentationMCPServer {
     };
   }
 
-  private getDatabaseStatistics(): any {
+  private async getDatabaseStatistics(): Promise<any> {
+    await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
     const stats = this.db!.prepare(`
       SELECT 
@@ -343,6 +350,15 @@ export class N8NDocumentationMCPServer {
         nodeCount: pkg.count,
       })),
     };
+  }
+
+  // Add connect method to accept any transport
+  async connect(transport: any): Promise<void> {
+    await this.ensureInitialized();
+    await this.server.connect(transport);
+    logger.info('MCP Server connected', { 
+      transportType: transport.constructor.name 
+    });
   }
 
   async run(): Promise<void> {
