@@ -13,8 +13,6 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Build TypeScript
 RUN npm run build
-# Pre-initialize database during build
-RUN mkdir -p /app/data && npm run rebuild || echo "Database will be initialized at runtime"
 
 # Stage 3: Simple Runtime
 FROM node:20-alpine AS runtime
@@ -32,8 +30,8 @@ RUN npm ci --only=production && \
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Copy pre-built database if it exists
-COPY --from=builder /app/data/nodes.db ./data/nodes.db 2>/dev/null || true
+# Create data directory
+RUN mkdir -p /app/data
 
 # Copy necessary source files for database initialization
 COPY src/database/schema.sql ./src/database/

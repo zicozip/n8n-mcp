@@ -6,17 +6,70 @@ This guide explains how to deploy n8n-MCP as a private HTTP server for remote ac
 
 The HTTP mode allows you to run n8n-MCP on a remote server and connect to it from Claude Desktop using the mcp-remote adapter. This is designed for single-user private deployments.
 
-## Requirements
+## Deployment Options
 
-- Node.js v16+ on the server
-- A server with a public IP or domain
-- HTTPS proxy (nginx/caddy) for secure connections
-- mcp-remote installed on the client
+### Option 1: Docker Deployment (Recommended) 🐳
 
-## Server Setup
+The easiest way to deploy n8n-MCP is using Docker:
 
-### 1. Clone and Build
+#### Quick Start
+```bash
+# 1. Create configuration
+echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
 
+# 2. Start with Docker Compose
+docker compose up -d
+
+# 3. Check health
+curl http://localhost:3000/health
+```
+
+#### Production Deployment
+```bash
+# 1. Clone repository
+git clone https://github.com/yourusername/n8n-mcp.git
+cd n8n-mcp
+
+# 2. Create production .env
+cat > .env << EOF
+AUTH_TOKEN=$(openssl rand -base64 32)
+NODE_ENV=production
+LOG_LEVEL=info
+PORT=3000
+EOF
+
+# 3. Deploy with Docker Compose
+docker compose up -d
+
+# 4. Check logs
+docker compose logs -f
+```
+
+#### Using Pre-built Images
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  n8n-mcp:
+    image: ghcr.io/czlonkowski/n8n-mcp:latest
+    environment:
+      MCP_MODE: http
+      AUTH_TOKEN: ${AUTH_TOKEN:?Required}
+    ports:
+      - "3000:3000"
+    volumes:
+      - n8n-mcp-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  n8n-mcp-data:
+```
+
+### Option 2: Manual Installation
+
+If you prefer not to use Docker:
+
+#### 1. Clone and Build
 ```bash
 git clone https://github.com/yourusername/n8n-mcp.git
 cd n8n-mcp
@@ -25,8 +78,7 @@ npm run build
 npm run rebuild
 ```
 
-### 2. Configure Environment
-
+#### 2. Configure Environment
 ```bash
 cp .env.example .env
 ```
@@ -47,13 +99,7 @@ MCP_LOG_LEVEL=info
 NODE_ENV=production
 ```
 
-Generate a secure token:
-```bash
-openssl rand -base64 32
-```
-
-### 3. Start the Server
-
+#### 3. Start the Server
 ```bash
 # Using the deployment script
 ./scripts/deploy-http.sh
@@ -220,33 +266,95 @@ The test script checks:
 
 ## Troubleshooting
 
-### Connection Refused
+### Docker-specific Issues
+
+#### Container won't start
+```bash
+# Check logs
+docker compose logs n8n-mcp
+
+# Check if port is already in use
+lsof -i :3000
+
+# Rebuild and restart
+docker compose down
+docker compose up -d --build
+```
+
+#### Database initialization fails
+```bash
+# Copy existing database
+docker cp data/nodes.db n8n-mcp:/app/data/
+
+# Or rebuild inside container
+docker compose exec n8n-mcp npm run rebuild
+```
+
+#### Permission issues
+```bash
+# Fix volume permissions
+docker compose exec n8n-mcp chown -R nodejs:nodejs /app/data
+```
+
+### General Issues
+
+#### Connection Refused
 - Check firewall rules
 - Verify server is running
 - Check nginx/proxy configuration
 - Run the test script to diagnose
+- For Docker: ensure ports are mapped correctly
 
-### Authentication Failed
+#### Authentication Failed
 - Verify AUTH_TOKEN matches in both server and client
 - Check Authorization header format
 - Token should be at least 32 characters
+- Docker: check .env file is loaded
 
-### MCP Tools Not Available
+#### MCP Tools Not Available
 - Restart Claude Desktop
 - Check mcp-remote installation
 - Verify server logs for errors
 - Ensure CORS headers are working
+- Docker: check container health status
 
 ## Performance Tips
 
 1. Use a VPS with good network connectivity
 2. Enable gzip compression in your proxy
-3. Consider using PM2 for process management:
+3. For Docker deployments:
+   - Use `--restart unless-stopped` for reliability
+   - Monitor with `docker stats n8n-mcp`
+   - Set memory limits in docker-compose.yml
+4. For manual deployments, use PM2:
    ```bash
    pm2 start npm --name "n8n-mcp" -- run start:http
    ```
 
-## Example Systemd Service
+## Production Deployment Examples
+
+### Using Docker with Systemd
+
+Create `/etc/systemd/system/n8n-mcp-docker.service`:
+
+```ini
+[Unit]
+Description=n8n MCP Docker Container
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/n8n-mcp
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Manual Installation with Systemd
 
 Create `/etc/systemd/system/n8n-mcp.service`:
 
