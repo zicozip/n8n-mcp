@@ -85,7 +85,58 @@ npm run docs:rebuild # Rebuild documentation from TypeScript source
 # Production
 npm start            # Run built application (stdio mode)
 npm run start:http   # Run in HTTP mode for remote access
+
+# Docker Commands:
+docker compose up -d        # Start with Docker Compose
+docker compose logs -f      # View logs
+docker compose down         # Stop containers
+docker compose down -v      # Stop and remove volumes
+./scripts/test-docker.sh    # Test Docker deployment
 ```
+
+## Docker Deployment
+
+The project includes comprehensive Docker support for easy deployment:
+
+### Quick Start with Docker
+```bash
+# Create .env file with auth token
+echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
+
+# Start the server
+docker compose up -d
+
+# Check health
+curl http://localhost:3000/health
+```
+
+### Docker Features
+- **Multi-stage builds** for optimized image size (~150MB)
+- **Dual mode support** (stdio and HTTP) in single image
+- **Automatic database initialization** on first run
+- **Non-root user** execution for security
+- **Health checks** built into the image
+- **Volume persistence** for SQLite database
+- **Resource limits** configured in compose file
+
+### Docker Images
+- `ghcr.io/czlonkowski/n8n-mcp:latest` - Simple production image
+- `ghcr.io/czlonkowski/n8n-mcp:nginx` - Enhanced with nginx (Phase 2)
+- Multi-architecture support (amd64, arm64)
+
+### Docker Development
+```bash
+# Use override file for development
+cp docker-compose.override.yml.example docker-compose.override.yml
+
+# Build and run locally
+docker compose up --build
+
+# Run tests
+./scripts/test-docker.sh
+```
+
+For detailed Docker documentation, see [DOCKER_README.md](./DOCKER_README.md).
 
 ## High-Level Architecture
 

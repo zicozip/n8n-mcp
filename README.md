@@ -63,6 +63,78 @@ npm run rebuild
 npm run test-nodes
 ```
 
+## Docker Quick Start 🐳
+
+The easiest way to get started is using Docker:
+
+### Option 1: Simple HTTP Server (Recommended)
+
+1. Create a `.env` file:
+```bash
+# Generate a secure token
+AUTH_TOKEN=$(openssl rand -base64 32)
+echo "AUTH_TOKEN=$AUTH_TOKEN" > .env
+```
+
+2. Run with Docker Compose:
+```bash
+docker compose up -d
+```
+
+3. Test the server:
+```bash
+curl http://localhost:3000/health
+```
+
+4. Configure Claude Desktop with mcp-remote:
+```json
+{
+  "mcpServers": {
+    "n8n-remote": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/mcp-remote@latest",
+        "connect",
+        "http://localhost:3000/mcp"
+      ],
+      "env": {
+        "MCP_AUTH_TOKEN": "your-auth-token-here"
+      }
+    }
+  }
+}
+```
+
+### Option 2: Local stdio Mode (Direct Docker)
+
+```json
+{
+  "mcpServers": {
+    "n8n-docker": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e", "MCP_MODE=stdio",
+        "-v", "n8n-mcp-data:/app/data",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+### Building Locally
+
+To build the Docker image locally:
+```bash
+docker build -t n8n-mcp:local .
+```
+
+For detailed Docker documentation, see [DOCKER_README.md](./DOCKER_README.md).
+
 ## Usage
 
 ### With Claude Desktop

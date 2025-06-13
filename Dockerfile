@@ -1,55 +1,76 @@
-# Production stage
-FROM node:18-alpine
+# Stage 1: Dependencies
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+# Install all dependencies including dev for building
+RUN npm ci
 
-# Install SQLite (for database management)
-RUN apk add --no-cache sqlite
+# Stage 2: Builder
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Build TypeScript
+RUN npm run build
+# Pre-initialize database during build
+RUN mkdir -p /app/data && npm run rebuild || echo "Database will be initialized at runtime"
 
+# Stage 3: Simple Runtime
+FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Install only essential tools (flock is in util-linux)
+RUN apk add --no-cache curl su-exec util-linux && \
+    rm -rf /var/cache/apk/*
 
 # Install production dependencies only
-RUN npm ci --only=production
+COPY package*.json ./
+RUN npm ci --only=production && \
+    npm cache clean --force
 
-# Copy built files
-COPY dist ./dist
-COPY tests ./tests
+# Copy built application
+COPY --from=builder /app/dist ./dist
+
+# Copy pre-built database if it exists
+COPY --from=builder /app/data/nodes.db ./data/nodes.db 2>/dev/null || true
+
+# Copy necessary source files for database initialization
+COPY src/database/schema.sql ./src/database/
 COPY scripts ./scripts
 
-# Create data directory for SQLite database
-RUN mkdir -p /app/data
+# Copy necessary files
+COPY .env.example .env.example
+COPY LICENSE LICENSE
+COPY README.md README.md
 
-# Create a non-root user
-RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+# Add container labels
+LABEL org.opencontainers.image.source="https://github.com/czlonkowski/n8n-mcp"
+LABEL org.opencontainers.image.description="n8n MCP Server - Simple Version"
+LABEL org.opencontainers.image.licenses="Sustainable-Use-1.0"
+LABEL org.opencontainers.image.vendor="n8n-mcp"
+LABEL org.opencontainers.image.title="n8n-mcp"
 
-# Change ownership (including data directory)
-RUN chown -R nodejs:nodejs /app
+# Create data directory and fix permissions
+RUN mkdir -p /app/data && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 && \
+    chown -R nodejs:nodejs /app
+
+# Copy entrypoint script
+COPY docker/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Switch to non-root user
 USER nodejs
 
-# Set environment variable for database location
-ENV NODE_DB_PATH=/app/data/nodes-v2.db
-
-# Create a startup script
-RUN printf '#!/bin/sh\n\
-echo "🚀 Starting n8n Documentation MCP server..."\n\
-\n\
-# Initialize database if it does not exist\n\
-if [ ! -f "$NODE_DB_PATH" ]; then\n\
-  echo "📦 Initializing database..."\n\
-  node dist/scripts/rebuild-database-v2.js\n\
-fi\n\
-\n\
-echo "🎯 Database ready, starting documentation server..."\n\
-exec node dist/index-v2.js\n' > /app/start.sh && chmod +x /app/start.sh
-
-# Expose the MCP server port (if using HTTP transport)
+# Expose HTTP port
 EXPOSE 3000
 
-# Volume for persistent database storage
-VOLUME ["/app/data"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD curl -f http://127.0.0.1:3000/health || exit 1
 
-# Start the MCP server with database initialization
-CMD ["/bin/sh", "/app/start.sh"]
+# Entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["node", "dist/mcp/index.js"]
