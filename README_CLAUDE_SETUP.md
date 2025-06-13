@@ -21,7 +21,7 @@
        "n8n-documentation": {
          "command": "node",
          "args": [
-           "/Users/romualdczlonkowski/Pliki/n8n-mcp/n8n-mcp/dist/mcp/index.js"
+           "/Users/johndoe/projects/n8n-mcp/dist/mcp/index.js"
          ],
          "env": {
            "NODE_ENV": "production"
@@ -32,8 +32,6 @@
    ```
 
    **Note**: Update the path in `args` to match your actual installation directory.
-
-   > **New in v2.3**: The project now automatically handles Node.js version mismatches. If Claude Desktop uses a different Node.js version, the database adapter will automatically fall back to a pure JavaScript implementation (sql.js) that works with any version.
 
 4. **Restart Claude Desktop** to load the new configuration.
 
@@ -76,20 +74,14 @@ Once configured, you'll have access to these tools in Claude:
 1. **If the server doesn't appear in Claude:**
    - Check that the path in `args` is absolute and correct
    - Ensure you've run `npm run build` and `npm run rebuild`
-   - Check Claude Desktop logs: `~/Library/Logs/Claude/mcp*.log`
+   - Check `~/.n8n-mcp/logs/` for error logs
 
 2. **If tools return errors:**
    - Ensure the database exists: `data/nodes.db`
    - Run `npm run validate` to check the database
    - Rebuild if necessary: `npm run rebuild`
 
-3. **Node.js version issues:**
-   - **No action needed!** The project automatically detects version mismatches
-   - If better-sqlite3 fails, it falls back to sql.js (pure JavaScript)
-   - You'll see a log message indicating which adapter is being used
-   - Both adapters provide identical functionality
-
-4. **For development/testing:**
+3. **For development/testing:**
    You can also run with more verbose logging:
    ```json
    {
@@ -107,8 +99,3 @@ Once configured, you'll have access to these tools in Claude:
      }
    }
    ```
-
-5. **Checking which database adapter is active:**
-   Look for these log messages when the server starts:
-   - `Successfully initialized better-sqlite3 adapter` - Using native SQLite
-   - `Successfully initialized sql.js adapter` - Using pure JavaScript fallback
