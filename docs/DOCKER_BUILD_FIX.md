@@ -18,6 +18,10 @@ ERROR: failed to solve: failed to read dockerfile: open Dockerfile.nginx: no suc
 ERROR: failed to solve: process "/bin/sh -c npm ci --only=production && npm cache clean --force" did not complete successfully: exit code: 1
 ```
 
+### 4. Network Timeout in GitHub Actions
+```
+npm error network If you are behind a proxy, please make sure that the 'proxy' config is set properly
+```
 ## Root Causes & Solutions
 
 ### 1. Invalid COPY Syntax
@@ -35,25 +39,43 @@ The `--only=production` flag is deprecated in newer npm versions.
 
 **Solution**: Changed to `--omit=dev` which is the current syntax.
 
+### 4. Network Timeouts During npm Install
+Installing production dependencies fresh was causing network timeouts in GitHub Actions.
+
+**Solution**: 
+- Added npm retry configuration for reliability
+- Created separate stage for production dependencies
+- Use `npm prune` instead of fresh install to avoid network issues
+- Copy pre-pruned dependencies to runtime stage
+
 ## Changes Made
 
-### Dockerfile Changes
-```diff
-- # Pre-initialize database during build
-- RUN mkdir -p /app/data && npm run rebuild || echo "Database will be initialized at runtime"
-+ # Build TypeScript only
-+ RUN npm run build
+### Complete Dockerfile Optimization
 
-- # Copy pre-built database if it exists
-- COPY --from=builder /app/data/nodes.db ./data/nodes.db 2>/dev/null || true
-+ # Create data directory
-+ RUN mkdir -p /app/data
-
-- RUN npm ci --only=production && \
-+ RUN npm ci --omit=dev && \
-     npm cache clean --force
+1. **Added npm configuration for reliability**:
+```dockerfile
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000
 ```
 
+2. **Created separate production dependencies stage**:
+```dockerfile
+# Stage 2: Production Dependencies
+FROM node:20-alpine AS prod-deps
+WORKDIR /app
+COPY package*.json ./
+COPY --from=deps /app/node_modules ./node_modules
+RUN npm prune --omit=dev
+```
+
+3. **Optimized runtime stage**:
+```dockerfile
+# Copy pre-pruned production dependencies
+COPY --from=prod-deps /app/node_modules ./node_modules
+# No need for npm install in runtime!
+```
 ### GitHub Actions Workflow Changes
 ```diff
 - name: Log in to GitHub Container Registry
@@ -68,10 +90,19 @@ The `--only=production` flag is deprecated in newer npm versions.
 ```
 
 ## Result
-✅ Docker build now succeeds
+✅ Docker build now succeeds without network timeouts
+✅ Optimized build process with 4 stages
+✅ Production dependencies are pruned efficiently
 ✅ Database initialization happens at container startup
 ✅ GitHub Actions workflow will work properly
 ✅ No manual intervention required
+
+## Key Improvements
+1. **Network Reliability**: Added npm retry configuration
+2. **Build Efficiency**: Only hit npm registry once, then prune
+3. **Stage Optimization**: 4 stages for clear separation of concerns
+4. **No Redundant Installs**: Eliminated duplicate npm operations
+5. **GitHub Actions Ready**: Added build optimizations
 
 ## Testing
 ```bash
@@ -82,4 +113,13 @@ docker build -t n8n-mcp:test .
 docker run -d --name test -e MCP_MODE=http -e AUTH_TOKEN=test -p 3000:3000 n8n-mcp:test
 docker logs test
 curl http://localhost:3000/health
+
+# Check image size
+docker images n8n-mcp:test
 ```
+
+## Performance Impact
+- Build time: Reduced by avoiding duplicate npm installs
+- Network usage: Single npm ci instead of two
+- Reliability: 5 retries with exponential backoff
+- Cache efficiency: Better layer caching with separate stages

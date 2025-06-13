@@ -2,10 +2,24 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
+# Configure npm for better reliability in CI
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-timeout 300000
 # Install all dependencies including dev for building
 RUN npm ci
 
-# Stage 2: Builder
+# Stage 2: Production Dependencies
+FROM node:20-alpine AS prod-deps
+WORKDIR /app
+COPY package*.json ./
+# Copy all dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+# Prune to production only (much faster than fresh install)
+RUN npm prune --omit=dev
+
+# Stage 3: Builder
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
@@ -14,7 +28,7 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Stage 3: Simple Runtime
+# Stage 4: Runtime
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
@@ -22,10 +36,9 @@ WORKDIR /app
 RUN apk add --no-cache curl su-exec util-linux && \
     rm -rf /var/cache/apk/*
 
-# Install production dependencies only
+# Copy production dependencies from prod-deps stage
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY package*.json ./
-RUN npm ci --omit=dev && \
-    npm cache clean --force
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
