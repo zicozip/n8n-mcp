@@ -260,13 +260,17 @@ npm run start:http
 # Client setup (Claude Desktop config)
 {
   "mcpServers": {
-    "n8n-documentation": {
-      "command": "mcp-remote",
+    "n8n-remote": {
+      "command": "npx",
       "args": [
-        "https://your-server.com/mcp",
-        "--header",
-        "Authorization: Bearer your-auth-token"
-      ]
+        "-y",
+        "@modelcontextprotocol/mcp-remote@latest",
+        "connect",
+        "https://your-server.com/mcp"
+      ],
+      "env": {
+        "MCP_AUTH_TOKEN": "your-auth-token"
+      }
     }
   }
 }

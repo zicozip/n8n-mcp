@@ -107,12 +107,52 @@ npm install -g mcp-remote
 
 Edit Claude Desktop config:
 
+**Option 1: Using global mcp-remote installation**
 ```json
 {
   "mcpServers": {
-    "n8n-documentation": {
+    "n8n-remote": {
       "command": "mcp-remote",
       "args": [
+        "connect",
+        "https://your-domain.com/mcp"
+      ],
+      "env": {
+        "MCP_AUTH_TOKEN": "your-secure-token-here"
+      }
+    }
+  }
+}
+```
+
+**Option 2: Using npx (no installation required)**
+```json
+{
+  "mcpServers": {
+    "n8n-remote": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/mcp-remote@latest",
+        "connect",
+        "https://your-domain.com/mcp"
+      ],
+      "env": {
+        "MCP_AUTH_TOKEN": "your-secure-token-here"
+      }
+    }
+  }
+}
+```
+
+**Option 3: Using custom headers (if needed)**
+```json
+{
+  "mcpServers": {
+    "n8n-remote": {
+      "command": "mcp-remote",
+      "args": [
+        "connect",
         "https://your-domain.com/mcp",
         "--header",
         "Authorization: Bearer your-secure-token-here"
@@ -152,21 +192,50 @@ Expected response:
 }
 ```
 
+## Testing
+
+Use the included test script to verify your HTTP server:
+
+```bash
+# Test local server
+./scripts/test-http.sh
+
+# Test remote server
+./scripts/test-http.sh https://your-domain.com
+
+# Test with custom token
+AUTH_TOKEN=your-token ./scripts/test-http.sh
+
+# Verbose output
+VERBOSE=1 ./scripts/test-http.sh
+```
+
+The test script checks:
+- Health endpoint
+- CORS preflight
+- Authentication
+- Valid MCP requests
+- Error handling
+- Request size limits
+
 ## Troubleshooting
 
 ### Connection Refused
 - Check firewall rules
 - Verify server is running
 - Check nginx/proxy configuration
+- Run the test script to diagnose
 
 ### Authentication Failed
 - Verify AUTH_TOKEN matches in both server and client
 - Check Authorization header format
+- Token should be at least 32 characters
 
 ### MCP Tools Not Available
 - Restart Claude Desktop
 - Check mcp-remote installation
 - Verify server logs for errors
+- Ensure CORS headers are working
 
 ## Performance Tips
 
