@@ -25,20 +25,27 @@ async function main() {
     console.error('Node version:', process.version);
     
     if (mode === 'http') {
-      // HTTP mode - for remote deployment with single-session architecture
-      const { SingleSessionHTTPServer } = await import('../http-server-single-session');
-      const server = new SingleSessionHTTPServer();
-      
-      // Graceful shutdown handlers
-      const shutdown = async () => {
-        await server.shutdown();
-        process.exit(0);
-      };
-      
-      process.on('SIGTERM', shutdown);
-      process.on('SIGINT', shutdown);
-      
-      await server.start();
+      // Check if we should use the fixed implementation
+      if (process.env.USE_FIXED_HTTP === 'true') {
+        // Use the fixed HTTP implementation that bypasses StreamableHTTPServerTransport issues
+        const { startFixedHTTPServer } = await import('../http-server-fixed');
+        await startFixedHTTPServer();
+      } else {
+        // HTTP mode - for remote deployment with single-session architecture
+        const { SingleSessionHTTPServer } = await import('../http-server-single-session');
+        const server = new SingleSessionHTTPServer();
+        
+        // Graceful shutdown handlers
+        const shutdown = async () => {
+          await server.shutdown();
+          process.exit(0);
+        };
+        
+        process.on('SIGTERM', shutdown);
+        process.on('SIGINT', shutdown);
+        
+        await server.start();
+      }
     } else {
       // Stdio mode - for local Claude Desktop
       const server = new N8NDocumentationMCPServer();

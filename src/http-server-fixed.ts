@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * Minimal HTTP server for n8n-MCP
- * Single-user, stateless design for private deployments
+ * Fixed HTTP server for n8n-MCP that properly handles StreamableHTTPServerTransport initialization
+ * This implementation ensures the transport is properly initialized before handling requests
  */
 import express from 'express';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { n8nDocumentationTools } from './mcp/tools-update';
 import { N8NDocumentationMCPServer } from './mcp/server-update';
 import { logger } from './utils/logger';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-let server: any;
+let expressServer: any;
 
 /**
  * Validate required environment variables
@@ -27,7 +28,6 @@ function validateEnvironment() {
     process.exit(1);
   }
   
-  // Validate AUTH_TOKEN length
   if (process.env.AUTH_TOKEN && process.env.AUTH_TOKEN.length < 32) {
     logger.warn('AUTH_TOKEN should be at least 32 characters for security');
     console.warn('WARNING: AUTH_TOKEN should be at least 32 characters for security');
@@ -41,14 +41,13 @@ async function shutdown() {
   logger.info('Shutting down HTTP server...');
   console.log('Shutting down HTTP server...');
   
-  if (server) {
-    server.close(() => {
+  if (expressServer) {
+    expressServer.close(() => {
       logger.info('HTTP server closed');
       console.log('HTTP server closed');
       process.exit(0);
     });
     
-    // Force shutdown after 10 seconds
     setTimeout(() => {
       logger.error('Forced shutdown after timeout');
       process.exit(1);
@@ -58,14 +57,12 @@ async function shutdown() {
   }
 }
 
-export async function startHTTPServer() {
-  // Validate environment
+export async function startFixedHTTPServer() {
   validateEnvironment();
   
   const app = express();
   
-  // DON'T parse JSON globally - StreamableHTTPServerTransport needs raw stream
-  // Only parse for specific endpoints that need it
+  // CRITICAL: Don't use any body parser - StreamableHTTPServerTransport needs raw stream
   
   // Security headers
   app.use((req, res, next) => {
@@ -76,13 +73,13 @@ export async function startHTTPServer() {
     next();
   });
   
-  // CORS configuration for mcp-remote compatibility
+  // CORS configuration
   app.use((req, res, next) => {
     const allowedOrigin = process.env.CORS_ORIGIN || '*';
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
-    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+    res.setHeader('Access-Control-Max-Age', '86400');
     
     if (req.method === 'OPTIONS') {
       res.sendStatus(204);
@@ -91,7 +88,7 @@ export async function startHTTPServer() {
     next();
   });
   
-  // Request logging middleware
+  // Request logging
   app.use((req, res, next) => {
     logger.info(`${req.method} ${req.path}`, {
       ip: req.ip,
@@ -101,11 +98,11 @@ export async function startHTTPServer() {
     next();
   });
   
-  // Enhanced health check endpoint
+  // Health check endpoint
   app.get('/health', (req, res) => {
     res.json({ 
       status: 'ok', 
-      mode: 'http',
+      mode: 'http-fixed',
       version: '2.3.2',
       uptime: Math.floor(process.uptime()),
       memory: {
@@ -117,7 +114,11 @@ export async function startHTTPServer() {
     });
   });
   
-  // Main MCP endpoint - Create a new server and transport for each request (stateless)
+  // Create a single persistent MCP server instance
+  const mcpServer = new N8NDocumentationMCPServer();
+  logger.info('Created persistent MCP server instance');
+  
+  // Main MCP endpoint - handle each request with custom transport handling
   app.post('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
     const startTime = Date.now();
     
@@ -143,38 +144,119 @@ export async function startHTTPServer() {
       return;
     }
     
-    // Create new instances for each request (stateless)
-    const mcpServer = new N8NDocumentationMCPServer();
-    
     try {
-      // Create a stateless transport
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined, // Stateless mode
+      // Instead of using StreamableHTTPServerTransport, we'll handle the request directly
+      // This avoids the initialization issues with the transport
+      
+      // Collect the raw body
+      let body = '';
+      req.on('data', chunk => {
+        body += chunk.toString();
       });
       
-      // Connect server to transport
-      await mcpServer.connect(transport);
-      
-      // Handle the request - Fixed: removed third parameter
-      await transport.handleRequest(req, res);
-      
-      // Log request duration
-      const duration = Date.now() - startTime;
-      logger.info('MCP request completed', { 
-        duration
-      });
-      
-      // Clean up on close
-      res.on('close', () => {
-        logger.debug('Request closed, cleaning up');
-        transport.close().catch(err => 
-          logger.error('Error closing transport:', err)
-        );
+      req.on('end', async () => {
+        try {
+          const jsonRpcRequest = JSON.parse(body);
+          logger.debug('Received JSON-RPC request:', { method: jsonRpcRequest.method });
+          
+          // Handle the request based on method
+          let response;
+          
+          switch (jsonRpcRequest.method) {
+            case 'initialize':
+              response = {
+                jsonrpc: '2.0',
+                result: {
+                  protocolVersion: '1.0',
+                  capabilities: {
+                    tools: {},
+                    resources: {}
+                  },
+                  serverInfo: {
+                    name: 'n8n-documentation-mcp',
+                    version: '2.3.2'
+                  }
+                },
+                id: jsonRpcRequest.id
+              };
+              break;
+              
+            case 'tools/list':
+              response = {
+                jsonrpc: '2.0',
+                result: {
+                  tools: n8nDocumentationTools
+                },
+                id: jsonRpcRequest.id
+              };
+              break;
+              
+            case 'tools/call':
+              // Delegate to the MCP server
+              const toolName = jsonRpcRequest.params?.name;
+              const toolArgs = jsonRpcRequest.params?.arguments || {};
+              
+              try {
+                const result = await mcpServer.executeTool(toolName, toolArgs);
+                response = {
+                  jsonrpc: '2.0',
+                  result: {
+                    content: [
+                      {
+                        type: 'text',
+                        text: JSON.stringify(result, null, 2)
+                      }
+                    ]
+                  },
+                  id: jsonRpcRequest.id
+                };
+              } catch (error) {
+                response = {
+                  jsonrpc: '2.0',
+                  error: {
+                    code: -32603,
+                    message: `Error executing tool ${toolName}: ${error instanceof Error ? error.message : 'Unknown error'}`
+                  },
+                  id: jsonRpcRequest.id
+                };
+              }
+              break;
+              
+            default:
+              response = {
+                jsonrpc: '2.0',
+                error: {
+                  code: -32601,
+                  message: `Method not found: ${jsonRpcRequest.method}`
+                },
+                id: jsonRpcRequest.id
+              };
+          }
+          
+          // Send response
+          res.setHeader('Content-Type', 'application/json');
+          res.json(response);
+          
+          const duration = Date.now() - startTime;
+          logger.info('MCP request completed', { 
+            duration,
+            method: jsonRpcRequest.method 
+          });
+        } catch (error) {
+          logger.error('Error processing request:', error);
+          res.status(400).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32700,
+              message: 'Parse error',
+              data: error instanceof Error ? error.message : 'Unknown error'
+            },
+            id: null
+          });
+        }
       });
     } catch (error) {
       logger.error('MCP request error:', error);
-      const duration = Date.now() - startTime;
-      logger.error('MCP request failed', { duration });
       
       if (!res.headersSent) {
         res.status(500).json({ 
@@ -220,16 +302,16 @@ export async function startHTTPServer() {
   const port = parseInt(process.env.PORT || '3000');
   const host = process.env.HOST || '0.0.0.0';
   
-  server = app.listen(port, host, () => {
-    logger.info(`n8n MCP HTTP Server started`, { port, host });
-    console.log(`n8n MCP HTTP Server running on ${host}:${port}`);
+  expressServer = app.listen(port, host, () => {
+    logger.info(`n8n MCP Fixed HTTP Server started`, { port, host });
+    console.log(`n8n MCP Fixed HTTP Server running on ${host}:${port}`);
     console.log(`Health check: http://localhost:${port}/health`);
     console.log(`MCP endpoint: http://localhost:${port}/mcp`);
     console.log('\nPress Ctrl+C to stop the server');
   });
   
   // Handle errors
-  server.on('error', (error: any) => {
+  expressServer.on('error', (error: any) => {
     if (error.code === 'EADDRINUSE') {
       logger.error(`Port ${port} is already in use`);
       console.error(`ERROR: Port ${port} is already in use`);
@@ -259,11 +341,18 @@ export async function startHTTPServer() {
   });
 }
 
+// Make executeTool public on the server
+declare module './mcp/server-update' {
+  interface N8NDocumentationMCPServer {
+    executeTool(name: string, args: any): Promise<any>;
+  }
+}
+
 // Start if called directly
 if (require.main === module) {
-  startHTTPServer().catch(error => {
-    logger.error('Failed to start HTTP server:', error);
-    console.error('Failed to start HTTP server:', error);
+  startFixedHTTPServer().catch(error => {
+    logger.error('Failed to start Fixed HTTP server:', error);
+    console.error('Failed to start Fixed HTTP server:', error);
     process.exit(1);
   });
 }

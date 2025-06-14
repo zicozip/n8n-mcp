@@ -1,6 +1,6 @@
 {
   "name": "n8n-mcp",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
   "scripts": {
@@ -11,8 +11,9 @@
     "test-nodes": "node dist/scripts/test-nodes.js",
     "start": "node dist/mcp/index.js",
     "start:http": "MCP_MODE=http node dist/mcp/index.js",
+    "start:http:fixed": "MCP_MODE=http USE_FIXED_HTTP=true node dist/mcp/index.js",
     "start:http:legacy": "MCP_MODE=http node dist/http-server.js",
-    "http": "npm run build && npm run start:http",
+    "http": "npm run build && npm run start:http:fixed",
     "dev": "npm run build && npm run rebuild && npm run validate",
     "dev:http": "MCP_MODE=http nodemon --watch src --ext ts --exec 'npm run build && npm run start:http'",
     "test:single-session": "./scripts/test-single-session.sh",

@@ -84,7 +84,7 @@ export class N8NMCPEngine {
           total: Math.round(memoryUsage.heapTotal / 1024 / 1024),
           unit: 'MB'
         },
-        version: '2.3.1'
+        version: '2.3.2'
       };
     } catch (error) {
       logger.error('Health check failed:', error);
@@ -93,7 +93,7 @@ export class N8NMCPEngine {
         uptime: 0,
         sessionActive: false,
         memoryUsage: { used: 0, total: 0, unit: 'MB' },
-        version: '2.3.1'
+        version: '2.3.2'
       };
     }
   }

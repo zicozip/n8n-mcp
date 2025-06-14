@@ -131,7 +131,7 @@ export class N8NDocumentationMCPServer {
     });
   }
 
-  private async executeTool(name: string, args: any): Promise<any> {
+  async executeTool(name: string, args: any): Promise<any> {
     switch (name) {
       case 'list_nodes':
         return this.listNodes(args);

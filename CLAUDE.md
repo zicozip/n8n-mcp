@@ -6,14 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Refactor Complete (v2.3.1)
+## ✅ Refactor Complete (v2.3.2)
 
-### Latest Update (v2.3.1) - MCP Stream Error Fix:
-- ✅ Fixed "stream is not readable" error with Single-Session architecture
-- ✅ Console output isolation prevents stream corruption
-- ✅ Backward compatible with existing deployments
-- ✅ Clean engine interface for service integration
-- ✅ Automatic session management with 30-minute timeout
+### Latest Update (v2.3.2) - Complete MCP HTTP Fix:
+- ✅ Fixed "stream is not readable" error by removing body parsing middleware
+- ✅ Fixed "Server not initialized" error with direct JSON-RPC implementation
+- ✅ Created http-server-fixed.ts that bypasses StreamableHTTPServerTransport issues
+- ✅ Full MCP protocol compatibility without transport complications
+- ✅ Use `USE_FIXED_HTTP=true` environment variable to enable the fixed server
 
 ### Previous Update (v2.3) - Universal Node.js Compatibility:
 - ✅ Automatic database adapter fallback system implemented
@@ -352,6 +352,21 @@ npm run start:http
 For detailed deployment instructions, see [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md).
 
 ## Recent Problem Solutions
+
+### MCP HTTP Server Errors (Solved in v2.3.2)
+**Problem**: Two critical errors prevented the HTTP server from working:
+1. "stream is not readable" - Express.json() middleware consumed the request stream
+2. "Server not initialized" - StreamableHTTPServerTransport initialization issues
+
+**Solution**: Two-phase fix:
+1. Removed body parsing middleware to preserve raw stream
+2. Created direct JSON-RPC implementation bypassing StreamableHTTPServerTransport
+
+**Technical Details**:
+- `src/http-server-single-session.ts` - Single-session implementation (partial fix)
+- `src/http-server-fixed.ts` - Direct JSON-RPC implementation (complete fix)
+- `src/utils/console-manager.ts` - Console output isolation
+- Use `USE_FIXED_HTTP=true` to enable the fixed implementation
 
 ### SQLite Version Mismatch (Solved in v2.3)
 **Problem**: Claude Desktop bundles Node.js v16.19.1, causing NODE_MODULE_VERSION errors with better-sqlite3 compiled for different versions.

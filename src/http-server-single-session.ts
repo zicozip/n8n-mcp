@@ -67,13 +67,14 @@ export class SingleSessionHTTPServer {
         this.session!.lastAccess = new Date();
         
         // Handle request with existing transport
+        logger.debug('Calling transport.handleRequest...');
         await this.session!.transport.handleRequest(req, res);
+        logger.debug('transport.handleRequest completed');
         
         // Log request duration
         const duration = Date.now() - startTime;
         logger.info('MCP request completed', { 
           duration,
-          method: req.body?.method,
           sessionId: this.session!.sessionId
         });
         
@@ -112,22 +113,31 @@ export class SingleSessionHTTPServer {
       }
     }
     
-    // Create new session
-    const server = new N8NDocumentationMCPServer();
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => 'single-session', // Always same ID for single-session
-    });
-    
-    await server.connect(transport);
-    
-    this.session = {
-      server,
-      transport,
-      lastAccess: new Date(),
-      sessionId: 'single-session'
-    };
-    
-    logger.info('Created new single session', { sessionId: this.session.sessionId });
+    try {
+      // Create new session
+      logger.info('Creating new N8NDocumentationMCPServer...');
+      const server = new N8NDocumentationMCPServer();
+      
+      logger.info('Creating StreamableHTTPServerTransport...');
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => 'single-session', // Always same ID for single-session
+      });
+      
+      logger.info('Connecting server to transport...');
+      await server.connect(transport);
+      
+      this.session = {
+        server,
+        transport,
+        lastAccess: new Date(),
+        sessionId: 'single-session'
+      };
+      
+      logger.info('Created new single session successfully', { sessionId: this.session.sessionId });
+    } catch (error) {
+      logger.error('Failed to create session:', error);
+      throw error;
+    }
   }
   
   /**
@@ -144,11 +154,8 @@ export class SingleSessionHTTPServer {
   async start(): Promise<void> {
     const app = express();
     
-    // Parse JSON with strict limits
-    app.use(express.json({ 
-      limit: '1mb',
-      strict: true
-    }));
+    // DON'T use any body parser globally - StreamableHTTPServerTransport needs raw stream
+    // Only use JSON parser for specific endpoints that need it
     
     // Security headers
     app.use((req, res, next) => {
@@ -184,12 +191,12 @@ export class SingleSessionHTTPServer {
       next();
     });
     
-    // Health check endpoint
+    // Health check endpoint (no body parsing needed for GET)
     app.get('/health', (req, res) => {
       res.json({ 
         status: 'ok', 
         mode: 'single-session',
-        version: '2.3.1',
+        version: '2.3.2',
         uptime: Math.floor(process.uptime()),
         sessionActive: !!this.session,
         sessionAge: this.session 
