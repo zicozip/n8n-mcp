@@ -2,97 +2,108 @@
 
 This guide provides comprehensive instructions for deploying n8n-MCP using Docker.
 
-## Table of Contents
+## 🚀 Quick Start
 
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Deployment Options](#deployment-options)
-- [Development Setup](#development-setup)
-- [Production Deployment](#production-deployment)
-- [Troubleshooting](#troubleshooting)
+### Prerequisites
+- Docker Engine 20.10+ or Docker Desktop
+- Docker Compose V2
+- (Optional) openssl for generating auth tokens
 
-## Quick Start
+### 1. HTTP Server Mode (Recommended)
 
-### Using Pre-built Images
-
-The fastest way to get started is using our pre-built Docker images from GitHub Container Registry:
+The simplest way to deploy n8n-MCP is using Docker Compose with HTTP mode:
 
 ```bash
-# 1. Create a .env file with your authentication token
+# Clone the repository
+git clone https://github.com/czlonkowski/n8n-mcp.git
+cd n8n-mcp
+
+# Create .env file with auth token
 echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
 
-# 2. Start the container
-docker compose up -d
-
-# 3. Check it's running
-docker compose ps
-docker compose logs
-```
-
-### Building Locally
-
-To build the image yourself:
-
-```bash
-# Build the image
-docker build -t n8n-mcp:local .
-
-# Run with docker compose (update image in docker-compose.yml first)
-docker compose up -d
-```
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the project root:
-
-```bash
-# Required for HTTP mode
-AUTH_TOKEN=your-secure-token-here
-
-# Server configuration
-PORT=3000
-NODE_ENV=production
-LOG_LEVEL=info
-
-# MCP mode (stdio or http)
-MCP_MODE=http
-
-# Database
-NODE_DB_PATH=/app/data/nodes.db
-REBUILD_ON_START=false
-```
-
-### Docker Compose Options
-
-The project includes several Docker Compose configurations:
-
-- `docker-compose.yml` - Production HTTP server
-- `docker-compose.override.yml.example` - Development overrides template
-- `docker-compose.nginx.yml` - HTTPS with nginx (Phase 2)
-
-## Deployment Options
-
-### Option 1: HTTP Server Mode
-
-Best for remote access and integration with Claude Desktop via mcp-remote:
-
-```bash
 # Start the server
 docker compose up -d
 
+# Check logs
+docker compose logs -f
+
 # Test the health endpoint
 curl http://localhost:3000/health
-
-# Test with authentication
-curl -H "Authorization: Bearer $AUTH_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"jsonrpc":"2.0","method":"tools/list","id":1}' \
-     http://localhost:3000/mcp
 ```
 
-Configure Claude Desktop:
+### 2. Using Pre-built Images
+
+Pre-built images are available on GitHub Container Registry:
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
+
+# Run with HTTP mode
+docker run -d \
+  --name n8n-mcp \
+  -e MCP_MODE=http \
+  -e AUTH_TOKEN=your-secure-token \
+  -p 3000:3000 \
+  -v n8n-mcp-data:/app/data \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+## 📋 Configuration Options
+
+### Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `MCP_MODE` | Server mode: `stdio` or `http` | `stdio` | No |
+| `AUTH_TOKEN` | Bearer token for HTTP authentication | - | Yes (HTTP mode) |
+| `PORT` | HTTP server port | `3000` | No |
+| `NODE_ENV` | Environment: `development` or `production` | `production` | No |
+| `LOG_LEVEL` | Logging level: `debug`, `info`, `warn`, `error` | `info` | No |
+
+### Docker Compose Configuration
+
+The default `docker-compose.yml` provides:
+- Automatic restart on failure
+- Named volume for data persistence
+- Memory limits (512MB max, 256MB reserved)
+- Health checks every 30 seconds
+- Container labels for organization
+
+### Custom Configuration
+
+Create a `docker-compose.override.yml` for local customizations:
+
+```yaml
+# docker-compose.override.yml
+services:
+  n8n-mcp:
+    ports:
+      - "8080:3000"  # Use different port
+    environment:
+      LOG_LEVEL: debug
+      NODE_ENV: development
+    volumes:
+      - ./custom-data:/app/data  # Use local directory
+```
+
+## 🔧 Usage Modes
+
+### HTTP Mode (Remote Access)
+
+Perfect for cloud deployments and remote access:
+
+```bash
+# Start in HTTP mode
+docker run -d \
+  --name n8n-mcp-http \
+  -e MCP_MODE=http \
+  -e AUTH_TOKEN=your-secure-token \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+Configure Claude Desktop with mcp-remote:
 ```json
 {
   "mcpServers": {
@@ -102,20 +113,29 @@ Configure Claude Desktop:
         "-y",
         "@modelcontextprotocol/mcp-remote@latest",
         "connect",
-        "http://localhost:3000/mcp"
+        "http://your-server:3000/mcp"
       ],
       "env": {
-        "MCP_AUTH_TOKEN": "your-auth-token-here"
+        "MCP_AUTH_TOKEN": "your-secure-token"
       }
     }
   }
 }
 ```
 
-### Option 2: stdio Mode (Direct)
+### Stdio Mode (Local Direct Access)
 
-For local-only usage without network exposure:
+For local Claude Desktop integration without HTTP:
 
+```bash
+# Run in stdio mode (interactive)
+docker run --rm -i \
+  -e MCP_MODE=stdio \
+  -v n8n-mcp-data:/app/data \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+Configure Claude Desktop:
 ```json
 {
   "mcpServers": {
@@ -134,145 +154,142 @@ For local-only usage without network exposure:
 }
 ```
 
-### Option 3: HTTPS with nginx (Coming Soon)
+## 🏗️ Building from Source
 
-For production deployments with SSL/TLS:
+### Build Locally
 
 ```bash
-# Use the nginx-enhanced compose file
-docker compose -f docker-compose.nginx.yml up -d
+# Clone repository
+git clone https://github.com/czlonkowski/n8n-mcp.git
+cd n8n-mcp
+
+# Build image
+docker build -t n8n-mcp:local .
+
+# Run your local build
+docker run -d \
+  --name n8n-mcp-local \
+  -e MCP_MODE=http \
+  -e AUTH_TOKEN=test-token \
+  -p 3000:3000 \
+  n8n-mcp:local
 ```
 
-## Development Setup
+### Multi-architecture Build
 
-### Local Development with Docker
+Build for multiple platforms:
 
-1. Copy the override template:
 ```bash
-cp docker-compose.override.yml.example docker-compose.override.yml
+# Enable buildx
+docker buildx create --use
+
+# Build for amd64 and arm64
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t n8n-mcp:multiarch \
+  --load \
+  .
 ```
 
-2. Customize for your needs:
+## 🔍 Health Monitoring
+
+### Health Check Endpoint
+
+The container includes a health check that runs every 30 seconds:
+
+```bash
+# Check health status
+curl http://localhost:3000/health
+```
+
+Response example:
+```json
+{
+  "status": "healthy",
+  "uptime": 120.5,
+  "memory": {
+    "used": "8.5 MB",
+    "rss": "45.2 MB",
+    "external": "1.2 MB"
+  },
+  "version": "2.3.0",
+  "mode": "http",
+  "database": {
+    "adapter": "better-sqlite3",
+    "ready": true
+  }
+}
+```
+
+### Docker Health Status
+
+```bash
+# Check container health
+docker ps --format "table {{.Names}}\t{{.Status}}"
+
+# View health check logs
+docker inspect n8n-mcp | jq '.[0].State.Health'
+```
+
+## 🔒 Security Considerations
+
+### Authentication
+
+- Always use a strong AUTH_TOKEN (minimum 32 characters)
+- Never commit tokens to version control
+- Rotate tokens regularly
+
+```bash
+# Generate secure token
+openssl rand -base64 32
+
+# Or use uuidgen
+uuidgen | tr -d '-' | base64
+```
+
+### Network Security
+
+For production deployments:
+
+1. **Use HTTPS** - Put a reverse proxy (nginx, Caddy) in front
+2. **Firewall** - Restrict access to trusted IPs only
+3. **VPN** - Consider VPN access for internal use
+
+Example with Caddy:
+```
+your-domain.com {
+  reverse_proxy n8n-mcp:3000
+  basicauth * {
+    admin $2a$14$... # bcrypt hash
+  }
+}
+```
+
+### Container Security
+
+- Runs as non-root user (uid 1001)
+- Read-only root filesystem compatible
+- No unnecessary packages installed
+- Regular security updates via GitHub Actions
+
+## 📊 Resource Management
+
+### Memory Limits
+
+Default limits in docker-compose.yml:
+- Maximum: 512MB
+- Reserved: 256MB
+
+Adjust based on your needs:
 ```yaml
-# docker-compose.override.yml
-version: '3.8'
-
 services:
   n8n-mcp:
-    build: .  # Build locally instead of using pre-built
-    environment:
-      NODE_ENV: development
-      LOG_LEVEL: debug
-      REBUILD_ON_START: "true"
-    volumes:
-      # Mount source for development
-      - ./src:/app/src:ro
-      - ./scripts:/app/scripts:ro
-      - ./dist:/app/dist:rw
-```
-
-3. Start in development mode:
-```bash
-docker compose up --build
-```
-
-### Testing Docker Builds
-
-Run the test script to validate your Docker setup:
-
-```bash
-./scripts/test-docker.sh
-```
-
-This script will:
-- Build the Docker image
-- Test stdio mode functionality
-- Test HTTP mode with authentication
-- Verify volume persistence
-- Check health endpoints
-
-## Production Deployment
-
-### Security Considerations
-
-1. **Authentication**: Always set a strong `AUTH_TOKEN`:
-   ```bash
-   openssl rand -base64 32
-   ```
-
-2. **Network Security**: Consider using a reverse proxy (nginx, Traefik) for:
-   - SSL/TLS termination
-   - Rate limiting
-   - Access control
-
-3. **Resource Limits**: The compose file includes memory limits:
-   ```yaml
-   deploy:
-     resources:
-       limits:
-         memory: 512M
-       reservations:
-         memory: 256M
-   ```
-
-### Deployment Checklist
-
-- [ ] Generate secure AUTH_TOKEN
-- [ ] Configure environment variables
-- [ ] Set up volume backups for `/app/data`
-- [ ] Configure monitoring/logging
-- [ ] Set up SSL/TLS (if exposing publicly)
-- [ ] Test health endpoints
-- [ ] Verify Claude Desktop connectivity
-
-### Multi-Architecture Support
-
-The images support both amd64 and arm64 architectures:
-
-```bash
-# The correct architecture is automatically selected
-docker pull ghcr.io/czlonkowski/n8n-mcp:latest
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### Container fails to start
-```bash
-# Check logs
-docker compose logs -f
-
-# Verify environment variables
-docker compose config
-
-# Check file permissions
-docker compose exec n8n-mcp ls -la /app/data
-```
-
-#### Database initialization fails
-```bash
-# Manually initialize
-docker compose exec n8n-mcp node dist/scripts/rebuild.js
-
-# Check database file
-docker compose exec n8n-mcp ls -la /app/data/nodes.db
-```
-
-#### Authentication errors
-```bash
-# Verify token is set
-echo $AUTH_TOKEN
-
-# Test with curl
-curl -v -H "Authorization: Bearer $AUTH_TOKEN" http://localhost:3000/health
-```
-
-### Debug Mode
-
-Enable debug logging:
-```bash
-LOG_LEVEL=debug docker compose up
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 ```
 
 ### Volume Management
@@ -284,42 +301,179 @@ docker volume ls | grep n8n-mcp
 # Inspect volume
 docker volume inspect n8n-mcp-data
 
-# Remove volume (WARNING: deletes data)
-docker compose down -v
+# Backup data
+docker run --rm \
+  -v n8n-mcp-data:/source:ro \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/n8n-mcp-backup.tar.gz -C /source .
+
+# Restore data
+docker run --rm \
+  -v n8n-mcp-data:/target \
+  -v $(pwd):/backup:ro \
+  alpine tar xzf /backup/n8n-mcp-backup.tar.gz -C /target
 ```
 
-## Advanced Configuration
+## 🐛 Troubleshooting
 
-### Custom Certificates (Phase 2)
+### Common Issues
 
-For the nginx-enhanced version:
-```yaml
-volumes:
-  - ./certs/server.crt:/app/certs/server.crt:ro
-  - ./certs/server.key:/app/certs/server.key:ro
-```
-
-### Database Persistence
-
-The SQLite database is stored in a named volume for persistence:
-```yaml
-volumes:
-  n8n-mcp-data:
-    driver: local
-```
-
-To backup:
+#### Container Exits Immediately
 ```bash
-docker run --rm -v n8n-mcp-data:/data -v $(pwd):/backup alpine \
-  tar czf /backup/n8n-mcp-backup.tar.gz -C /data .
+# Check logs
+docker logs n8n-mcp
+
+# Common causes:
+# - Missing AUTH_TOKEN in HTTP mode
+# - Database initialization failure
+# - Port already in use
 ```
 
-## Next Steps
+#### Database Not Initialized
+```bash
+# Manually initialize database
+docker exec n8n-mcp node dist/scripts/rebuild.js
 
-- Check [GitHub Releases](https://github.com/czlonkowski/n8n-mcp/releases) for updates
-- Report issues at [GitHub Issues](https://github.com/czlonkowski/n8n-mcp/issues)
-- Join discussions in [GitHub Discussions](https://github.com/czlonkowski/n8n-mcp/discussions)
+# Or recreate container with fresh volume
+docker compose down -v
+docker compose up -d
+```
 
-## License
+#### Permission Errors
+```bash
+# Fix volume permissions
+docker exec n8n-mcp chown -R nodejs:nodejs /app/data
+```
 
-This project uses the Sustainable Use License. See [LICENSE](./LICENSE) for details.
+### Debug Mode
+
+Enable debug logging:
+```bash
+docker run -d \
+  --name n8n-mcp-debug \
+  -e MCP_MODE=http \
+  -e AUTH_TOKEN=test \
+  -e LOG_LEVEL=debug \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+### Container Shell Access
+
+```bash
+# Access running container
+docker exec -it n8n-mcp sh
+
+# Run as root for debugging
+docker exec -it -u root n8n-mcp sh
+```
+
+## 🚀 Production Deployment
+
+### Recommended Setup
+
+1. **Use Docker Compose** for easier management
+2. **Enable HTTPS** with reverse proxy
+3. **Set up monitoring** (Prometheus, Grafana)
+4. **Configure backups** for the data volume
+5. **Use secrets management** for AUTH_TOKEN
+
+### Example Production Stack
+
+```yaml
+# docker-compose.prod.yml
+services:
+  n8n-mcp:
+    image: ghcr.io/czlonkowski/n8n-mcp:latest
+    restart: always
+    environment:
+      MCP_MODE: http
+      AUTH_TOKEN_FILE: /run/secrets/auth_token
+      NODE_ENV: production
+    secrets:
+      - auth_token
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+  
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks:
+      - internal
+      - external
+
+networks:
+  internal:
+  external:
+
+secrets:
+  auth_token:
+    file: ./secrets/auth_token.txt
+```
+
+## 📦 Available Images
+
+- `ghcr.io/czlonkowski/n8n-mcp:latest` - Latest stable release
+- `ghcr.io/czlonkowski/n8n-mcp:2.3.0` - Specific version
+- `ghcr.io/czlonkowski/n8n-mcp:main-abc123` - Development builds
+
+### Image Details
+
+- Base: `node:20-alpine`
+- Size: ~150MB compressed
+- Architectures: `linux/amd64`, `linux/arm64`
+- Updated: Automatically via GitHub Actions
+
+## 🔄 Updates and Maintenance
+
+### Updating
+
+```bash
+# Pull latest image
+docker compose pull
+
+# Recreate container
+docker compose up -d
+
+# View update logs
+docker compose logs -f
+```
+
+### Automatic Updates (Watchtower)
+
+```yaml
+# Add to docker-compose.yml
+services:
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 86400 n8n-mcp
+```
+
+## 📚 Additional Resources
+
+- [Main Documentation](./docs/README.md)
+- [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md)
+- [Troubleshooting Guide](./docs/TROUBLESHOOTING.md)
+- [Installation Guide](./docs/INSTALLATION.md)
+
+## 🤝 Support
+
+- Issues: [GitHub Issues](https://github.com/czlonkowski/n8n-mcp/issues)
+- Discussions: [GitHub Discussions](https://github.com/czlonkowski/n8n-mcp/discussions)
+
+---
+
+*Last updated: June 2025 - Docker implementation v1.0*

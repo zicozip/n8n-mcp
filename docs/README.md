@@ -11,13 +11,14 @@ Welcome to the n8n-MCP documentation. This directory contains comprehensive guid
 
 ### Deployment
 - **[HTTP Deployment Guide](./HTTP_DEPLOYMENT.md)** - Deploy n8n-MCP as an HTTP server for remote access
-- **[Docker Deployment](../DOCKER_README.md)** - Comprehensive Docker deployment guide
+- **[Docker Deployment](./DOCKER_README.md)** - Comprehensive Docker deployment guide
 - **[Docker Testing Results](./DOCKER_TESTING_RESULTS.md)** - Docker implementation test results and findings
 
 ### Development
 - **[Implementation Plan](../IMPLEMENTATION_PLAN.md)** - Technical implementation details
 - **[HTTP Implementation Guide](./HTTP_IMPLEMENTATION_GUIDE.md)** - HTTP server implementation details
 - **[Development Setup](./INSTALLATION.md#development-setup)** - Set up development environment
+- **[Release Guide](./RELEASE_GUIDE.md)** - How to create releases and manage Docker tags
 
 ### Reference
 - **[Troubleshooting Guide](./TROUBLESHOOTING.md)** - Solutions for common issues

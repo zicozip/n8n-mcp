@@ -133,7 +133,7 @@ To build the Docker image locally:
 docker build -t n8n-mcp:local .
 ```
 
-For detailed Docker documentation, see [DOCKER_README.md](./DOCKER_README.md).
+For detailed Docker documentation, see [Docker Deployment Guide](./docs/DOCKER_README.md).
 
 ## Usage
 
