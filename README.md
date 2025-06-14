@@ -1,5 +1,9 @@
 # n8n-MCP
 
+[![Version](https://img.shields.io/badge/version-2.3.2-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
+[![License](https://img.shields.io/badge/license-Sustainable%20Use-orange.svg)](LICENSE)
+
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations.
 
 ## Overview
@@ -19,6 +23,8 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 - **Versioned Node Support**: Handles complex versioned nodes like HTTPRequest and Code
 - **Fast Search**: SQLite with FTS5 for instant full-text search across all documentation
 - **MCP Protocol**: Standard interface for AI assistants to query n8n knowledge
+- **HTTP Server Mode**: Deploy remotely with fixed implementation (v2.3.2) that bypasses stream issues
+- **Universal Compatibility**: Works with any Node.js version through automatic adapter fallback
 
 ## Quick Start
 
@@ -74,6 +80,7 @@ The easiest way to get started is using Docker:
 # Generate a secure token
 AUTH_TOKEN=$(openssl rand -base64 32)
 echo "AUTH_TOKEN=$AUTH_TOKEN" > .env
+echo "USE_FIXED_HTTP=true" >> .env
 ```
 
 2. Run with Docker Compose:
@@ -126,10 +133,20 @@ curl http://localhost:3000/health
 }
 ```
 
-### Building Locally
+### Building and Running with Docker
 
-To build the Docker image locally:
+The Docker image (~150MB) includes all dependencies and a pre-built database:
+
 ```bash
+# Using pre-built image (recommended)
+docker run -d \
+  -e MCP_MODE=http \
+  -e USE_FIXED_HTTP=true \
+  -e AUTH_TOKEN="your-secure-token" \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+
+# Or build locally
 docker build -t n8n-mcp:local .
 ```
 
@@ -272,10 +289,11 @@ n8n-MCP now supports HTTP mode for remote deployments. This allows you to:
 ```bash
 # Set environment variables
 export MCP_MODE=http
+export USE_FIXED_HTTP=true  # Important: Use the fixed implementation
 export AUTH_TOKEN=$(openssl rand -base64 32)
 
 # Start the server
-npm run start:http
+npm run http  # This runs the fixed HTTP server
 ```
 
 2. On your client, configure Claude Desktop with mcp-remote:
@@ -313,6 +331,20 @@ For detailed instructions, see [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md
 This project uses the Sustainable Use License. See LICENSE file for details.
 
 Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
+
+## Recent Updates (v2.3.2)
+
+### HTTP Server Fix
+The v2.3.2 release fixes critical issues with the HTTP server:
+- ✅ Fixed "stream is not readable" error by removing body parsing middleware
+- ✅ Fixed "Server not initialized" error with direct JSON-RPC implementation
+- ✅ Added `USE_FIXED_HTTP=true` environment variable for stable HTTP mode
+- ✅ Improved performance with average response time of ~12ms
+
+### Node.js Compatibility (v2.3)
+- ✅ Automatic database adapter fallback (better-sqlite3 → sql.js)
+- ✅ Works with any Node.js version without manual configuration
+- ✅ Perfect for Claude Desktop integration
 
 ## Acknowledgments
 

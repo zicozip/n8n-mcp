@@ -31,7 +31,10 @@ The easiest way to get started is using Docker:
 **Setup steps:**
 1. Create a `.env` file:
    ```bash
-   echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
+   cat > .env << EOF
+   AUTH_TOKEN=$(openssl rand -base64 32)
+   USE_FIXED_HTTP=true
+   EOF
    ```
 2. Start the server:
    ```bash

@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.2] - 2025-06-14
+
+### Fixed
+- **HTTP Server Stream Error**: Complete fix for "stream is not readable" error
+  - Removed Express body parsing middleware that was consuming request streams
+  - Fixed "Server not initialized" error with direct JSON-RPC implementation
+  - Added `USE_FIXED_HTTP=true` environment variable for stable HTTP mode
+  - Bypassed problematic StreamableHTTPServerTransport implementation
+- HTTP server now works reliably with average response time of ~12ms
+- Updated all HTTP server implementations to preserve raw streams
+
+### Added
+- `http-server-fixed.ts` - Direct JSON-RPC implementation
+- `ConsoleManager` utility for stream isolation
+- `MCP Engine` interface for service integration
+- Comprehensive documentation for HTTP server fixes
+
+### Changed
+- Default HTTP mode now uses fixed implementation when `USE_FIXED_HTTP=true`
+- Updated Docker configuration to use fixed implementation by default
+- Improved error handling and logging in HTTP mode
+
+## [2.3.1] - 2025-06-14
+
+### Added
+- **Single-Session Architecture**: Initial attempt to fix HTTP server issues
+  - Implemented session reuse across requests
+  - Added console output isolation
+  - Created engine interface for service integration
+
+### Fixed
+- Partial fix for "stream is not readable" error (completed in v2.3.2)
+
 ## [2.3.0] - 2024-12-06
 
 ### Added

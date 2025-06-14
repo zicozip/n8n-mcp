@@ -5,64 +5,54 @@ Welcome to the n8n-MCP documentation. This directory contains comprehensive guid
 ## 📚 Documentation Index
 
 ### Getting Started
-- **[Installation Guide](./INSTALLATION.md)** - All installation methods including Docker, manual, and development setup
-- **[Claude Desktop Setup](./README_CLAUDE_SETUP.md)** - Configure Claude Desktop to use n8n-MCP
+- **[Installation Guide](./INSTALLATION.md)** - Comprehensive installation guide covering all methods
+- **[Claude Desktop Setup](./README_CLAUDE_SETUP.md)** - Step-by-step guide for Claude Desktop configuration
 - **[Quick Start Tutorial](../README.md)** - Basic overview and quick start instructions
 
 ### Deployment
 - **[HTTP Deployment Guide](./HTTP_DEPLOYMENT.md)** - Deploy n8n-MCP as an HTTP server for remote access
-- **[Docker Deployment](./DOCKER_README.md)** - Comprehensive Docker deployment guide
-- **[Docker Optimization Guide](./DOCKER_OPTIMIZATION_GUIDE.md)** - Optimized Docker build (200MB vs 2.6GB)
-- **[Docker Testing Results](./DOCKER_TESTING_RESULTS.md)** - Docker implementation test results and findings
-
-### Development
-- **[Implementation Plan](../IMPLEMENTATION_PLAN.md)** - Technical implementation details
-- **[HTTP Implementation Guide](./HTTP_IMPLEMENTATION_GUIDE.md)** - HTTP server implementation details
-- **[Development Setup](./INSTALLATION.md#development-setup)** - Set up development environment
+- **[Docker Deployment](./DOCKER_README.md)** - Complete Docker deployment and configuration guide
 - **[Release Guide](./RELEASE_GUIDE.md)** - How to create releases and manage Docker tags
 
 ### Reference
-- **[Troubleshooting Guide](./TROUBLESHOOTING.md)** - Solutions for common issues
-- **[API Reference](./API_REFERENCE.md)** - MCP tools and API documentation (if available)
-- **[Environment Variables](./INSTALLATION.md#environment-configuration)** - Configuration options
+- **[Troubleshooting Guide](./TROUBLESHOOTING.md)** - Solutions for common issues and errors
+- **[HTTP Server Fix Documentation](./HTTP_SERVER_FINAL_FIX.md)** - Technical details of v2.3.2 HTTP server fixes
+- **[Docker Optimization Guide](./DOCKER_OPTIMIZATION_GUIDE.md)** - Reference for optimized Docker builds (~150MB)
+- **[Changelog](./CHANGELOG.md)** - Version history and release notes
 
 ## 🚀 Quick Links
 
 ### For Users
-1. **First Time Setup**: Start with the [Installation Guide](./INSTALLATION.md)
-2. **Claude Desktop Users**: Follow [Claude Desktop Setup](./README_CLAUDE_SETUP.md)
-3. **Remote Deployment**: See [HTTP Deployment Guide](./HTTP_DEPLOYMENT.md)
+- [Install n8n-MCP](./INSTALLATION.md)
+- [Configure Claude Desktop](./README_CLAUDE_SETUP.md)
+- [Deploy with Docker](./DOCKER_README.md)
+- [Troubleshoot Issues](./TROUBLESHOOTING.md)
 
 ### For Developers
-1. **Local Development**: See [Development Setup](./INSTALLATION.md#development-setup)
-2. **Docker Development**: Check [Docker README](../DOCKER_README.md)
-3. **Contributing**: Read the implementation plans and guides
+- [HTTP Server Architecture](./HTTP_SERVER_FINAL_FIX.md)
+- [Docker Build Optimization](./DOCKER_OPTIMIZATION_GUIDE.md)
+- [Release Process](./RELEASE_GUIDE.md)
 
-## 🐳 Docker Quick Start
+## 📋 Environment Variables
 
-```bash
-# Quick start with Docker
-echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
-docker compose up -d
+Key configuration options:
 
-# Check health
-curl http://localhost:3000/health
-```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_MODE` | Server mode: `stdio` or `http` | `stdio` |
+| `USE_FIXED_HTTP` | Use fixed HTTP implementation (v2.3.2+) | `true` |
+| `AUTH_TOKEN` | Authentication token for HTTP mode | Required |
+| `PORT` | HTTP server port | `3000` |
+| `LOG_LEVEL` | Logging verbosity | `info` |
 
-## 📖 Documentation Updates
+See [Installation Guide](./INSTALLATION.md#environment-configuration) for complete list.
 
-This documentation is actively maintained. Recent updates include:
-- ✅ Docker deployment support (Phase 1 complete)
-- ✅ Simplified installation process
-- ✅ Enhanced troubleshooting guide
-- ✅ Multiple deployment options
+## 🆘 Getting Help
 
-## 🤝 Getting Help
-
-- **Issues**: [GitHub Issues](https://github.com/czlonkowski/n8n-mcp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/czlonkowski/n8n-mcp/discussions)
-- **Troubleshooting**: [Troubleshooting Guide](./TROUBLESHOOTING.md)
+1. Check the [Troubleshooting Guide](./TROUBLESHOOTING.md)
+2. Review [HTTP Server Fix Documentation](./HTTP_SERVER_FINAL_FIX.md) for v2.3.2 issues
+3. Open an issue on [GitHub](https://github.com/czlonkowski/n8n-mcp/issues)
 
 ## 📝 License
 
-This project is licensed under the Sustainable Use License. See [LICENSE](../LICENSE) for details.
+This project uses the Sustainable Use License. See [LICENSE](../LICENSE) for details.

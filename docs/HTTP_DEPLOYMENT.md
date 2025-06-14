@@ -15,7 +15,10 @@ The easiest way to deploy n8n-MCP is using Docker:
 #### Quick Start
 ```bash
 # 1. Create configuration
-echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
+cat > .env << EOF
+AUTH_TOKEN=$(openssl rand -base64 32)
+USE_FIXED_HTTP=true
+EOF
 
 # 2. Start with Docker Compose
 docker compose up -d
@@ -33,6 +36,7 @@ cd n8n-mcp
 # 2. Create production .env
 cat > .env << EOF
 AUTH_TOKEN=$(openssl rand -base64 32)
+USE_FIXED_HTTP=true
 NODE_ENV=production
 LOG_LEVEL=info
 PORT=3000
@@ -87,6 +91,7 @@ Edit `.env`:
 ```env
 # HTTP mode configuration
 MCP_MODE=http
+USE_FIXED_HTTP=true  # Important: Use the fixed implementation (v2.3.2+)
 PORT=3000
 HOST=0.0.0.0
 

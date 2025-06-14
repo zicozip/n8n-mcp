@@ -4,6 +4,7 @@ This guide helps resolve common issues with n8n-MCP.
 
 ## Table of Contents
 
+- [HTTP Server Issues](#http-server-issues)
 - [Docker Issues](#docker-issues)
 - [Installation Issues](#installation-issues)
 - [Runtime Errors](#runtime-errors)
@@ -11,6 +12,73 @@ This guide helps resolve common issues with n8n-MCP.
 - [Database Problems](#database-problems)
 - [Network and Authentication](#network-and-authentication)
 - [Performance Issues](#performance-issues)
+
+## HTTP Server Issues
+
+### "Stream is not readable" Error
+
+#### Symptoms
+- Error: `InternalServerError: stream is not readable`
+- HTTP 400 Bad Request responses
+- Server works locally but fails in HTTP mode
+
+#### Solution (v2.3.2+)
+This issue has been fixed in v2.3.2. Ensure you're using the fixed implementation:
+
+```bash
+# Set the environment variable
+export USE_FIXED_HTTP=true
+
+# Or in your .env file
+USE_FIXED_HTTP=true
+```
+
+#### Technical Details
+- **Cause**: Express.json() middleware was consuming the request stream
+- **Fix**: Removed body parsing middleware for MCP endpoints
+- **See**: [HTTP Server Fix Documentation](./HTTP_SERVER_FINAL_FIX.md)
+
+### "Server not initialized" Error
+
+#### Symptoms
+- Error: `Bad Request: Server not initialized`
+- Error code: -32000
+- Occurs when using StreamableHTTPServerTransport
+
+#### Solution
+Use the fixed HTTP implementation (v2.3.2+):
+
+```bash
+# Use the fixed server
+MCP_MODE=http USE_FIXED_HTTP=true npm start
+
+# Or with Docker
+docker run -e MCP_MODE=http -e USE_FIXED_HTTP=true ...
+```
+
+### Authentication Failed
+
+#### Symptoms
+- 401 Unauthorized responses
+- "Authentication failed" in logs
+
+#### Solutions
+1. **Check AUTH_TOKEN format:**
+   ```bash
+   # Should be at least 32 characters
+   echo -n "$AUTH_TOKEN" | wc -c
+   ```
+
+2. **Verify token in requests:**
+   ```bash
+   curl -H "Authorization: Bearer $AUTH_TOKEN" ...
+   ```
+
+3. **Check .env file:**
+   ```bash
+   # No quotes needed in .env
+   AUTH_TOKEN=your-token-here
+   ```
 
 ## Docker Issues
 

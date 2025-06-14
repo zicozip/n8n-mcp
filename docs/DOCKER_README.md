@@ -19,7 +19,10 @@ git clone https://github.com/czlonkowski/n8n-mcp.git
 cd n8n-mcp
 
 # Create .env file with auth token
-echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
+cat > .env << EOF
+AUTH_TOKEN=$(openssl rand -base64 32)
+USE_FIXED_HTTP=true
+EOF
 
 # Start the server
 docker compose up -d
@@ -36,13 +39,14 @@ curl http://localhost:3000/health
 Pre-built images are available on GitHub Container Registry:
 
 ```bash
-# Pull the latest image (~283MB)
+# Pull the latest image (~150MB optimized)
 docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 
 # Run with HTTP mode
 docker run -d \
   --name n8n-mcp \
   -e MCP_MODE=http \
+  -e USE_FIXED_HTTP=true \
   -e AUTH_TOKEN=your-secure-token \
   -p 3000:3000 \
   ghcr.io/czlonkowski/n8n-mcp:latest

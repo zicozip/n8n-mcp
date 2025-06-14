@@ -16,7 +16,10 @@ The fastest way to get n8n-MCP running:
 
 ```bash
 # Using Docker (recommended)
-echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
+cat > .env << EOF
+AUTH_TOKEN=$(openssl rand -base64 32)
+USE_FIXED_HTTP=true
+EOF
 docker compose up -d
 ```
 
@@ -46,6 +49,7 @@ docker compose up -d
        
        environment:
          MCP_MODE: ${MCP_MODE:-http}
+         USE_FIXED_HTTP: ${USE_FIXED_HTTP:-true}
          AUTH_TOKEN: ${AUTH_TOKEN:?AUTH_TOKEN is required}
          NODE_ENV: ${NODE_ENV:-production}
          LOG_LEVEL: ${LOG_LEVEL:-info}
