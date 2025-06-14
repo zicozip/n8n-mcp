@@ -25,9 +25,20 @@ async function main() {
     console.error('Node version:', process.version);
     
     if (mode === 'http') {
-      // HTTP mode - for remote deployment
-      const { startHTTPServer } = await import('../http-server');
-      await startHTTPServer();
+      // HTTP mode - for remote deployment with single-session architecture
+      const { SingleSessionHTTPServer } = await import('../http-server-single-session');
+      const server = new SingleSessionHTTPServer();
+      
+      // Graceful shutdown handlers
+      const shutdown = async () => {
+        await server.shutdown();
+        process.exit(0);
+      };
+      
+      process.on('SIGTERM', shutdown);
+      process.on('SIGINT', shutdown);
+      
+      await server.start();
     } else {
       // Stdio mode - for local Claude Desktop
       const server = new N8NDocumentationMCPServer();

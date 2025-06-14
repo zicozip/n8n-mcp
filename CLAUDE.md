@@ -6,9 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Refactor Complete (v2.3)
+## ✅ Refactor Complete (v2.3.1)
 
-### Latest Update (v2.3) - Universal Node.js Compatibility:
+### Latest Update (v2.3.1) - MCP Stream Error Fix:
+- ✅ Fixed "stream is not readable" error with Single-Session architecture
+- ✅ Console output isolation prevents stream corruption
+- ✅ Backward compatible with existing deployments
+- ✅ Clean engine interface for service integration
+- ✅ Automatic session management with 30-minute timeout
+
+### Previous Update (v2.3) - Universal Node.js Compatibility:
 - ✅ Automatic database adapter fallback system implemented
 - ✅ Works with ANY Node.js version (no more v20.17.0 requirement)
 - ✅ Seamless fallback from better-sqlite3 to sql.js
@@ -44,8 +51,15 @@ src/
 │   ├── rebuild.ts             # Database rebuild with validation
 │   ├── validate.ts            # Node validation
 │   └── test-nodes.ts          # Critical node tests
-└── mcp/
-    └── server.ts              # MCP server with enhanced tools
+├── mcp/
+│   ├── server.ts              # MCP server with enhanced tools
+│   └── index.ts               # Main entry point with mode selection
+├── utils/
+│   ├── console-manager.ts     # Console output isolation (NEW in v2.3.1)
+│   └── logger.ts              # Logging utility with HTTP awareness
+├── http-server-single-session.ts  # Single-session HTTP server (NEW in v2.3.1)
+├── mcp-engine.ts              # Clean API for service integration (NEW in v2.3.1)
+└── index.ts                   # Library exports
 ```
 
 ### Key Metrics:

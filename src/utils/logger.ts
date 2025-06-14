@@ -14,6 +14,8 @@ export interface LoggerConfig {
 export class Logger {
   private config: LoggerConfig;
   private static instance: Logger;
+  private useFileLogging = false;
+  private fileStream: any = null;
 
   constructor(config?: Partial<LoggerConfig>) {
     this.config = {
@@ -51,6 +53,13 @@ export class Logger {
   private log(level: LogLevel, levelName: string, message: string, ...args: any[]): void {
     if (level <= this.config.level) {
       const formattedMessage = this.formatMessage(levelName, message);
+      
+      // In HTTP mode during request handling, suppress console output
+      // The ConsoleManager will handle this, but we add a safety check
+      if (process.env.MCP_MODE === 'http' && process.env.MCP_REQUEST_ACTIVE === 'true') {
+        // Silently drop the log during active MCP requests
+        return;
+      }
       
       switch (level) {
         case LogLevel.ERROR:
