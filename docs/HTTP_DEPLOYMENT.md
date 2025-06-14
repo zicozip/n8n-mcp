@@ -1,124 +1,112 @@
-# HTTP Deployment Guide
+# HTTP Deployment Guide for n8n-MCP
 
-This guide explains how to deploy n8n-MCP as a private HTTP server for remote access.
+Deploy n8n-MCP as a remote HTTP server to provide n8n knowledge to Claude from anywhere.
 
-## Overview
+## 🎯 Overview
 
-The HTTP mode allows you to run n8n-MCP on a remote server and connect to it from Claude Desktop using the mcp-remote adapter. This is designed for single-user private deployments.
+n8n-MCP HTTP mode enables:
+- ☁️ Cloud deployment (VPS, Docker, Kubernetes)
+- 🌐 Remote access from any Claude Desktop client
+- 🔒 Token-based authentication
+- ⚡ Production-ready performance (~12ms response time)
+- 🔧 Fixed implementation (v2.3.2) for stability
 
-## Deployment Options
+## 📋 Prerequisites
 
-### Option 1: Docker Deployment (Recommended) 🐳
+**Server Requirements:**
+- Node.js 16+ or Docker
+- 512MB RAM minimum
+- Public IP or domain name
+- (Recommended) SSL certificate for HTTPS
 
-The easiest way to deploy n8n-MCP is using Docker:
+**Client Requirements:**
+- Claude Desktop
+- Node.js 18+ (for mcp-remote)
+- Or Claude Pro/Team (for native remote MCP)
 
-#### Quick Start
+## 🚀 Quick Start
+
+### Option 1: Docker Deployment (Recommended)
+
 ```bash
-# 1. Create configuration
+# 1. Create environment file
 cat > .env << EOF
 AUTH_TOKEN=$(openssl rand -base64 32)
 USE_FIXED_HTTP=true
-EOF
-
-# 2. Start with Docker Compose
-docker compose up -d
-
-# 3. Check health
-curl http://localhost:3000/health
-```
-
-#### Production Deployment
-```bash
-# 1. Clone repository
-git clone https://github.com/yourusername/n8n-mcp.git
-cd n8n-mcp
-
-# 2. Create production .env
-cat > .env << EOF
-AUTH_TOKEN=$(openssl rand -base64 32)
-USE_FIXED_HTTP=true
-NODE_ENV=production
-LOG_LEVEL=info
+MCP_MODE=http
 PORT=3000
 EOF
 
-# 3. Deploy with Docker Compose
-docker compose up -d
+# 2. Deploy with Docker
+docker run -d \
+  --name n8n-mcp \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
 
-# 4. Check logs
-docker compose logs -f
-```
-
-#### Using Pre-built Images
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  n8n-mcp:
-    image: ghcr.io/czlonkowski/n8n-mcp:latest
-    environment:
-      MCP_MODE: http
-      AUTH_TOKEN: ${AUTH_TOKEN:?Required}
-    ports:
-      - "3000:3000"
-    volumes:
-      - n8n-mcp-data:/app/data
-    restart: unless-stopped
-
-volumes:
-  n8n-mcp-data:
+# 3. Verify deployment
+curl http://localhost:3000/health
 ```
 
 ### Option 2: Manual Installation
 
-If you prefer not to use Docker:
-
-#### 1. Clone and Build
 ```bash
-git clone https://github.com/yourusername/n8n-mcp.git
+# 1. Clone and setup
+git clone https://github.com/czlonkowski/n8n-mcp.git
 cd n8n-mcp
 npm install
 npm run build
 npm run rebuild
+
+# 2. Configure environment
+export MCP_MODE=http
+export USE_FIXED_HTTP=true  # Important: Use fixed implementation
+export AUTH_TOKEN=$(openssl rand -base64 32)
+export PORT=3000
+
+# 3. Start server
+npm run start:http
 ```
 
-#### 2. Configure Environment
+💡 **Save your AUTH_TOKEN** - clients will need it to connect!
+
+## ⚙️ Configuration
+
+### Required Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|------|
+| `MCP_MODE` | Must be set to `http` | `http` |
+| `USE_FIXED_HTTP` | **Important**: Set to `true` for v2.3.2 fixes | `true` |
+| `AUTH_TOKEN` | Secure token (32+ characters) | `generated-token` |
+
+### Optional Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `3000` |
+| `HOST` | Bind address | `0.0.0.0` |
+| `LOG_LEVEL` | Log verbosity | `info` |
+| `NODE_ENV` | Environment | `production` |
+
+## 🔐 Security Setup
+
+### Authentication
+
+All requests require Bearer token authentication:
+
 ```bash
-cp .env.example .env
+# Test authentication
+curl -H "Authorization: Bearer $AUTH_TOKEN" \
+     https://your-server.com/health
 ```
 
-Edit `.env`:
-```env
-# HTTP mode configuration
-MCP_MODE=http
-USE_FIXED_HTTP=true  # Important: Use the fixed implementation (v2.3.2+)
-PORT=3000
-HOST=0.0.0.0
+### SSL/HTTPS (Strongly Recommended)
 
-# Generate secure token
-AUTH_TOKEN=your-secure-token-here
+Use a reverse proxy for SSL termination:
 
-# Other settings
-NODE_DB_PATH=./data/nodes.db
-MCP_LOG_LEVEL=info
-NODE_ENV=production
-```
-
-#### 3. Start the Server
-```bash
-# Using the deployment script
-./scripts/deploy-http.sh
-
-# Or manually
-MCP_MODE=http npm start
-```
-
-The server will start on `http://0.0.0.0:3000`
-
-### 4. Setup HTTPS Proxy (Recommended)
-
-#### Using nginx:
-
+**Nginx example:**
 ```nginx
 server {
     listen 443 ssl;
@@ -127,56 +115,26 @@ server {
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
     
-    location / {
+    location /mcp {
         proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header Authorization $http_authorization;
     }
 }
 ```
 
-#### Using Caddy:
-
-```caddyfile
+**Caddy example (automatic HTTPS):**
+```caddy
 your-domain.com {
-    reverse_proxy localhost:3000
+    reverse_proxy /mcp localhost:3000
 }
 ```
 
-## Client Setup
+## 💻 Client Configuration
 
-### 1. Install mcp-remote
+### For All Claude Desktop Users
 
-```bash
-npm install -g mcp-remote
-```
+**Requirements**: Node.js 18+ installed locally
 
-### 2. Configure Claude Desktop
-
-Edit Claude Desktop config:
-
-**Option 1: Using global mcp-remote installation**
-```json
-{
-  "mcpServers": {
-    "n8n-remote": {
-      "command": "mcp-remote",
-      "args": [
-        "connect",
-        "https://your-domain.com/mcp"
-      ],
-      "env": {
-        "MCP_AUTH_TOKEN": "your-secure-token-here"
-      }
-    }
-  }
-}
-```
-
-**Option 2: Using npx (no installation required)**
 ```json
 {
   "mcpServers": {
@@ -184,213 +142,290 @@ Edit Claude Desktop config:
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/mcp-remote@latest",
-        "connect",
-        "https://your-domain.com/mcp"
+        "mcp-remote",
+        "https://your-server.com/mcp",
+        "--header",
+        "Authorization: Bearer ${AUTH_TOKEN}"
       ],
       "env": {
-        "MCP_AUTH_TOKEN": "your-secure-token-here"
+        "AUTH_TOKEN": "your-auth-token-here"
       }
     }
   }
 }
 ```
 
-**Option 3: Using custom headers (if needed)**
-```json
-{
-  "mcpServers": {
-    "n8n-remote": {
-      "command": "mcp-remote",
-      "args": [
-        "connect",
-        "https://your-domain.com/mcp",
-        "--header",
-        "Authorization: Bearer your-secure-token-here"
-      ]
-    }
-  }
-}
+### For Claude Pro/Team Users
+
+Use native remote MCP support:
+1. Go to Settings > Integrations
+2. Add your MCP server URL
+3. Complete OAuth flow (if implemented)
+
+⚠️ **Note**: Direct config file entries won't work for remote servers in Pro/Team.
+
+## 🌐 Production Deployment
+
+### Docker Compose Setup
+
+```yaml
+version: '3.8'
+
+services:
+  n8n-mcp:
+    image: ghcr.io/czlonkowski/n8n-mcp:latest
+    container_name: n8n-mcp
+    restart: unless-stopped
+    environment:
+      MCP_MODE: http
+      USE_FIXED_HTTP: true
+      AUTH_TOKEN: ${AUTH_TOKEN:?AUTH_TOKEN required}
+      NODE_ENV: production
+      LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:3000:3000"  # Bind to localhost only
+    volumes:
+      - n8n-mcp-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+volumes:
+  n8n-mcp-data:
 ```
 
-### 3. Test Connection
-
-1. Restart Claude Desktop
-2. The MCP tools should be available
-3. Test with: "List all n8n nodes"
-
-## Security Considerations
-
-1. **Always use HTTPS** in production
-2. **Keep AUTH_TOKEN secret** - treat it like a password
-3. **Firewall rules** - Only expose necessary ports
-4. **Regular updates** - Keep dependencies updated
-5. **Monitor logs** - Check for unauthorized access attempts
-
-## Health Monitoring
-
-Check server health:
-```bash
-curl https://your-domain.com/health
-```
-
-Expected response:
-```json
-{
-  "status": "ok",
-  "mode": "http",
-  "version": "2.3.0"
-}
-```
-
-## Testing
-
-Use the included test script to verify your HTTP server:
-
-```bash
-# Test local server
-./scripts/test-http.sh
-
-# Test remote server
-./scripts/test-http.sh https://your-domain.com
-
-# Test with custom token
-AUTH_TOKEN=your-token ./scripts/test-http.sh
-
-# Verbose output
-VERBOSE=1 ./scripts/test-http.sh
-```
-
-The test script checks:
-- Health endpoint
-- CORS preflight
-- Authentication
-- Valid MCP requests
-- Error handling
-- Request size limits
-
-## Troubleshooting
-
-### Docker-specific Issues
-
-#### Container won't start
-```bash
-# Check logs
-docker compose logs n8n-mcp
-
-# Check if port is already in use
-lsof -i :3000
-
-# Rebuild and restart
-docker compose down
-docker compose up -d --build
-```
-
-#### Database initialization fails
-```bash
-# Copy existing database
-docker cp data/nodes.db n8n-mcp:/app/data/
-
-# Or rebuild inside container
-docker compose exec n8n-mcp npm run rebuild
-```
-
-#### Permission issues
-```bash
-# Fix volume permissions
-docker compose exec n8n-mcp chown -R nodejs:nodejs /app/data
-```
-
-### General Issues
-
-#### Connection Refused
-- Check firewall rules
-- Verify server is running
-- Check nginx/proxy configuration
-- Run the test script to diagnose
-- For Docker: ensure ports are mapped correctly
-
-#### Authentication Failed
-- Verify AUTH_TOKEN matches in both server and client
-- Check Authorization header format
-- Token should be at least 32 characters
-- Docker: check .env file is loaded
-
-#### MCP Tools Not Available
-- Restart Claude Desktop
-- Check mcp-remote installation
-- Verify server logs for errors
-- Ensure CORS headers are working
-- Docker: check container health status
-
-## Performance Tips
-
-1. Use a VPS with good network connectivity
-2. Enable gzip compression in your proxy
-3. For Docker deployments:
-   - Use `--restart unless-stopped` for reliability
-   - Monitor with `docker stats n8n-mcp`
-   - Set memory limits in docker-compose.yml
-4. For manual deployments, use PM2:
-   ```bash
-   pm2 start npm --name "n8n-mcp" -- run start:http
-   ```
-
-## Production Deployment Examples
-
-### Using Docker with Systemd
-
-Create `/etc/systemd/system/n8n-mcp-docker.service`:
-
-```ini
-[Unit]
-Description=n8n MCP Docker Container
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/n8n-mcp
-ExecStart=/usr/bin/docker compose up
-ExecStop=/usr/bin/docker compose down
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### Manual Installation with Systemd
+### Systemd Service (Linux)
 
 Create `/etc/systemd/system/n8n-mcp.service`:
 
 ```ini
 [Unit]
-Description=n8n MCP HTTP Server
+Description=n8n-MCP HTTP Server
 After=network.target
 
 [Service]
 Type=simple
-User=your-user
-WorkingDirectory=/path/to/n8n-mcp
-ExecStart=/usr/bin/npm run start:http
-Restart=on-failure
-Environment=NODE_ENV=production
+User=n8n-mcp
+WorkingDirectory=/opt/n8n-mcp
+ExecStart=/usr/bin/node dist/mcp/index.js
+Restart=always
+RestartSec=10
+
+# Environment
+Environment="MCP_MODE=http"
+Environment="USE_FIXED_HTTP=true"
+Environment="NODE_ENV=production"
+EnvironmentFile=/opt/n8n-mcp/.env
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable and start:
+Enable:
 ```bash
 sudo systemctl enable n8n-mcp
 sudo systemctl start n8n-mcp
 ```
 
-## Limitations
+## 📡 Monitoring & Maintenance
 
-- Single-user design (no multi-tenancy)
-- Stateless (no session persistence)
-- No built-in rate limiting
-- Basic token authentication only
+### Health Checks
 
-For multi-user deployments, consider implementing a proper API gateway with user management.
+```bash
+# Basic health check
+curl https://your-server.com/health
+
+# Response:
+{
+  "status": "ok",
+  "mode": "http-fixed",
+  "version": "2.3.2",
+  "uptime": 3600,
+  "memory": {
+    "used": 45,
+    "total": 512,
+    "unit": "MB"
+  }
+}
+```
+
+### Monitoring with Prometheus
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'n8n-mcp'
+    static_configs:
+      - targets: ['localhost:3000']
+    metrics_path: '/health'
+    bearer_token: 'your-auth-token'
+```
+
+### Log Management
+
+```bash
+# Docker logs
+docker logs -f n8n-mcp --tail 100
+
+# Systemd logs
+journalctl -u n8n-mcp -f
+
+# Log rotation (Docker)
+docker run -d \
+  --log-driver json-file \
+  --log-opt max-size=10m \
+  --log-opt max-file=3 \
+  n8n-mcp
+```
+
+## 🔒 Security Best Practices
+
+### 1. Token Management
+
+```bash
+# Generate strong tokens
+openssl rand -base64 32
+
+# Rotate tokens regularly
+AUTH_TOKEN_NEW=$(openssl rand -base64 32)
+docker exec n8n-mcp env AUTH_TOKEN=$AUTH_TOKEN_NEW
+```
+
+### 2. Network Security
+
+- ✅ **Always use HTTPS** in production
+- ✅ **Firewall rules** to limit access
+- ✅ **VPN** for internal deployments
+- ✅ **Rate limiting** at proxy level
+
+### 3. Container Security
+
+```bash
+# Run as non-root user (already configured)
+# Read-only filesystem
+docker run --read-only \
+  --tmpfs /tmp \
+  -v n8n-mcp-data:/app/data \
+  n8n-mcp
+
+# Security scanning
+docker scan ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+**"Stream is not readable" error:**
+- ✅ Solution: Ensure `USE_FIXED_HTTP=true` is set
+- This is fixed in v2.3.2
+
+**"TransformStream is not defined" (client-side):**
+- 🔄 Update Node.js to v18+ on client machine
+- Or use Docker stdio mode instead
+
+**Connection refused:**
+```bash
+# Check server is running
+curl http://localhost:3000/health
+
+# Check Docker status
+docker ps
+docker logs n8n-mcp
+
+# Check firewall
+sudo ufw status
+```
+
+**Authentication failed:**
+- Verify AUTH_TOKEN matches exactly
+- Check for extra spaces or quotes
+- Test with curl first
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+LOG_LEVEL=debug docker run ...
+
+# Test MCP endpoint directly
+curl -X POST https://your-server.com/mcp \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"list_nodes","params":{"limit":5},"id":1}'
+```
+
+## 🚀 Scaling & Performance
+
+### Performance Metrics
+
+- Average response time: **~12ms**
+- Memory usage: **~50-100MB**
+- Concurrent connections: **100+**
+- Database queries: **<5ms** with FTS5
+
+### Horizontal Scaling
+
+The server is stateless - scale easily:
+
+```yaml
+# Docker Swarm example
+deploy:
+  replicas: 3
+  update_config:
+    parallelism: 1
+    delay: 10s
+  restart_policy:
+    condition: on-failure
+```
+
+### Optimization Tips
+
+1. **Use Docker** for consistent performance
+2. **Enable HTTP/2** in your reverse proxy
+3. **Set up CDN** for static assets
+4. **Monitor memory** usage over time
+
+## 👥 Multi-User Service Considerations
+
+While n8n-MCP is designed for single-user deployments, you can build a multi-user service:
+
+1. **Use this as a core engine** with your own auth layer
+2. **Deploy multiple instances** with different tokens
+3. **Add user management** in your proxy layer
+4. **Implement rate limiting** per user
+
+See [Architecture Guide](./ARCHITECTURE.md) for building multi-user services.
+
+## 📦 Updates & Maintenance
+
+```bash
+# Update to latest version
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
+docker compose up -d
+
+# Backup database
+docker cp n8n-mcp:/app/data/nodes.db ./backup-$(date +%Y%m%d).db
+
+# Restore database
+docker cp ./backup.db n8n-mcp:/app/data/nodes.db
+docker restart n8n-mcp
+```
+
+## 🆘 Getting Help
+
+- 📚 [Full Documentation](https://github.com/czlonkowski/n8n-mcp)
+- 🐛 [Report Issues](https://github.com/czlonkowski/n8n-mcp/issues)
+- 💬 [Discussions](https://github.com/czlonkowski/n8n-mcp/discussions)

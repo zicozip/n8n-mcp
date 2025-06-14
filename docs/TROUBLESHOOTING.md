@@ -1,470 +1,262 @@
 # Troubleshooting Guide
 
-This guide helps resolve common issues with n8n-MCP.
+Quick solutions for common n8n-MCP issues.
 
-## Table of Contents
+## 🎯 Quick Fixes
 
-- [HTTP Server Issues](#http-server-issues)
-- [Docker Issues](#docker-issues)
-- [Installation Issues](#installation-issues)
-- [Runtime Errors](#runtime-errors)
-- [Claude Desktop Issues](#claude-desktop-issues)
-- [Database Problems](#database-problems)
-- [Network and Authentication](#network-and-authentication)
-- [Performance Issues](#performance-issues)
+| Issue | Solution |
+|-------|----------|
+| "Stream is not readable" | Set `USE_FIXED_HTTP=true` (fixed in v2.3.2) |
+| "TransformStream is not defined" | Update to Node.js 18+ on client |
+| Server not appearing in Claude | Restart Claude Desktop completely |
+| Authentication failed | Check AUTH_TOKEN matches exactly |
+| Database not found | Run `npm run rebuild` or `docker compose exec n8n-mcp npm run rebuild` |
 
-## HTTP Server Issues
+## 🌐 HTTP Server Issues
 
 ### "Stream is not readable" Error
 
-#### Symptoms
-- Error: `InternalServerError: stream is not readable`
-- HTTP 400 Bad Request responses
-- Server works locally but fails in HTTP mode
-
-#### Solution (v2.3.2+)
-This issue has been fixed in v2.3.2. Ensure you're using the fixed implementation:
+**✅ Fixed in v2.3.2** - Set `USE_FIXED_HTTP=true`
 
 ```bash
-# Set the environment variable
-export USE_FIXED_HTTP=true
+# Docker
+docker run -e USE_FIXED_HTTP=true ...
 
-# Or in your .env file
-USE_FIXED_HTTP=true
+# Local
+export USE_FIXED_HTTP=true
+npm run start:http
 ```
 
-#### Technical Details
-- **Cause**: Express.json() middleware was consuming the request stream
-- **Fix**: Removed body parsing middleware for MCP endpoints
-- **See**: [HTTP Server Fix Documentation](./HTTP_SERVER_FINAL_FIX.md)
+### "TransformStream is not defined" (Client)
 
-### "Server not initialized" Error
+**Cause**: Node.js < 18 on client machine
 
-#### Symptoms
-- Error: `Bad Request: Server not initialized`
-- Error code: -32000
-- Occurs when using StreamableHTTPServerTransport
-
-#### Solution
-Use the fixed HTTP implementation (v2.3.2+):
-
+**Fix**: Update Node.js
 ```bash
-# Use the fixed server
-MCP_MODE=http USE_FIXED_HTTP=true npm start
+# Check version
+node --version  # Must be v18.0.0+
 
-# Or with Docker
-docker run -e MCP_MODE=http -e USE_FIXED_HTTP=true ...
+# Update via nvm
+nvm install 18
+nvm use 18
 ```
 
 ### Authentication Failed
 
-#### Symptoms
-- 401 Unauthorized responses
-- "Authentication failed" in logs
-
-#### Solutions
-1. **Check AUTH_TOKEN format:**
+**Check these:**
+1. Token length: `echo -n "$AUTH_TOKEN" | wc -c` (32+ chars)
+2. No extra quotes in .env file
+3. Exact match between server and client
+4. Test with curl:
    ```bash
-   # Should be at least 32 characters
-   echo -n "$AUTH_TOKEN" | wc -c
+   curl -H "Authorization: Bearer $AUTH_TOKEN" \
+        http://localhost:3000/health
    ```
 
-2. **Verify token in requests:**
-   ```bash
-   curl -H "Authorization: Bearer $AUTH_TOKEN" ...
-   ```
-
-3. **Check .env file:**
-   ```bash
-   # No quotes needed in .env
-   AUTH_TOKEN=your-token-here
-   ```
-
-## Docker Issues
+## 🐳 Docker Issues
 
 ### Container Won't Start
 
-#### Symptoms
-- `docker compose up` fails
-- Container exits immediately
-- No logs available
-
-#### Solutions
-
-1. **Check if port is in use:**
-   ```bash
-   lsof -i :3000
-   # or
-   netstat -tulpn | grep 3000
-   ```
-
-2. **View detailed logs:**
-   ```bash
-   docker compose logs -f --tail 100
-   ```
-
-3. **Check Docker resources:**
-   ```bash
-   docker system df
-   docker system prune -a  # Clean up unused resources
-   ```
-
-4. **Verify image download:**
-   ```bash
-   docker compose pull
-   ```
-
-### Database Initialization Fails in Docker
-
-#### Symptoms
-- Error: `ENOENT: no such file or directory, open '/app/src/database/schema.sql'`
-- Database not found errors
-
-#### Solutions
-
-1. **Rebuild the image with latest Dockerfile:**
-   ```bash
-   docker compose build --no-cache
-   docker compose up -d
-   ```
-
-2. **Copy existing database:**
-   ```bash
-   # From host to container
-   docker cp data/nodes.db n8n-mcp:/app/data/
-   
-   # Restart container
-   docker compose restart
-   ```
-
-3. **Initialize inside container:**
-   ```bash
-   docker compose exec n8n-mcp npm run rebuild
-   ```
-
-### Permission Denied in Docker
-
-#### Symptoms
-- Cannot write to /app/data
-- Permission denied errors in logs
-
-#### Solutions
-
 ```bash
-# Fix permissions
-docker compose exec n8n-mcp chown -R nodejs:nodejs /app/data
+# 1. Check port availability
+lsof -i :3000
 
-# Or run as root temporarily
-docker compose exec -u root n8n-mcp chown -R nodejs:nodejs /app
+# 2. View logs
+docker compose logs -f
+
+# 3. Clean and retry
+docker compose down
+docker system prune -f
+docker compose up -d
 ```
 
-### Docker Compose Variables Not Loading
-
-#### Symptoms
-- AUTH_TOKEN not recognized
-- Environment variables missing
-
-#### Solutions
-
-1. **Check .env file location:**
-   ```bash
-   ls -la .env
-   cat .env
-   ```
-
-2. **Verify compose file:**
-   ```bash
-   docker compose config
-   ```
-
-3. **Set variables explicitly:**
-   ```bash
-   AUTH_TOKEN=mytoken docker compose up -d
-   ```
-
-## Installation Issues
-
-### npm install Fails
-
-#### Symptoms
-- Dependency errors
-- Node version mismatch
-- Native module compilation fails
-
-#### Solutions
-
-1. **Clear npm cache:**
-   ```bash
-   npm cache clean --force
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
-
-2. **Check Node version:**
-   ```bash
-   node --version  # Should be v16+
-   npm --version   # Should be v7+
-   ```
-
-3. **Use fallback for better-sqlite3:**
-   The project automatically falls back to sql.js if native modules fail.
-
-### Build Errors
-
-#### Symptoms
-- TypeScript compilation errors
-- Missing type definitions
-
-#### Solutions
+### Database Issues
 
 ```bash
-# Clean build
-rm -rf dist
-npm run build
+# Rebuild database inside container
+docker compose exec n8n-mcp npm run rebuild
 
-# Check TypeScript version
-npx tsc --version
-
-# Install missing types
-npm install --save-dev @types/node
-```
-
-## Runtime Errors
-
-### MCP Tools Not Available
-
-#### Symptoms
-- Tools don't appear in Claude Desktop
-- "Unknown tool" errors
-
-#### Solutions
-
-1. **Verify server is running:**
-   ```bash
-   # For Docker
-   docker compose ps
-   docker compose logs
-   
-   # For local
-   ps aux | grep node
-   ```
-
-2. **Check database:**
-   ```bash
-   npm run validate
-   npm run test-nodes
-   ```
-
-3. **Restart Claude Desktop** after configuration changes
-
-### Stream Not Readable Error
-
-#### Symptoms
-- Error: "InternalServerError: stream is not readable"
-- MCP endpoint returns errors
-
-#### Solutions
-
-1. **Check database initialization:**
-   ```bash
-   ls -la data/nodes.db
-   npm run validate
-   ```
-
-2. **Verify HTTP headers:**
-   ```bash
-   curl -H "Accept: application/json, text/event-stream" \
-        -H "Authorization: Bearer $AUTH_TOKEN" \
-        http://localhost:3000/mcp
-   ```
-
-## Claude Desktop Issues
-
-### Server Not Appearing
-
-#### Solutions
-
-1. **Verify config file location:**
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
-
-2. **Check JSON syntax:**
-   ```bash
-   # Validate JSON
-   cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq .
-   ```
-
-3. **Use absolute paths:**
-   ```json
-   {
-     "mcpServers": {
-       "n8n-documentation": {
-         "command": "node",
-         "args": [
-           "/absolute/path/to/n8n-mcp/dist/mcp/index.js"
-         ]
-       }
-     }
-   }
-   ```
-
-### Authentication Errors with Claude
-
-#### Solutions
-
-1. **Match tokens exactly:**
-   ```bash
-   # In .env
-   AUTH_TOKEN=your-token-here
-   
-   # In Claude config
-   "MCP_AUTH_TOKEN": "your-token-here"
-   ```
-
-2. **Check for special characters:**
-   - Avoid quotes in token values
-   - Use base64 encoding for safety
-
-## Database Problems
-
-### Database Corruption
-
-#### Symptoms
-- SQLite errors
-- Unexpected results
-- Missing nodes
-
-#### Solutions
-
-1. **Rebuild database:**
-   ```bash
-   # Backup first
-   cp data/nodes.db data/nodes.db.bak
-   
-   # Rebuild
-   npm run rebuild
-   ```
-
-2. **Validate after rebuild:**
-   ```bash
-   npm run validate
-   npm run test-nodes
-   ```
-
-### Database Locked
-
-#### Symptoms
-- SQLITE_BUSY errors
-- Cannot write to database
-
-#### Solutions
-
-```bash
-# Find processes using the database
-lsof data/nodes.db
-
-# For Docker
+# Or copy from host
+docker cp data/nodes.db n8n-mcp:/app/data/
 docker compose restart
 ```
 
-## Network and Authentication
+### Environment Variables Not Loading
 
-### CORS Errors
+```bash
+# Verify .env file
+cat .env
 
-#### Symptoms
-- Browser console shows CORS errors
-- Preflight requests fail
+# Check loaded config
+docker compose config
 
-#### Solutions
+# Force reload
+docker compose down
+docker compose --env-file .env up -d
+```
 
-1. **Check server CORS settings:**
-   - Verify MCP_MODE=http
-   - Check proxy configuration
+## 📦 Installation Issues
 
-2. **Test with curl:**
+### npm install Fails
+
+```bash
+# Clean install
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+```
+
+**Note**: The project automatically falls back to sql.js if better-sqlite3 fails.
+
+### Build Errors
+
+```bash
+# Clean rebuild
+rm -rf dist
+npm run build
+
+# If TypeScript errors
+npm install --save-dev @types/node
+npm run typecheck
+```
+
+## ⚡ Runtime Errors
+
+### MCP Tools Not Available in Claude
+
+1. **Restart Claude Desktop** (Cmd/Ctrl+R)
+2. **Check server status:**
    ```bash
-   curl -X OPTIONS http://localhost:3000/mcp \
-        -H "Origin: http://localhost" \
-        -H "Access-Control-Request-Method: POST"
+   # Docker
+   docker compose ps
+   
+   # Local
+   curl http://localhost:3000/health
    ```
+3. **Verify configuration path** is absolute
+4. **Check Claude logs**: View > Developer > Logs
 
-### SSL/HTTPS Issues
+## 🖥️ Claude Desktop Issues
 
-#### Solutions
+### Server Not Appearing
 
-1. **For development, use HTTP:**
-   ```json
-   "connect", "http://localhost:3000/mcp"
-   ```
+**Checklist:**
+- ✅ Used absolute paths (not ~/)
+- ✅ Valid JSON syntax
+- ✅ Restarted Claude completely
+- ✅ Server is running
 
-2. **For production, use reverse proxy:**
-   - See nginx/Caddy examples in HTTP_DEPLOYMENT.md
+```bash
+# Validate config
+cat ~/Library/Application\ Support/Claude/claude_desktop_config.json | jq .
+```
 
-## Performance Issues
+### Remote Connection Issues
+
+**"TransformStream is not defined":**
+- Update to Node.js 18+
+- Or use Docker stdio mode instead
+
+**"Server disconnected":**
+- Check AUTH_TOKEN matches
+- Verify server is accessible
+- Check for VPN interference
+
+## 🗄️ Database Problems
+
+### Quick Fixes
+
+```bash
+# Rebuild database
+npm run rebuild
+
+# Validate
+npm run validate
+npm run test-nodes
+
+# For Docker
+docker compose exec n8n-mcp npm run rebuild
+```
+
+### Database Locked
+
+```bash
+# Find lock
+lsof data/nodes.db
+
+# Force restart
+killall node
+npm start
+```
+
+## 🌐 Network Issues
+
+### Connection Refused
+
+```bash
+# Check server
+curl http://localhost:3000/health
+
+# Check firewall
+sudo ufw status
+
+# Test from outside
+curl https://your-server.com/health
+```
+
+### SSL Certificate Issues
+
+- Use HTTP for local development
+- Use reverse proxy (nginx/Caddy) for HTTPS
+- See [HTTP Deployment Guide](./HTTP_DEPLOYMENT.md)
+
+## 🚀 Performance Issues
 
 ### Slow Response Times
 
-#### Solutions
+```bash
+# Check memory
+docker stats n8n-mcp
 
-1. **Check resource usage:**
-   ```bash
-   # Docker
-   docker stats n8n-mcp
-   
-   # System
-   top
-   htop
-   ```
+# Increase limits
+# docker-compose.yml
+deploy:
+  resources:
+    limits:
+      memory: 1G
+```
 
-2. **Increase memory limits:**
-   ```yaml
-   # docker-compose.yml
-   deploy:
-     resources:
-       limits:
-         memory: 1G
-   ```
+**Expected performance:**
+- Response time: ~12ms
+- Memory usage: 50-100MB
+- Database queries: <5ms
 
-3. **Enable query logging:**
-   ```bash
-   LOG_LEVEL=debug npm start
-   ```
+## 🆘 Still Need Help?
 
-### High Memory Usage
+### Debug Mode
 
-#### Solutions
+```bash
+# Enable verbose logging
+LOG_LEVEL=debug npm start
 
-1. **Monitor with Docker:**
-   ```bash
-   docker compose exec n8n-mcp ps aux
-   ```
+# Docker debug
+docker compose logs -f --tail 100
+```
 
-2. **Restart periodically:**
-   ```bash
-   # Add to crontab
-   0 */6 * * * docker compose restart
-   ```
+### Get Support
 
-## Getting More Help
+1. **Check existing issues**: [GitHub Issues](https://github.com/czlonkowski/n8n-mcp/issues)
+2. **Ask questions**: [GitHub Discussions](https://github.com/czlonkowski/n8n-mcp/discussions)
+3. **Report bugs**: Include:
+   - Error messages
+   - Steps to reproduce
+   - Environment details
+   - Logs with `LOG_LEVEL=debug`
 
-1. **Enable debug logging:**
-   ```bash
-   LOG_LEVEL=debug docker compose up
-   ```
+### Common Solutions Summary
 
-2. **Collect diagnostic info:**
-   ```bash
-   # System info
-   uname -a
-   node --version
-   docker --version
-   
-   # Project info
-   git rev-parse HEAD
-   npm list
-   ```
-
-3. **Report issues:**
-   - GitHub: https://github.com/czlonkowski/n8n-mcp/issues
-   - Include logs, environment, and steps to reproduce
+1. 🔄 **Always restart Claude** after config changes
+2. 📋 **Use exact configuration** from examples
+3. 🔍 **Check logs** for specific errors
+4. 🆙 **Update Node.js** to v18+ for remote connections
+5. 🔒 **Verify AUTH_TOKEN** matches exactly

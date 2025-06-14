@@ -20,9 +20,12 @@ async function main() {
   try {
     const mode = process.env.MCP_MODE || 'stdio';
     
-    console.error(`Starting n8n Documentation MCP Server in ${mode} mode...`);
-    console.error('Current directory:', process.cwd());
-    console.error('Node version:', process.version);
+    // Only show debug messages in HTTP mode to avoid corrupting stdio communication
+    if (mode === 'http') {
+      console.error(`Starting n8n Documentation MCP Server in ${mode} mode...`);
+      console.error('Current directory:', process.cwd());
+      console.error('Node version:', process.version);
+    }
     
     if (mode === 'http') {
       // Check if we should use the fixed implementation

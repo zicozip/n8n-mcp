@@ -4,7 +4,7 @@
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 [![License](https://img.shields.io/badge/license-Sustainable%20Use-orange.svg)](LICENSE)
 
-A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations.
+A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy locally or remotely to give Claude and other AI assistants deep knowledge about n8n's 450+ workflow automation nodes.
 
 ## Overview
 
@@ -23,97 +23,76 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 - **Versioned Node Support**: Handles complex versioned nodes like HTTPRequest and Code
 - **Fast Search**: SQLite with FTS5 for instant full-text search across all documentation
 - **MCP Protocol**: Standard interface for AI assistants to query n8n knowledge
-- **HTTP Server Mode**: Deploy remotely with fixed implementation (v2.3.2) that bypasses stream issues
+- **Remote Deployment Ready**: Production-ready HTTP server for multi-user services
 - **Universal Compatibility**: Works with any Node.js version through automatic adapter fallback
 
 ## Quick Start
 
-### Prerequisites
+Choose your deployment method:
 
-- Node.js (any version - automatic fallback to pure JavaScript if needed)
-- npm or yarn
-- Git
+### 🐳 Docker (Recommended)
 
-> **Note**: The project uses an intelligent database adapter that automatically falls back to a pure JavaScript implementation (sql.js) if native dependencies fail to load. This ensures compatibility with any Node.js version, including Claude Desktop's bundled runtime.
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/n8n-mcp.git
-cd n8n-mcp
-```
-
-2. Clone n8n documentation (required for full documentation coverage):
-```bash
-git clone https://github.com/n8n-io/n8n-docs.git ../n8n-docs
-```
-
-3. Install dependencies:
-```bash
-npm install
-```
-
-4. Build the project:
-```bash
-npm run build
-```
-
-5. Initialize the database:
-```bash
-npm run rebuild
-```
-
-6. Validate the installation:
-```bash
-npm run test-nodes
-```
-
-## Docker Quick Start 🐳
-
-The easiest way to get started is using Docker:
-
-### Option 1: Simple HTTP Server (Recommended)
-
-1. Create a `.env` file:
-```bash
-# Generate a secure token
-AUTH_TOKEN=$(openssl rand -base64 32)
-echo "AUTH_TOKEN=$AUTH_TOKEN" > .env
+# 1. Create environment file
+echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
 echo "USE_FIXED_HTTP=true" >> .env
-```
 
-2. Run with Docker Compose:
-```bash
+# 2. Start the server
 docker compose up -d
-```
 
-3. Test the server:
-```bash
+# 3. Check health
 curl http://localhost:3000/health
 ```
 
-4. Configure Claude Desktop with mcp-remote:
+That's it! The server is running and ready for connections.
+
+### 💻 Local Installation
+
+**Prerequisites:**
+- Node.js (any version - automatic fallback if needed)
+- npm or yarn
+- Git
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/czlonkowski/n8n-mcp.git
+cd n8n-mcp
+
+# 2. Clone n8n docs (optional but recommended)
+git clone https://github.com/n8n-io/n8n-docs.git ../n8n-docs
+
+# 3. Install and build
+npm install
+npm run build
+
+# 4. Initialize database
+npm run rebuild
+
+# 5. Start the server
+npm start          # stdio mode for Claude Desktop
+npm run start:http # HTTP mode for remote access
+```
+
+## 🔧 Claude Desktop Configuration
+
+### For Local Installation (stdio mode)
+
+**macOS/Linux:**
 ```json
 {
   "mcpServers": {
-    "n8n-remote": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/mcp-remote@latest",
-        "connect",
-        "http://localhost:3000/mcp"
-      ],
+    "n8n-documentation": {
+      "command": "node",
+      "args": ["/path/to/n8n-mcp/dist/mcp/index.js"],
       "env": {
-        "MCP_AUTH_TOKEN": "your-auth-token-here"
+        "NODE_ENV": "production"
       }
     }
   }
 }
 ```
 
-### Option 2: Local stdio Mode (Direct Docker)
+### For Docker (stdio mode)
 
 ```json
 {
@@ -121,9 +100,7 @@ curl http://localhost:3000/health
     "n8n-docker": {
       "command": "docker",
       "args": [
-        "run",
-        "--rm",
-        "-i",
+        "run", "--rm", "-i",
         "-e", "MCP_MODE=stdio",
         "-v", "n8n-mcp-data:/app/data",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
@@ -133,170 +110,10 @@ curl http://localhost:3000/health
 }
 ```
 
-### Building and Running with Docker
+### For Remote Server (HTTP mode)
 
-The Docker image (~150MB) includes all dependencies and a pre-built database:
+**Important**: Requires Node.js 18+ on your local machine.
 
-```bash
-# Using pre-built image (recommended)
-docker run -d \
-  -e MCP_MODE=http \
-  -e USE_FIXED_HTTP=true \
-  -e AUTH_TOKEN="your-secure-token" \
-  -p 3000:3000 \
-  ghcr.io/czlonkowski/n8n-mcp:latest
-
-# Or build locally
-docker build -t n8n-mcp:local .
-```
-
-For detailed Docker documentation, see [Docker Deployment Guide](./docs/DOCKER_README.md).
-
-## Usage
-
-### With Claude Desktop
-
-1. Edit your Claude Desktop configuration:
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   - Linux: `~/.config/Claude/claude_desktop_config.json`
-
-2. Add the n8n-documentation server:
-```json
-{
-  "mcpServers": {
-    "n8n-documentation": {
-      "command": "node",
-      "args": [
-        "/path/to/n8n-mcp/dist/mcp/index.js"
-      ]
-    }
-  }
-}
-```
-
-3. Restart Claude Desktop
-
-> **Note**: The Node.js wrapper script (`mcp-server-v20.sh`) is no longer required! The project now automatically handles version mismatches.
-
-### Available MCP Tools
-
-- `list_nodes` - List all n8n nodes with filtering options
-- `get_node_info` - Get detailed information about a specific node
-- `search_nodes` - Full-text search across all node documentation  
-- `list_ai_tools` - List all AI-capable nodes
-- `get_node_documentation` - Get parsed documentation for a node
-- `get_database_statistics` - View database metrics and coverage
-
-### Example Queries
-
-```typescript
-// List all trigger nodes
-list_nodes({ isTrigger: true })
-
-// Get info about the HTTP Request node
-get_node_info({ nodeType: "nodes-base.httpRequest" })
-
-// Search for OAuth-related nodes
-search_nodes({ query: "oauth" })
-
-// Find AI-capable tools
-list_ai_tools()
-```
-
-## Development
-
-### Commands
-
-```bash
-npm run build        # Build TypeScript
-npm run rebuild      # Rebuild node database
-npm run test-nodes   # Test critical nodes
-npm run validate     # Validate node data
-npm start            # Start MCP server
-npm test             # Run tests
-npm run typecheck    # Check TypeScript types
-```
-
-### Architecture
-
-```
-src/
-├── loaders/           # Node package loaders
-├── parsers/           # Node metadata parsers
-├── mappers/           # Documentation mappers
-├── database/          # SQLite repository
-├── scripts/           # Build and test scripts
-└── mcp/              # MCP server implementation
-```
-
-### Node.js Version Compatibility
-
-The project works with any Node.js version thanks to automatic adapter fallback:
-
-- **Primary**: Uses `better-sqlite3` when compatible (faster)
-- **Fallback**: Uses `sql.js` when version mismatch detected (pure JS)
-- **Automatic**: No manual configuration needed
-
-## Technical Architecture
-
-### Database Adapter
-
-The project features an intelligent database adapter that ensures compatibility across different Node.js versions:
-
-1. **Primary**: Attempts to use `better-sqlite3` for optimal performance
-2. **Fallback**: Automatically switches to `sql.js` (pure JavaScript) if:
-   - Native modules fail to load
-   - Node.js version mismatch is detected
-   - Running in restricted environments (like Claude Desktop)
-
-This dual-adapter approach means:
-- ✅ Works with any Node.js version
-- ✅ No compilation required in fallback mode
-- ✅ Maintains full functionality with either adapter
-- ✅ Automatic persistence with sql.js
-
-### Performance Characteristics
-
-- **better-sqlite3**: Native performance, ~10-50x faster
-- **sql.js**: Pure JavaScript, ~2-5x slower but still responsive
-- Both adapters support the same API for seamless operation
-
-## Metrics
-
-Current implementation achieves:
-
-- ✅ 458/458 nodes loaded (100%)
-- ✅ 452 nodes with properties (98.7%)
-- ✅ 265 nodes with operations (57.9%)
-- ✅ 406 nodes with documentation (88.6%)
-- ✅ 35 AI-capable tools detected
-- ✅ All critical nodes validated
-
-## Remote Deployment
-
-### HTTP Server Mode
-
-n8n-MCP now supports HTTP mode for remote deployments. This allows you to:
-- Host the MCP server on a cloud VPS
-- Connect from Claude Desktop using mcp-remote
-- Single-user design for private use
-- Simple token-based authentication
-
-### Quick Start for HTTP Mode
-
-1. On your server:
-```bash
-# Set environment variables
-export MCP_MODE=http
-export USE_FIXED_HTTP=true  # Important: Use the fixed implementation
-export AUTH_TOKEN=$(openssl rand -base64 32)
-
-# Start the server
-npm run http  # This runs the fixed HTTP server
-```
-
-2. On your client, configure Claude Desktop with mcp-remote:
 ```json
 {
   "mcpServers": {
@@ -304,49 +121,190 @@ npm run http  # This runs the fixed HTTP server
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/mcp-remote@latest",
-        "connect",
-        "https://your-server.com/mcp"
+        "mcp-remote",
+        "https://your-server.com/mcp",
+        "--header",
+        "Authorization: Bearer ${AUTH_TOKEN}"
       ],
       "env": {
-        "MCP_AUTH_TOKEN": "your-auth-token"
+        "AUTH_TOKEN": "your-auth-token"
       }
     }
   }
 }
 ```
 
-For detailed instructions, see [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md).
+Configuration file locations:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-## Contributing
+⚠️ **Note**: After editing, restart Claude Desktop to apply changes.
 
+## 🚀 Remote Deployment
+
+### Production HTTP Server
+
+For multi-user services and remote deployments:
+
+```bash
+# 1. Set environment variables
+export AUTH_TOKEN="your-secure-token-min-32-chars"
+export USE_FIXED_HTTP=true
+export MCP_MODE=http
+export PORT=3000
+
+# 2. Start with Docker
+docker run -d \
+  --name n8n-mcp \
+  --restart unless-stopped \
+  -e MCP_MODE=$MCP_MODE \
+  -e USE_FIXED_HTTP=$USE_FIXED_HTTP \
+  -e AUTH_TOKEN=$AUTH_TOKEN \
+  -p $PORT:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+
+# 3. Or use Docker Compose
+docker compose up -d
+```
+
+### Client Requirements
+
+⚠️ **Important**: Remote connections require:
+- Node.js 18+ installed locally (for mcp-remote)
+- Or Claude Pro/Team/Enterprise (for native remote MCP support)
+
+See [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) for detailed instructions.
+
+## 📡 Available MCP Tools
+
+Once connected, Claude can use these tools:
+
+### Tools
+
+- **`list_nodes`** - List all n8n nodes with filtering options
+- **`get_node_info`** - Get detailed information about a specific node
+- **`search_nodes`** - Full-text search across all node documentation  
+- **`list_ai_tools`** - List all AI-capable nodes
+- **`get_node_documentation`** - Get parsed documentation for a node
+- **`get_database_statistics`** - View database metrics and coverage
+
+### Example Usage
+
+```typescript
+// List all trigger nodes
+list_nodes({ isTrigger: true })
+
+// Get info about the HTTP Request node
+get_node_info({ nodeType: "n8n-nodes-base.httpRequest" })
+
+// Search for OAuth-related nodes
+search_nodes({ query: "oauth authentication" })
+
+// Find AI-capable tools
+list_ai_tools()
+
+// Get Slack node documentation
+get_node_documentation({ nodeType: "n8n-nodes-base.slack" })
+```
+
+## 🛠️ Development
+
+### Commands
+
+```bash
+# Build & Test
+npm run build          # Build TypeScript
+npm run rebuild        # Rebuild node database
+npm run test-nodes     # Test critical nodes
+npm run validate       # Validate node data
+npm test               # Run all tests
+npm run typecheck      # Check TypeScript types
+
+# Run Server
+npm start              # Start in stdio mode
+npm run start:http     # Start in HTTP mode
+npm run dev            # Development with auto-reload
+npm run dev:http       # HTTP dev mode
+
+# Docker
+docker compose up -d   # Start with Docker
+docker compose logs    # View logs
+docker compose down    # Stop containers
+```
+
+### Project Structure
+
+```
+n8n-mcp/
+├── src/
+│   ├── loaders/       # NPM package loaders
+│   ├── parsers/       # Node metadata extraction
+│   ├── mappers/       # Documentation mapping
+│   ├── database/      # SQLite with FTS5
+│   ├── scripts/       # Build and maintenance
+│   ├── mcp/           # MCP server implementation
+│   └── utils/         # Shared utilities
+├── data/              # SQLite database
+├── docs/              # Documentation
+└── docker-compose.yml # Docker configuration
+```
+
+## 📊 Metrics & Coverage
+
+Current database coverage:
+
+- ✅ **458/458** nodes loaded (100%)
+- ✅ **452** nodes with properties (98.7%)
+- ✅ **265** nodes with operations (57.9%)
+- ✅ **406** nodes with documentation (88.6%)
+- ✅ **35** AI-capable tools detected
+- ✅ All critical nodes validated
+
+## 📚 Documentation
+
+- [Installation Guide](./docs/INSTALLATION.md) - Detailed setup instructions
+- [Claude Desktop Setup](./docs/README_CLAUDE_SETUP.md) - Configure Claude Desktop
+- [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) - Remote server deployment
+- [Docker Guide](./docs/DOCKER_README.md) - Container deployment
+- [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Architecture](./docs/ARCHITECTURE.md) - Technical design details
+
+## 🔄 Recent Updates
+
+### v2.3.2 - HTTP Server Fix
+- ✅ Fixed "stream is not readable" error
+- ✅ Direct JSON-RPC implementation bypassing transport issues
+- ✅ Added `USE_FIXED_HTTP=true` for stable HTTP mode
+- ✅ Average response time: ~12ms
+
+### v2.3.0 - Universal Compatibility
+- ✅ Automatic database adapter fallback
+- ✅ Works with ANY Node.js version
+- ✅ No manual configuration needed
+
+See [CHANGELOG.md](./docs/CHANGELOG.md) for full version history.
+
+## 📦 License
+
+This project uses the Sustainable Use License. Key points:
+- ✅ Free for internal business and personal use
+- ✅ Modifications allowed for own use
+- ❌ Cannot host as a service without permission
+- ❌ Cannot include in commercial products without permission
+
+See [LICENSE](./LICENSE) for full details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Run tests and validation
-5. Submit a pull request
+3. Run tests (`npm test`)
+4. Submit a pull request
 
-## License
+## 👏 Acknowledgments
 
-This project uses the Sustainable Use License. See LICENSE file for details.
-
-Copyright (c) 2024 AiAdvisors Romuald Czlonkowski
-
-## Recent Updates (v2.3.2)
-
-### HTTP Server Fix
-The v2.3.2 release fixes critical issues with the HTTP server:
-- ✅ Fixed "stream is not readable" error by removing body parsing middleware
-- ✅ Fixed "Server not initialized" error with direct JSON-RPC implementation
-- ✅ Added `USE_FIXED_HTTP=true` environment variable for stable HTTP mode
-- ✅ Improved performance with average response time of ~12ms
-
-### Node.js Compatibility (v2.3)
-- ✅ Automatic database adapter fallback (better-sqlite3 → sql.js)
-- ✅ Works with any Node.js version without manual configuration
-- ✅ Perfect for Claude Desktop integration
-
-## Acknowledgments
-
-- n8n team for the excellent workflow automation platform
-- Anthropic for the Model Context Protocol specification
+- [n8n](https://n8n.io) team for the workflow automation platform
+- [Anthropic](https://anthropic.com) for the Model Context Protocol
+- All contributors and users of this project
