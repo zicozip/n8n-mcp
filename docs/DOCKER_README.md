@@ -33,11 +33,10 @@ curl http://localhost:3000/health
 
 ### 2. Using Pre-built Images
 
-Pre-built images are available on GitHub Container Registry in two variants:
+Pre-built images are available on GitHub Container Registry:
 
-#### Optimized Image (Recommended)
 ```bash
-# Pull the optimized image (~200MB)
+# Pull the latest image (~283MB)
 docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 
 # Run with HTTP mode
@@ -47,21 +46,6 @@ docker run -d \
   -e AUTH_TOKEN=your-secure-token \
   -p 3000:3000 \
   ghcr.io/czlonkowski/n8n-mcp:latest
-```
-
-#### Full Image (Development)
-```bash
-# Pull the full image with n8n packages (2.6GB)
-docker pull ghcr.io/czlonkowski/n8n-mcp:full
-
-# Run with dynamic node scanning capability
-docker run -d \
-  --name n8n-mcp-full \
-  -e MCP_MODE=http \
-  -e AUTH_TOKEN=your-secure-token \
-  -p 3000:3000 \
-  -v n8n-mcp-data:/app/data \
-  ghcr.io/czlonkowski/n8n-mcp:full
 ```
 
 ## 📋 Configuration Options
@@ -439,31 +423,16 @@ secrets:
 
 ## 📦 Available Images
 
-### Optimized Images (~200MB)
-- `ghcr.io/czlonkowski/n8n-mcp:latest` - Latest optimized release
-- `ghcr.io/czlonkowski/n8n-mcp:2.3.0` - Specific version (optimized)
-- `ghcr.io/czlonkowski/n8n-mcp:main-abc123` - Development builds (optimized)
-
-### Full Images (2.6GB)
-- `ghcr.io/czlonkowski/n8n-mcp:full` - Latest full release
-- `ghcr.io/czlonkowski/n8n-mcp:2.3.0-full` - Specific version (full)
-- `ghcr.io/czlonkowski/n8n-mcp:main-full` - Development builds (full)
+- `ghcr.io/czlonkowski/n8n-mcp:latest` - Latest stable release
+- `ghcr.io/czlonkowski/n8n-mcp:2.3.0` - Specific version
+- `ghcr.io/czlonkowski/n8n-mcp:main-abc123` - Development builds
 
 ### Image Details
 
-#### Optimized Variant
 - Base: `node:20-alpine`
-- Size: ~200MB compressed
-- Features: Pre-built database, minimal runtime
-- Use case: Production deployments
-
-#### Full Variant
-- Base: `node:20-alpine`
-- Size: ~2.6GB compressed
-- Features: Full n8n packages, dynamic scanning
-- Use case: Development, custom nodes
-
-Both variants:
+- Size: ~283MB compressed
+- Features: Pre-built database with all node information
+- Database: Complete SQLite with 525+ nodes
 - Architectures: `linux/amd64`, `linux/arm64`
 - Updated: Automatically via GitHub Actions
 

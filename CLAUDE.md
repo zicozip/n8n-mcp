@@ -94,29 +94,11 @@ docker compose down         # Stop containers
 docker compose down -v      # Stop and remove volumes
 ./scripts/test-docker.sh    # Test Docker deployment
 
-# Optimized Docker Commands:
-docker compose -f docker-compose.optimized.yml up -d  # Start optimized version
-docker build -f Dockerfile.optimized -t n8n-mcp:optimized .  # Build optimized image
-./scripts/test-optimized-docker.sh  # Test optimized Docker build
 ```
 
 ## Docker Deployment
 
-The project includes comprehensive Docker support with two options:
-
-### Standard Docker Image (~2.6GB)
-- Full n8n packages included
-- Database built at runtime
-- Supports dynamic node scanning
-- Use for development or when you need runtime flexibility
-
-### Optimized Docker Image (~200MB) 
-- Pre-built database at build time
-- Minimal runtime dependencies  
-- 90% smaller image size
-- Use for production deployments
-
-The project includes comprehensive Docker support for easy deployment:
+The project includes optimized Docker support for easy deployment:
 
 ### Quick Start with Docker
 ```bash
@@ -131,18 +113,18 @@ curl http://localhost:3000/health
 ```
 
 ### Docker Features
-- **Multi-stage builds** for optimized image size (~150MB)
+- **Optimized image size** (~283MB with pre-built database)
+- **Multi-stage builds** for minimal runtime dependencies
 - **Dual mode support** (stdio and HTTP) in single image
-- **Automatic database initialization** on first run
+- **Pre-built database** with all 525+ nodes included
 - **Non-root user** execution for security
 - **Health checks** built into the image
-- **Volume persistence** for SQLite database
 - **Resource limits** configured in compose file
 
 ### Docker Images
-- `ghcr.io/czlonkowski/n8n-mcp:latest` - Simple production image
-- `ghcr.io/czlonkowski/n8n-mcp:nginx` - Enhanced with nginx (Phase 2)
+- `ghcr.io/czlonkowski/n8n-mcp:latest` - Optimized production image
 - Multi-architecture support (amd64, arm64)
+- ~283MB compressed size
 
 ### Docker Development
 ```bash

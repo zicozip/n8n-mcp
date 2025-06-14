@@ -15,17 +15,10 @@ git push origin v1.2.3
 ```
 
 This will automatically create the following Docker tags:
-
-**Optimized Images:**
 - `ghcr.io/czlonkowski/n8n-mcp:1.2.3` (exact version)
 - `ghcr.io/czlonkowski/n8n-mcp:1.2` (minor version)
 - `ghcr.io/czlonkowski/n8n-mcp:1` (major version)
 - `ghcr.io/czlonkowski/n8n-mcp:latest` (if from main branch)
-
-**Full Images:**
-- `ghcr.io/czlonkowski/n8n-mcp:1.2.3-full` (exact version)
-- `ghcr.io/czlonkowski/n8n-mcp:1.2-full` (minor version)
-- `ghcr.io/czlonkowski/n8n-mcp:full` (if from main branch)
 
 ## Tag Types Explained
 
@@ -133,7 +126,7 @@ services:
   n8n-mcp:
     image: ghcr.io/czlonkowski/n8n-mcp:1.2
 
-# Latest version (for development/testing)
+# Latest version (for testing)
 services:
   n8n-mcp:
     image: ghcr.io/czlonkowski/n8n-mcp:latest
