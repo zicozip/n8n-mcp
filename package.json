@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "rebuild": "node dist/scripts/rebuild.js",
+    "rebuild:optimized": "node dist/scripts/rebuild-optimized.js",
     "validate": "node dist/scripts/validate.js",
     "test-nodes": "node dist/scripts/test-nodes.js",
     "start": "node dist/mcp/index.js",

@@ -1,0 +1,41 @@
+# Docker Compose for optimized n8n-MCP image
+# This version has pre-built database and minimal runtime dependencies
+
+services:
+  n8n-mcp-optimized:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+    image: n8n-mcp:optimized
+    container_name: n8n-mcp-optimized
+    restart: unless-stopped
+    environment:
+      MCP_MODE: ${MCP_MODE:-http}
+      AUTH_TOKEN: ${AUTH_TOKEN:?AUTH_TOKEN is required for HTTP mode}
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      # Note: Database is pre-built in the image, no volume needed
+      # Only mount if you need to preserve logs or other runtime data
+      - n8n-mcp-logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 256M  # Much lower than original!
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      com.n8n-mcp.version: "optimized"
+      com.n8n-mcp.description: "Optimized build with pre-built database"
+
+volumes:
+  n8n-mcp-logs:
+    name: n8n-mcp-logs

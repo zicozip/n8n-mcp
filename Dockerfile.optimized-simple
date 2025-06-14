@@ -1,0 +1,49 @@
+# Simplified optimized Dockerfile for testing
+
+# Stage 1: Build and create database
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Copy everything
+COPY . .
+
+# Install dependencies and build
+RUN npm ci && npm run build
+
+# Build optimized database (this embeds source code)
+RUN mkdir -p data && npm run rebuild:optimized || npm run rebuild
+
+# Stage 2: Minimal runtime
+FROM node:20-alpine AS runtime
+WORKDIR /app
+
+# Install only runtime dependencies
+RUN apk add --no-cache curl
+
+# Create minimal package.json
+COPY package*.json ./
+RUN npm ci --omit=dev && \
+    # Remove n8n packages after install
+    npm uninstall n8n n8n-core n8n-workflow @n8n/n8n-nodes-langchain || true && \
+    # Clean up
+    npm cache clean --force
+
+# Copy built app and database
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/data ./data
+COPY src/database/schema*.sql ./src/database/
+
+# Simple entrypoint
+RUN echo '#!/bin/sh\n\
+if [ "$MCP_MODE" = "http" ] && [ -z "$AUTH_TOKEN" ]; then\n\
+    echo "ERROR: AUTH_TOKEN required for HTTP mode"\n\
+    exit 1\n\
+fi\n\
+exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+USER node
+EXPOSE 3000
+HEALTHCHECK CMD curl -f http://localhost:3000/health || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["node", "dist/mcp/index.js"]

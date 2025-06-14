@@ -12,6 +12,7 @@ Welcome to the n8n-MCP documentation. This directory contains comprehensive guid
 ### Deployment
 - **[HTTP Deployment Guide](./HTTP_DEPLOYMENT.md)** - Deploy n8n-MCP as an HTTP server for remote access
 - **[Docker Deployment](./DOCKER_README.md)** - Comprehensive Docker deployment guide
+- **[Docker Optimization Guide](./DOCKER_OPTIMIZATION_GUIDE.md)** - Optimized Docker build (200MB vs 2.6GB)
 - **[Docker Testing Results](./DOCKER_TESTING_RESULTS.md)** - Docker implementation test results and findings
 
 ### Development

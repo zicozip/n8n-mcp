@@ -69,6 +69,7 @@ npm run lint         # Check TypeScript types (alias for typecheck)
 
 # Core Commands:
 npm run rebuild      # Rebuild node database
+npm run rebuild:optimized  # Build database with embedded source code
 npm run validate     # Validate critical nodes
 npm run test-nodes   # Test critical node properties/operations
 
@@ -92,9 +93,28 @@ docker compose logs -f      # View logs
 docker compose down         # Stop containers
 docker compose down -v      # Stop and remove volumes
 ./scripts/test-docker.sh    # Test Docker deployment
+
+# Optimized Docker Commands:
+docker compose -f docker-compose.optimized.yml up -d  # Start optimized version
+docker build -f Dockerfile.optimized -t n8n-mcp:optimized .  # Build optimized image
+./scripts/test-optimized-docker.sh  # Test optimized Docker build
 ```
 
 ## Docker Deployment
+
+The project includes comprehensive Docker support with two options:
+
+### Standard Docker Image (~2.6GB)
+- Full n8n packages included
+- Database built at runtime
+- Supports dynamic node scanning
+- Use for development or when you need runtime flexibility
+
+### Optimized Docker Image (~200MB) 
+- Pre-built database at build time
+- Minimal runtime dependencies  
+- 90% smaller image size
+- Use for production deployments
 
 The project includes comprehensive Docker support for easy deployment:
 
