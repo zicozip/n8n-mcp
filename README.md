@@ -65,7 +65,9 @@ npm run test-nodes
 
 ## Docker Quick Start 🐳
 
-The easiest way to get started is using Docker:
+The easiest way to get started is using Docker. We provide two image variants:
+- **Optimized** (`latest`): ~200MB, pre-built database, recommended for production
+- **Full** (`full`): 2.6GB, includes n8n packages, for development/dynamic scanning
 
 ### Option 1: Simple HTTP Server (Recommended)
 

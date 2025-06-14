@@ -3,6 +3,7 @@ version: '3.8'
 
 services:
   n8n-mcp:
+    # Use 'latest' for optimized image (~200MB) or 'full' for development (2.6GB)
     image: ghcr.io/czlonkowski/n8n-mcp:latest
     container_name: n8n-mcp
     restart: unless-stopped

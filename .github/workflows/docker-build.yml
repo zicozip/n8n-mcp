@@ -17,8 +17,8 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-simple:
-    name: Build Simple Docker Image
+  build-optimized:
+    name: Build Optimized Docker Image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,15 +56,68 @@ jobs:
             type=sha,prefix={{branch}}-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
             
-      - name: Build and push simple Docker image
+      - name: Build and push optimized Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.optimized
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          provenance: false
+          
+  # Keep standard build as 'full' variant
+  build-full:
+    name: Build Full Docker Image (with n8n packages)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata for full variant
+        id: meta-full
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch,suffix=-full
+            type=ref,event=pr,suffix=-full
+            type=semver,pattern={{version}}-full
+            type=semver,pattern={{major}}.{{minor}}-full
+            type=raw,value=full,enable={{is_default_branch}}
+            
+      - name: Build and push full Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta-full.outputs.tags }}
+          labels: ${{ steps.meta-full.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
