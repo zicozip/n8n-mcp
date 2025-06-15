@@ -1,20 +1,20 @@
 # n8n-MCP
 
-[![Version](https://img.shields.io/badge/version-2.3.2-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 [![License](https://img.shields.io/badge/license-Sustainable%20Use-orange.svg)](LICENSE)
 
-A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy locally or remotely to give Claude and other AI assistants deep knowledge about n8n's 450+ workflow automation nodes.
+A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy locally or remotely to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
 ## Overview
 
 n8n-MCP serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively. It provides structured access to:
 
-- 📚 **458 n8n nodes** from both n8n-nodes-base and @n8n/n8n-nodes-langchain
-- 🔧 **Node properties** - 98.7% coverage with detailed schemas
-- ⚡ **Node operations** - 57.9% coverage of available actions
-- 📄 **Documentation** - 88.6% coverage from official n8n docs
-- 🤖 **AI tools** - 35 AI-capable nodes detected
+- 📚 **525 n8n nodes** from both n8n-nodes-base and @n8n/n8n-nodes-langchain
+- 🔧 **Node properties** - 99% coverage with detailed schemas
+- ⚡ **Node operations** - 63.6% coverage of available actions
+- 📄 **Documentation** - 87% coverage from official n8n docs
+- 🤖 **AI tools** - 263 AI-capable nodes detected
 
 ## Features
 
@@ -265,13 +265,13 @@ n8n-mcp/
 
 ## 📊 Metrics & Coverage
 
-Current database coverage:
+Current database coverage (updated to n8n v1.97.1):
 
-- ✅ **458/458** nodes loaded (100%)
-- ✅ **452** nodes with properties (98.7%)
-- ✅ **265** nodes with operations (57.9%)
-- ✅ **406** nodes with documentation (88.6%)
-- ✅ **35** AI-capable tools detected
+- ✅ **525/525** nodes loaded (100%)
+- ✅ **520** nodes with properties (99%)
+- ✅ **334** nodes with operations (63.6%)
+- ✅ **457** nodes with documentation (87%)
+- ✅ **263** AI-capable tools detected
 - ✅ All critical nodes validated
 
 ## 📚 Documentation
@@ -284,6 +284,13 @@ Current database coverage:
 - [Architecture](./docs/ARCHITECTURE.md) - Technical design details
 
 ## 🔄 Recent Updates
+
+### v2.3.3 - Automated Dependency Updates
+- ✅ Implemented automated n8n dependency update system
+- ✅ Created GitHub Actions workflow for weekly updates
+- ✅ Successfully updated to n8n v1.97.1
+- ✅ Fixed validation script for new node type format
+- ✅ Significant increase in AI-capable nodes (35 → 263)
 
 ### v2.3.2 - HTTP Server Fix
 - ✅ Fixed "stream is not readable" error

@@ -6,9 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Refactor Complete (v2.3.2)
+## ✅ Latest Updates (v2.3.3)
 
-### Latest Update (v2.3.2) - Complete MCP HTTP Fix:
+### Update (v2.3.3) - Automated Dependency Updates & Validation Fixes:
+- ✅ Implemented automated n8n dependency update system
+- ✅ Created GitHub Actions workflow for weekly updates
+- ✅ Fixed validation script to use correct node type format
+- ✅ Successfully updated to n8n v1.97.1 with all dependencies in sync
+- ✅ All 525 nodes loading correctly with validation passing
+
+### Previous Update (v2.3.2) - Complete MCP HTTP Fix:
 - ✅ Fixed "stream is not readable" error by removing body parsing middleware
 - ✅ Fixed "Server not initialized" error with direct JSON-RPC implementation
 - ✅ Created http-server-fixed.ts that bypasses StreamableHTTPServerTransport issues
@@ -63,11 +70,11 @@ src/
 ```
 
 ### Key Metrics:
-- 458 nodes successfully loaded (100%)
-- 452 nodes with properties (98.7%)
-- 265 nodes with operations (57.9%)
-- 406 nodes with documentation (88.6%)
-- 35 AI-capable tools detected
+- 525 nodes successfully loaded (100%) - Updated to n8n v1.97.1
+- 520 nodes with properties (99%)
+- 334 nodes with operations (63.6%)
+- 457 nodes with documentation (87%)
+- 263 AI-capable tools detected (major increase)
 - All critical nodes pass validation
 
 ## Key Commands
@@ -86,6 +93,10 @@ npm run rebuild      # Rebuild node database
 npm run rebuild:optimized  # Build database with embedded source code
 npm run validate     # Validate critical nodes
 npm run test-nodes   # Test critical node properties/operations
+
+# Dependency Update Commands:
+npm run update:n8n:check  # Check for n8n updates (dry run)
+npm run update:n8n        # Update n8n packages to latest versions
 
 # HTTP Server Commands:
 npm run start:http   # Start server in HTTP mode
@@ -130,7 +141,7 @@ curl http://localhost:3000/health
 - **Optimized image size** (~283MB with pre-built database)
 - **Multi-stage builds** for minimal runtime dependencies
 - **Dual mode support** (stdio and HTTP) in single image
-- **Pre-built database** with all 525+ nodes included
+- **Pre-built database** with all 525 nodes included
 - **Non-root user** execution for security
 - **Health checks** built into the image
 - **Resource limits** configured in compose file
@@ -391,3 +402,18 @@ For detailed deployment instructions, see [HTTP Deployment Guide](./docs/HTTP_DE
 2. Versioned node support
 3. Both programmatic and declarative styles
 4. Complex nested property structures
+
+### Dependency Update Issues (Solved in v2.3.3)
+**Problem**: n8n packages have interdependent version requirements. Updating them independently causes version mismatches.
+
+**Solution**: Implemented smart dependency update system:
+1. Check n8n's required dependency versions
+2. Update all packages to match n8n's requirements
+3. Validate database after updates
+4. Fix node type references in validation script
+
+**Technical Details**:
+- `scripts/update-n8n-deps.js` - Smart dependency updater
+- `.github/workflows/update-n8n-deps.yml` - GitHub Actions automation
+- `renovate.json` - Alternative Renovate configuration
+- Fixed validation to use 'nodes-base.httpRequest' format instead of 'httpRequest'

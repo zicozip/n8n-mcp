@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.3] - 2025-06-16
+
+### Added
+- **Automated Dependency Update System**: Comprehensive solution for keeping n8n packages in sync
+  - Custom update script (`scripts/update-n8n-deps.js`) that respects n8n's interdependencies
+  - GitHub Actions workflow for weekly automated updates
+  - Renovate configuration as an alternative solution
+  - Dependency update documentation guide
+- Support for automatic n8n package version synchronization
+- Documentation updates reflecting current metrics
+
+### Fixed
+- **Validation Script Node Type References**: Fixed node type format issues
+  - Changed from short names (e.g., 'httpRequest') to full names (e.g., 'nodes-base.httpRequest')
+  - Removed versioned check for Code node as it's not consistently detected
+  - All validation tests now pass after dependency updates
+
+### Changed
+- Updated n8n dependencies to latest versions:
+  - n8n: 1.14.1 → 1.97.1
+  - n8n-core: 1.14.1 → 1.96.0
+  - n8n-workflow: 1.82.0 → 1.94.0
+  - @n8n/n8n-nodes-langchain: 1.97.0 → 1.96.1
+- Significant increase in detected nodes and capabilities:
+  - Total nodes: 458 → 525
+  - AI-capable tools: 35 → 263 (major increase due to updated detection)
+  - Nodes with properties: 98.7% → 99%
+  - Nodes with operations: 57.9% → 63.6%
+
+### Technical Details
+- Dependency update script now checks n8n's required dependency versions
+- Validation script uses correct database column names
+- All critical nodes (httpRequest, code, slack, agent) validate successfully
+
 ## [2.3.2] - 2025-06-14
 
 ### Fixed
