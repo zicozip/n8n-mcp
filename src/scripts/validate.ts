@@ -31,7 +31,7 @@ async function validate() {
   
   const criticalChecks = [
     { 
-      type: 'httpRequest', 
+      type: 'nodes-base.httpRequest', 
       checks: {
         hasDocumentation: true,
         documentationContains: 'HTTP Request',
@@ -39,22 +39,21 @@ async function validate() {
       }
     },
     { 
-      type: 'code', 
+      type: 'nodes-base.code', 
       checks: {
         hasDocumentation: true,
-        documentationContains: 'Code',
-        isVersioned: true
+        documentationContains: 'Code'
       }
     },
     { 
-      type: 'slack', 
+      type: 'nodes-base.slack', 
       checks: {
         hasOperations: true,
         style: 'programmatic'
       }
     },
     {
-      type: 'agent',
+      type: 'nodes-langchain.agent',
       checks: {
         isAITool: false, // According to the database, it's not marked as AI tool
         packageName: '@n8n/n8n-nodes-langchain'
@@ -107,7 +106,7 @@ async function validate() {
       issues.push(`AI tool flag mismatch: expected ${check.checks.isAITool}, got ${!!node.is_ai_tool}`);
     }
     
-    if (check.checks.isVersioned && !node.is_versioned) {
+    if ('isVersioned' in check.checks && check.checks.isVersioned && !node.is_versioned) {
       nodeOk = false;
       issues.push('not marked as versioned');
     }

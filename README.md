@@ -221,6 +221,10 @@ npm run validate       # Validate node data
 npm test               # Run all tests
 npm run typecheck      # Check TypeScript types
 
+# Update Dependencies
+npm run update:n8n:check  # Check for n8n updates
+npm run update:n8n        # Update n8n packages
+
 # Run Server
 npm start              # Start in stdio mode
 npm run start:http     # Start in HTTP mode
@@ -232,6 +236,15 @@ docker compose up -d   # Start with Docker
 docker compose logs    # View logs
 docker compose down    # Stop containers
 ```
+
+### Automated Updates
+
+n8n releases weekly. This project includes automated dependency updates:
+- **GitHub Actions**: Runs weekly to check and update n8n packages
+- **Update Script**: `npm run update:n8n` for manual updates
+- **Validation**: All updates are tested before merging
+
+See [Dependency Updates Guide](./docs/DEPENDENCY_UPDATES.md) for details.
 
 ### Project Structure
 
