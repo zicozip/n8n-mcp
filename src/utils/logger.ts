@@ -54,6 +54,12 @@ export class Logger {
     if (level <= this.config.level) {
       const formattedMessage = this.formatMessage(levelName, message);
       
+      // In stdio mode, suppress ALL console output to avoid corrupting JSON-RPC
+      if (process.env.MCP_MODE === 'stdio' || process.env.DISABLE_CONSOLE_OUTPUT === 'true') {
+        // Silently drop all logs in stdio mode
+        return;
+      }
+      
       // In HTTP mode during request handling, suppress console output
       // The ConsoleManager will handle this, but we add a safety check
       if (process.env.MCP_MODE === 'http' && process.env.MCP_REQUEST_ACTIVE === 'true') {

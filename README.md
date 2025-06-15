@@ -75,22 +75,26 @@ npm run start:http # HTTP mode for remote access
 
 ## 🔧 Claude Desktop Configuration
 
-### For Local Installation (stdio mode)
+### For Local Installation (stdio mode) - Recommended
 
-**macOS/Linux:**
 ```json
 {
   "mcpServers": {
-    "n8n-documentation": {
+    "n8n-mcp": {
       "command": "node",
       "args": ["/path/to/n8n-mcp/dist/mcp/index.js"],
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "LOG_LEVEL": "error",
+        "MCP_MODE": "stdio",
+        "DISABLE_CONSOLE_OUTPUT": "true"
       }
     }
   }
 }
 ```
+
+⚠️ **Important**: The environment variables above are required for proper stdio communication.
 
 ### For Docker (stdio mode)
 
@@ -102,6 +106,8 @@ npm run start:http # HTTP mode for remote access
       "args": [
         "run", "--rm", "-i",
         "-e", "MCP_MODE=stdio",
+        "-e", "LOG_LEVEL=error",
+        "-e", "DISABLE_CONSOLE_OUTPUT=true",
         "-v", "n8n-mcp-data:/app/data",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
       ]
@@ -112,22 +118,19 @@ npm run start:http # HTTP mode for remote access
 
 ### For Remote Server (HTTP mode)
 
-**Important**: Requires Node.js 18+ on your local machine.
+For production deployments with HTTP mode, use the custom HTTP client:
 
 ```json
 {
   "mcpServers": {
     "n8n-remote": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "-y",
-        "mcp-remote",
-        "https://your-server.com/mcp",
-        "--header",
-        "Authorization: Bearer ${AUTH_TOKEN}"
+        "/path/to/n8n-mcp/scripts/mcp-http-client.js",
+        "http://your-server.com:3000/mcp"
       ],
       "env": {
-        "AUTH_TOKEN": "your-auth-token"
+        "MCP_AUTH_TOKEN": "your-auth-token"
       }
     }
   }

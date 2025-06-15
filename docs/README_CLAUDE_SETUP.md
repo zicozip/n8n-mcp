@@ -1,38 +1,16 @@
 # Claude Desktop Configuration for n8n-MCP
 
-This guide helps you connect n8n-MCP to Claude Desktop, giving Claude comprehensive knowledge about n8n's 450+ workflow automation nodes.
+This guide helps you connect n8n-MCP to Claude Desktop, giving Claude comprehensive knowledge about n8n's 525+ workflow automation nodes.
 
 ## 🎯 Prerequisites
 
 - Claude Desktop installed
-- For remote connections: Node.js 18+ on your local machine
+- For local installation: Node.js (any version)
 - For Docker: Docker Desktop or Docker Engine
 
 ## 🛠️ Configuration Methods
 
-### Method 1: Docker (Simplest) 🐳
-
-No installation needed - runs directly from Docker:
-
-```json
-{
-  "mcpServers": {
-    "n8n-docker": {
-      "command": "docker",
-      "args": [
-        "run", "--rm", "-i",
-        "-e", "MCP_MODE=stdio",
-        "-v", "n8n-mcp-data:/app/data",
-        "ghcr.io/czlonkowski/n8n-mcp:latest"
-      ]
-    }
-  }
-}
-```
-
-✨ **Benefits**: No setup required, always up-to-date, isolated environment.
-
-### Method 2: Local Installation
+### Method 1: Local Installation (Recommended) 💻
 
 1. **Install and build:**
    ```bash
@@ -47,44 +25,75 @@ No installation needed - runs directly from Docker:
    ```json
    {
      "mcpServers": {
-       "n8n-documentation": {
+       "n8n-mcp": {
          "command": "node",
          "args": ["/absolute/path/to/n8n-mcp/dist/mcp/index.js"],
          "env": {
-           "NODE_ENV": "production"
+           "NODE_ENV": "production",
+           "LOG_LEVEL": "error",
+           "MCP_MODE": "stdio",
+           "DISABLE_CONSOLE_OUTPUT": "true"
          }
        }
      }
    }
    ```
 
-⚠️ **Important**: Use absolute paths, not relative paths.
+⚠️ **Important**: 
+- Use absolute paths, not relative paths
+- The environment variables shown above are critical for proper stdio communication
 
-### Method 3: Remote Server Connection
+### Method 2: Docker 🐳
 
-**Requirements**: Node.js 18+ installed locally
+No installation needed - runs directly from Docker:
 
 ```json
 {
   "mcpServers": {
-    "n8n-remote": {
-      "command": "npx",
+    "n8n-docker": {
+      "command": "docker",
       "args": [
-        "-y",
-        "mcp-remote",
-        "https://your-server.com/mcp",
-        "--header",
-        "Authorization: Bearer ${AUTH_TOKEN}"
-      ],
-      "env": {
-        "AUTH_TOKEN": "your-auth-token"
-      }
+        "run", "--rm", "-i",
+        "-e", "MCP_MODE=stdio",
+        "-e", "LOG_LEVEL=error",
+        "-e", "DISABLE_CONSOLE_OUTPUT=true",
+        "-v", "n8n-mcp-data:/app/data",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ]
     }
   }
 }
 ```
 
-📝 **Note**: Remote MCP is also natively supported in Claude Pro/Team/Enterprise via Settings > Integrations.
+✨ **Benefits**: No setup required, always up-to-date, isolated environment.
+
+### Method 3: Remote Server Connection (Advanced)
+
+⚠️ **Note**: Remote connections are complex and may have compatibility issues. Consider using local installation instead.
+
+For production deployments with multiple users:
+
+1. **Deploy server with HTTP mode** (see [HTTP Deployment Guide](./HTTP_DEPLOYMENT.md))
+
+2. **Connect using custom HTTP client:**
+   ```json
+   {
+     "mcpServers": {
+       "n8n-remote": {
+         "command": "node",
+         "args": [
+           "/path/to/n8n-mcp/scripts/mcp-http-client.js",
+           "http://your-server.com:3000/mcp"
+         ],
+         "env": {
+           "MCP_AUTH_TOKEN": "your-auth-token"
+         }
+       }
+     }
+   }
+   ```
+
+📝 **Note**: Native remote MCP support is available in Claude Pro/Team/Enterprise via Settings > Integrations.
 
 ## 📁 Configuration File Locations
 
@@ -164,11 +173,30 @@ docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 docker ps
 ```
 
+### Common Issues
+
+**"Expected ',' or ']' after array element" errors in logs:**
+- Cause: Console output interfering with stdio communication
+- Fix: Ensure all required environment variables are set:
+  - `MCP_MODE=stdio`
+  - `LOG_LEVEL=error`
+  - `DISABLE_CONSOLE_OUTPUT=true`
+
+**"NODE_MODULE_VERSION mismatch" warnings:**
+- Not a problem! The server automatically falls back to a pure JavaScript implementation
+- The warnings are suppressed with proper environment variables
+
+**Server appears but tools don't work:**
+- Check that you've built the project: `npm run build`
+- Verify the database exists: `npm run rebuild`
+- Restart Claude Desktop completely (quit and reopen)
+
 ### Quick Fixes
 
 - 🔄 **Always restart Claude** after config changes
 - 📋 **Copy example configs exactly** (watch for typos)
 - 📂 **Use absolute paths** (/Users/... not ~/...)
 - 🔍 **Check logs**: View > Developer > Logs in Claude Desktop
+- 🛑 **Set all environment variables** shown in the examples
 
 For more help, see [Troubleshooting Guide](./TROUBLESHOOTING.md)
