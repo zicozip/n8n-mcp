@@ -28,8 +28,8 @@ fi
 if [ "$(id -u)" = "0" ]; then
     echo "Running as root, fixing permissions..."
     chown -R nodejs:nodejs /app/data
-    # Switch to nodejs user
-    exec su-exec nodejs "$@"
+    # Switch to nodejs user (using Alpine's native su)
+    exec su nodejs -c "$*"
 fi
 
 # Trap signals for graceful shutdown

@@ -25,8 +25,12 @@ RUN npm run build
 FROM builder AS db-builder
 WORKDIR /app
 # Clone n8n-docs for documentation (if available)
-RUN apk add --no-cache git && \
-    git clone https://github.com/n8n-io/n8n-docs.git /tmp/n8n-docs || true
+# Fix git SSL issues in Alpine and configure git properly
+RUN apk add --no-cache git ca-certificates && \
+    git config --global http.sslVerify false && \
+    git config --global init.defaultBranch main && \
+    git clone --depth 1 https://github.com/n8n-io/n8n-docs.git /tmp/n8n-docs 2>/dev/null || \
+    echo "Warning: Could not clone n8n-docs, continuing without documentation"
 ENV N8N_DOCS_PATH=/tmp/n8n-docs
 # Build the complete database with source code
 RUN mkdir -p data && \
