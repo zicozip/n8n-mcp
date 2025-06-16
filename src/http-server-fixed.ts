@@ -5,7 +5,7 @@
  */
 import express from 'express';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { n8nDocumentationTools } from './mcp/tools-update';
+import { n8nDocumentationToolsFinal } from './mcp/tools-update';
 import { N8NDocumentationMCPServer } from './mcp/server-update';
 import { logger } from './utils/logger';
 import dotenv from 'dotenv';
@@ -185,7 +185,7 @@ export async function startFixedHTTPServer() {
               response = {
                 jsonrpc: '2.0',
                 result: {
-                  tools: n8nDocumentationTools
+                  tools: n8nDocumentationToolsFinal
                 },
                 id: jsonRpcRequest.id
               };

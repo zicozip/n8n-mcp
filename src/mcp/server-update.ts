@@ -6,7 +6,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { existsSync } from 'fs';
 import path from 'path';
-import { n8nDocumentationTools } from './tools-update';
+import { n8nDocumentationToolsFinal } from './tools-update';
 import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
@@ -97,7 +97,7 @@ export class N8NDocumentationMCPServer {
   private setupHandlers(): void {
     // Handle tool listing
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: n8nDocumentationTools,
+      tools: n8nDocumentationToolsFinal,
     }));
 
     // Handle tool execution
