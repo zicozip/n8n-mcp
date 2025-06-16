@@ -42,8 +42,15 @@ jobs:
       - name: Check for updates (dry run)
         id: check
         run: |
+          # Ensure we're in the right directory
+          cd ${{ github.workspace }}
+          
           # First do a dry run to check if updates are needed
-          node scripts/update-n8n-deps.js --dry-run > update-check.log 2>&1
+          node scripts/update-n8n-deps.js --dry-run > update-check.log 2>&1 || {
+            echo "❌ Error running update check:"
+            cat update-check.log
+            exit 1
+          }
           
           # Check if updates are available
           if grep -q "update available" update-check.log; then
@@ -61,8 +68,14 @@ jobs:
         if: steps.check.outputs.updates_available == 'true'
         id: update
         run: |
+          # Ensure we're in the right directory
+          cd ${{ github.workspace }}
+          
           # Run the actual update
-          node scripts/update-n8n-deps.js
+          node scripts/update-n8n-deps.js || {
+            echo "❌ Error running update:"
+            exit 1
+          }
           
           # Check if files changed
           if git diff --quiet; then
@@ -84,8 +97,8 @@ jobs:
           git checkout -b $BRANCH_NAME
           git add package.json package-lock.json
           
-          # Get update summary
-          UPDATE_SUMMARY=$(cat update-summary.txt || echo "Updated n8n dependencies")
+          # Get update summary (file is written by the update script)
+          UPDATE_SUMMARY=$(cat update-summary.txt 2>/dev/null || echo "Updated n8n dependencies")
           
           # Commit changes
           git commit -m "chore: update n8n dependencies

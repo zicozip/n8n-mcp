@@ -34,7 +34,10 @@ RUN apk add --no-cache git ca-certificates && \
 ENV N8N_DOCS_PATH=/tmp/n8n-docs
 # Build the complete database with source code
 RUN mkdir -p data && \
-    node dist/scripts/rebuild-optimized.js
+    npm run rebuild:optimized || \
+    (echo "Warning: Optimized rebuild failed, trying regular rebuild" && \
+     npm run rebuild) || \
+    (echo "Error: Database build failed" && exit 1)
 
 # Stage 4: Minimal Runtime (no n8n packages)
 FROM node:20-alpine AS runtime
