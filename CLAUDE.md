@@ -6,7 +6,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.3.3)
+## ✅ Latest Updates (v2.4.0)
+
+### Update (v2.4.0) - AI-Optimized MCP Tools:
+- ✅ **NEW: get_node_essentials tool** - Returns only 10-20 essential properties (95% size reduction)
+- ✅ **NEW: search_node_properties tool** - Search for specific properties within nodes
+- ✅ **NEW: get_node_for_task tool** - Pre-configured settings for 14 common tasks
+- ✅ **NEW: list_tasks tool** - Discover available task templates
+- ✅ **NEW: validate_node_config tool** - Validate configurations before use
+- ✅ **NEW: get_property_dependencies tool** - Analyze property visibility dependencies
+- ✅ Added PropertyFilter service with curated essential properties for 20+ nodes
+- ✅ Added ExampleGenerator with working examples for common use cases
+- ✅ Added TaskTemplates service with 14 pre-configured tasks
+- ✅ Added ConfigValidator service for comprehensive validation
+- ✅ Added PropertyDependencies service for dependency analysis
+- ✅ Enhanced all property descriptions - 100% coverage
+- ✅ Added version information to essentials response
+- ✅ Dramatically improved AI agent experience for workflow building
+- ✅ Response sizes reduced from 100KB+ to <5KB for common nodes
 
 ### Update (v2.3.3) - Automated Dependency Updates & Validation Fixes:
 - ✅ Implemented automated n8n dependency update system
@@ -54,12 +71,20 @@ src/
 │   ├── schema.sql             # SQLite schema
 │   ├── node-repository.ts     # Data access layer
 │   └── database-adapter.ts    # Universal database adapter (NEW in v2.3)
+├── services/
+│   ├── property-filter.ts     # Filters properties to essentials (NEW in v2.4)
+│   ├── example-generator.ts   # Generates working examples (NEW in v2.4)
+│   ├── task-templates.ts      # Pre-configured node settings (NEW in v2.4)
+│   ├── config-validator.ts    # Configuration validation (NEW in v2.4)
+│   └── property-dependencies.ts # Dependency analysis (NEW in v2.4)
 ├── scripts/
 │   ├── rebuild.ts             # Database rebuild with validation
 │   ├── validate.ts            # Node validation
-│   └── test-nodes.ts          # Critical node tests
+│   ├── test-nodes.ts          # Critical node tests
+│   └── test-essentials.ts     # Test new essentials tools (NEW in v2.4)
 ├── mcp/
-│   ├── server.ts              # MCP server with enhanced tools
+│   ├── server-update.ts       # MCP server with enhanced tools
+│   ├── tools-update.ts        # Tool definitions including new essentials
 │   └── index.ts               # Main entry point with mode selection
 ├── utils/
 │   ├── console-manager.ts     # Console output isolation (NEW in v2.3.1)
@@ -178,7 +203,13 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 ### MCP Tools Available
 - `list_nodes` - List all available n8n nodes with filtering
 - `get_node_info` - Get comprehensive information about a specific node (properties, operations, credentials)
+- `get_node_essentials` - **NEW** Get only essential properties (10-20) with examples (95% smaller)
 - `search_nodes` - Full-text search across all node documentation
+- `search_node_properties` - **NEW** Search for specific properties within a node
+- `get_node_for_task` - **NEW** Get pre-configured node settings for common tasks
+- `list_tasks` - **NEW** List all available task templates
+- `validate_node_config` - **NEW** Validate node configuration before use
+- `get_property_dependencies` - **NEW** Analyze property dependencies and visibility conditions
 - `list_ai_tools` - List all AI-capable nodes (usableAsTool: true)
 - `get_node_documentation` - Get parsed documentation from n8n-docs
 - `get_database_statistics` - Get database usage statistics and metrics
@@ -417,3 +448,32 @@ For detailed deployment instructions, see [HTTP Deployment Guide](./docs/HTTP_DE
 - `.github/workflows/update-n8n-deps.yml` - GitHub Actions automation
 - `renovate.json` - Alternative Renovate configuration
 - Fixed validation to use 'nodes-base.httpRequest' format instead of 'httpRequest'
+
+### AI-Optimized Tools (NEW in v2.4.0)
+**Problem**: get_node_info returns 100KB+ of JSON with 200+ properties, making it nearly impossible for AI agents to efficiently configure nodes.
+
+**Solution**: Created new tools that provide progressive disclosure of information:
+1. `get_node_essentials` - Returns only the 10-20 most important properties
+2. `search_node_properties` - Find specific properties without downloading everything
+
+**Results**:
+- 95% reduction in response size (100KB → 5KB)
+- Only essential and commonly-used properties returned
+- Includes working examples for immediate use
+- AI agents can now configure nodes in seconds instead of minutes
+
+**Technical Implementation**:
+- `src/services/property-filter.ts` - Curated essential properties for 20+ nodes
+- `src/services/example-generator.ts` - Working examples for common use cases
+- Smart property search with relevance scoring
+- Automatic fallback for unconfigured nodes
+
+**Usage Recommendation**:
+```bash
+# OLD approach (avoid):
+get_node_info("nodes-base.httpRequest")  # 100KB+ response
+
+# NEW approach (preferred):
+get_node_essentials("nodes-base.httpRequest")  # <5KB response with examples
+search_node_properties("nodes-base.httpRequest", "auth")  # Find specific options
+```

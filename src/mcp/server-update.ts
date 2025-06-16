@@ -10,6 +10,11 @@ import { n8nDocumentationToolsFinal } from './tools-update';
 import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
+import { PropertyFilter } from '../services/property-filter';
+import { ExampleGenerator } from '../services/example-generator';
+import { TaskTemplates } from '../services/task-templates';
+import { ConfigValidator } from '../services/config-validator';
+import { PropertyDependencies } from '../services/property-dependencies';
 
 interface NodeRow {
   node_type: string;
@@ -145,6 +150,18 @@ export class N8NDocumentationMCPServer {
         return this.getNodeDocumentation(args.nodeType);
       case 'get_database_statistics':
         return this.getDatabaseStatistics();
+      case 'get_node_essentials':
+        return this.getNodeEssentials(args.nodeType);
+      case 'search_node_properties':
+        return this.searchNodeProperties(args.nodeType, args.query, args.maxResults);
+      case 'get_node_for_task':
+        return this.getNodeForTask(args.task);
+      case 'list_tasks':
+        return this.listTasks(args.category);
+      case 'validate_node_config':
+        return this.validateNodeConfig(args.nodeType, args.config);
+      case 'get_property_dependencies':
+        return this.getPropertyDependencies(args.nodeType, args.config);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -349,6 +366,327 @@ export class N8NDocumentationMCPServer {
         package: pkg.package_name,
         nodeCount: pkg.count,
       })),
+    };
+  }
+
+  private async getNodeEssentials(nodeType: string): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.repository) throw new Error('Repository not initialized');
+    
+    // Get the full node information
+    let node = this.repository.getNode(nodeType);
+    
+    if (!node) {
+      // Try alternative formats
+      const alternatives = [
+        nodeType,
+        nodeType.replace('n8n-nodes-base.', ''),
+        `n8n-nodes-base.${nodeType}`,
+        nodeType.toLowerCase()
+      ];
+      
+      for (const alt of alternatives) {
+        const found = this.repository!.getNode(alt);
+        if (found) {
+          node = found;
+          break;
+        }
+      }
+      
+      if (!node) {
+        throw new Error(`Node ${nodeType} not found`);
+      }
+    }
+    
+    // Get properties (already parsed by repository)
+    const allProperties = node.properties || [];
+    
+    // Get essential properties
+    const essentials = PropertyFilter.getEssentials(allProperties, node.nodeType);
+    
+    // Generate examples
+    const examples = ExampleGenerator.getExamples(node.nodeType, essentials);
+    
+    // Get operations (already parsed by repository)
+    const operations = node.operations || [];
+    
+    return {
+      nodeType: node.nodeType,
+      displayName: node.displayName,
+      description: node.description,
+      category: node.category,
+      version: node.version || '1',
+      isVersioned: node.isVersioned || false,
+      requiredProperties: essentials.required,
+      commonProperties: essentials.common,
+      operations: operations.map((op: any) => ({
+        name: op.name || op.operation,
+        description: op.description,
+        action: op.action,
+        resource: op.resource
+      })),
+      examples,
+      metadata: {
+        totalProperties: allProperties.length,
+        isAITool: node.isAITool,
+        isTrigger: node.isTrigger,
+        isWebhook: node.isWebhook,
+        hasCredentials: node.credentials ? true : false,
+        package: node.package,
+        developmentStyle: node.developmentStyle || 'programmatic'
+      }
+    };
+  }
+
+  private async searchNodeProperties(nodeType: string, query: string, maxResults: number = 20): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.repository) throw new Error('Repository not initialized');
+    
+    // Get the node
+    let node = this.repository.getNode(nodeType);
+    
+    if (!node) {
+      // Try alternative formats
+      const alternatives = [
+        nodeType,
+        nodeType.replace('n8n-nodes-base.', ''),
+        `n8n-nodes-base.${nodeType}`,
+        nodeType.toLowerCase()
+      ];
+      
+      for (const alt of alternatives) {
+        const found = this.repository!.getNode(alt);
+        if (found) {
+          node = found;
+          break;
+        }
+      }
+      
+      if (!node) {
+        throw new Error(`Node ${nodeType} not found`);
+      }
+    }
+    
+    // Get properties and search (already parsed by repository)
+    const allProperties = node.properties || [];
+    const matches = PropertyFilter.searchProperties(allProperties, query, maxResults);
+    
+    return {
+      nodeType: node.nodeType,
+      query,
+      matches: matches.map((match: any) => ({
+        name: match.name,
+        displayName: match.displayName,
+        type: match.type,
+        description: match.description,
+        path: match.path || match.name,
+        required: match.required,
+        default: match.default,
+        options: match.options,
+        showWhen: match.showWhen
+      })),
+      totalMatches: matches.length,
+      searchedIn: allProperties.length + ' properties'
+    };
+  }
+
+  private async getNodeForTask(task: string): Promise<any> {
+    const template = TaskTemplates.getTaskTemplate(task);
+    
+    if (!template) {
+      // Try to find similar tasks
+      const similar = TaskTemplates.searchTasks(task);
+      throw new Error(
+        `Unknown task: ${task}. ` +
+        (similar.length > 0 
+          ? `Did you mean: ${similar.slice(0, 3).join(', ')}?`
+          : `Use 'list_tasks' to see available tasks.`)
+      );
+    }
+    
+    return {
+      task: template.task,
+      description: template.description,
+      nodeType: template.nodeType,
+      configuration: template.configuration,
+      userMustProvide: template.userMustProvide,
+      optionalEnhancements: template.optionalEnhancements || [],
+      notes: template.notes || [],
+      example: {
+        node: {
+          type: template.nodeType,
+          parameters: template.configuration
+        },
+        userInputsNeeded: template.userMustProvide.map(p => ({
+          property: p.property,
+          currentValue: this.getPropertyValue(template.configuration, p.property),
+          description: p.description,
+          example: p.example
+        }))
+      }
+    };
+  }
+  
+  private getPropertyValue(config: any, path: string): any {
+    const parts = path.split('.');
+    let value = config;
+    
+    for (const part of parts) {
+      // Handle array notation like parameters[0]
+      const arrayMatch = part.match(/^(\w+)\[(\d+)\]$/);
+      if (arrayMatch) {
+        value = value?.[arrayMatch[1]]?.[parseInt(arrayMatch[2])];
+      } else {
+        value = value?.[part];
+      }
+    }
+    
+    return value;
+  }
+  
+  private async listTasks(category?: string): Promise<any> {
+    if (category) {
+      const categories = TaskTemplates.getTaskCategories();
+      const tasks = categories[category];
+      
+      if (!tasks) {
+        throw new Error(
+          `Unknown category: ${category}. Available categories: ${Object.keys(categories).join(', ')}`
+        );
+      }
+      
+      return {
+        category,
+        tasks: tasks.map(task => {
+          const template = TaskTemplates.getTaskTemplate(task);
+          return {
+            task,
+            description: template?.description || '',
+            nodeType: template?.nodeType || ''
+          };
+        })
+      };
+    }
+    
+    // Return all tasks grouped by category
+    const categories = TaskTemplates.getTaskCategories();
+    const result: any = {
+      totalTasks: TaskTemplates.getAllTasks().length,
+      categories: {}
+    };
+    
+    for (const [cat, tasks] of Object.entries(categories)) {
+      result.categories[cat] = tasks.map(task => {
+        const template = TaskTemplates.getTaskTemplate(task);
+        return {
+          task,
+          description: template?.description || '',
+          nodeType: template?.nodeType || ''
+        };
+      });
+    }
+    
+    return result;
+  }
+  
+  private async validateNodeConfig(nodeType: string, config: Record<string, any>): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.repository) throw new Error('Repository not initialized');
+    
+    // Get node info to access properties
+    let node = this.repository.getNode(nodeType);
+    
+    if (!node) {
+      // Try alternative formats
+      const alternatives = [
+        nodeType,
+        nodeType.replace('n8n-nodes-base.', ''),
+        `n8n-nodes-base.${nodeType}`,
+        nodeType.toLowerCase()
+      ];
+      
+      for (const alt of alternatives) {
+        const found = this.repository!.getNode(alt);
+        if (found) {
+          node = found;
+          break;
+        }
+      }
+      
+      if (!node) {
+        throw new Error(`Node ${nodeType} not found`);
+      }
+    }
+    
+    // Get properties
+    const properties = node.properties || [];
+    
+    // Validate configuration
+    const validationResult = ConfigValidator.validate(node.nodeType, config, properties);
+    
+    // Add node context to result
+    return {
+      nodeType: node.nodeType,
+      displayName: node.displayName,
+      ...validationResult,
+      summary: {
+        hasErrors: !validationResult.valid,
+        errorCount: validationResult.errors.length,
+        warningCount: validationResult.warnings.length,
+        suggestionCount: validationResult.suggestions.length
+      }
+    };
+  }
+  
+  private async getPropertyDependencies(nodeType: string, config?: Record<string, any>): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.repository) throw new Error('Repository not initialized');
+    
+    // Get node info to access properties
+    let node = this.repository.getNode(nodeType);
+    
+    if (!node) {
+      // Try alternative formats
+      const alternatives = [
+        nodeType,
+        nodeType.replace('n8n-nodes-base.', ''),
+        `n8n-nodes-base.${nodeType}`,
+        nodeType.toLowerCase()
+      ];
+      
+      for (const alt of alternatives) {
+        const found = this.repository!.getNode(alt);
+        if (found) {
+          node = found;
+          break;
+        }
+      }
+      
+      if (!node) {
+        throw new Error(`Node ${nodeType} not found`);
+      }
+    }
+    
+    // Get properties
+    const properties = node.properties || [];
+    
+    // Analyze dependencies
+    const analysis = PropertyDependencies.analyze(properties);
+    
+    // If config provided, check visibility impact
+    let visibilityImpact = null;
+    if (config) {
+      visibilityImpact = PropertyDependencies.getVisibilityImpact(properties, config);
+    }
+    
+    return {
+      nodeType: node.nodeType,
+      displayName: node.displayName,
+      ...analysis,
+      currentConfig: config ? {
+        providedValues: config,
+        visibilityImpact
+      } : undefined
     };
   }
 
