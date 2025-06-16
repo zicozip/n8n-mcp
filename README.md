@@ -149,6 +149,8 @@ See Quick Start above for the simplest setup.
 ### Option 2: Local Installation
 If you prefer running locally:
 
+**Prerequisites:** [Node.js](https://nodejs.org/) installed on your system (any version)
+
 ```json
 {
   "mcpServers": {
@@ -170,6 +172,8 @@ If you prefer running locally:
 ⚠️ **Note**: HTTP mode is under development and not thoroughly tested. Use with caution.
 
 For team deployments:
+
+**Prerequisites:** [Node.js](https://nodejs.org/) 18+ installed locally (for mcp-http-client)
 
 ```json
 {
@@ -196,6 +200,11 @@ For team deployments:
 ## 💻 Local Development Setup
 
 For contributors and advanced users:
+
+**Prerequisites:**
+- [Node.js](https://nodejs.org/) (any version - automatic fallback if needed)
+- npm or yarn
+- Git
 
 ```bash
 # 1. Clone the repository
