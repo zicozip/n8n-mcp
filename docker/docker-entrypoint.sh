@@ -33,7 +33,12 @@ if [ "$(id -u)" = "0" ]; then
 fi
 
 # Trap signals for graceful shutdown
-trap 'echo "Shutting down..."; kill -TERM $PID' TERM INT
+# In stdio mode, don't output anything to stdout as it breaks JSON-RPC
+if [ "$MCP_MODE" = "stdio" ]; then
+    trap 'kill -TERM $PID 2>/dev/null' TERM INT
+else
+    trap 'echo "Shutting down..." >&2; kill -TERM $PID' TERM INT
+fi
 
 # Execute the main command in background
 "$@" &

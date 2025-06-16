@@ -912,6 +912,17 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
+    
+    // Force flush stdout for Docker environments
+    // Docker uses block buffering which can delay MCP responses
+    if (!process.stdout.isTTY) {
+      // Write empty string to force flush
+      process.stdout.write('', () => {});
+    }
+    
     logger.info('n8n Documentation MCP Server running on stdio transport');
+    
+    // Keep the process alive and listening
+    process.stdin.resume();
   }
 }

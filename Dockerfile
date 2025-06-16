@@ -76,6 +76,9 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # Switch to non-root user
 USER nodejs
 
+# Set Docker environment flag
+ENV IS_DOCKER=true
+
 # Expose HTTP port
 EXPOSE 3000
 

@@ -35,7 +35,45 @@ When Claude, Anthropic's AI assistant, tested n8n-MCP, the results were transfor
 
 Get n8n-MCP running in 5 minutes:
 
-### Option 1: Local Installation (Recommended)
+### Option 1: Docker (Easiest)
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on your system
+
+```bash
+# Pull the Docker image
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+Add to Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e", "MCP_MODE=stdio",
+        "-e", "LOG_LEVEL=error",
+        "-e", "DISABLE_CONSOLE_OUTPUT=true",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+**Important:** The `-i` flag is required for MCP stdio communication.
+
+**Configuration file locations:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+**Restart Claude Desktop after updating configuration** - That's it! 🎉
+
+### Option 2: Local Installation
 
 **Prerequisites:** [Node.js](https://nodejs.org/) installed on your system
 
@@ -62,25 +100,6 @@ Add to Claude Desktop config:
   }
 }
 ```
-
-### Option 2: Docker (Experimental)
-
-⚠️ **Known Issue**: Docker support has a timeout issue with MCP initialization. The server doesn't respond to Claude's initialize request within 60 seconds, causing connection failures. Use local installation until this is resolved.
-
-For brave souls who want to help debug:
-```bash
-docker pull ghcr.io/czlonkowski/n8n-mcp:latest
-```
-
-See [Issue #X](https://github.com/czlonkowski/n8n-mcp/issues) for updates.
-
-### Configuration File Locations
-
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-**Remember to restart Claude Desktop after updating configuration!** 🎉
 
 
 ## Features
