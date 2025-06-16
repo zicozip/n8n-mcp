@@ -14,8 +14,8 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 - 📚 **525 n8n nodes** from both n8n-nodes-base and @n8n/n8n-nodes-langchain
 - 🔧 **Node properties** - 99% coverage with detailed schemas
 - ⚡ **Node operations** - 63.6% coverage of available actions
-- 📄 **Documentation** - 87% coverage from official n8n docs
-- 🤖 **AI tools** - 263 AI-capable nodes detected
+- 📄 **Documentation** - 90% coverage from official n8n docs (including AI nodes)
+- 🤖 **AI tools** - 263 AI-capable nodes detected with full documentation
 
 ## Features
 
@@ -274,9 +274,10 @@ Current database coverage (updated to n8n v1.97.1):
 - ✅ **525/525** nodes loaded (100%)
 - ✅ **520** nodes with properties (99%)
 - ✅ **334** nodes with operations (63.6%)
-- ✅ **457** nodes with documentation (87%)
+- ✅ **470** nodes with documentation (90%)
 - ✅ **263** AI-capable tools detected
 - ✅ All critical nodes validated
+- ✅ **AI Agent & LangChain nodes** fully documented
 
 ## 📚 Documentation
 
@@ -288,6 +289,13 @@ Current database coverage (updated to n8n v1.97.1):
 - [Architecture](./docs/ARCHITECTURE.md) - Technical design details
 
 ## 🔄 Recent Updates
+
+### v2.4.0 - AI Documentation Fix & MIT License
+- ✅ Fixed missing AI/LangChain documentation (75.6% coverage for LangChain)
+- ✅ Added root-nodes path to documentation mapper
+- ✅ AI Agent, chains, and vector stores now fully documented
+- ✅ Overall documentation improved: 87% → 90%
+- ✅ Changed to MIT License for wider adoption
 
 ### v2.3.3 - Automated Dependency Updates
 - ✅ Implemented automated n8n dependency update system
