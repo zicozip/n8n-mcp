@@ -109,7 +109,7 @@ Once connected, Claude can use these powerful tools:
 - **`start_here_workflow_guide`** - Essential guide and best practices (START HERE!)
 - **`list_nodes`** - List all n8n nodes with filtering options
 - **`get_node_info`** - Get comprehensive information about a specific node
-- **`get_node_essentials`** - Get only essential properties with examples (95% smaller)
+- **`get_node_essentials`** - Get only essential properties with examples (10-20 properties instead of 200+)
 - **`search_nodes`** - Full-text search across all node documentation
 - **`search_node_properties`** - Find specific properties within nodes
 - **`list_ai_tools`** - List all AI-capable nodes
@@ -287,13 +287,24 @@ See [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) for detailed instructions
 
 ## 📚 Documentation
 
-- [Installation Guide](./docs/INSTALLATION.md) - Detailed setup instructions
-- [Claude Desktop Setup](./docs/README_CLAUDE_SETUP.md) - Configure Claude Desktop
-- [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) - Remote server deployment
-- [Docker Guide](./docs/DOCKER_README.md) - Container deployment
+### Setup Guides
+- [Quick Start Guide](./docs/QUICKSTART.md) - Get running in 5 minutes
+- [Claude Desktop Setup](./docs/CLAUDE_DESKTOP_SETUP.md) - Detailed Claude configuration
+- [Docker Guide](./docs/DOCKER_README.md) - Advanced Docker deployment options
+
+### Usage & Best Practices
 - [Claude's Interview](./docs/CLAUDE_INTERVIEW.md) - Real-world impact of n8n-MCP
-- [Architecture](./docs/ARCHITECTURE.md) - Technical design details
-- [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Claude Project Instructions](#claude-project-setup) - Optimal system instructions for n8n workflows
+- [MCP Tools Reference](./docs/TOOLS_REFERENCE.md) - Detailed tool documentation
+
+### Technical Documentation
+- [Architecture Overview](./docs/ARCHITECTURE.md) - System design and components
+- [HTTP Deployment (Beta)](./docs/HTTP_DEPLOYMENT.md) - Remote server setup
+- [Development Guide](./docs/DEVELOPMENT.md) - Contributing and local development
+
+### Troubleshooting
+- [Common Issues](./docs/TROUBLESHOOTING.md) - Solutions to frequent problems
+- [FAQ](./docs/FAQ.md) - Frequently asked questions
 
 ## 📊 Metrics & Coverage
 
@@ -336,6 +347,60 @@ MIT License - see [LICENSE](LICENSE) for details.
 - ⭐ Starring this repository
 - 💬 Mentioning it in your project
 - 🔗 Linking back to this repo
+
+## 🤖 Claude Project Setup
+
+For the best results when using n8n-MCP with Claude Projects, use these system instructions:
+
+```markdown
+You are an expert in n8n automation software. Your role is to answer questions about how to deliver specific functionalities that users ask for, or design and implement single nodes or entire workflows.
+
+## Instructions
+
+1. Read the user's question and analyze what functionality they're trying to achieve.
+
+2. **ALWAYS** use the n8n-MCP tools in this order:
+   - `start_here_workflow_guide` - Get best practices and common patterns
+   - `search_nodes` - Find relevant nodes for the task
+   - `get_node_essentials` - Get essential configuration (prefer over get_node_info)
+   - `get_node_documentation` - Read full documentation before implementing
+
+3. First, check if standard n8n nodes can achieve the functionality. If so, propose these nodes and explain their configuration.
+
+4. If standard nodes aren't sufficient, propose a Code node:
+   - Explain why it's necessary
+   - Plan the solution architecture carefully
+   - Use JavaScript syntax required by n8n's Code node
+   - Access input data with `$input.all()` or `items[0].json`
+   - Return data in n8n's expected format
+
+5. Structure your answer as:
+   a. Brief explanation of the solution
+   b. List of nodes and their configuration
+   c. Code examples if using Code node
+   d. Additional tips or considerations
+   e. **Single node JSON** if requested - provide copyable node JSON
+   f. **Full workflow JSON** if requested - provide complete workflow JSON
+
+## Important Rules
+
+- ALWAYS check node documentation via MCP before implementing
+- Use `get_node_essentials` instead of `get_node_info` for faster responses
+- Validate configurations with `validate_node_config` before finalizing
+- State clearly if you're unsure about any aspect
+- Provide practical, working solutions that users can immediately use in n8n
+
+## Example Workflow
+
+1. User asks: "How do I send Slack messages when a Google Sheet updates?"
+2. Use `search_nodes({ query: "slack" })` and `search_nodes({ query: "google sheets" })`
+3. Use `get_node_essentials("nodes-base.googleSheetsTrigger")`
+4. Use `get_node_essentials("nodes-base.slack")`
+5. Read documentation for both nodes
+6. Provide complete workflow with proper configuration
+```
+
+Save these instructions in your Claude Project for optimal n8n workflow assistance.
 
 ## 🤝 Contributing
 
