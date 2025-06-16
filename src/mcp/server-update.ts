@@ -140,6 +140,8 @@ export class N8NDocumentationMCPServer {
 
   async executeTool(name: string, args: any): Promise<any> {
     switch (name) {
+      case 'start_here_workflow_guide':
+        return this.getWorkflowGuide(args.topic);
       case 'list_nodes':
         return this.listNodes(args);
       case 'get_node_info':
@@ -764,6 +766,134 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         providedValues: config,
         visibilityImpact
       } : undefined
+    };
+  }
+
+  private async getWorkflowGuide(topic?: string): Promise<any> {
+    const guides: Record<string, any> = {
+      overview: {
+        title: "n8n MCP Tools Quick Start Guide",
+        sections: {
+          recommended_workflow: {
+            title: "Recommended Workflow",
+            steps: [
+              "1. search_nodes({query:'slack'}) - Find nodes by keyword",
+              "2. get_node_essentials('nodes-base.slack') - Get only essential properties (<5KB)",
+              "3. get_node_for_task('send_slack_message') - Get pre-configured settings",
+              "4. validate_node_config() - Validate before use"
+            ],
+            tip: "Avoid get_node_info unless you need ALL properties (100KB+ response)"
+          },
+          essential_tools: {
+            discovery: "list_nodes({category:'trigger'}) - Browse by category",
+            quick_config: "get_node_essentials() - 95% smaller than get_node_info",
+            tasks: "list_tasks() then get_node_for_task() - Pre-configured common tasks",
+            validation: "validate_node_config() - Catch errors before execution"
+          }
+        }
+      },
+      workflow: {
+        title: "Efficient Workflow Patterns",
+        patterns: [
+          {
+            name: "Building from scratch",
+            steps: [
+              "search_nodes or list_nodes to find nodes",
+              "get_node_essentials for configuration",
+              "validate_node_config before execution"
+            ]
+          },
+          {
+            name: "Common tasks",
+            steps: [
+              "list_tasks() to see available templates",
+              "get_node_for_task() for instant configuration",
+              "Fill in userMustProvide fields"
+            ]
+          }
+        ]
+      },
+      search_tips: {
+        title: "Search Best Practices",
+        tips: [
+          "search_nodes returns ANY word match (OR logic)",
+          "'send slack message' finds nodes with 'send' OR 'slack' OR 'message'",
+          "Single words are more precise: 'slack' vs 'slack message'",
+          "Use list_nodes({category:'trigger'}) if search fails",
+          "Node types need prefix: 'nodes-base.slack' not just 'slack'"
+        ]
+      },
+      common_nodes: {
+        title: "Most Used Nodes",
+        categories: {
+          triggers: ["webhook", "schedule", "emailReadImap", "slackTrigger"],
+          core: ["httpRequest", "code", "set", "if", "merge", "splitInBatches"],
+          integrations: ["slack", "gmail", "googleSheets", "postgres", "mongodb"],
+          ai: ["agent", "openAi", "chainLlm", "documentLoader"]
+        }
+      },
+      known_issues: {
+        title: "Known Issues & Workarounds",
+        issues: [
+          "Package names: Use 'n8n-nodes-base' NOT '@n8n/n8n-nodes-base'",
+          "Duplicate properties: Check showWhen/hideWhen conditions",
+          "Large responses: Use get_node_essentials instead of get_node_info",
+          "Property search: Some nodes have 200+ properties, use search_node_properties",
+          "Node not found: Try without prefix or lowercase"
+        ]
+      },
+      performance: {
+        title: "Performance Guide",
+        tools: {
+          fast: [
+            "get_node_essentials - <5KB responses",
+            "search_nodes - Indexed search",
+            "list_nodes - Direct queries",
+            "start_here_workflow_guide - Static content"
+          ],
+          slow: [
+            "get_node_info - 100KB+ responses",
+            "get_node_documentation - Can be large"
+          ]
+        },
+        tips: [
+          "Use get_node_essentials for 95% of use cases",
+          "Only use get_node_info when essentials lack needed property",
+          "Results are cached for repeated queries"
+        ]
+      }
+    };
+
+    if (topic && guides[topic]) {
+      return guides[topic];
+    }
+
+    // Return complete overview
+    return {
+      title: "n8n MCP Tools Complete Guide",
+      quickStart: guides.overview,
+      sections: {
+        workflow: guides.workflow,
+        searchTips: guides.search_tips,
+        commonNodes: guides.common_nodes,
+        knownIssues: guides.known_issues,
+        performance: guides.performance
+      },
+      examples: {
+        "Find and configure Slack": [
+          "search_nodes({query:'slack'})",
+          "get_node_essentials('nodes-base.slack')",
+          "get_node_for_task('send_slack_message')"
+        ],
+        "Set up webhook trigger": [
+          "get_node_for_task('receive_webhook')",
+          "// Returns pre-configured webhook with instructions"
+        ],
+        "HTTP API call": [
+          "get_node_essentials('nodes-base.httpRequest')",
+          "search_node_properties('nodes-base.httpRequest', 'auth')"
+        ]
+      }
     };
   }
 

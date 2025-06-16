@@ -8,8 +8,22 @@ import { ToolDefinition } from '../types';
  */
 export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   {
+    name: 'start_here_workflow_guide',
+    description: `START HERE! Essential guide for using n8n MCP tools effectively. Returns workflow recommendations, common patterns, performance tips, and known issues. Call this FIRST before using other tools to avoid common mistakes and work efficiently.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          enum: ['overview', 'workflow', 'search_tips', 'common_nodes', 'known_issues', 'performance'],
+          description: 'Optional: Get specific guidance on a topic. Default returns complete overview.',
+        },
+      },
+    },
+  },
+  {
     name: 'list_nodes',
-    description: `Browse n8n's 525+ nodes by category/type/package. BEST FOR: Initial discovery, browsing categories, finding all nodes of a type. Returns lightweight list with names/descriptions only. Common patterns: list_nodes({category:"trigger"}) for workflow starters, list_nodes({package:"n8n-nodes-base", limit:200}) to see all integrations. Categories: "trigger" (104), "transform" (data processing), "output" (destinations), "input" (data sources). TIP: More reliable than search_nodes for discovery. Use limit:200+ to see all nodes in large categories.`,
+    description: `List n8n nodes with optional filters. Common usage: list_nodes({limit:200}) for all nodes, list_nodes({category:'trigger'}) for triggers. Note: Use exact package names - 'n8n-nodes-base' not '@n8n/n8n-nodes-base'. Categories: "trigger" (104 nodes), "transform", "output", "input". Returns node names and descriptions.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -40,7 +54,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_info',
-    description: `Get COMPLETE technical schema for a node. WARNING: Returns massive JSON (often 100KB+) with all properties, operations, credentials. Contains duplicates and complex conditional logic. TIPS: 1) Try get_node_documentation first, 2) Look for "required":true properties, 3) Find properties without "displayOptions" for simpler versions, 4) Check "default" values. Node type MUST include prefix: "nodes-base.httpRequest" NOT "httpRequest". If not found, try lowercase or without prefix.`,
+    description: `Get COMPLETE technical schema for a node. WARNING: Returns massive JSON (often 100KB+) with all properties, operations, credentials. Contains duplicates and complex conditional logic. TIPS: 1) Use get_node_essentials first for common use cases, 2) Try get_node_documentation for human-readable info, 3) Look for "required":true properties, 4) Find properties without "displayOptions" for simpler versions. Node type MUST include prefix: "nodes-base.httpRequest" NOT "httpRequest".`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -54,7 +68,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'search_nodes',
-    description: `Find nodes by keyword. CRITICAL: Use SINGLE WORDS only! Multi-word searches usually fail. The search is substring-based (not semantic). Examples - WORKS: "slack", "email", "sheet", "webhook". FAILS: "send message", "google sheets", "http request". If no results: 1) Try shorter word, 2) Try related terms, 3) Use list_nodes instead. Searches in node names, descriptions, and docs. Returns max 20 by default with relevance scoring.`,
+    description: `Search nodes by keywords. Returns nodes containing ANY of the search words (OR logic). Examples: 'slack' finds Slack node, 'send message' finds any node with 'send' OR 'message'. Best practice: Use single words for precise results, multiple words for broader search. Searches in node names and descriptions. If no results, try shorter words or use list_nodes by category.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -185,7 +199,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_property_dependencies',
-    description: `Analyze property dependencies and visibility conditions for a node. Shows which properties control the visibility of others, helping you understand the configuration flow. Optionally provide a partial config to see what would be visible/hidden with those settings.`,
+    description: `Shows which properties control the visibility of other properties. Helps understand why certain fields appear/disappear based on configuration. Example: In HTTP Request, 'sendBody=true' reveals body-related properties. Optionally provide a config to see what would be visible/hidden with those settings.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -206,12 +220,11 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
 /**
  * QUICK REFERENCE for AI Agents:
  * 
- * 1. DISCOVERY FLOW:
- *    - Start: get_database_statistics() - see what's available
- *    - Browse: list_nodes({category:"trigger"}) - find workflow starters  
- *    - Search: search_nodes({query:"slack"}) - SINGLE WORDS ONLY
- *    - Learn: get_node_documentation("nodes-base.slack") - understand usage
- *    - Configure: get_node_info("nodes-base.slack") - get all properties
+ * 1. RECOMMENDED WORKFLOW:
+ *    - Start: search_nodes → get_node_essentials → get_node_for_task → validate_node_config
+ *    - Discovery: list_nodes({category:"trigger"}) for browsing categories
+ *    - Quick Config: get_node_essentials("nodes-base.httpRequest") - only essential properties
+ *    - Full Details: get_node_info only when essentials aren't enough
  * 
  * 2. COMMON NODE TYPES:
  *    Triggers: webhook, schedule, emailReadImap, slackTrigger
@@ -220,13 +233,17 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
  *    AI: agent, openAi, chainLlm, documentLoader
  * 
  * 3. SEARCH TIPS:
- *    - Always use single words
- *    - Try: service name, action verb, data type
- *    - If fails: use list_nodes with category
+ *    - search_nodes returns ANY word match (OR logic)
+ *    - Single words more precise, multiple words broader
+ *    - If no results: use list_nodes with category filter
  * 
- * 4. PROPERTY TIPS:
- *    - Look for "required": true first
- *    - Ignore complex "displayOptions" initially
- *    - Use "default" values as guidance
- *    - Simpler properties have no displayOptions
+ * 4. KNOWN ISSUES:
+ *    - Some nodes have duplicate properties with different conditions
+ *    - Package names: use 'n8n-nodes-base' not '@n8n/n8n-nodes-base'
+ *    - Check showWhen/hideWhen to identify the right property variant
+ * 
+ * 5. PERFORMANCE:
+ *    - get_node_essentials: Fast (<5KB)
+ *    - get_node_info: Slow (100KB+) - use sparingly
+ *    - search_nodes/list_nodes: Fast, cached
  */
