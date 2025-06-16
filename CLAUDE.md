@@ -341,13 +341,15 @@ MCP_SERVER_VERSION=1.0.0
 LOG_LEVEL=info
 ```
 
-## License Note
+## License
 
-This project uses the Sustainable Use License. Key points:
-- ✅ Free for internal business and personal use
-- ✅ Modifications allowed for own use
-- ❌ Cannot host as a service without permission
-- ❌ Cannot include in commercial products without permission
+This project is licensed under the MIT License. Created by Romuald Czlonkowski @ www.aiadvisors.pl/en.
+- ✅ Free for any use (personal, commercial, etc.)
+- ✅ Modifications and distribution allowed
+- ✅ Can be included in commercial products
+- ✅ Can be hosted as a service
+
+Attribution is appreciated but not required. See [LICENSE](LICENSE) and [ATTRIBUTION.md](ATTRIBUTION.md) for details.
 
 ## HTTP Remote Deployment (v2.3.0)
 

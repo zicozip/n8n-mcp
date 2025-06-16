@@ -1,6 +1,6 @@
 {
   "name": "n8n-mcp",
-  "version": "2.3.3",
+  "version": "2.4.0",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
   "scripts": {
@@ -38,8 +38,8 @@
     "workflow",
     "automation"
   ],
-  "author": "AiAdvisors Romuald Czlonkowski",
-  "license": "Sustainable-Use-1.0",
+  "author": "Romuald Czlonkowski @ www.aiadvisors.pl/en",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/czlonkowski/n8n-mcp/issues"
   },

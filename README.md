@@ -1,8 +1,9 @@
 # n8n-MCP
 
-[![Version](https://img.shields.io/badge/version-2.3.3-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
-[![License](https://img.shields.io/badge/license-Sustainable%20Use-orange.svg)](LICENSE)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy locally or remotely to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
@@ -310,13 +311,9 @@ See [CHANGELOG.md](./docs/CHANGELOG.md) for full version history.
 
 ## 📦 License
 
-This project uses the Sustainable Use License. Key points:
-- ✅ Free for internal business and personal use
-- ✅ Modifications allowed for own use
-- ❌ Cannot host as a service without permission
-- ❌ Cannot include in commercial products without permission
+MIT License - see [LICENSE](LICENSE) for details.
 
-See [LICENSE](./LICENSE) for full details.
+**Attribution appreciated!** If you use n8n-MCP, consider giving it a ⭐ star on GitHub or mentioning it in your project. See [ATTRIBUTION.md](ATTRIBUTION.md) for easy ways to give credit.
 
 ## 🤝 Contributing
 
