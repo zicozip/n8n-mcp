@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "n8n-documentation": {
-      "command": "/Users/johndoe/projects/n8n-mcp/mcp-server-v20.sh",
-      "args": []
-    }
-  }
-}
