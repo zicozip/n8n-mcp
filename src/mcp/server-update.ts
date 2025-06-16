@@ -15,6 +15,7 @@ import { ExampleGenerator } from '../services/example-generator';
 import { TaskTemplates } from '../services/task-templates';
 import { ConfigValidator } from '../services/config-validator';
 import { PropertyDependencies } from '../services/property-dependencies';
+import { SimpleCache } from '../utils/simple-cache';
 
 interface NodeRow {
   node_type: string;
@@ -39,6 +40,7 @@ export class N8NDocumentationMCPServer {
   private db: DatabaseAdapter | null = null;
   private repository: NodeRepository | null = null;
   private initialized: Promise<void>;
+  private cache = new SimpleCache();
 
   constructor() {
     // Try multiple database paths
@@ -172,10 +174,18 @@ export class N8NDocumentationMCPServer {
     
     let query = 'SELECT * FROM nodes WHERE 1=1';
     const params: any[] = [];
+    
+    console.log('DEBUG list_nodes:', { filters, query, params }); // ADD THIS
 
     if (filters.package) {
-      query += ' AND package_name = ?';
-      params.push(filters.package);
+      // Handle both formats
+      const packageVariants = [
+        filters.package,
+        `@n8n/${filters.package}`,
+        filters.package.replace('@n8n/', '')
+      ];
+      query += ' AND package_name IN (' + packageVariants.map(() => '?').join(',') + ')';
+      params.push(...packageVariants);
     }
 
     if (filters.category) {
@@ -251,26 +261,51 @@ export class N8NDocumentationMCPServer {
   private async searchNodes(query: string, limit: number = 20): Promise<any> {
     await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
-    // Simple search across multiple fields
-    const searchQuery = `%${query}%`;
+    
+    // Handle exact phrase searches with quotes
+    if (query.startsWith('"') && query.endsWith('"')) {
+      const exactPhrase = query.slice(1, -1);
+      const nodes = this.db!.prepare(`
+        SELECT * FROM nodes 
+        WHERE node_type LIKE ? OR display_name LIKE ? OR description LIKE ?
+        ORDER BY display_name
+        LIMIT ?
+      `).all(`%${exactPhrase}%`, `%${exactPhrase}%`, `%${exactPhrase}%`, limit) as NodeRow[];
+      
+      return { 
+        query, 
+        results: nodes.map(node => ({
+          nodeType: node.node_type,
+          displayName: node.display_name,
+          description: node.description,
+          category: node.category,
+          package: node.package_name
+        })), 
+        totalCount: nodes.length 
+      };
+    }
+    
+    // Split into words for normal search
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    
+    if (words.length === 0) {
+      return { query, results: [], totalCount: 0 };
+    }
+    
+    // Build conditions for each word
+    const conditions = words.map(() => 
+      '(node_type LIKE ? OR display_name LIKE ? OR description LIKE ?)'
+    ).join(' OR ');
+    
+    const params: any[] = words.flatMap(w => [`%${w}%`, `%${w}%`, `%${w}%`]);
+    params.push(limit);
+    
     const nodes = this.db!.prepare(`
-      SELECT * FROM nodes 
-      WHERE node_type LIKE ? 
-         OR display_name LIKE ? 
-         OR description LIKE ?
-         OR documentation LIKE ?
-      ORDER BY 
-        CASE 
-          WHEN node_type LIKE ? THEN 1
-          WHEN display_name LIKE ? THEN 2
-          ELSE 3
-        END
+      SELECT DISTINCT * FROM nodes 
+      WHERE ${conditions}
+      ORDER BY display_name
       LIMIT ?
-    `).all(
-      searchQuery, searchQuery, searchQuery, searchQuery,
-      searchQuery, searchQuery,
-      limit
-    ) as NodeRow[];
+    `).all(...params) as NodeRow[];
     
     return {
       query,
@@ -279,10 +314,9 @@ export class N8NDocumentationMCPServer {
         displayName: node.display_name,
         description: node.description,
         category: node.category,
-        package: node.package_name,
-        relevance: this.calculateRelevance(node, query),
+        package: node.package_name
       })),
-      totalCount: nodes.length,
+      totalCount: nodes.length
     };
   }
 
@@ -299,6 +333,14 @@ export class N8NDocumentationMCPServer {
     if (!this.repository) throw new Error('Repository not initialized');
     const tools = this.repository.getAITools();
     
+    // Debug: Check if is_ai_tool column is populated
+    const aiCount = this.db!.prepare('SELECT COUNT(*) as ai_count FROM nodes WHERE is_ai_tool = 1').get() as any;
+    console.log('DEBUG list_ai_tools:', { 
+      toolsLength: tools.length, 
+      aiCountInDB: aiCount.ai_count,
+      sampleTools: tools.slice(0, 3)
+    });
+    
     return {
       tools,
       totalCount: tools.length,
@@ -313,7 +355,7 @@ export class N8NDocumentationMCPServer {
     await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
     const node = this.db!.prepare(`
-      SELECT node_type, display_name, documentation 
+      SELECT node_type, display_name, documentation, description 
       FROM nodes 
       WHERE node_type = ?
     `).get(nodeType) as NodeRow | undefined;
@@ -322,11 +364,36 @@ export class N8NDocumentationMCPServer {
       throw new Error(`Node ${nodeType} not found`);
     }
     
+    // If no documentation, generate fallback
+    if (!node.documentation) {
+      const essentials = await this.getNodeEssentials(nodeType);
+      
+      return {
+        nodeType: node.node_type,
+        displayName: node.display_name,
+        documentation: `
+# ${node.display_name}
+
+${node.description || 'No description available.'}
+
+## Common Properties
+
+${essentials.commonProperties.map((p: any) => 
+  `### ${p.displayName}\n${p.description || `Type: ${p.type}`}`
+).join('\n\n')}
+
+## Note
+Full documentation is being prepared. For now, use get_node_essentials for configuration help.
+`,
+        hasDocumentation: false
+      };
+    }
+    
     return {
       nodeType: node.node_type,
       displayName: node.display_name,
-      documentation: node.documentation || 'No documentation available',
-      hasDocumentation: !!node.documentation,
+      documentation: node.documentation,
+      hasDocumentation: true,
     };
   }
 
@@ -373,6 +440,11 @@ export class N8NDocumentationMCPServer {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
     
+    // Check cache first
+    const cacheKey = `essentials:${nodeType}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached) return cached;
+    
     // Get the full node information
     let node = this.repository.getNode(nodeType);
     
@@ -410,7 +482,7 @@ export class N8NDocumentationMCPServer {
     // Get operations (already parsed by repository)
     const operations = node.operations || [];
     
-    return {
+    const result = {
       nodeType: node.nodeType,
       displayName: node.displayName,
       description: node.description,
@@ -436,6 +508,11 @@ export class N8NDocumentationMCPServer {
         developmentStyle: node.developmentStyle || 'programmatic'
       }
     };
+    
+    // Cache for 1 hour
+    this.cache.set(cacheKey, result, 3600);
+    
+    return result;
   }
 
   private async searchNodeProperties(nodeType: string, query: string, maxResults: number = 20): Promise<any> {

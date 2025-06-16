@@ -98,12 +98,16 @@ export async function startFixedHTTPServer() {
     next();
   });
   
+  // Create a single persistent MCP server instance
+  const mcpServer = new N8NDocumentationMCPServer();
+  logger.info('Created persistent MCP server instance');
+
   // Health check endpoint
   app.get('/health', (req, res) => {
     res.json({ 
       status: 'ok', 
       mode: 'http-fixed',
-      version: '2.3.2',
+      version: '2.4.1',
       uptime: Math.floor(process.uptime()),
       memory: {
         used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
@@ -113,10 +117,26 @@ export async function startFixedHTTPServer() {
       timestamp: new Date().toISOString()
     });
   });
-  
-  // Create a single persistent MCP server instance
-  const mcpServer = new N8NDocumentationMCPServer();
-  logger.info('Created persistent MCP server instance');
+
+  // Version endpoint
+  app.get('/version', (req, res) => {
+    res.json({ 
+      version: '2.4.1',
+      buildTime: new Date().toISOString(),
+      tools: n8nDocumentationToolsFinal.map(t => t.name),
+      commit: process.env.GIT_COMMIT || 'unknown'
+    });
+  });
+
+  // Test tools endpoint
+  app.get('/test-tools', async (req, res) => {
+    try {
+      const result = await mcpServer.executeTool('get_node_essentials', { nodeType: 'nodes-base.httpRequest' });
+      res.json({ status: 'ok', hasData: !!result, toolCount: n8nDocumentationToolsFinal.length });
+    } catch (error) {
+      res.json({ status: 'error', message: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
   
   // Main MCP endpoint - handle each request with custom transport handling
   app.post('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
@@ -174,7 +194,7 @@ export async function startFixedHTTPServer() {
                   },
                   serverInfo: {
                     name: 'n8n-documentation-mcp',
-                    version: '2.3.2'
+                    version: '2.4.1'
                   }
                 },
                 id: jsonRpcRequest.id

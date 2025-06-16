@@ -177,22 +177,44 @@ export class PropertyFilter {
   };
   
   /**
+   * Deduplicate properties based on name and display conditions
+   */
+  static deduplicateProperties(properties: any[]): any[] {
+    const seen = new Map<string, any>();
+    
+    return properties.filter(prop => {
+      // Create unique key from name + conditions
+      const conditions = JSON.stringify(prop.displayOptions || {});
+      const key = `${prop.name}_${conditions}`;
+      
+      if (seen.has(key)) {
+        return false; // Skip duplicate
+      }
+      
+      seen.set(key, prop);
+      return true;
+    });
+  }
+  
+  /**
    * Get essential properties for a node type
    */
   static getEssentials(allProperties: any[], nodeType: string): FilteredProperties {
+    // Deduplicate first
+    const uniqueProperties = this.deduplicateProperties(allProperties);
     const config = this.ESSENTIAL_PROPERTIES[nodeType];
     
     if (!config) {
       // Fallback for unconfigured nodes
-      return this.inferEssentials(allProperties);
+      return this.inferEssentials(uniqueProperties);
     }
     
     // Extract required properties
-    const required = this.extractProperties(allProperties, config.required, true);
+    const required = this.extractProperties(uniqueProperties, config.required, true);
     
     // Extract common properties (excluding any already in required)
     const requiredNames = new Set(required.map(p => p.name));
-    const common = this.extractProperties(allProperties, config.common, false)
+    const common = this.extractProperties(uniqueProperties, config.common, false)
       .filter(p => !requiredNames.has(p.name));
     
     return { required, common };
