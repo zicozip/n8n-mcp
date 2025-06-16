@@ -106,6 +106,7 @@ Add this to your Claude Desktop config:
 Once connected, Claude can use these powerful tools:
 
 ### Core Tools
+- **`start_here_workflow_guide`** - Essential guide and best practices (START HERE!)
 - **`list_nodes`** - List all n8n nodes with filtering options
 - **`get_node_info`** - Get comprehensive information about a specific node
 - **`get_node_essentials`** - Get only essential properties with examples (95% smaller)
@@ -165,7 +166,9 @@ If you prefer running locally:
 }
 ```
 
-### Option 3: Remote Server
+### Option 3: Remote Server (Beta)
+⚠️ **Note**: HTTP mode is under development and not thoroughly tested. Use with caution.
+
 For team deployments:
 
 ```json
@@ -235,7 +238,9 @@ npm run dev:http       # HTTP dev mode
 
 ## 🚀 Production Deployment
 
-### HTTP Server for Teams
+### HTTP Server for Teams (Beta)
+
+⚠️ **Note**: HTTP mode is under development and not thoroughly tested. Use with caution in production.
 
 Deploy n8n-MCP as a shared service:
 
