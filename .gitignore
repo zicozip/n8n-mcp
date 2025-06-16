@@ -51,7 +51,6 @@ coverage/
 .yarn-integrity
 
 # Docker
-.dockerignore
 docker-compose.override.yml
 
 # Miscellaneous

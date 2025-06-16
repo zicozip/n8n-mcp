@@ -1,4 +1,4 @@
-# Optimized Dockerfile - builds database at build time, minimal runtime image
+# Optimized Dockerfile - uses pre-built database for faster, more reliable builds
 
 # Stage 1: Dependencies (includes n8n for building)
 FROM node:20-alpine AS deps
@@ -21,25 +21,7 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
-# Stage 3: Database Builder (extracts all node info and builds database)
-FROM builder AS db-builder
-WORKDIR /app
-# Clone n8n-docs for documentation (if available)
-# Fix git SSL issues in Alpine and configure git properly
-RUN apk add --no-cache git ca-certificates && \
-    git config --global http.sslVerify false && \
-    git config --global init.defaultBranch main && \
-    git clone --depth 1 https://github.com/n8n-io/n8n-docs.git /tmp/n8n-docs 2>/dev/null || \
-    echo "Warning: Could not clone n8n-docs, continuing without documentation"
-ENV N8N_DOCS_PATH=/tmp/n8n-docs
-# Build the complete database with source code
-RUN mkdir -p data && \
-    npm run rebuild:optimized || \
-    (echo "Warning: Optimized rebuild failed, trying regular rebuild" && \
-     npm run rebuild) || \
-    (echo "Error: Database build failed" && exit 1)
-
-# Stage 4: Minimal Runtime (no n8n packages)
+# Stage 3: Minimal Runtime (no n8n packages)
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
@@ -69,8 +51,8 @@ RUN npm config set fetch-retries 5 && \
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Copy pre-built database with all source code
-COPY --from=db-builder /app/data/nodes.db ./data/
+# Copy pre-built database from source
+COPY data/nodes.db ./data/
 
 # Copy minimal required files
 COPY src/database/schema-optimized.sql ./src/database/

@@ -34,10 +34,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            memory=8g
-            memory-swap=16g
         
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -74,9 +70,6 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
           provenance: false
-          # Add build constraints to prevent OOM
-          builder: ${{ steps.buildx.outputs.name }}
-          no-cache-filters: db-builder
 
   # Nginx build commented out until Phase 2
   # build-nginx:
