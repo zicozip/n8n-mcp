@@ -36,11 +36,13 @@ export class DocsMapper {
       `docs/integrations/builtin/core-nodes/n8n-nodes-base.${nodeName}.md`,
       `docs/integrations/builtin/app-nodes/n8n-nodes-base.${nodeName}.md`,
       `docs/integrations/builtin/trigger-nodes/n8n-nodes-base.${nodeName}.md`,
+      `docs/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.${nodeName}.md`,
       `docs/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.${nodeName}.md`,
       // Directory with index.md
       `docs/integrations/builtin/core-nodes/n8n-nodes-base.${nodeName}/index.md`,
       `docs/integrations/builtin/app-nodes/n8n-nodes-base.${nodeName}/index.md`,
       `docs/integrations/builtin/trigger-nodes/n8n-nodes-base.${nodeName}/index.md`,
+      `docs/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.${nodeName}/index.md`,
       `docs/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.${nodeName}/index.md`
     ];
     
