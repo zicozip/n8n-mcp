@@ -7,6 +7,8 @@
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy locally or remotely to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
+> *"Before MCP, I was translating. Now I'm composing."* - Claude, after reducing workflow creation time from 45 minutes to 3 minutes
+
 ## Overview
 
 n8n-MCP serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively. It provides structured access to:
@@ -16,6 +18,20 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 - ⚡ **Node operations** - 63.6% coverage of available actions
 - 📄 **Documentation** - 90% coverage from official n8n docs (including AI nodes)
 - 🤖 **AI tools** - 263 AI-capable nodes detected with full documentation
+
+## 💬 Why n8n-MCP? A Testimonial from Claude
+
+> *"Before MCP, I was translating. Now I'm composing. And that changes everything about how we can build automation."*
+
+When Claude, Anthropic's AI assistant, tested n8n-MCP, the results were transformative:
+
+**Without MCP:** "I was basically playing a guessing game. 'Is it `scheduleTrigger` or `schedule`? Does it take `interval` or `rule`?' I'd write what seemed logical, but n8n has its own conventions that you can't just intuit. I made six different configuration errors in a simple HackerNews scraper."
+
+**With MCP:** "Everything just... worked. Instead of guessing, I could ask `get_node_essentials()` and get exactly what I needed - not a 100KB JSON dump, but the actual 5-10 properties that matter. What took 45 minutes now takes 3 minutes."
+
+**The Real Value:** "It's about confidence. When you're building automation workflows, uncertainty is expensive. One wrong parameter and your workflow fails at 3 AM. With MCP, I could validate my configuration before deployment. That's not just time saved - that's peace of mind."
+
+[Read the full interview →](docs/CLAUDE_INTERVIEW.md)
 
 ## Features
 
@@ -285,6 +301,7 @@ Current database coverage (updated to n8n v1.97.1):
 - [Claude Desktop Setup](./docs/README_CLAUDE_SETUP.md) - Configure Claude Desktop
 - [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) - Remote server deployment
 - [Docker Guide](./docs/DOCKER_README.md) - Container deployment
+- [Claude's Interview](./docs/CLAUDE_INTERVIEW.md) - Real-world impact of n8n-MCP
 - [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
 - [Architecture](./docs/ARCHITECTURE.md) - Technical design details
 
