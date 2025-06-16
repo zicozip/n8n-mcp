@@ -31,67 +31,57 @@ When Claude, Anthropic's AI assistant, tested n8n-MCP, the results were transfor
 
 [Read the full interview →](docs/CLAUDE_INTERVIEW.md)
 
-## 🚀 Quick Start with Docker
+## 🚀 Quick Start
 
 Get n8n-MCP running in 5 minutes:
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on your system
+### Option 1: Local Installation (Recommended)
 
-### For Claude Desktop
+**Prerequisites:** [Node.js](https://nodejs.org/) installed on your system
 
-1. First, pull the Docker image:
 ```bash
-docker pull ghcr.io/czlonkowski/n8n-mcp:latest
+# 1. Clone and setup
+git clone https://github.com/czlonkowski/n8n-mcp.git
+cd n8n-mcp
+npm install
+npm run build
+npm run rebuild
+
+# 2. Test it works
+npm start
 ```
 
-2. Add this to your Claude Desktop config:
+Add to Claude Desktop config:
 ```json
 {
   "mcpServers": {
     "n8n-mcp": {
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "--name", "claude-n8n-mcp",
-        "-e", "MCP_MODE=stdio",
-        "-e", "LOG_LEVEL=error",
-        "-e", "DISABLE_CONSOLE_OUTPUT=true",
-        "ghcr.io/czlonkowski/n8n-mcp:latest"
-      ]
+      "command": "node",
+      "args": ["/absolute/path/to/n8n-mcp/dist/mcp/index.js"]
     }
   }
 }
 ```
 
-3. **Configuration file locations:**
-   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+### Option 2: Docker (Experimental)
 
-4. **Restart Claude Desktop** - That's it! 🎉
+⚠️ **Known Issue**: Docker support has a timeout issue with MCP initialization. The server doesn't respond to Claude's initialize request within 60 seconds, causing connection failures. Use local installation until this is resolved.
 
-### For HTTP Server (Teams)
-
-If you want to run n8n-MCP as a shared service:
-
+For brave souls who want to help debug:
 ```bash
-# 1. Create .env file
-echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
-
-# 2. Run with Docker Compose
-docker run -d \
-  --name n8n-mcp-server \
-  --restart unless-stopped \
-  -e MCP_MODE=http \
-  -e USE_FIXED_HTTP=true \
-  -e AUTH_TOKEN=$AUTH_TOKEN \
-  -p 3000:3000 \
-  ghcr.io/czlonkowski/n8n-mcp:latest
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 ```
 
-See [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) for team setup.
+See [Issue #X](https://github.com/czlonkowski/n8n-mcp/issues) for updates.
+
+### Configuration File Locations
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+**Remember to restart Claude Desktop after updating configuration!** 🎉
+
 
 ## Features
 
