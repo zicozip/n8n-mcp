@@ -100,14 +100,31 @@ jobs:
           # Get update summary (file is written by the update script)
           UPDATE_SUMMARY=$(cat update-summary.txt 2>/dev/null || echo "Updated n8n dependencies")
           
-          # Commit changes
-          git commit -m "chore: update n8n dependencies
-
-$UPDATE_SUMMARY
-
-🤖 Automated dependency update"
+          # Create commit message using heredoc
+          COMMIT_MSG=$(cat <<'COMMIT_EOF'
+          chore: update n8n dependencies
           
+          ${UPDATE_SUMMARY}
+          
+          🤖 Automated dependency update
+          COMMIT_EOF
+          )
+          # Replace placeholder with actual summary
+          COMMIT_MSG="${COMMIT_MSG//\${UPDATE_SUMMARY}/$UPDATE_SUMMARY}"
+          
+          git commit -m "$COMMIT_MSG"
           git push origin $BRANCH_NAME
+          
+          # Save update summary as output for PR
+          {
+            echo 'UPDATE_SUMMARY<<EOF'
+            if [ -f update-summary.txt ]; then
+              cat update-summary.txt
+            else
+              echo "See commit for details"
+            fi
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
       
       - name: Create Pull Request
         if: steps.branch.outputs.branch_name != ''
@@ -123,7 +140,7 @@ $UPDATE_SUMMARY
             
             ### 📦 Updates
             ```
-            $(cat update-summary.txt || echo "See commit for details")
+            ${{ steps.update.outputs.UPDATE_SUMMARY }}
             ```
             
             ### ✅ Validation
@@ -194,11 +211,19 @@ $UPDATE_SUMMARY
             # Get update summary
             UPDATE_SUMMARY=$(cat update-summary.txt || echo "Updated n8n dependencies")
             
-            git commit -m "chore: update n8n dependencies
-
-$UPDATE_SUMMARY
-
-🤖 Automated dependency update"
+            # Create commit message using heredoc
+            COMMIT_MSG=$(cat <<'COMMIT_EOF'
+            chore: update n8n dependencies
+            
+            ${UPDATE_SUMMARY}
+            
+            🤖 Automated dependency update
+            COMMIT_EOF
+            )
+            # Replace placeholder with actual summary
+            COMMIT_MSG="${COMMIT_MSG//\${UPDATE_SUMMARY}/$UPDATE_SUMMARY}"
+            
+            git commit -m "$COMMIT_MSG"
             
             git push
           else
