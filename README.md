@@ -39,15 +39,22 @@ Get n8n-MCP running in 5 minutes:
 
 ### For Claude Desktop
 
-Add this to your Claude Desktop config:
+1. First, pull the Docker image:
+```bash
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+2. Add this to your Claude Desktop config:
 ```json
 {
   "mcpServers": {
     "n8n-mcp": {
       "command": "docker",
       "args": [
-        "run", "--rm", "-i",
-        "--pull", "always",
+        "run",
+        "--rm",
+        "-i",
+        "--name", "claude-n8n-mcp",
         "-e", "MCP_MODE=stdio",
         "-e", "LOG_LEVEL=error",
         "-e", "DISABLE_CONSOLE_OUTPUT=true",
@@ -58,12 +65,12 @@ Add this to your Claude Desktop config:
 }
 ```
 
-**Configuration file locations:**
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+3. **Configuration file locations:**
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-**Restart Claude Desktop** - That's it! 🎉
+4. **Restart Claude Desktop** - That's it! 🎉
 
 ### For HTTP Server (Teams)
 
