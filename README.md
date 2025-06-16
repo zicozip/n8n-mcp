@@ -37,37 +37,7 @@ Get n8n-MCP running in 5 minutes:
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on your system
 
-```bash
-# 1. Create .env file with auth token
-echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
-
-# 2. Create docker-compose.yml
-cat > docker-compose.yml << 'EOF'
-services:
-  n8n-mcp:
-    image: ghcr.io/czlonkowski/n8n-mcp:latest
-    container_name: n8n-mcp
-    ports:
-      - "3000:3000"
-    environment:
-      - MCP_MODE=stdio
-      - LOG_LEVEL=error
-      - DISABLE_CONSOLE_OUTPUT=true
-    volumes:
-      - n8n-mcp-data:/app/data
-    restart: unless-stopped
-
-volumes:
-  n8n-mcp-data:
-EOF
-
-# 3. Start the container
-docker compose up -d
-
-# 4. Configure Claude Desktop
-# Add to ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
-# or %APPDATA%\Claude\claude_desktop_config.json (Windows)
-```
+### For Claude Desktop
 
 Add this to your Claude Desktop config:
 ```json
@@ -77,10 +47,10 @@ Add this to your Claude Desktop config:
       "command": "docker",
       "args": [
         "run", "--rm", "-i",
+        "--pull", "always",
         "-e", "MCP_MODE=stdio",
         "-e", "LOG_LEVEL=error",
         "-e", "DISABLE_CONSOLE_OUTPUT=true",
-        "-v", "n8n-mcp-data:/app/data",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
       ]
     }
@@ -88,7 +58,33 @@ Add this to your Claude Desktop config:
 }
 ```
 
-**5. Restart Claude Desktop** - That's it! 🎉
+**Configuration file locations:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+**Restart Claude Desktop** - That's it! 🎉
+
+### For HTTP Server (Teams)
+
+If you want to run n8n-MCP as a shared service:
+
+```bash
+# 1. Create .env file
+echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
+
+# 2. Run with Docker Compose
+docker run -d \
+  --name n8n-mcp-server \
+  --restart unless-stopped \
+  -e MCP_MODE=http \
+  -e USE_FIXED_HTTP=true \
+  -e AUTH_TOKEN=$AUTH_TOKEN \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+See [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) for team setup.
 
 ## Features
 
