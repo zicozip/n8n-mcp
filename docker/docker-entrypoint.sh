@@ -35,12 +35,19 @@ fi
 # Trap signals for graceful shutdown
 # In stdio mode, don't output anything to stdout as it breaks JSON-RPC
 if [ "$MCP_MODE" = "stdio" ]; then
-    trap 'kill -TERM $PID 2>/dev/null' TERM INT
+    # Silent trap - no output at all
+    trap 'kill -TERM $PID 2>/dev/null || true' TERM INT EXIT
 else
-    trap 'echo "Shutting down..." >&2; kill -TERM $PID' TERM INT
+    # In HTTP mode, output to stderr
+    trap 'echo "Shutting down..." >&2; kill -TERM $PID 2>/dev/null' TERM INT EXIT
 fi
 
 # Execute the main command in background
-"$@" &
+# In stdio mode, use the wrapper for clean output
+if [ "$MCP_MODE" = "stdio" ] && [ -f "/app/dist/mcp/stdio-wrapper.js" ]; then
+    node /app/dist/mcp/stdio-wrapper.js &
+else
+    "$@" &
+fi
 PID=$!
 wait $PID

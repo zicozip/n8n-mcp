@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { 
   CallToolRequestSchema, 
   ListToolsRequestSchema,
+  InitializeRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -102,6 +103,27 @@ export class N8NDocumentationMCPServer {
   }
 
   private setupHandlers(): void {
+    // Handle initialization
+    this.server.setRequestHandler(InitializeRequestSchema, async () => {
+      const response = {
+        protocolVersion: '2024-11-05',
+        capabilities: {
+          tools: {},
+        },
+        serverInfo: {
+          name: 'n8n-documentation-mcp',
+          version: '2.4.1',
+        },
+      };
+      
+      // Debug: Log to stderr to see if handler is called
+      if (process.env.DEBUG_MCP === 'true') {
+        console.error('Initialize handler called, returning:', JSON.stringify(response));
+      }
+      
+      return response;
+    });
+
     // Handle tool listing
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: n8nDocumentationToolsFinal,
@@ -915,9 +937,15 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     // Force flush stdout for Docker environments
     // Docker uses block buffering which can delay MCP responses
-    if (!process.stdout.isTTY) {
-      // Write empty string to force flush
-      process.stdout.write('', () => {});
+    if (!process.stdout.isTTY || process.env.IS_DOCKER) {
+      // Override write to auto-flush
+      const originalWrite = process.stdout.write.bind(process.stdout);
+      process.stdout.write = function(chunk: any, encoding?: any, callback?: any) {
+        const result = originalWrite(chunk, encoding, callback);
+        // Force immediate flush
+        process.stdout.emit('drain');
+        return result;
+      };
     }
     
     logger.info('n8n Documentation MCP Server running on stdio transport');

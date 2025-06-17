@@ -51,14 +51,18 @@ export class Logger {
   }
 
   private log(level: LogLevel, levelName: string, message: string, ...args: any[]): void {
+    // Check environment variables FIRST, before level check
+    // In stdio mode, suppress ALL console output to avoid corrupting JSON-RPC
+    const isStdio = process.env.MCP_MODE === 'stdio';
+    const isDisabled = process.env.DISABLE_CONSOLE_OUTPUT === 'true';
+    
+    if (isStdio || isDisabled) {
+      // Silently drop all logs in stdio mode
+      return;
+    }
+    
     if (level <= this.config.level) {
       const formattedMessage = this.formatMessage(levelName, message);
-      
-      // In stdio mode, suppress ALL console output to avoid corrupting JSON-RPC
-      if (process.env.MCP_MODE === 'stdio' || process.env.DISABLE_CONSOLE_OUTPUT === 'true') {
-        // Silently drop all logs in stdio mode
-        return;
-      }
       
       // In HTTP mode during request handling, suppress console output
       // The ConsoleManager will handle this, but we add a safety check

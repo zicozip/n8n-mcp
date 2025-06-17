@@ -46,33 +46,53 @@ export interface ColumnDefinition {
  */
 export async function createDatabaseAdapter(dbPath: string): Promise<DatabaseAdapter> {
   // Log Node.js version information
-  logger.info(`Node.js version: ${process.version}`);
-  logger.info(`Platform: ${process.platform} ${process.arch}`);
+  // Only log in non-stdio mode
+  if (process.env.MCP_MODE !== 'stdio') {
+    logger.info(`Node.js version: ${process.version}`);
+  }
+  // Only log in non-stdio mode
+  if (process.env.MCP_MODE !== 'stdio') {
+    logger.info(`Platform: ${process.platform} ${process.arch}`);
+  }
   
   // First, try to use better-sqlite3
   try {
-    logger.info('Attempting to use better-sqlite3...');
+    if (process.env.MCP_MODE !== 'stdio') {
+      logger.info('Attempting to use better-sqlite3...');
+    }
     const adapter = await createBetterSQLiteAdapter(dbPath);
-    logger.info('Successfully initialized better-sqlite3 adapter');
+    if (process.env.MCP_MODE !== 'stdio') {
+      logger.info('Successfully initialized better-sqlite3 adapter');
+    }
     return adapter;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     // Check if it's a version mismatch error
     if (errorMessage.includes('NODE_MODULE_VERSION') || errorMessage.includes('was compiled against a different Node.js version')) {
-      logger.warn(`Node.js version mismatch detected. Better-sqlite3 was compiled for a different Node.js version.`);
-      logger.warn(`Current Node.js version: ${process.version}`);
+      if (process.env.MCP_MODE !== 'stdio') {
+        logger.warn(`Node.js version mismatch detected. Better-sqlite3 was compiled for a different Node.js version.`);
+      }
+      if (process.env.MCP_MODE !== 'stdio') {
+        logger.warn(`Current Node.js version: ${process.version}`);
+      }
     }
     
-    logger.warn('Failed to initialize better-sqlite3, falling back to sql.js', error);
+    if (process.env.MCP_MODE !== 'stdio') {
+      logger.warn('Failed to initialize better-sqlite3, falling back to sql.js', error);
+    }
     
     // Fall back to sql.js
     try {
       const adapter = await createSQLJSAdapter(dbPath);
-      logger.info('Successfully initialized sql.js adapter (pure JavaScript, no native dependencies)');
+      if (process.env.MCP_MODE !== 'stdio') {
+        logger.info('Successfully initialized sql.js adapter (pure JavaScript, no native dependencies)');
+      }
       return adapter;
     } catch (sqlJsError) {
-      logger.error('Failed to initialize sql.js adapter', sqlJsError);
+      if (process.env.MCP_MODE !== 'stdio') {
+        logger.error('Failed to initialize sql.js adapter', sqlJsError);
+      }
       throw new Error('Failed to initialize any database adapter');
     }
   }
