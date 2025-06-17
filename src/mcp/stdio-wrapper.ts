@@ -5,26 +5,41 @@
  * Ensures clean JSON-RPC communication by suppressing all non-JSON output
  */
 
+// CRITICAL: Set environment BEFORE any imports to prevent any initialization logs
+process.env.MCP_MODE = 'stdio';
+process.env.DISABLE_CONSOLE_OUTPUT = 'true';
+process.env.LOG_LEVEL = 'error';
+
 // Suppress all console output before anything else
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 const originalConsoleInfo = console.info;
 const originalConsoleDebug = console.debug;
+const originalConsoleTrace = console.trace;
+const originalConsoleDir = console.dir;
+const originalConsoleTime = console.time;
+const originalConsoleTimeEnd = console.timeEnd;
 
-// Override all console methods
+// Override ALL console methods to prevent any output
 console.log = () => {};
 console.error = () => {};
 console.warn = () => {};
 console.info = () => {};
 console.debug = () => {};
+console.trace = () => {};
+console.dir = () => {};
+console.time = () => {};
+console.timeEnd = () => {};
+console.timeLog = () => {};
+console.group = () => {};
+console.groupEnd = () => {};
+console.table = () => {};
+console.clear = () => {};
+console.count = () => {};
+console.countReset = () => {};
 
-// Set environment to ensure logger suppression
-process.env.MCP_MODE = 'stdio';
-process.env.DISABLE_CONSOLE_OUTPUT = 'true';
-process.env.LOG_LEVEL = 'error';
-
-// Import and run the server
+// Import and run the server AFTER suppressing output
 import { N8NDocumentationMCPServer } from './server-update';
 
 async function main() {

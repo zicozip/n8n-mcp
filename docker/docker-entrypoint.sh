@@ -44,10 +44,21 @@ fi
 
 # Execute the main command in background
 # In stdio mode, use the wrapper for clean output
-if [ "$MCP_MODE" = "stdio" ] && [ -f "/app/dist/mcp/stdio-wrapper.js" ]; then
-    node /app/dist/mcp/stdio-wrapper.js &
+if [ "$MCP_MODE" = "stdio" ]; then
+    # Debug: Log to stderr to check if wrapper exists
+    if [ "$DEBUG_DOCKER" = "true" ]; then
+        echo "MCP_MODE is stdio, checking for wrapper..." >&2
+        ls -la /app/dist/mcp/stdio-wrapper.js >&2 || echo "Wrapper not found!" >&2
+    fi
+    
+    if [ -f "/app/dist/mcp/stdio-wrapper.js" ]; then
+        # Use the stdio wrapper for clean JSON-RPC output
+        exec node /app/dist/mcp/stdio-wrapper.js
+    else
+        # Fallback: run with explicit environment
+        exec env MCP_MODE=stdio DISABLE_CONSOLE_OUTPUT=true LOG_LEVEL=error node /app/dist/mcp/index.js
+    fi
 else
-    "$@" &
+    # HTTP mode or other
+    exec "$@"
 fi
-PID=$!
-wait $PID
