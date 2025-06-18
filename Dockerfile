@@ -5,13 +5,13 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy tsconfig for TypeScript compilation
 COPY tsconfig.json ./
 
-# Install ONLY TypeScript for compilation (no n8n deps)
+# Create minimal package.json and install ONLY TypeScript
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --no-save typescript @types/node @types/express
+    echo '{}' > package.json && \
+    npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3
 
 # Copy source and build
 COPY src ./src
