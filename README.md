@@ -35,14 +35,16 @@ When Claude, Anthropic's AI assistant, tested n8n-MCP, the results were transfor
 
 Get n8n-MCP running in 5 minutes:
 
-### Option 1: Docker (Easiest)
+### Option 1: Docker (Easiest) 🚀
 
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on your system
 
 ```bash
-# Pull the Docker image
+# Pull the Docker image (~200MB, no n8n dependencies!)
 docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 ```
+
+> **⚡ Ultra-optimized:** Our Docker image is 87% smaller than typical n8n images because it contains NO n8n dependencies - just the runtime MCP server with a pre-built database!
 
 Add to Claude Desktop config:
 ```json

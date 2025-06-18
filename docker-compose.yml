@@ -1,4 +1,5 @@
 # docker-compose.yml
+# For optimized builds with BuildKit, use: docker-compose -f docker-compose.buildkit.yml up
 version: '3.8'
 
 services:

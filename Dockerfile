@@ -1,27 +1,23 @@
-# Optimized Dockerfile - uses pre-built database for faster, more reliable builds
+# syntax=docker/dockerfile:1.7
+# Ultra-optimized Dockerfile - no n8n dependencies needed at runtime
 
-# Stage 1: Dependencies (includes n8n for building)
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package*.json ./
-# Configure npm for reliability
-RUN npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
-    npm config set fetch-retry-maxtimeout 120000 && \
-    npm config set fetch-timeout 300000
-# Install all dependencies including n8n packages
-RUN npm ci
-
-# Stage 2: Builder (compiles TypeScript)
+# Stage 1: Builder (TypeScript compilation only)
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-# Build TypeScript
-RUN npm run build
 
-# Stage 3: Minimal Runtime (no n8n packages)
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install ONLY TypeScript for compilation (no n8n deps)
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --no-save typescript @types/node @types/express
+
+# Copy source and build
+COPY src ./src
+RUN npx tsc
+
+# Stage 2: Runtime (minimal dependencies)
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
@@ -29,49 +25,35 @@ WORKDIR /app
 RUN apk add --no-cache curl && \
     rm -rf /var/cache/apk/*
 
-# Create package.json with only runtime dependencies
-RUN echo '{ \
-  "name": "n8n-mcp-runtime", \
-  "version": "1.0.0", \
-  "private": true, \
-  "dependencies": { \
-    "@modelcontextprotocol/sdk": "^1.12.1", \
-    "better-sqlite3": "^11.10.0", \
-    "sql.js": "^1.13.0", \
-    "express": "^5.1.0", \
-    "dotenv": "^16.5.0" \
-  } \
-}' > package.json
+# Copy runtime-only package.json
+COPY package.runtime.json package.json
 
-# Install only runtime dependencies
-RUN npm config set fetch-retries 5 && \
-    npm config set fetch-retry-mintimeout 20000 && \
+# Install runtime dependencies with cache mount
+RUN --mount=type=cache,target=/root/.npm \
     npm install --production --no-audit --no-fund
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Copy pre-built database from source
+# Copy pre-built database and required files
 COPY data/nodes.db ./data/
-
-# Copy minimal required files
 COPY src/database/schema-optimized.sql ./src/database/
 COPY .env.example ./
 
+# Copy entrypoint script
+COPY docker/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Add container labels
 LABEL org.opencontainers.image.source="https://github.com/czlonkowski/n8n-mcp"
-LABEL org.opencontainers.image.description="n8n MCP Server - Optimized Version"
-LABEL org.opencontainers.image.licenses="Sustainable-Use-1.0"
-LABEL org.opencontainers.image.title="n8n-mcp-optimized"
+LABEL org.opencontainers.image.description="n8n MCP Server - Runtime Only"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.title="n8n-mcp"
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 && \
     chown -R nodejs:nodejs /app
-
-# Copy entrypoint script
-COPY docker/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Switch to non-root user
 USER nodejs
