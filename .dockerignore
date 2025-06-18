@@ -5,7 +5,9 @@ npm-debug.log
 .gitignore
 .env
 .env.local
+# Exclude all .env.* files except .env.example
 .env.*
+!.env.example
 # Keep nodes.db but exclude other database files
 data/*.db
 data/*.db-*
