@@ -120,27 +120,56 @@ export class NodeParser {
   }
   
   private extractVersion(nodeClass: any): string {
+    // Handle VersionedNodeType with defaultVersion
     if (nodeClass.baseDescription?.defaultVersion) {
       return nodeClass.baseDescription.defaultVersion.toString();
     }
     
+    // Handle VersionedNodeType with nodeVersions
     if (nodeClass.nodeVersions) {
       const versions = Object.keys(nodeClass.nodeVersions);
       return Math.max(...versions.map(Number)).toString();
     }
     
-    // Check instance for nodeVersions
+    // Check instance for nodeVersions and version arrays
     try {
       const instance = typeof nodeClass === 'function' ? new nodeClass() : nodeClass;
+      
+      // Handle instance-level nodeVersions
       if (instance?.nodeVersions) {
         const versions = Object.keys(instance.nodeVersions);
         return Math.max(...versions.map(Number)).toString();
       }
+      
+      // Handle version array in description (e.g., [1, 1.1, 1.2])
+      if (instance?.description?.version) {
+        const version = instance.description.version;
+        if (Array.isArray(version)) {
+          // Find the maximum version from the array
+          const maxVersion = Math.max(...version.map((v: any) => parseFloat(v.toString())));
+          return maxVersion.toString();
+        } else if (typeof version === 'number' || typeof version === 'string') {
+          return version.toString();
+        }
+      }
     } catch (e) {
-      // Ignore
+      // Some nodes might require parameters to instantiate
+      // Try to get version from class-level description
     }
     
-    return nodeClass.description?.version || '1';
+    // Also check class-level description for version array
+    const description = this.getNodeDescription(nodeClass);
+    if (description?.version) {
+      if (Array.isArray(description.version)) {
+        const maxVersion = Math.max(...description.version.map((v: any) => parseFloat(v.toString())));
+        return maxVersion.toString();
+      } else if (typeof description.version === 'number' || typeof description.version === 'string') {
+        return description.version.toString();
+      }
+    }
+    
+    // Default to version 1
+    return '1';
   }
   
   private detectVersioned(nodeClass: any): boolean {
@@ -149,14 +178,28 @@ export class NodeParser {
       return true;
     }
     
-    // Check instance-level nodeVersions
+    // Check instance-level nodeVersions and version arrays
     try {
       const instance = typeof nodeClass === 'function' ? new nodeClass() : nodeClass;
+      
+      // Check for nodeVersions
       if (instance?.nodeVersions) {
         return true;
       }
+      
+      // Check for version array in description
+      if (instance?.description?.version && Array.isArray(instance.description.version)) {
+        return true;
+      }
     } catch (e) {
-      // Ignore
+      // Some nodes might require parameters to instantiate
+      // Try to check class-level description
+    }
+    
+    // Also check class-level description for version array
+    const description = this.getNodeDescription(nodeClass);
+    if (description?.version && Array.isArray(description.version)) {
+      return true;
     }
     
     return false;
