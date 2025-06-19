@@ -217,7 +217,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'list_node_templates',
-    description: `List workflow templates that use specific node type(s). Returns ready-to-use workflows from n8n.io community. Templates are from the last 6 months only. Use node types like "n8n-nodes-base.httpRequest" or "@n8n/n8n-nodes-langchain.openAi". Great for finding proven workflow patterns.`,
+    description: `List workflow templates that use specific node type(s). Returns ready-to-use workflows from n8n.io community. Templates are from the last year (399 total). Use FULL node types like "n8n-nodes-base.httpRequest" or "@n8n/n8n-nodes-langchain.openAi". Great for finding proven workflow patterns.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -251,13 +251,13 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'search_templates',
-    description: `Search workflow templates by keywords in name/description. Returns templates matching your search terms. All templates are from the last 6 months and include view counts to gauge popularity. Good for finding workflows for specific use cases.`,
+    description: `Search workflow templates by keywords in template NAMES and DESCRIPTIONS only. NOTE: This does NOT search by node types! To find templates using specific nodes, use list_node_templates(["n8n-nodes-base.slack"]) instead. Examples: search_templates("chatbot") finds templates with "chatbot" in the name/description. All templates are from the last year and include view counts to gauge popularity.`,
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Search query (searches in template names and descriptions)',
+          description: 'Search query for template names/descriptions. NOT for node types! Examples: "chatbot", "automation", "social media", "webhook". For node-based search use list_node_templates instead.',
         },
         limit: {
           type: 'number',
@@ -316,12 +316,18 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
  *    - Single words more precise, multiple words broader
  *    - If no results: use list_nodes with category filter
  * 
- * 4. KNOWN ISSUES:
+ * 4. TEMPLATE SEARCHING:
+ *    - search_templates("slack") searches template names/descriptions, NOT node types!
+ *    - To find templates using Slack node: list_node_templates(["n8n-nodes-base.slack"])
+ *    - For task-based templates: get_templates_for_task("slack_integration")
+ *    - 399 templates available from the last year
+ * 
+ * 5. KNOWN ISSUES:
  *    - Some nodes have duplicate properties with different conditions
  *    - Package names: use 'n8n-nodes-base' not '@n8n/n8n-nodes-base'
  *    - Check showWhen/hideWhen to identify the right property variant
  * 
- * 5. PERFORMANCE:
+ * 6. PERFORMANCE:
  *    - get_node_essentials: Fast (<5KB)
  *    - get_node_info: Slow (100KB+) - use sparingly
  *    - search_nodes/list_nodes: Fast, cached
