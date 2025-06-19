@@ -1,6 +1,5 @@
 import { DatabaseAdapter } from '../database/database-adapter';
 import { TemplateRepository, StoredTemplate } from './template-repository';
-import { TemplateFetcher } from './template-fetcher';
 import { logger } from '../utils/logger';
 
 export interface TemplateInfo {
@@ -24,11 +23,9 @@ export interface TemplateWithWorkflow extends TemplateInfo {
 
 export class TemplateService {
   private repository: TemplateRepository;
-  private fetcher: TemplateFetcher;
   
   constructor(db: DatabaseAdapter) {
     this.repository = new TemplateRepository(db);
-    this.fetcher = new TemplateFetcher();
   }
   
   /**
@@ -102,12 +99,16 @@ export class TemplateService {
     progressCallback?: (message: string, current: number, total: number) => void
   ): Promise<void> {
     try {
+      // Dynamically import fetcher only when needed (requires axios)
+      const { TemplateFetcher } = await import('./template-fetcher');
+      const fetcher = new TemplateFetcher();
+      
       // Clear existing templates
       this.repository.clearTemplates();
       
       // Fetch template list
       logger.info('Fetching template list from n8n.io');
-      const templates = await this.fetcher.fetchTemplates((current, total) => {
+      const templates = await fetcher.fetchTemplates((current, total) => {
         progressCallback?.('Fetching template list', current, total);
       });
       
@@ -115,7 +116,7 @@ export class TemplateService {
       
       // Fetch details for each template
       logger.info('Fetching template details');
-      const details = await this.fetcher.fetchAllTemplateDetails(templates, (current, total) => {
+      const details = await fetcher.fetchAllTemplateDetails(templates, (current, total) => {
         progressCallback?.('Fetching template details', current, total);
       });
       
