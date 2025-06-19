@@ -6,7 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.4.0)
+## ✅ Latest Updates (v2.4.1)
+
+### Update (v2.4.1) - n8n Workflow Templates:
+- ✅ **NEW: list_node_templates tool** - Find workflow templates using specific nodes
+- ✅ **NEW: get_template tool** - Get complete workflow JSON for import
+- ✅ **NEW: search_templates tool** - Search templates by keywords
+- ✅ **NEW: get_templates_for_task tool** - Get curated templates for common tasks
+- ✅ Added Templates system with n8n.io API integration
+- ✅ Templates filtered to last 6 months only (freshness guarantee)
+- ✅ Manual fetch system - not part of regular rebuild
+- ✅ Full workflow JSON available for immediate use
+- ✅ 10 task categories: AI automation, data sync, webhooks, etc.
 
 ### Update (v2.4.0) - AI-Optimized MCP Tools:
 - ✅ **NEW: get_node_essentials tool** - Returns only 10-20 essential properties (95% size reduction)
@@ -77,11 +88,17 @@ src/
 │   ├── task-templates.ts      # Pre-configured node settings (NEW in v2.4)
 │   ├── config-validator.ts    # Configuration validation (NEW in v2.4)
 │   └── property-dependencies.ts # Dependency analysis (NEW in v2.4)
+├── templates/
+│   ├── template-fetcher.ts    # Fetches templates from n8n.io API (NEW in v2.4.1)
+│   ├── template-repository.ts # Template database operations (NEW in v2.4.1)
+│   └── template-service.ts    # Template business logic (NEW in v2.4.1)
 ├── scripts/
 │   ├── rebuild.ts             # Database rebuild with validation
 │   ├── validate.ts            # Node validation
 │   ├── test-nodes.ts          # Critical node tests
-│   └── test-essentials.ts     # Test new essentials tools (NEW in v2.4)
+│   ├── test-essentials.ts     # Test new essentials tools (NEW in v2.4)
+│   ├── fetch-templates.ts     # Fetch workflow templates from n8n.io (NEW in v2.4.1)
+│   └── test-templates.ts      # Test template functionality (NEW in v2.4.1)
 ├── mcp/
 │   ├── server-update.ts       # MCP server with enhanced tools
 │   ├── tools-update.ts        # Tool definitions including new essentials
@@ -118,6 +135,10 @@ npm run rebuild      # Rebuild node database
 npm run rebuild:optimized  # Build database with embedded source code
 npm run validate     # Validate critical nodes
 npm run test-nodes   # Test critical node properties/operations
+
+# Template Commands:
+npm run fetch:templates   # Fetch workflow templates from n8n.io (manual)
+npm run test:templates    # Test template functionality
 
 # Dependency Update Commands:
 npm run update:n8n:check  # Check for n8n updates (dry run)
@@ -229,6 +250,10 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 - `list_ai_tools` - List all AI-capable nodes (usableAsTool: true)
 - `get_node_documentation` - Get parsed documentation from n8n-docs
 - `get_database_statistics` - Get database usage statistics and metrics
+- `list_node_templates` - **NEW** Find workflow templates using specific nodes
+- `get_template` - **NEW** Get complete workflow JSON for import
+- `search_templates` - **NEW** Search templates by keywords
+- `get_templates_for_task` - **NEW** Get curated templates for common tasks
 
 ### Database Structure
 Uses SQLite with enhanced schema:

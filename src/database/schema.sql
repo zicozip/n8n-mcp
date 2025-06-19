@@ -22,3 +22,35 @@ CREATE TABLE IF NOT EXISTS nodes (
 CREATE INDEX IF NOT EXISTS idx_package ON nodes(package_name);
 CREATE INDEX IF NOT EXISTS idx_ai_tool ON nodes(is_ai_tool);
 CREATE INDEX IF NOT EXISTS idx_category ON nodes(category);
+
+-- Templates table for n8n workflow templates
+CREATE TABLE IF NOT EXISTS templates (
+  id INTEGER PRIMARY KEY,
+  workflow_id INTEGER UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  author_name TEXT,
+  author_username TEXT,
+  author_verified INTEGER DEFAULT 0,
+  nodes_used TEXT, -- JSON array of node types
+  workflow_json TEXT NOT NULL, -- Complete workflow JSON
+  categories TEXT, -- JSON array of categories
+  views INTEGER DEFAULT 0,
+  created_at DATETIME,
+  updated_at DATETIME,
+  url TEXT,
+  scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fresh_template CHECK (
+    datetime(updated_at) >= datetime('now', '-6 months')
+  )
+);
+
+-- Templates indexes
+CREATE INDEX IF NOT EXISTS idx_template_nodes ON templates(nodes_used);
+CREATE INDEX IF NOT EXISTS idx_template_updated ON templates(updated_at);
+CREATE INDEX IF NOT EXISTS idx_template_name ON templates(name);
+
+-- Full-text search for templates
+CREATE VIRTUAL TABLE IF NOT EXISTS templates_fts USING fts5(
+  name, description, content=templates
+);

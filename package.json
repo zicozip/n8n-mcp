@@ -1,6 +1,6 @@
 {
   "name": "n8n-mcp",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
   "scripts": {
@@ -22,6 +22,8 @@
     "typecheck": "tsc --noEmit",
     "update:n8n": "node scripts/update-n8n-deps.js",
     "update:n8n:check": "node scripts/update-n8n-deps.js --dry-run",
+    "fetch:templates": "node dist/scripts/fetch-templates.js",
+    "test:templates": "node dist/scripts/test-templates.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
     "docs:rebuild": "ts-node src/scripts/rebuild-database.ts"
@@ -58,6 +60,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@n8n/n8n-nodes-langchain": "^1.96.1",
+    "axios": "^1.10.0",
     "better-sqlite3": "^11.10.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",

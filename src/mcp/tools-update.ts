@@ -215,6 +215,85 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
       required: ['nodeType'],
     },
   },
+  {
+    name: 'list_node_templates',
+    description: `List workflow templates that use specific node type(s). Returns ready-to-use workflows from n8n.io community. Templates are from the last 6 months only. Use node types like "n8n-nodes-base.httpRequest" or "@n8n/n8n-nodes-langchain.openAi". Great for finding proven workflow patterns.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nodeTypes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of node types to search for (e.g., ["n8n-nodes-base.httpRequest", "n8n-nodes-base.openAi"])',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of templates to return. Default 10.',
+          default: 10,
+        },
+      },
+      required: ['nodeTypes'],
+    },
+  },
+  {
+    name: 'get_template',
+    description: `Get a specific workflow template with complete JSON. Returns the full workflow definition ready to import into n8n. Use template IDs from list_node_templates or search_templates results.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        templateId: {
+          type: 'number',
+          description: 'The template ID to retrieve',
+        },
+      },
+      required: ['templateId'],
+    },
+  },
+  {
+    name: 'search_templates',
+    description: `Search workflow templates by keywords in name/description. Returns templates matching your search terms. All templates are from the last 6 months and include view counts to gauge popularity. Good for finding workflows for specific use cases.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query (searches in template names and descriptions)',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of results. Default 20.',
+          default: 20,
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_templates_for_task',
+    description: `Get recommended templates for common automation tasks. Returns curated templates that solve specific use cases. Available tasks: ai_automation, data_sync, webhook_processing, email_automation, slack_integration, data_transformation, file_processing, scheduling, api_integration, database_operations.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: {
+          type: 'string',
+          enum: [
+            'ai_automation',
+            'data_sync', 
+            'webhook_processing',
+            'email_automation',
+            'slack_integration',
+            'data_transformation',
+            'file_processing',
+            'scheduling',
+            'api_integration',
+            'database_operations'
+          ],
+          description: 'The type of task to get templates for',
+        },
+      },
+      required: ['task'],
+    },
+  },
 ];
 
 /**

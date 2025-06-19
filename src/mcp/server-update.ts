@@ -17,6 +17,7 @@ import { TaskTemplates } from '../services/task-templates';
 import { ConfigValidator } from '../services/config-validator';
 import { PropertyDependencies } from '../services/property-dependencies';
 import { SimpleCache } from '../utils/simple-cache';
+import { TemplateService } from '../templates/template-service';
 
 interface NodeRow {
   node_type: string;
@@ -40,6 +41,7 @@ export class N8NDocumentationMCPServer {
   private server: Server;
   private db: DatabaseAdapter | null = null;
   private repository: NodeRepository | null = null;
+  private templateService: TemplateService | null = null;
   private initialized: Promise<void>;
   private cache = new SimpleCache();
 
@@ -88,6 +90,7 @@ export class N8NDocumentationMCPServer {
     try {
       this.db = await createDatabaseAdapter(dbPath);
       this.repository = new NodeRepository(this.db);
+      this.templateService = new TemplateService(this.db);
       logger.info(`Initialized database from: ${dbPath}`);
     } catch (error) {
       logger.error('Failed to initialize database:', error);
@@ -188,6 +191,14 @@ export class N8NDocumentationMCPServer {
         return this.validateNodeConfig(args.nodeType, args.config);
       case 'get_property_dependencies':
         return this.getPropertyDependencies(args.nodeType, args.config);
+      case 'list_node_templates':
+        return this.listNodeTemplates(args.nodeTypes, args.limit);
+      case 'get_template':
+        return this.getTemplate(args.templateId);
+      case 'search_templates':
+        return this.searchTemplates(args.query, args.limit);
+      case 'get_templates_for_task':
+        return this.getTemplatesForTask(args.task);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -926,6 +937,108 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     logger.info('MCP Server connected', { 
       transportType: transport.constructor.name 
     });
+  }
+  
+  // Template-related methods
+  private async listNodeTemplates(nodeTypes: string[], limit: number = 10): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.templateService) throw new Error('Template service not initialized');
+    
+    const templates = await this.templateService.listNodeTemplates(nodeTypes, limit);
+    
+    if (templates.length === 0) {
+      return {
+        message: `No templates found using nodes: ${nodeTypes.join(', ')}`,
+        tip: "Try searching with more common nodes or run 'npm run fetch:templates' to update template database",
+        templates: []
+      };
+    }
+    
+    return {
+      templates,
+      count: templates.length,
+      tip: `Use get_template(templateId) to get the full workflow JSON for any template`
+    };
+  }
+  
+  private async getTemplate(templateId: number): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.templateService) throw new Error('Template service not initialized');
+    
+    const template = await this.templateService.getTemplate(templateId);
+    
+    if (!template) {
+      return {
+        error: `Template ${templateId} not found`,
+        tip: "Use list_node_templates or search_templates to find available templates"
+      };
+    }
+    
+    return {
+      template,
+      usage: "Import this workflow JSON directly into n8n or use it as a reference for building workflows"
+    };
+  }
+  
+  private async searchTemplates(query: string, limit: number = 20): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.templateService) throw new Error('Template service not initialized');
+    
+    const templates = await this.templateService.searchTemplates(query, limit);
+    
+    if (templates.length === 0) {
+      return {
+        message: `No templates found matching: "${query}"`,
+        tip: "Try different keywords or run 'npm run fetch:templates' to update template database",
+        templates: []
+      };
+    }
+    
+    return {
+      templates,
+      count: templates.length,
+      query
+    };
+  }
+  
+  private async getTemplatesForTask(task: string): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.templateService) throw new Error('Template service not initialized');
+    
+    const templates = await this.templateService.getTemplatesForTask(task);
+    const availableTasks = this.templateService.listAvailableTasks();
+    
+    if (templates.length === 0) {
+      return {
+        message: `No templates found for task: ${task}`,
+        availableTasks,
+        tip: "Try a different task or use search_templates for custom searches"
+      };
+    }
+    
+    return {
+      task,
+      templates,
+      count: templates.length,
+      description: this.getTaskDescription(task)
+    };
+  }
+  
+  private getTaskDescription(task: string): string {
+    const descriptions: Record<string, string> = {
+      'ai_automation': 'AI-powered workflows using OpenAI, LangChain, and other AI tools',
+      'data_sync': 'Synchronize data between databases, spreadsheets, and APIs',
+      'webhook_processing': 'Process incoming webhooks and trigger automated actions',
+      'email_automation': 'Send, receive, and process emails automatically',
+      'slack_integration': 'Integrate with Slack for notifications and bot interactions',
+      'data_transformation': 'Transform, clean, and manipulate data',
+      'file_processing': 'Handle file uploads, downloads, and transformations',
+      'scheduling': 'Schedule recurring tasks and time-based automations',
+      'api_integration': 'Connect to external APIs and web services',
+      'database_operations': 'Query, insert, update, and manage database records'
+    };
+    
+    return descriptions[task] || 'Workflow templates for this task';
   }
 
   async run(): Promise<void> {
