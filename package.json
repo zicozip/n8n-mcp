@@ -23,6 +23,7 @@
     "update:n8n": "node scripts/update-n8n-deps.js",
     "update:n8n:check": "node scripts/update-n8n-deps.js --dry-run",
     "fetch:templates": "node dist/scripts/fetch-templates.js",
+    "fetch:templates:robust": "node dist/scripts/fetch-templates-robust.js",
     "test:templates": "node dist/scripts/test-templates.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",

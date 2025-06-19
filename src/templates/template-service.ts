@@ -112,7 +112,7 @@ export class TemplateService {
         progressCallback?.('Fetching template list', current, total);
       });
       
-      logger.info(`Found ${templates.length} templates from last 6 months`);
+      logger.info(`Found ${templates.length} templates from last year`);
       
       // Fetch details for each template
       logger.info('Fetching template details');

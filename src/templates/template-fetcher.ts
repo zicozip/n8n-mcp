@@ -42,8 +42,8 @@ export class TemplateFetcher {
   private readonly pageSize = 100;
   
   async fetchTemplates(progressCallback?: (current: number, total: number) => void): Promise<TemplateWorkflow[]> {
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const oneYearAgo = new Date();
+    oneYearAgo.setMonth(oneYearAgo.getMonth() - 12);
     
     const allTemplates: TemplateWorkflow[] = [];
     let page = 1;
@@ -66,13 +66,13 @@ export class TemplateFetcher {
         // Filter templates by date
         const recentTemplates = workflows.filter((w: TemplateWorkflow) => {
           const createdDate = new Date(w.createdAt);
-          return createdDate >= sixMonthsAgo;
+          return createdDate >= oneYearAgo;
         });
         
-        // If we hit templates older than 6 months, stop fetching
+        // If we hit templates older than 1 year, stop fetching
         if (recentTemplates.length < workflows.length) {
           hasMore = false;
-          logger.info(`Reached templates older than 6 months at page ${page}`);
+          logger.info(`Reached templates older than 1 year at page ${page}`);
         }
         
         allTemplates.push(...recentTemplates);
@@ -98,7 +98,7 @@ export class TemplateFetcher {
       }
     }
     
-    logger.info(`Fetched ${allTemplates.length} templates from last 6 months`);
+    logger.info(`Fetched ${allTemplates.length} templates from last year`);
     return allTemplates;
   }
   
