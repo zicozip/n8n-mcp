@@ -17,7 +17,8 @@ import { TaskTemplates } from '../services/task-templates';
 import { ConfigValidator } from '../services/config-validator';
 import { PropertyDependencies } from '../services/property-dependencies';
 import { SimpleCache } from '../utils/simple-cache';
-import { TemplateService } from '../templates/template-service';
+// Type import for TypeScript, won't be included in runtime
+import type { TemplateService } from '../templates/template-service';
 
 interface NodeRow {
   node_type: string;
@@ -90,7 +91,19 @@ export class N8NDocumentationMCPServer {
     try {
       this.db = await createDatabaseAdapter(dbPath);
       this.repository = new NodeRepository(this.db);
-      this.templateService = new TemplateService(this.db);
+      
+      // Only initialize template service when not in Docker (templates are pre-built in DB)
+      if (!process.env.IS_DOCKER) {
+        try {
+          const { TemplateService } = await import('../templates/template-service');
+          this.templateService = new TemplateService(this.db);
+          logger.info('Template service initialized');
+        } catch (error) {
+          logger.warn('Template service not available:', error);
+          // Continue without templates - not critical for operation
+        }
+      }
+      
       logger.info(`Initialized database from: ${dbPath}`);
     } catch (error) {
       logger.error('Failed to initialize database:', error);
@@ -942,7 +955,13 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   // Template-related methods
   private async listNodeTemplates(nodeTypes: string[], limit: number = 10): Promise<any> {
     await this.ensureInitialized();
-    if (!this.templateService) throw new Error('Template service not initialized');
+    if (!this.templateService) {
+      return {
+        error: 'Template service not available',
+        message: 'Templates are pre-built in the database. This tool is not available in Docker mode.',
+        templates: []
+      };
+    }
     
     const templates = await this.templateService.listNodeTemplates(nodeTypes, limit);
     
@@ -963,7 +982,12 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   
   private async getTemplate(templateId: number): Promise<any> {
     await this.ensureInitialized();
-    if (!this.templateService) throw new Error('Template service not initialized');
+    if (!this.templateService) {
+      return {
+        error: 'Template service not available',
+        message: 'Templates are pre-built in the database. This tool is not available in Docker mode.'
+      };
+    }
     
     const template = await this.templateService.getTemplate(templateId);
     
@@ -982,7 +1006,13 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   
   private async searchTemplates(query: string, limit: number = 20): Promise<any> {
     await this.ensureInitialized();
-    if (!this.templateService) throw new Error('Template service not initialized');
+    if (!this.templateService) {
+      return {
+        error: 'Template service not available',
+        message: 'Templates are pre-built in the database. This tool is not available in Docker mode.',
+        templates: []
+      };
+    }
     
     const templates = await this.templateService.searchTemplates(query, limit);
     
@@ -1003,7 +1033,13 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   
   private async getTemplatesForTask(task: string): Promise<any> {
     await this.ensureInitialized();
-    if (!this.templateService) throw new Error('Template service not initialized');
+    if (!this.templateService) {
+      return {
+        error: 'Template service not available',
+        message: 'Templates are pre-built in the database. This tool is not available in Docker mode.',
+        templates: []
+      };
+    }
     
     const templates = await this.templateService.getTemplatesForTask(task);
     const availableTasks = this.templateService.listAvailableTasks();
