@@ -16,7 +16,16 @@ async function fetchTemplates() {
   // Initialize database
   const db = await createDatabaseAdapter('./data/nodes.db');
   
-  // Apply schema if needed
+  // Drop existing templates table to ensure clean schema
+  try {
+    db.exec('DROP TABLE IF EXISTS templates');
+    db.exec('DROP TABLE IF EXISTS templates_fts');
+    console.log('🗑️  Dropped existing templates tables\n');
+  } catch (error) {
+    // Ignore errors if tables don't exist
+  }
+  
+  // Apply schema with updated constraint
   const schema = fs.readFileSync(path.join(__dirname, '../../src/database/schema.sql'), 'utf8');
   db.exec(schema);
   

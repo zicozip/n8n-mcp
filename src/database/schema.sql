@@ -39,10 +39,7 @@ CREATE TABLE IF NOT EXISTS templates (
   created_at DATETIME,
   updated_at DATETIME,
   url TEXT,
-  scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fresh_template CHECK (
-    datetime(updated_at) >= datetime('now', '-6 months')
-  )
+  scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Templates indexes
