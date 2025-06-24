@@ -1128,7 +1128,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
               "1. search_nodes({query:'slack'}) - Find nodes by keyword",
               "2. get_node_essentials('nodes-base.slack') - Get only essential properties (<5KB)",
               "3. get_node_for_task('send_slack_message') - Get pre-configured settings",
-              "4. validate_node_operation() - Validate before use"
+              "4. validate_node_minimal() - Quick check for required fields only",
+              "5. validate_node_operation() - Full validation with suggestions"
             ],
             tip: "Avoid get_node_info unless you need ALL properties (100KB+ response)"
           },
@@ -1136,7 +1137,25 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
             discovery: "list_nodes({category:'trigger'}) - Browse by category",
             quick_config: "get_node_essentials() - 95% smaller than get_node_info",
             tasks: "list_tasks() then get_node_for_task() - Pre-configured common tasks",
-            validation: "validate_node_operation() - Catch errors before execution"
+            validation: "validate_node_minimal() for quick checks, validate_node_operation() for full validation",
+            ai_tools: "get_node_as_tool_info() - Learn how to use ANY node as an AI tool"
+          },
+          ai_workflow_pattern: {
+            title: "AI Agent Workflows",
+            key_insight: "ANY node can be used as an AI tool - not just those marked with usableAsTool!",
+            steps: [
+              "1. Create an AI Agent node (e.g., @n8n/n8n-nodes-langchain.agent)",
+              "2. Connect ANY node to the AI Agent's 'ai_tool' port",
+              "3. Use get_node_as_tool_info() to understand tool configuration",
+              "4. Configure tool with $fromAI() expressions for dynamic values",
+              "5. validate_workflow() to check AI tool connections"
+            ],
+            examples: [
+              "Slack node → AI Agent's tool port = AI can send Slack messages",
+              "Google Sheets → AI Agent's tool port = AI can read/write spreadsheets",
+              "HTTP Request → AI Agent's tool port = AI can call any API"
+            ],
+            validation: "Use validate_workflow() to verify ai_tool connections are valid"
           }
         }
       },
@@ -1148,7 +1167,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
             steps: [
               "search_nodes or list_nodes to find nodes",
               "get_node_essentials for configuration",
-              "validate_node_config before execution"
+              "validate_node_minimal for quick required field check",
+              "validate_node_operation for full validation"
             ]
           },
           {
@@ -1156,7 +1176,19 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
             steps: [
               "list_tasks() to see available templates",
               "get_node_for_task() for instant configuration",
-              "Fill in userMustProvide fields"
+              "Fill in userMustProvide fields",
+              "validate_node_minimal() to ensure all required fields present"
+            ]
+          },
+          {
+            name: "AI Agent with Tools",
+            steps: [
+              "Create AI Agent node",
+              "search_nodes() to find tool nodes",
+              "get_node_as_tool_info() for each tool node",
+              "Connect nodes to ai_tool port",
+              "Configure with $fromAI() expressions",
+              "validate_workflow() to check everything"
             ]
           }
         ]
@@ -1178,6 +1210,16 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           core: ["httpRequest", "code", "set", "if", "merge", "splitInBatches"],
           integrations: ["slack", "gmail", "googleSheets", "postgres", "mongodb"],
           ai: ["agent", "openAi", "chainLlm", "documentLoader"]
+        },
+        ai_tool_usage: {
+          note: "ANY node from above can be used as an AI tool!",
+          popular_ai_tools: [
+            "slack - Send messages, create channels",
+            "googleSheets - Read/write data",
+            "httpRequest - Call any API",
+            "gmail - Send emails",
+            "postgres - Query databases"
+          ]
         }
       },
       known_issues: {
@@ -1197,17 +1239,62 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
             "get_node_essentials - <5KB responses",
             "search_nodes - Indexed search",
             "list_nodes - Direct queries",
+            "validate_node_minimal - Only required fields",
             "start_here_workflow_guide - Static content"
           ],
           slow: [
             "get_node_info - 100KB+ responses",
-            "get_node_documentation - Can be large"
+            "get_node_documentation - Can be large",
+            "validate_workflow - Full workflow analysis"
           ]
         },
         tips: [
           "Use get_node_essentials for 95% of use cases",
           "Only use get_node_info when essentials lack needed property",
-          "Results are cached for repeated queries"
+          "Results are cached for repeated queries",
+          "Use validate_node_minimal before validate_node_operation"
+        ]
+      },
+      ai_tools: {
+        title: "AI Tools & Agent Workflows",
+        key_concept: "In n8n, ANY node can be used as an AI tool - not just those marked with usableAsTool!",
+        how_it_works: {
+          "1. Connection": "Connect any node to an AI Agent's 'ai_tool' port",
+          "2. Configuration": "Use $fromAI() expressions to let AI provide dynamic values",
+          "3. Description": "Give tools clear names and descriptions in AI Agent settings",
+          "4. Validation": "Use validate_workflow() to verify ai_tool connections"
+        },
+        common_patterns: {
+          "Data Collection": {
+            nodes: ["googleSheets", "postgres", "mongodb"],
+            usage: "AI reads data to answer questions or make decisions"
+          },
+          "Actions & Notifications": {
+            nodes: ["slack", "gmail", "httpRequest"],
+            usage: "AI performs actions based on analysis"
+          },
+          "API Integration": {
+            nodes: ["httpRequest", "webhook"],
+            usage: "AI calls external services and APIs"
+          }
+        },
+        example_expressions: {
+          "Dynamic values": '{{ $fromAI("channel", "Slack channel to post to") }}',
+          "Complex data": '{{ $fromAI("query", "SQL query to execute") }}',
+          "Conditional": '{{ $fromAI("shouldNotify", "true/false to send notification") }}'
+        },
+        best_practices: [
+          "Test nodes individually before connecting as tools",
+          "Write detailed tool descriptions for better AI understanding",
+          "Use validate_workflow() to catch connection issues",
+          "Start simple - one or two tools, then expand",
+          "Monitor AI tool usage in workflow executions"
+        ],
+        tools_to_use: [
+          "get_node_as_tool_info() - Understand any node's AI capabilities",
+          "list_ai_tools() - See nodes optimized for AI (263 available)",
+          "validate_workflow() - Verify ai_tool connections",
+          "get_node_essentials() - Configure tool nodes efficiently"
         ]
       }
     };
@@ -1225,22 +1312,49 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         searchTips: guides.search_tips,
         commonNodes: guides.common_nodes,
         knownIssues: guides.known_issues,
-        performance: guides.performance
+        performance: guides.performance,
+        aiTools: guides.ai_tools
       },
       examples: {
         "Find and configure Slack": [
           "search_nodes({query:'slack'})",
           "get_node_essentials('nodes-base.slack')",
+          "validate_node_minimal('nodes-base.slack', {resource:'message',operation:'post'})",
           "get_node_for_task('send_slack_message')"
         ],
         "Set up webhook trigger": [
           "get_node_for_task('receive_webhook')",
+          "validate_node_minimal('nodes-base.webhook', config)",
           "// Returns pre-configured webhook with instructions"
         ],
         "HTTP API call": [
           "get_node_essentials('nodes-base.httpRequest')",
-          "search_node_properties('nodes-base.httpRequest', 'auth')"
+          "search_node_properties('nodes-base.httpRequest', 'auth')",
+          "validate_node_operation('nodes-base.httpRequest', config)"
+        ],
+        "AI Agent with Slack tool": [
+          "search_nodes({query:'agent'})",
+          "get_node_as_tool_info('nodes-base.slack')",
+          "// Connect Slack to AI Agent's ai_tool port",
+          "// Configure with $fromAI() expressions",
+          "validate_workflow(workflow)"
         ]
+      },
+      validation_guide: {
+        title: "Validation Tools Guide",
+        tools: {
+          "validate_node_minimal": "Fastest - only checks required fields",
+          "validate_node_operation": "Smart - checks based on selected operation",
+          "validate_workflow": "Complete - validates entire workflow including AI connections",
+          "validate_workflow_connections": "Structure - just checks node connections",
+          "validate_workflow_expressions": "Expressions - validates $json, $node, $fromAI"
+        },
+        when_to_use: {
+          "Building nodes": "Use validate_node_minimal first, then validate_node_operation",
+          "AI workflows": "Always use validate_workflow to check ai_tool connections",
+          "Quick checks": "validate_node_minimal when you just need required fields",
+          "Before deployment": "validate_workflow with all options enabled"
+        }
       }
     };
   }
