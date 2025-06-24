@@ -181,7 +181,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_node_config',
-    description: `Validate a node configuration before use. Checks for missing required properties, type errors, security issues, and common mistakes. Returns specific errors, warnings, and suggestions to fix issues. USE THIS before executing workflows to catch errors early.`,
+    description: `Check node configuration structure and property dependencies. Works well for simple nodes but shows many false positives for complex multi-operation nodes. Reveals which fields are visible/hidden based on settings. Does NOT validate code syntax or catch runtime errors. Useful for learning node structure, less reliable for pre-execution validation.`,
     inputSchema: {
       type: 'object',
       properties: {
