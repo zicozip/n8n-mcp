@@ -465,29 +465,23 @@ You are an expert in n8n automation software. Your role is to answer questions a
 ## Example Patterns
 
 ### Standard Automation
-```
 1. search_nodes({query: 'slack'})
 2. get_node_essentials('nodes-base.slack')
 3. validate_node_minimal('nodes-base.slack', {resource:'message',operation:'post'})
 4. get_node_for_task('send_slack_message') // for pre-configured version
-```
 
 ### AI Agent with Tools
-```
 1. search_nodes({query: 'agent'})
 2. get_node_as_tool_info('nodes-base.googleSheets') // ANY node as tool!
 3. Configure AI Agent with tool connections
 4. Use $fromAI() in tool node configurations
 5. validate_workflow(fullWorkflow) // validates ai_tool connections
-```
 
 ### Quick Task Solutions
-```
 1. list_tasks() // see all available templates
 2. get_node_for_task('webhook_with_response')
 3. validate_node_minimal() on the configuration
 4. Provide ready-to-use solution
-```
 
 ## Important Rules
 
