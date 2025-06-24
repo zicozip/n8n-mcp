@@ -502,4 +502,336 @@ export class NodeSpecificValidators {
         break;
     }
   }
+  
+  /**
+   * Validate Webhook node configuration
+   */
+  static validateWebhook(context: NodeValidationContext): void {
+    const { config, errors, warnings, suggestions } = context;
+    
+    // Path validation
+    if (!config.path) {
+      errors.push({
+        type: 'missing_required',
+        property: 'path',
+        message: 'Webhook path is required',
+        fix: 'Set a unique path like "my-webhook" (no leading slash)'
+      });
+    } else {
+      const path = config.path;
+      
+      // Check for leading slash
+      if (path.startsWith('/')) {
+        warnings.push({
+          type: 'inefficient',
+          property: 'path',
+          message: 'Webhook path should not start with /',
+          suggestion: 'Remove the leading slash: use "my-webhook" instead of "/my-webhook"'
+        });
+      }
+      
+      // Check for spaces
+      if (path.includes(' ')) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'path',
+          message: 'Webhook path cannot contain spaces',
+          fix: 'Replace spaces with hyphens or underscores'
+        });
+      }
+      
+      // Check for special characters
+      if (!/^[a-zA-Z0-9\-_\/]+$/.test(path.replace(/^\//, ''))) {
+        warnings.push({
+          type: 'inefficient',
+          property: 'path',
+          message: 'Webhook path contains special characters',
+          suggestion: 'Use only letters, numbers, hyphens, and underscores'
+        });
+      }
+    }
+    
+    // Response mode validation
+    if (config.responseMode === 'responseNode') {
+      suggestions.push('Add a "Respond to Webhook" node to send custom responses');
+      
+      if (!config.responseData) {
+        warnings.push({
+          type: 'missing_common',
+          property: 'responseData',
+          message: 'Response data not configured for responseNode mode',
+          suggestion: 'Add a "Respond to Webhook" node or change responseMode'
+        });
+      }
+    }
+    
+    // HTTP method validation
+    if (config.httpMethod && Array.isArray(config.httpMethod)) {
+      if (config.httpMethod.length === 0) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'httpMethod',
+          message: 'At least one HTTP method must be selected',
+          fix: 'Select GET, POST, or other methods your webhook should accept'
+        });
+      }
+    }
+    
+    // Authentication warnings
+    if (!config.authentication || config.authentication === 'none') {
+      warnings.push({
+        type: 'security',
+        message: 'Webhook has no authentication',
+        suggestion: 'Consider adding authentication to prevent unauthorized access'
+      });
+    }
+  }
+  
+  /**
+   * Validate Postgres node configuration
+   */
+  static validatePostgres(context: NodeValidationContext): void {
+    const { config, errors, warnings, suggestions, autofix } = context;
+    const { operation } = config;
+    
+    // Common query validation
+    if (['execute', 'select', 'insert', 'update', 'delete'].includes(operation)) {
+      this.validateSQLQuery(context, 'postgres');
+    }
+    
+    // Operation-specific validation
+    switch (operation) {
+      case 'insert':
+        if (!config.table) {
+          errors.push({
+            type: 'missing_required',
+            property: 'table',
+            message: 'Table name is required for insert operation',
+            fix: 'Specify the table to insert data into'
+          });
+        }
+        
+        if (!config.columns && !config.dataMode) {
+          warnings.push({
+            type: 'missing_common',
+            property: 'columns',
+            message: 'No columns specified for insert',
+            suggestion: 'Define which columns to insert data into'
+          });
+        }
+        break;
+        
+      case 'update':
+        if (!config.table) {
+          errors.push({
+            type: 'missing_required',
+            property: 'table',
+            message: 'Table name is required for update operation',
+            fix: 'Specify the table to update'
+          });
+        }
+        
+        if (!config.updateKey) {
+          warnings.push({
+            type: 'missing_common',
+            property: 'updateKey',
+            message: 'No update key specified',
+            suggestion: 'Set updateKey to identify which rows to update (e.g., "id")'
+          });
+        }
+        break;
+        
+      case 'delete':
+        if (!config.table) {
+          errors.push({
+            type: 'missing_required',
+            property: 'table',
+            message: 'Table name is required for delete operation',
+            fix: 'Specify the table to delete from'
+          });
+        }
+        
+        if (!config.deleteKey) {
+          errors.push({
+            type: 'missing_required',
+            property: 'deleteKey',
+            message: 'Delete key is required to identify rows',
+            fix: 'Set deleteKey (e.g., "id") to specify which rows to delete'
+          });
+        }
+        break;
+        
+      case 'execute':
+        if (!config.query) {
+          errors.push({
+            type: 'missing_required',
+            property: 'query',
+            message: 'SQL query is required',
+            fix: 'Provide the SQL query to execute'
+          });
+        }
+        break;
+    }
+    
+    // Connection pool suggestions
+    if (config.connectionTimeout === undefined) {
+      suggestions.push('Consider setting connectionTimeout to handle slow connections');
+    }
+  }
+  
+  /**
+   * Validate MySQL node configuration  
+   */
+  static validateMySQL(context: NodeValidationContext): void {
+    const { config, errors, warnings, suggestions } = context;
+    const { operation } = config;
+    
+    // MySQL uses similar validation to Postgres
+    if (['execute', 'insert', 'update', 'delete'].includes(operation)) {
+      this.validateSQLQuery(context, 'mysql');
+    }
+    
+    // Operation-specific validation (similar to Postgres)
+    switch (operation) {
+      case 'insert':
+        if (!config.table) {
+          errors.push({
+            type: 'missing_required',
+            property: 'table',
+            message: 'Table name is required for insert operation',
+            fix: 'Specify the table to insert data into'
+          });
+        }
+        break;
+        
+      case 'update':
+        if (!config.table) {
+          errors.push({
+            type: 'missing_required',
+            property: 'table',
+            message: 'Table name is required for update operation',
+            fix: 'Specify the table to update'
+          });
+        }
+        
+        if (!config.updateKey) {
+          warnings.push({
+            type: 'missing_common',
+            property: 'updateKey',
+            message: 'No update key specified',
+            suggestion: 'Set updateKey to identify which rows to update'
+          });
+        }
+        break;
+        
+      case 'delete':
+        if (!config.table) {
+          errors.push({
+            type: 'missing_required',
+            property: 'table',
+            message: 'Table name is required for delete operation',
+            fix: 'Specify the table to delete from'
+          });
+        }
+        break;
+        
+      case 'execute':
+        if (!config.query) {
+          errors.push({
+            type: 'missing_required',
+            property: 'query',
+            message: 'SQL query is required',
+            fix: 'Provide the SQL query to execute'
+          });
+        }
+        break;
+    }
+    
+    // MySQL-specific warnings
+    if (config.timezone === undefined) {
+      suggestions.push('Consider setting timezone to ensure consistent date/time handling');
+    }
+  }
+  
+  /**
+   * Validate SQL queries for injection risks and common issues
+   */
+  private static validateSQLQuery(
+    context: NodeValidationContext,
+    dbType: 'postgres' | 'mysql' | 'generic' = 'generic'
+  ): void {
+    const { config, errors, warnings, suggestions } = context;
+    const query = config.query || config.deleteQuery || config.updateQuery || '';
+    
+    if (!query) return;
+    
+    const lowerQuery = query.toLowerCase();
+    
+    // SQL injection checks
+    if (query.includes('${') || query.includes('{{')) {
+      warnings.push({
+        type: 'security',
+        message: 'Query contains template expressions that might be vulnerable to SQL injection',
+        suggestion: 'Use parameterized queries with query parameters instead of string interpolation'
+      });
+      
+      suggestions.push('Example: Use "SELECT * FROM users WHERE id = $1" with queryParams: [userId]');
+    }
+    
+    // DELETE without WHERE
+    if (lowerQuery.includes('delete') && !lowerQuery.includes('where')) {
+      errors.push({
+        type: 'invalid_value',
+        property: 'query',
+        message: 'DELETE query without WHERE clause will delete all records',
+        fix: 'Add a WHERE clause to specify which records to delete'
+      });
+    }
+    
+    // UPDATE without WHERE
+    if (lowerQuery.includes('update') && !lowerQuery.includes('where')) {
+      warnings.push({
+        type: 'security',
+        message: 'UPDATE query without WHERE clause will update all records',
+        suggestion: 'Add a WHERE clause to specify which records to update'
+      });
+    }
+    
+    // TRUNCATE warning
+    if (lowerQuery.includes('truncate')) {
+      warnings.push({
+        type: 'security',
+        message: 'TRUNCATE will remove all data from the table',
+        suggestion: 'Consider using DELETE with WHERE clause if you need to keep some data'
+      });
+    }
+    
+    // DROP warning
+    if (lowerQuery.includes('drop')) {
+      errors.push({
+        type: 'invalid_value',
+        property: 'query',
+        message: 'DROP operations are extremely dangerous and will permanently delete database objects',
+        fix: 'Use this only if you really intend to delete tables/databases permanently'
+      });
+    }
+    
+    // Performance suggestions
+    if (lowerQuery.includes('select *')) {
+      suggestions.push('Consider selecting specific columns instead of * for better performance');
+    }
+    
+    // Database-specific checks
+    if (dbType === 'postgres') {
+      // PostgreSQL specific validations
+      if (query.includes('$$')) {
+        suggestions.push('Dollar-quoted strings detected - ensure they are properly closed');
+      }
+    } else if (dbType === 'mysql') {
+      // MySQL specific validations
+      if (query.includes('`')) {
+        suggestions.push('Using backticks for identifiers - ensure they are properly paired');
+      }
+    }
+  }
 }

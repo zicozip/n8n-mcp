@@ -15,7 +15,7 @@ import { PropertyFilter } from '../services/property-filter';
 import { ExampleGenerator } from '../services/example-generator';
 import { TaskTemplates } from '../services/task-templates';
 import { ConfigValidator } from '../services/config-validator';
-import { EnhancedConfigValidator, ValidationMode } from '../services/enhanced-config-validator';
+import { EnhancedConfigValidator, ValidationMode, ValidationProfile } from '../services/enhanced-config-validator';
 import { PropertyDependencies } from '../services/property-dependencies';
 import { SimpleCache } from '../utils/simple-cache';
 import { TemplateService } from '../templates/template-service';
@@ -189,7 +189,9 @@ export class N8NDocumentationMCPServer {
       case 'list_tasks':
         return this.listTasks(args.category);
       case 'validate_node_operation':
-        return this.validateNodeConfig(args.nodeType, args.config, 'operation');
+        return this.validateNodeConfig(args.nodeType, args.config, 'operation', args.profile);
+      case 'validate_node_minimal':
+        return this.validateNodeMinimal(args.nodeType, args.config);
       case 'get_property_dependencies':
         return this.getPropertyDependencies(args.nodeType, args.config);
       case 'list_node_templates':
@@ -702,7 +704,12 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     return result;
   }
   
-  private async validateNodeConfig(nodeType: string, config: Record<string, any>, mode: ValidationMode = 'operation'): Promise<any> {
+  private async validateNodeConfig(
+    nodeType: string, 
+    config: Record<string, any>, 
+    mode: ValidationMode = 'operation',
+    profile: ValidationProfile = 'ai-friendly'
+  ): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
     
@@ -739,7 +746,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
       node.nodeType, 
       config, 
       properties, 
-      mode
+      mode,
+      profile
     );
     
     // Add node context to result
@@ -807,6 +815,100 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
       } : undefined
     };
   }
+  
+  private async validateNodeMinimal(nodeType: string, config: Record<string, any>): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.repository) throw new Error('Repository not initialized');
+    
+    // Get node info
+    let node = this.repository.getNode(nodeType);
+    
+    if (!node) {
+      // Try alternative formats
+      const alternatives = [
+        nodeType,
+        nodeType.replace('n8n-nodes-base.', ''),
+        `n8n-nodes-base.${nodeType}`,
+        nodeType.toLowerCase()
+      ];
+      
+      for (const alt of alternatives) {
+        const found = this.repository!.getNode(alt);
+        if (found) {
+          node = found;
+          break;
+        }
+      }
+      
+      if (!node) {
+        throw new Error(`Node ${nodeType} not found`);
+      }
+    }
+    
+    // Get properties  
+    const properties = node.properties || [];
+    
+    // Extract operation context
+    const operationContext = {
+      resource: config.resource,
+      operation: config.operation,
+      action: config.action,
+      mode: config.mode
+    };
+    
+    // Find missing required fields
+    const missingFields: string[] = [];
+    
+    for (const prop of properties) {
+      // Skip if not required
+      if (!prop.required) continue;
+      
+      // Skip if not visible based on current config
+      if (prop.displayOptions) {
+        let isVisible = true;
+        
+        // Check show conditions
+        if (prop.displayOptions.show) {
+          for (const [key, values] of Object.entries(prop.displayOptions.show)) {
+            const configValue = config[key];
+            const expectedValues = Array.isArray(values) ? values : [values];
+            
+            if (!expectedValues.includes(configValue)) {
+              isVisible = false;
+              break;
+            }
+          }
+        }
+        
+        // Check hide conditions
+        if (isVisible && prop.displayOptions.hide) {
+          for (const [key, values] of Object.entries(prop.displayOptions.hide)) {
+            const configValue = config[key];
+            const expectedValues = Array.isArray(values) ? values : [values];
+            
+            if (expectedValues.includes(configValue)) {
+              isVisible = false;
+              break;
+            }
+          }
+        }
+        
+        if (!isVisible) continue;
+      }
+      
+      // Check if field is missing
+      if (!(prop.name in config)) {
+        missingFields.push(prop.displayName || prop.name);
+      }
+    }
+    
+    return {
+      nodeType: node.nodeType,
+      displayName: node.displayName,
+      valid: missingFields.length === 0,
+      missingRequiredFields: missingFields
+    };
+  }
 
   private async getWorkflowGuide(topic?: string): Promise<any> {
     const guides: Record<string, any> = {
@@ -819,7 +921,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
               "1. search_nodes({query:'slack'}) - Find nodes by keyword",
               "2. get_node_essentials('nodes-base.slack') - Get only essential properties (<5KB)",
               "3. get_node_for_task('send_slack_message') - Get pre-configured settings",
-              "4. validate_node_config() - Validate before use"
+              "4. validate_node_operation() - Validate before use"
             ],
             tip: "Avoid get_node_info unless you need ALL properties (100KB+ response)"
           },
@@ -827,7 +929,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
             discovery: "list_nodes({category:'trigger'}) - Browse by category",
             quick_config: "get_node_essentials() - 95% smaller than get_node_info",
             tasks: "list_tasks() then get_node_for_task() - Pre-configured common tasks",
-            validation: "validate_node_config() - Catch errors before execution"
+            validation: "validate_node_operation() - Catch errors before execution"
           }
         }
       },

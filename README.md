@@ -131,7 +131,8 @@ Once connected, Claude can use these powerful tools:
 ### Advanced Tools
 - **`get_node_for_task`** - Pre-configured node settings for common tasks
 - **`list_tasks`** - Discover available task templates
-- **`validate_node_operation`** - Validate node configurations (operation-aware, 80% fewer false positives)
+- **`validate_node_operation`** - Validate node configurations (operation-aware, profiles support)
+- **`validate_node_minimal`** - Quick validation for just required fields
 - **`get_property_dependencies`** - Analyze property visibility conditions
 - **`get_node_documentation`** - Get parsed documentation from n8n-docs
 - **`get_database_statistics`** - View database metrics and coverage
@@ -151,7 +152,14 @@ get_node_for_task("send_email")
 // Validate before deployment
 validate_node_operation({
   nodeType: "nodes-base.httpRequest",
-  config: { method: "POST", url: "..." }
+  config: { method: "POST", url: "..." },
+  profile: "runtime" // or "minimal", "ai-friendly", "strict"
+})
+
+// Quick required field check
+validate_node_minimal({
+  nodeType: "nodes-base.slack",
+  config: { resource: "message", operation: "send" }
 })
 ```
 
@@ -343,10 +351,14 @@ Current database coverage (n8n v1.97.1):
 
 ## 🔄 Recent Updates
 
-### v2.4.2 - Enhanced Validation System
+### v2.4.2 - Professional Validation System
 - ✅ **NEW**: `validate_node_operation` - Operation-aware validation with 80% fewer false positives
+- ✅ **NEW**: `validate_node_minimal` - Lightning-fast required field checking
+- ✅ **NEW**: Validation profiles - Choose between minimal, runtime, ai-friendly, or strict
+- ✅ **NEW**: Node validators for Webhook, Postgres, MySQL with SQL safety checks
 - ✅ **IMPROVED**: Deduplicates errors, filters internal properties
 - ✅ **ADDED**: Basic code syntax validation for JavaScript/Python
+- ✅ **ADDED**: SQL injection detection and unsafe query warnings
 - ✅ **FIXED**: Removed deprecated `validate_node_config` tool
 
 ### v2.4.0 - AI-Optimized Tools & MIT License

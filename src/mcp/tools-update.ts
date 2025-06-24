@@ -181,7 +181,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_node_operation',
-    description: `Verify your node configuration is correct before using it. Checks: required fields are present, values are valid types/formats, operation-specific rules are met. Returns specific errors with fixes (e.g., "Channel required to send Slack message - add channel: '#general'"), warnings about common issues, working examples when errors found, and suggested next steps. Smart validation that only checks properties relevant to your selected operation/action. Essential for Slack, Google Sheets, MongoDB, OpenAI nodes.`,
+    description: `Verify your node configuration is correct before using it. Checks: required fields are present, values are valid types/formats, operation-specific rules are met. Returns specific errors with fixes (e.g., "Channel required to send Slack message - add channel: '#general'"), warnings about common issues, working examples when errors found, and suggested next steps. Smart validation that only checks properties relevant to your selected operation/action. Essential for Slack, Google Sheets, MongoDB, OpenAI nodes. Supports validation profiles for different use cases.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -192,6 +192,30 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
         config: {
           type: 'object',
           description: 'Your node configuration. Must include operation fields (resource/operation/action) if the node has multiple operations.',
+        },
+        profile: {
+          type: 'string',
+          enum: ['strict', 'runtime', 'ai-friendly', 'minimal'],
+          description: 'Validation profile: minimal (only required fields), runtime (critical errors only), ai-friendly (balanced - default), strict (all checks including best practices)',
+          default: 'ai-friendly',
+        },
+      },
+      required: ['nodeType', 'config'],
+    },
+  },
+  {
+    name: 'validate_node_minimal',
+    description: `Quick validation that ONLY checks for missing required fields. Returns just the list of required fields that are missing. Fastest validation option - use when you only need to know if required fields are present. No warnings, no suggestions, no examples - just missing required fields.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nodeType: {
+          type: 'string',
+          description: 'The node type to validate (e.g., "nodes-base.slack")',
+        },
+        config: {
+          type: 'object',
+          description: 'The node configuration to check',
         },
       },
       required: ['nodeType', 'config'],

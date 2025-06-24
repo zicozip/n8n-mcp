@@ -304,28 +304,7 @@ export class ConfigValidator {
     warnings: ValidationWarning[],
     suggestions: string[]
   ): void {
-    // Path validation
-    if (config.path) {
-      if (config.path.startsWith('/')) {
-        warnings.push({
-          type: 'inefficient',
-          property: 'path',
-          message: 'Webhook path should not start with /',
-          suggestion: 'Remove the leading / from the path'
-        });
-      }
-      
-      if (config.path.includes(' ')) {
-        warnings.push({
-          type: 'inefficient',
-          property: 'path',
-          message: 'Webhook path contains spaces',
-          suggestion: 'Use hyphens or underscores instead of spaces'
-        });
-      }
-    }
-    
-    // Response mode suggestions
+    // Basic webhook validation - moved detailed validation to NodeSpecificValidators
     if (config.responseMode === 'responseNode' && !config.responseData) {
       suggestions.push('When using responseMode=responseNode, add a "Respond to Webhook" node to send custom responses');
     }

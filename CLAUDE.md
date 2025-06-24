@@ -10,11 +10,15 @@ n8n-mcp is a comprehensive documentation and knowledge server that provides AI a
 
 ### Update (v2.4.2) - Enhanced Node Configuration Validation:
 - ✅ **NEW: validate_node_operation tool** - Operation-aware validation with 80%+ fewer false positives
+- ✅ **NEW: validate_node_minimal tool** - Lightning-fast validation for just required fields
+- ✅ **NEW: Validation profiles** - Choose between minimal, runtime, ai-friendly, or strict validation
 - ✅ **NEW: EnhancedConfigValidator** - Smart validation that only checks relevant properties
-- ✅ **NEW: Node-specific validators** - Custom logic for Slack, Google Sheets, OpenAI, MongoDB
+- ✅ **NEW: Node-specific validators** - Custom logic for Slack, Google Sheets, OpenAI, MongoDB, Webhook, Postgres, MySQL
+- ✅ **NEW: SQL safety features** - Detects SQL injection risks, unsafe DELETE/UPDATE queries
 - ✅ Added operation context filtering (only validates properties for selected operation)
 - ✅ Integrated working examples in validation responses when errors found
 - ✅ Added actionable next steps and auto-fix suggestions
+- ✅ Basic code syntax validation for JavaScript/Python in Code node
 - ✅ Dramatic improvement for complex multi-operation nodes
 - ✅ Test results: Slack validation reduced from 45 errors to 1 error!
 
@@ -258,7 +262,8 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 - `search_node_properties` - **NEW** Search for specific properties within a node
 - `get_node_for_task` - **NEW** Get pre-configured node settings for common tasks
 - `list_tasks` - **NEW** List all available task templates
-- `validate_node_operation` - **NEW v2.4.2** Verify node configuration is correct before use
+- `validate_node_operation` - **NEW v2.4.2** Verify node configuration with operation awareness and profiles
+- `validate_node_minimal` - **NEW v2.4.2** Quick validation for just required fields
 - `get_property_dependencies` - **NEW** Analyze property dependencies and visibility conditions
 - `list_ai_tools` - List all AI-capable nodes (usableAsTool: true)
 - `get_node_documentation` - Get parsed documentation from n8n-docs

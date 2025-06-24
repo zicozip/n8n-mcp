@@ -10,9 +10,11 @@ import { NodeSpecificValidators, NodeValidationContext } from './node-specific-v
 import { ExampleGenerator } from './example-generator';
 
 export type ValidationMode = 'full' | 'operation' | 'minimal';
+export type ValidationProfile = 'strict' | 'runtime' | 'ai-friendly' | 'minimal';
 
 export interface EnhancedValidationResult extends ValidationResult {
   mode: ValidationMode;
+  profile?: ValidationProfile;
   operation?: {
     resource?: string;
     operation?: string;
@@ -40,7 +42,8 @@ export class EnhancedConfigValidator extends ConfigValidator {
     nodeType: string,
     config: Record<string, any>,
     properties: any[],
-    mode: ValidationMode = 'operation'
+    mode: ValidationMode = 'operation',
+    profile: ValidationProfile = 'ai-friendly'
   ): EnhancedValidationResult {
     // Extract operation context from config
     const operationContext = this.extractOperationContext(config);
@@ -60,10 +63,14 @@ export class EnhancedConfigValidator extends ConfigValidator {
     const enhancedResult: EnhancedValidationResult = {
       ...baseResult,
       mode,
+      profile,
       operation: operationContext,
       examples: [],
       nextSteps: []
     };
+    
+    // Apply profile-based filtering
+    this.applyProfileFilters(enhancedResult, profile);
     
     // Add operation-specific enhancements
     this.addOperationSpecificEnhancements(nodeType, config, enhancedResult);
@@ -215,6 +222,18 @@ export class EnhancedConfigValidator extends ConfigValidator {
         
       case 'nodes-base.mongoDb':
         NodeSpecificValidators.validateMongoDB(context);
+        break;
+        
+      case 'nodes-base.webhook':
+        NodeSpecificValidators.validateWebhook(context);
+        break;
+        
+      case 'nodes-base.postgres':
+        NodeSpecificValidators.validatePostgres(context);
+        break;
+        
+      case 'nodes-base.mysql':
+        NodeSpecificValidators.validateMySQL(context);
         break;
     }
     
@@ -440,5 +459,51 @@ export class EnhancedConfigValidator extends ConfigValidator {
     }
     
     return Array.from(seen.values());
+  }
+  
+  /**
+   * Apply profile-based filtering to validation results
+   */
+  private static applyProfileFilters(
+    result: EnhancedValidationResult,
+    profile: ValidationProfile
+  ): void {
+    switch (profile) {
+      case 'minimal':
+        // Only keep missing required errors
+        result.errors = result.errors.filter(e => e.type === 'missing_required');
+        result.warnings = [];
+        result.suggestions = [];
+        break;
+        
+      case 'runtime':
+        // Keep critical runtime errors only
+        result.errors = result.errors.filter(e => 
+          e.type === 'missing_required' || 
+          e.type === 'invalid_value' ||
+          (e.type === 'invalid_type' && e.message.includes('undefined'))
+        );
+        // Keep only security warnings
+        result.warnings = result.warnings.filter(w => w.type === 'security');
+        result.suggestions = [];
+        break;
+        
+      case 'strict':
+        // Keep everything, add more suggestions
+        if (result.warnings.length === 0 && result.errors.length === 0) {
+          result.suggestions.push('Consider adding error handling and timeout configuration');
+          result.suggestions.push('Add authentication if connecting to external services');
+        }
+        break;
+        
+      case 'ai-friendly':
+      default:
+        // Current behavior - balanced for AI agents
+        // Filter out noise but keep helpful warnings
+        result.warnings = result.warnings.filter(w => 
+          w.type !== 'inefficient' || !w.property?.startsWith('_')
+        );
+        break;
+    }
   }
 }
