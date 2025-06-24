@@ -130,6 +130,17 @@ export class TemplateRepository {
   }
   
   /**
+   * Get all templates with limit
+   */
+  getAllTemplates(limit: number = 10): StoredTemplate[] {
+    return this.db.prepare(`
+      SELECT * FROM templates 
+      ORDER BY views DESC, created_at DESC
+      LIMIT ?
+    `).all(limit) as StoredTemplate[];
+  }
+  
+  /**
    * Get total template count
    */
   getTemplateCount(): number {

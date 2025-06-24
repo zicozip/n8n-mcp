@@ -1,0 +1,131 @@
+{
+  "name": "[General] Scrape with HTTP tool",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "url"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "5346cc19-24b6-4a35-aa97-8415f4bea3d6",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "b0883f0f-a325-4d8f-9323-46ec5ac259f2",
+      "name": "HTTP Request3"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "cssSelector": "body",
+              "skipSelectors": "img"
+            }
+          ]
+        },
+        "options": {
+          "cleanUpText": true
+        }
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        460,
+        0
+      ],
+      "id": "413d2e39-a958-44ad-b8bf-5b2ff473977f",
+      "name": "HTML"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "url": "https://www.onet.pl"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "e0f02ae3-2abc-4fa4-a201-dc9519d3b77f",
+  "meta": {
+    "instanceId": "f90d4c09665c36771f63f8fb50686f33a5a32ed6de3eadcceb02fed4e27faf46"
+  },
+  "id": "mu4NBMrRsGq4xAGs",
+  "tags": [
+    {
+      "createdAt": "2025-02-17T03:16:20.972Z",
+      "updatedAt": "2025-02-17T03:16:20.972Z",
+      "id": "kEJjx5SVonwfM7TL",
+      "name": "AI tool"
+    },
+    {
+      "createdAt": "2025-02-20T20:00:37.258Z",
+      "updatedAt": "2025-02-20T20:00:37.258Z",
+      "id": "iWK0KA4yRf7NGdav",
+      "name": "general"
+    },
+    {
+      "createdAt": "2025-02-20T21:14:11.867Z",
+      "updatedAt": "2025-02-20T21:14:11.867Z",
+      "id": "MmgG3evIY7x5HI86",
+      "name": "stage: production"
+    }
+  ]
+}

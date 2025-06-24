@@ -6,7 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.4.2)
+## ✅ Latest Updates (v2.5.0)
+
+### Update (v2.5.0) - Complete Workflow Validation:
+- ✅ **NEW: validate_workflow tool** - Validate entire workflows before deployment
+- ✅ **NEW: validate_workflow_connections tool** - Check workflow structure and connections
+- ✅ **NEW: validate_workflow_expressions tool** - Validate all n8n expressions in a workflow
+- ✅ **NEW: ExpressionValidator** - Comprehensive n8n expression syntax validation
+- ✅ **NEW: WorkflowValidator** - Complete workflow structure and logic validation
+- ✅ Detects cycles (infinite loops) in workflows
+- ✅ Validates node references in expressions ($node["Node Name"])
+- ✅ Checks for orphaned nodes and missing connections
+- ✅ Expression syntax validation with common mistake detection
+- ✅ Workflow best practices analysis with suggestions
+- ✅ Supports partial validation (nodes only, connections only, expressions only)
+- ✅ Test coverage for all validation scenarios
 
 ### Update (v2.4.2) - Enhanced Node Configuration Validation:
 - ✅ **NEW: validate_node_operation tool** - Operation-aware validation with 80%+ fewer false positives
@@ -103,7 +117,9 @@ src/
 │   ├── config-validator.ts    # Configuration validation (NEW in v2.4)
 │   ├── enhanced-config-validator.ts # Operation-aware validation (NEW in v2.4.2)
 │   ├── node-specific-validators.ts  # Node-specific validation logic (NEW in v2.4.2)
-│   └── property-dependencies.ts # Dependency analysis (NEW in v2.4)
+│   ├── property-dependencies.ts # Dependency analysis (NEW in v2.4)
+│   ├── expression-validator.ts # n8n expression syntax validation (NEW in v2.5.0)
+│   └── workflow-validator.ts  # Complete workflow validation (NEW in v2.5.0)
 ├── templates/
 │   ├── template-fetcher.ts    # Fetches templates from n8n.io API (NEW in v2.4.1)
 │   ├── template-repository.ts # Template database operations (NEW in v2.4.1)
@@ -114,6 +130,7 @@ src/
 │   ├── test-nodes.ts          # Critical node tests
 │   ├── test-essentials.ts     # Test new essentials tools (NEW in v2.4)
 │   ├── test-enhanced-validation.ts # Test enhanced validation (NEW in v2.4.2)
+│   ├── test-workflow-validation.ts # Test workflow validation (NEW in v2.5.0)
 │   ├── fetch-templates.ts     # Fetch workflow templates from n8n.io (NEW in v2.4.1)
 │   └── test-templates.ts      # Test template functionality (NEW in v2.4.1)
 ├── mcp/
@@ -156,6 +173,9 @@ npm run test-nodes   # Test critical node properties/operations
 # Template Commands:
 npm run fetch:templates   # Fetch workflow templates from n8n.io (manual)
 npm run test:templates    # Test template functionality
+
+# Workflow Validation Commands:
+npm run test:workflow-validation   # Test workflow validation features
 
 # Dependency Update Commands:
 npm run update:n8n:check  # Check for n8n updates (dry run)
@@ -264,6 +284,9 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 - `list_tasks` - **NEW** List all available task templates
 - `validate_node_operation` - **NEW v2.4.2** Verify node configuration with operation awareness and profiles
 - `validate_node_minimal` - **NEW v2.4.2** Quick validation for just required fields
+- `validate_workflow` - **NEW v2.5.0** Validate entire workflows before deployment
+- `validate_workflow_connections` - **NEW v2.5.0** Check workflow structure and connections
+- `validate_workflow_expressions` - **NEW v2.5.0** Validate all n8n expressions in a workflow
 - `get_property_dependencies` - **NEW** Analyze property dependencies and visibility conditions
 - `list_ai_tools` - List all AI-capable nodes (usableAsTool: true)
 - `get_node_documentation` - Get parsed documentation from n8n-docs

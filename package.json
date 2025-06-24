@@ -25,6 +25,8 @@
     "fetch:templates": "node dist/scripts/fetch-templates.js",
     "fetch:templates:robust": "node dist/scripts/fetch-templates-robust.js",
     "test:templates": "node dist/scripts/test-templates.js",
+    "test:workflow-validation": "node dist/scripts/test-workflow-validation.js",
+    "test:template-validation": "node dist/scripts/test-template-validation.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
     "docs:rebuild": "ts-node src/scripts/rebuild-database.ts"

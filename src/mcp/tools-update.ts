@@ -318,6 +318,75 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
       required: ['task'],
     },
   },
+  {
+    name: 'validate_workflow',
+    description: `Validate an entire n8n workflow before deployment. Checks: workflow structure, node connections, expressions, best practices, and more. Returns comprehensive validation report with errors, warnings, and suggestions. Essential for AI agents building complete workflows. Prevents common workflow errors before they happen.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflow: {
+          type: 'object',
+          description: 'The complete workflow JSON to validate. Must include nodes array and connections object.',
+        },
+        options: {
+          type: 'object',
+          properties: {
+            validateNodes: {
+              type: 'boolean',
+              description: 'Validate individual node configurations. Default true.',
+              default: true,
+            },
+            validateConnections: {
+              type: 'boolean',
+              description: 'Validate node connections and flow. Default true.',
+              default: true,
+            },
+            validateExpressions: {
+              type: 'boolean',
+              description: 'Validate n8n expressions syntax and references. Default true.',
+              default: true,
+            },
+            profile: {
+              type: 'string',
+              enum: ['minimal', 'runtime', 'ai-friendly', 'strict'],
+              description: 'Validation profile for node validation. Default "runtime".',
+              default: 'runtime',
+            },
+          },
+          description: 'Optional validation settings',
+        },
+      },
+      required: ['workflow'],
+    },
+  },
+  {
+    name: 'validate_workflow_connections',
+    description: `Validate only the connections in a workflow. Checks: all connections point to existing nodes, no cycles (infinite loops), no orphaned nodes, proper trigger node setup. Faster than full validation when you only need to check workflow structure.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflow: {
+          type: 'object',
+          description: 'The workflow JSON with nodes array and connections object.',
+        },
+      },
+      required: ['workflow'],
+    },
+  },
+  {
+    name: 'validate_workflow_expressions',
+    description: `Validate all n8n expressions in a workflow. Checks: expression syntax ({{ }}), variable references ($json, $node, $input), node references exist, context availability. Returns specific errors with locations. Use this to catch expression errors before runtime.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workflow: {
+          type: 'object',
+          description: 'The workflow JSON to check for expression errors.',
+        },
+      },
+      required: ['workflow'],
+    },
+  },
 ];
 
 /**
