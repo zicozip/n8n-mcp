@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.4.2-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -131,7 +131,7 @@ Once connected, Claude can use these powerful tools:
 ### Advanced Tools
 - **`get_node_for_task`** - Pre-configured node settings for common tasks
 - **`list_tasks`** - Discover available task templates
-- **`validate_node_config`** - Validate configurations before use
+- **`validate_node_operation`** - Validate node configurations (operation-aware, 80% fewer false positives)
 - **`get_property_dependencies`** - Analyze property visibility conditions
 - **`get_node_documentation`** - Get parsed documentation from n8n-docs
 - **`get_database_statistics`** - View database metrics and coverage
@@ -149,7 +149,7 @@ search_nodes({ query: "send email gmail" })
 get_node_for_task("send_email")
 
 // Validate before deployment
-validate_node_config({
+validate_node_operation({
   nodeType: "nodes-base.httpRequest",
   config: { method: "POST", url: "..." }
 })
@@ -343,6 +343,12 @@ Current database coverage (n8n v1.97.1):
 
 ## 🔄 Recent Updates
 
+### v2.4.2 - Enhanced Validation System
+- ✅ **NEW**: `validate_node_operation` - Operation-aware validation with 80% fewer false positives
+- ✅ **IMPROVED**: Deduplicates errors, filters internal properties
+- ✅ **ADDED**: Basic code syntax validation for JavaScript/Python
+- ✅ **FIXED**: Removed deprecated `validate_node_config` tool
+
 ### v2.4.0 - AI-Optimized Tools & MIT License
 - ✅ **NEW**: `get_node_essentials` - 95% smaller responses
 - ✅ **NEW**: Task templates for common automations
@@ -409,7 +415,7 @@ You are an expert in n8n automation software. Your role is to answer questions a
 
 - ALWAYS check node documentation via MCP before implementing
 - Use `get_node_essentials` instead of `get_node_info` for faster responses
-- Validate configurations with `validate_node_config` before finalizing
+- Validate configurations with `validate_node_operation` before finalizing
 - State clearly if you're unsure about any aspect
 - Provide practical, working solutions that users can immediately use in n8n
 
