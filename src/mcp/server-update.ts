@@ -195,6 +195,8 @@ export class N8NDocumentationMCPServer {
         return this.validateNodeMinimal(args.nodeType, args.config);
       case 'get_property_dependencies':
         return this.getPropertyDependencies(args.nodeType, args.config);
+      case 'get_node_as_tool_info':
+        return this.getNodeAsToolInfo(args.nodeType);
       case 'list_node_templates':
         return this.listNodeTemplates(args.nodeTypes, args.limit);
       case 'get_template':
@@ -300,7 +302,22 @@ export class N8NDocumentationMCPServer {
       }
     }
     
-    return node;
+    // Add AI tool capabilities information
+    const aiToolCapabilities = {
+      canBeUsedAsTool: true, // Any node can be used as a tool in n8n
+      hasUsableAsToolProperty: node.isAITool,
+      requiresEnvironmentVariable: !node.isAITool && node.package !== 'n8n-nodes-base',
+      toolConnectionType: 'ai_tool',
+      commonToolUseCases: this.getCommonAIToolUseCases(node.nodeType),
+      environmentRequirement: node.package !== 'n8n-nodes-base' ? 
+        'N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true' : 
+        null
+    };
+    
+    return {
+      ...node,
+      aiToolCapabilities
+    };
   }
 
   private async searchNodes(query: string, limit: number = 20): Promise<any> {
@@ -393,6 +410,15 @@ export class N8NDocumentationMCPServer {
         environmentVariable: 'N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true',
         nodeProperty: 'usableAsTool: true',
       },
+      usage: {
+        description: 'These nodes have the usableAsTool property set to true, making them optimized for AI agent usage.',
+        note: 'ANY node in n8n can be used as an AI tool by connecting it to the ai_tool port of an AI Agent node.',
+        examples: [
+          'Regular nodes like Slack, Google Sheets, or HTTP Request can be used as tools',
+          'Connect any node to an AI Agent\'s tool port to make it available for AI-driven automation',
+          'Community nodes require the environment variable to be set'
+        ]
+      }
     };
   }
 
@@ -820,6 +846,180 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         providedValues: config,
         visibilityImpact
       } : undefined
+    };
+  }
+  
+  private async getNodeAsToolInfo(nodeType: string): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.repository) throw new Error('Repository not initialized');
+    
+    // Get node info
+    let node = this.repository.getNode(nodeType);
+    
+    if (!node) {
+      // Try alternative formats
+      const alternatives = [
+        nodeType,
+        nodeType.replace('n8n-nodes-base.', ''),
+        `n8n-nodes-base.${nodeType}`,
+        nodeType.toLowerCase()
+      ];
+      
+      for (const alt of alternatives) {
+        const found = this.repository!.getNode(alt);
+        if (found) {
+          node = found;
+          break;
+        }
+      }
+      
+      if (!node) {
+        throw new Error(`Node ${nodeType} not found`);
+      }
+    }
+    
+    // Determine common AI tool use cases based on node type
+    const commonUseCases = this.getCommonAIToolUseCases(node.nodeType);
+    
+    // Build AI tool capabilities info
+    const aiToolCapabilities = {
+      canBeUsedAsTool: true, // In n8n, ANY node can be used as a tool when connected to AI Agent
+      hasUsableAsToolProperty: node.isAITool,
+      requiresEnvironmentVariable: !node.isAITool && node.package !== 'n8n-nodes-base',
+      connectionType: 'ai_tool',
+      commonUseCases,
+      requirements: {
+        connection: 'Connect to the "ai_tool" port of an AI Agent node',
+        environment: node.package !== 'n8n-nodes-base' ? 
+          'Set N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true for community nodes' : 
+          'No special environment variables needed for built-in nodes'
+      },
+      examples: this.getAIToolExamples(node.nodeType),
+      tips: [
+        'Give the tool a clear, descriptive name in the AI Agent settings',
+        'Write a detailed tool description to help the AI understand when to use it',
+        'Test the node independently before connecting it as a tool',
+        node.isAITool ? 
+          'This node is optimized for AI tool usage' : 
+          'This is a regular node that can be used as an AI tool'
+      ]
+    };
+    
+    return {
+      nodeType: node.nodeType,
+      displayName: node.displayName,
+      description: node.description,
+      package: node.package,
+      isMarkedAsAITool: node.isAITool,
+      aiToolCapabilities
+    };
+  }
+  
+  private getCommonAIToolUseCases(nodeType: string): string[] {
+    const useCaseMap: Record<string, string[]> = {
+      'nodes-base.slack': [
+        'Send notifications about task completion',
+        'Post updates to channels',
+        'Send direct messages',
+        'Create alerts and reminders'
+      ],
+      'nodes-base.googleSheets': [
+        'Read data for analysis',
+        'Log results and outputs',
+        'Update spreadsheet records',
+        'Create reports'
+      ],
+      'nodes-base.gmail': [
+        'Send email notifications',
+        'Read and process emails',
+        'Send reports and summaries',
+        'Handle email-based workflows'
+      ],
+      'nodes-base.httpRequest': [
+        'Call external APIs',
+        'Fetch data from web services',
+        'Send webhooks',
+        'Integrate with any REST API'
+      ],
+      'nodes-base.postgres': [
+        'Query database for information',
+        'Store analysis results',
+        'Update records based on AI decisions',
+        'Generate reports from data'
+      ],
+      'nodes-base.webhook': [
+        'Receive external triggers',
+        'Create callback endpoints',
+        'Handle incoming data',
+        'Integrate with external systems'
+      ]
+    };
+    
+    // Check for partial matches
+    for (const [key, useCases] of Object.entries(useCaseMap)) {
+      if (nodeType.includes(key)) {
+        return useCases;
+      }
+    }
+    
+    // Generic use cases for unknown nodes
+    return [
+      'Perform automated actions',
+      'Integrate with external services',
+      'Process and transform data',
+      'Extend AI agent capabilities'
+    ];
+  }
+  
+  private getAIToolExamples(nodeType: string): any {
+    const exampleMap: Record<string, any> = {
+      'nodes-base.slack': {
+        toolName: 'Send Slack Message',
+        toolDescription: 'Sends a message to a specified Slack channel or user. Use this to notify team members about important events or results.',
+        nodeConfig: {
+          resource: 'message',
+          operation: 'post',
+          channel: '={{ $fromAI("channel", "The Slack channel to send to, e.g. #general") }}',
+          text: '={{ $fromAI("message", "The message content to send") }}'
+        }
+      },
+      'nodes-base.googleSheets': {
+        toolName: 'Update Google Sheet',
+        toolDescription: 'Reads or updates data in a Google Sheets spreadsheet. Use this to log information, retrieve data, or update records.',
+        nodeConfig: {
+          operation: 'append',
+          sheetId: 'your-sheet-id',
+          range: 'A:Z',
+          dataMode: 'autoMap'
+        }
+      },
+      'nodes-base.httpRequest': {
+        toolName: 'Call API',
+        toolDescription: 'Makes HTTP requests to external APIs. Use this to fetch data, trigger webhooks, or integrate with any web service.',
+        nodeConfig: {
+          method: '={{ $fromAI("method", "HTTP method: GET, POST, PUT, DELETE") }}',
+          url: '={{ $fromAI("url", "The complete API endpoint URL") }}',
+          sendBody: true,
+          bodyContentType: 'json',
+          jsonBody: '={{ $fromAI("body", "Request body as JSON object") }}'
+        }
+      }
+    };
+    
+    // Check for exact match or partial match
+    for (const [key, example] of Object.entries(exampleMap)) {
+      if (nodeType.includes(key)) {
+        return example;
+      }
+    }
+    
+    // Generic example
+    return {
+      toolName: 'Custom Tool',
+      toolDescription: 'Performs specific operations. Describe what this tool does and when to use it.',
+      nodeConfig: {
+        note: 'Configure the node based on its specific requirements'
+      }
     };
   }
   

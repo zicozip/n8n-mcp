@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.4.2-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.5.1-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -126,13 +126,17 @@ Once connected, Claude can use these powerful tools:
 - **`get_node_essentials`** - Get only essential properties with examples (10-20 properties instead of 200+)
 - **`search_nodes`** - Full-text search across all node documentation
 - **`search_node_properties`** - Find specific properties within nodes
-- **`list_ai_tools`** - List all AI-capable nodes
+- **`list_ai_tools`** - List all AI-capable nodes (ANY node can be used as AI tool!)
+- **`get_node_as_tool_info`** - Get guidance on using any node as an AI tool
 
 ### Advanced Tools
 - **`get_node_for_task`** - Pre-configured node settings for common tasks
 - **`list_tasks`** - Discover available task templates
 - **`validate_node_operation`** - Validate node configurations (operation-aware, profiles support)
 - **`validate_node_minimal`** - Quick validation for just required fields
+- **`validate_workflow`** - Complete workflow validation including AI tool connections
+- **`validate_workflow_connections`** - Check workflow structure and AI tool connections
+- **`validate_workflow_expressions`** - Validate n8n expressions including $fromAI()
 - **`get_property_dependencies`** - Analyze property visibility conditions
 - **`get_node_documentation`** - Get parsed documentation from n8n-docs
 - **`get_database_statistics`** - View database metrics and coverage
@@ -350,6 +354,21 @@ Current database coverage (n8n v1.97.1):
 - 💾 **Database size**: ~15MB (optimized)
 
 ## 🔄 Recent Updates
+
+### v2.5.1 - AI Tool Support Enhancement
+- ✅ **NEW**: AI tool connection validation in workflows
+- ✅ **NEW**: `get_node_as_tool_info` - Guidance for using ANY node as AI tool
+- ✅ **ENHANCED**: `get_node_info` now includes aiToolCapabilities section
+- ✅ **IMPROVED**: Workflow validation understands ai_tool connections
+- ✅ **ADDED**: $fromAI() expression validation for dynamic AI parameters
+- ✅ **CLARIFIED**: ANY node can be used as an AI tool, not just usableAsTool nodes
+
+### v2.5.0 - Complete Workflow Validation
+- ✅ **NEW**: `validate_workflow` - Validate entire workflows before deployment
+- ✅ **NEW**: `validate_workflow_connections` - Check workflow structure
+- ✅ **NEW**: `validate_workflow_expressions` - Validate n8n expressions
+- ✅ **NEW**: Cycle detection for workflows
+- ✅ **NEW**: Expression syntax validation
 
 ### v2.4.2 - Professional Validation System
 - ✅ **NEW**: `validate_node_operation` - Operation-aware validation with 80% fewer false positives

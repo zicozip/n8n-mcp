@@ -6,7 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.5.0)
+## ✅ Latest Updates (v2.5.1)
+
+### Update (v2.5.1) - AI Tool Support Enhancements:
+- ✅ **NEW: get_node_as_tool_info tool** - Get specific information about using ANY node as an AI tool
+- ✅ **Enhanced: get_node_info** - Now includes `aiToolCapabilities` section for all nodes
+- ✅ **Enhanced: list_ai_tools** - Added usage guidance explaining ANY node can be used as a tool
+- ✅ **Enhanced: WorkflowValidator** - Now validates `ai_tool` connections in workflows
+- ✅ AI workflow pattern detection - Warns when AI Agents have no tools connected
+- ✅ Community node detection - Reminds about N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE environment variable
+- ✅ **NEW: AI Tool TaskTemplates** - Added use_google_sheets_as_tool, use_slack_as_tool, multi_tool_ai_agent
+- ✅ Comprehensive examples showing how to connect regular nodes as AI tools
+- ✅ Tool usage documentation with $fromAI() expression examples
 
 ### Update (v2.5.0) - Complete Workflow Validation:
 - ✅ **NEW: validate_workflow tool** - Validate entire workflows before deployment
@@ -131,6 +142,8 @@ src/
 │   ├── test-essentials.ts     # Test new essentials tools (NEW in v2.4)
 │   ├── test-enhanced-validation.ts # Test enhanced validation (NEW in v2.4.2)
 │   ├── test-workflow-validation.ts # Test workflow validation (NEW in v2.5.0)
+│   ├── test-ai-workflow-validation.ts # Test AI workflow validation (NEW in v2.5.1)
+│   ├── test-mcp-tools.ts      # Test MCP tool enhancements (NEW in v2.5.1)
 │   ├── fetch-templates.ts     # Fetch workflow templates from n8n.io (NEW in v2.4.1)
 │   └── test-templates.ts      # Test template functionality (NEW in v2.4.1)
 ├── mcp/
@@ -276,19 +289,20 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 
 ### MCP Tools Available
 - `list_nodes` - List all available n8n nodes with filtering
-- `get_node_info` - Get comprehensive information about a specific node (properties, operations, credentials)
+- `get_node_info` - Get comprehensive information about a specific node (now includes aiToolCapabilities)
 - `get_node_essentials` - **NEW** Get only essential properties (10-20) with examples (95% smaller)
+- `get_node_as_tool_info` - **NEW v2.5.1** Get specific information about using ANY node as an AI tool
 - `search_nodes` - Full-text search across all node documentation
 - `search_node_properties` - **NEW** Search for specific properties within a node
 - `get_node_for_task` - **NEW** Get pre-configured node settings for common tasks
 - `list_tasks` - **NEW** List all available task templates
 - `validate_node_operation` - **NEW v2.4.2** Verify node configuration with operation awareness and profiles
 - `validate_node_minimal` - **NEW v2.4.2** Quick validation for just required fields
-- `validate_workflow` - **NEW v2.5.0** Validate entire workflows before deployment
+- `validate_workflow` - **NEW v2.5.0** Validate entire workflows before deployment (now validates ai_tool connections)
 - `validate_workflow_connections` - **NEW v2.5.0** Check workflow structure and connections
 - `validate_workflow_expressions` - **NEW v2.5.0** Validate all n8n expressions in a workflow
 - `get_property_dependencies` - **NEW** Analyze property dependencies and visibility conditions
-- `list_ai_tools` - List all AI-capable nodes (usableAsTool: true)
+- `list_ai_tools` - List all AI-capable nodes (now includes usage guidance)
 - `get_node_documentation` - Get parsed documentation from n8n-docs
 - `get_database_statistics` - Get database usage statistics and metrics
 - `list_node_templates` - **NEW** Find workflow templates using specific nodes

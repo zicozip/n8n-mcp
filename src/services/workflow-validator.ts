@@ -26,6 +26,7 @@ interface WorkflowConnection {
   [sourceNode: string]: {
     main?: Array<Array<{ node: string; type: string; index: number }>>;
     error?: Array<Array<{ node: string; type: string; index: number }>>;
+    ai_tool?: Array<Array<{ node: string; type: string; index: number }>>;
   };
 }
 
@@ -340,6 +341,17 @@ export class WorkflowValidator {
           'error'
         );
       }
+
+      // Check AI tool outputs
+      if (outputs.ai_tool) {
+        this.validateConnectionOutputs(
+          sourceName,
+          outputs.ai_tool,
+          nodeMap,
+          result,
+          'ai_tool'
+        );
+      }
     }
 
     // Check for orphaned nodes (not connected and not triggers)
@@ -357,6 +369,11 @@ export class WorkflowValidator {
       }
       if (outputs.error) {
         outputs.error.flat().forEach(conn => {
+          if (conn) connectedNodes.add(conn.node);
+        });
+      }
+      if (outputs.ai_tool) {
+        outputs.ai_tool.flat().forEach(conn => {
           if (conn) connectedNodes.add(conn.node);
         });
       }
@@ -400,7 +417,7 @@ export class WorkflowValidator {
     outputs: Array<Array<{ node: string; type: string; index: number }>>,
     nodeMap: Map<string, WorkflowNode>,
     result: WorkflowValidationResult,
-    outputType: 'main' | 'error'
+    outputType: 'main' | 'error' | 'ai_tool'
   ): void {
     outputs.forEach((outputConnections, outputIndex) => {
       if (!outputConnections) return;
@@ -421,9 +438,55 @@ export class WorkflowValidator {
           });
         } else {
           result.statistics.validConnections++;
+          
+          // Additional validation for AI tool connections
+          if (outputType === 'ai_tool') {
+            this.validateAIToolConnection(sourceName, targetNode, result);
+          }
         }
       });
     });
+  }
+
+  /**
+   * Validate AI tool connections
+   */
+  private validateAIToolConnection(
+    sourceName: string,
+    targetNode: WorkflowNode,
+    result: WorkflowValidationResult
+  ): void {
+    // For AI tool connections, we just need to check if this is being used as a tool
+    // The source should be an AI Agent connecting to this target node as a tool
+    
+    // Get target node info to check if it can be used as a tool
+    let targetNodeInfo = this.nodeRepository.getNode(targetNode.type);
+    
+    // Try normalized type if not found
+    if (!targetNodeInfo) {
+      let normalizedType = targetNode.type;
+      
+      // Handle n8n-nodes-base -> nodes-base
+      if (targetNode.type.startsWith('n8n-nodes-base.')) {
+        normalizedType = targetNode.type.replace('n8n-nodes-base.', 'nodes-base.');
+        targetNodeInfo = this.nodeRepository.getNode(normalizedType);
+      }
+      // Handle @n8n/n8n-nodes-langchain -> nodes-langchain
+      else if (targetNode.type.startsWith('@n8n/n8n-nodes-langchain.')) {
+        normalizedType = targetNode.type.replace('@n8n/n8n-nodes-langchain.', 'nodes-langchain.');
+        targetNodeInfo = this.nodeRepository.getNode(normalizedType);
+      }
+    }
+    
+    if (targetNodeInfo && !targetNodeInfo.isAITool && targetNodeInfo.package !== 'n8n-nodes-base') {
+      // It's a community node being used as a tool
+      result.warnings.push({
+        type: 'warning',
+        nodeId: targetNode.id,
+        nodeName: targetNode.name,
+        message: `Community node "${targetNode.name}" is being used as an AI tool. Ensure N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true is set.`
+      });
+    }
   }
 
   /**
@@ -443,6 +506,18 @@ export class WorkflowValidator {
         
         if (connections.main) {
           connections.main.flat().forEach(conn => {
+            if (conn) allTargets.push(conn.node);
+          });
+        }
+        
+        if (connections.error) {
+          connections.error.flat().forEach(conn => {
+            if (conn) allTargets.push(conn.node);
+          });
+        }
+        
+        if (connections.ai_tool) {
+          connections.ai_tool.flat().forEach(conn => {
             if (conn) allTargets.push(conn.node);
           });
         }
@@ -576,6 +651,38 @@ export class WorkflowValidator {
             });
           }
         }
+      }
+    }
+
+    // Check for AI Agent workflows
+    const aiAgentNodes = workflow.nodes.filter(n => 
+      n.type.toLowerCase().includes('agent') || 
+      n.type.includes('langchain.agent')
+    );
+    
+    if (aiAgentNodes.length > 0) {
+      // Check if AI agents have tools connected
+      for (const agentNode of aiAgentNodes) {
+        const connections = workflow.connections[agentNode.name];
+        if (!connections?.ai_tool || connections.ai_tool.flat().filter(c => c).length === 0) {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: agentNode.id,
+            nodeName: agentNode.name,
+            message: 'AI Agent has no tools connected. Consider adding tools to enhance agent capabilities.'
+          });
+        }
+      }
+      
+      // Check for community nodes used as tools
+      const hasAIToolConnections = Object.values(workflow.connections).some(
+        outputs => outputs.ai_tool && outputs.ai_tool.length > 0
+      );
+      
+      if (hasAIToolConnections) {
+        result.suggestions.push(
+          'For community nodes used as AI tools, ensure N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true is set'
+        );
       }
     }
   }

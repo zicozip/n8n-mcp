@@ -54,7 +54,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_info',
-    description: `Get COMPLETE technical schema for a node. WARNING: Returns massive JSON (often 100KB+) with all properties, operations, credentials. Contains duplicates and complex conditional logic. TIPS: 1) Use get_node_essentials first for common use cases, 2) Try get_node_documentation for human-readable info, 3) Look for "required":true properties, 4) Find properties without "displayOptions" for simpler versions. Node type MUST include prefix: "nodes-base.httpRequest" NOT "httpRequest".`,
+    description: `Get COMPLETE technical schema for a node. WARNING: Returns massive JSON (often 100KB+) with all properties, operations, credentials. Contains duplicates and complex conditional logic. TIPS: 1) Use get_node_essentials first for common use cases, 2) Try get_node_documentation for human-readable info, 3) Look for "required":true properties, 4) Find properties without "displayOptions" for simpler versions. Node type MUST include prefix: "nodes-base.httpRequest" NOT "httpRequest". NOW INCLUDES: aiToolCapabilities section showing how to use any node as an AI tool.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -87,7 +87,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'list_ai_tools',
-    description: `List all 263 nodes that AI agents can use as function-calling tools. These have usableAsTool=true and work with OpenAI Assistants, LangChain agents, etc. Simpler than list_nodes - just returns names and descriptions. Great for finding nodes to give AI agents real-world capabilities (send emails, query databases, call APIs). Note: n8n needs N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true.`,
+    description: `List all 263 nodes marked with usableAsTool=true property. IMPORTANT: ANY node in n8n can be used as an AI tool - not just these! These nodes are optimized for AI usage but you can connect any node (Slack, Google Sheets, HTTP Request, etc.) to an AI Agent's tool port. Returns names and descriptions. For community nodes as tools, set N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true. Use get_node_as_tool_info for guidance on using any node as a tool.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -240,6 +240,20 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
     },
   },
   {
+    name: 'get_node_as_tool_info',
+    description: `Get specific information about using a node as an AI tool. Returns whether the node can be used as a tool, common use cases, requirements, and examples. Essential for understanding how to connect regular nodes to AI Agents. Works for ANY node - not just those marked as AI tools.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        nodeType: {
+          type: 'string',
+          description: 'Full node type WITH prefix: "nodes-base.slack", "nodes-base.googleSheets", etc.',
+        },
+      },
+      required: ['nodeType'],
+    },
+  },
+  {
     name: 'list_node_templates',
     description: `List workflow templates that use specific node type(s). Returns ready-to-use workflows from n8n.io community. Templates are from the last year (399 total). Use FULL node types like "n8n-nodes-base.httpRequest" or "@n8n/n8n-nodes-langchain.openAi". Great for finding proven workflow patterns.`,
     inputSchema: {
@@ -320,7 +334,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_workflow',
-    description: `Validate an entire n8n workflow before deployment. Checks: workflow structure, node connections, expressions, best practices, and more. Returns comprehensive validation report with errors, warnings, and suggestions. Essential for AI agents building complete workflows. Prevents common workflow errors before they happen.`,
+    description: `Validate an entire n8n workflow before deployment. Checks: workflow structure, node connections (including ai_tool connections), expressions, best practices, AI Agent configurations, and more. Returns comprehensive validation report with errors, warnings, and suggestions. Essential for AI agents building complete workflows. Validates AI tool connections and $fromAI() expressions. Prevents common workflow errors before they happen.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -361,7 +375,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_workflow_connections',
-    description: `Validate only the connections in a workflow. Checks: all connections point to existing nodes, no cycles (infinite loops), no orphaned nodes, proper trigger node setup. Faster than full validation when you only need to check workflow structure.`,
+    description: `Validate only the connections in a workflow. Checks: all connections point to existing nodes, no cycles (infinite loops), no orphaned nodes, proper trigger node setup, AI tool connections are valid. Validates ai_tool connection types between AI Agents and tool nodes. Faster than full validation when you only need to check workflow structure.`,
     inputSchema: {
       type: 'object',
       properties: {

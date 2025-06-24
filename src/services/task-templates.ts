@@ -461,6 +461,107 @@ return results;`
           description: 'Attach files to the email'
         }
       ]
+    },
+    
+    // AI Tool Usage Tasks
+    'use_google_sheets_as_tool': {
+      task: 'use_google_sheets_as_tool',
+      description: 'Use Google Sheets as an AI tool for reading/writing data',
+      nodeType: 'nodes-base.googleSheets',
+      configuration: {
+        operation: 'append',
+        sheetId: '={{ $fromAI("sheetId", "The Google Sheets ID") }}',
+        range: '={{ $fromAI("range", "The range to append to, e.g. A:Z") }}',
+        dataMode: 'autoMap'
+      },
+      userMustProvide: [
+        {
+          property: 'Google Sheets credentials',
+          description: 'Configure Google Sheets API credentials in n8n'
+        },
+        {
+          property: 'Tool name in AI Agent',
+          description: 'Give it a descriptive name like "Log Results to Sheet"'
+        },
+        {
+          property: 'Tool description',
+          description: 'Describe when and how the AI should use this tool'
+        }
+      ],
+      notes: [
+        'Connect this node to the ai_tool port of an AI Agent node',
+        'The AI can dynamically determine sheetId and range using $fromAI',
+        'Works great for logging AI analysis results or reading data for processing'
+      ]
+    },
+    
+    'use_slack_as_tool': {
+      task: 'use_slack_as_tool',
+      description: 'Use Slack as an AI tool for sending notifications',
+      nodeType: 'nodes-base.slack',
+      configuration: {
+        resource: 'message',
+        operation: 'post',
+        channel: '={{ $fromAI("channel", "The Slack channel, e.g. #general") }}',
+        text: '={{ $fromAI("message", "The message to send") }}',
+        attachments: []
+      },
+      userMustProvide: [
+        {
+          property: 'Slack credentials',
+          description: 'Configure Slack OAuth2 credentials in n8n'
+        },
+        {
+          property: 'Tool configuration in AI Agent',
+          description: 'Name it something like "Send Slack Notification"'
+        }
+      ],
+      notes: [
+        'Perfect for AI agents that need to notify teams',
+        'The AI determines channel and message content dynamically',
+        'Can be enhanced with blocks for rich formatting'
+      ]
+    },
+    
+    'multi_tool_ai_agent': {
+      task: 'multi_tool_ai_agent',
+      description: 'AI agent with multiple tools for complex automation',
+      nodeType: 'nodes-langchain.agent',
+      configuration: {
+        text: '={{ $json.query }}',
+        outputType: 'output',
+        systemMessage: 'You are an intelligent assistant with access to multiple tools. Use them wisely to complete tasks.'
+      },
+      userMustProvide: [
+        {
+          property: 'AI model credentials',
+          description: 'OpenAI, Anthropic, or other LLM credentials'
+        },
+        {
+          property: 'Multiple tool nodes',
+          description: 'Connect various nodes to the ai_tool port'
+        },
+        {
+          property: 'Tool descriptions',
+          description: 'Clear descriptions for each connected tool'
+        }
+      ],
+      optionalEnhancements: [
+        {
+          property: 'Memory',
+          description: 'Add memory nodes for conversation context'
+        },
+        {
+          property: 'Custom tools',
+          description: 'Create Code nodes as custom tools'
+        }
+      ],
+      notes: [
+        'Connect multiple nodes: HTTP Request, Slack, Google Sheets, etc.',
+        'Each tool should have a clear, specific purpose',
+        'Test each tool individually before combining',
+        'Set N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true for community nodes'
+      ]
     }
   };
   
@@ -509,9 +610,10 @@ return results;`
       'HTTP/API': ['get_api_data', 'post_json_request', 'call_api_with_auth'],
       'Webhooks': ['receive_webhook', 'webhook_with_response'],
       'Database': ['query_postgres', 'insert_postgres_data'],
-      'AI/LangChain': ['chat_with_ai', 'ai_agent_workflow'],
+      'AI/LangChain': ['chat_with_ai', 'ai_agent_workflow', 'multi_tool_ai_agent'],
       'Data Processing': ['transform_data', 'filter_data'],
-      'Communication': ['send_slack_message', 'send_email']
+      'Communication': ['send_slack_message', 'send_email'],
+      'AI Tool Usage': ['use_google_sheets_as_tool', 'use_slack_as_tool', 'multi_tool_ai_agent']
     };
   }
 }
