@@ -68,6 +68,9 @@ export class EnhancedConfigValidator extends ConfigValidator {
     // Add operation-specific enhancements
     this.addOperationSpecificEnhancements(nodeType, config, enhancedResult);
     
+    // Deduplicate errors
+    enhancedResult.errors = this.deduplicateErrors(enhancedResult.errors);
+    
     // Add examples from ExampleGenerator if there are errors
     if (enhancedResult.errors.length > 0) {
       this.addExamplesFromGenerator(nodeType, enhancedResult);
@@ -200,6 +203,10 @@ export class EnhancedConfigValidator extends ConfigValidator {
       case 'nodes-base.httpRequest':
         // Use existing HTTP validation from base class
         this.enhanceHttpRequestValidation(config, result);
+        break;
+        
+      case 'nodes-base.code':
+        // Code node uses base validation which includes syntax checks
         break;
         
       case 'nodes-base.openAi':
@@ -406,5 +413,32 @@ export class EnhancedConfigValidator extends ConfigValidator {
         config: examples.advanced
       });
     }
+  }
+  
+  /**
+   * Deduplicate errors based on property and type
+   * Prefers more specific error messages over generic ones
+   */
+  private static deduplicateErrors(errors: ValidationError[]): ValidationError[] {
+    const seen = new Map<string, ValidationError>();
+    
+    for (const error of errors) {
+      const key = `${error.property}-${error.type}`;
+      const existing = seen.get(key);
+      
+      if (!existing) {
+        seen.set(key, error);
+      } else {
+        // Keep the error with more specific message or fix
+        const existingLength = (existing.message?.length || 0) + (existing.fix?.length || 0);
+        const newLength = (error.message?.length || 0) + (error.fix?.length || 0);
+        
+        if (newLength > existingLength) {
+          seen.set(key, error);
+        }
+      }
+    }
+    
+    return Array.from(seen.values());
   }
 }

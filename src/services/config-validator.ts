@@ -385,8 +385,10 @@ export class ConfigValidator {
         message: 'Code cannot be empty',
         fix: 'Add your code logic'
       });
+      return;
     }
     
+    // Security checks
     if (code?.includes('eval(') || code?.includes('exec(')) {
       warnings.push({
         type: 'security',
@@ -394,13 +396,23 @@ export class ConfigValidator {
         suggestion: 'Avoid using eval/exec with untrusted input'
       });
     }
+    
+    // Basic syntax validation
+    if (config.language === 'python') {
+      this.validatePythonSyntax(code, errors, warnings);
+    } else {
+      this.validateJavaScriptSyntax(code, errors, warnings);
+    }
+    
+    // n8n-specific patterns
+    this.validateN8nCodePatterns(code, config.language || 'javascript', warnings);
   }
   
   /**
    * Check for common configuration issues
    */
   private static checkCommonIssues(
-    nodeType: string,
+    _nodeType: string,
     config: Record<string, any>,
     properties: any[],
     warnings: ValidationWarning[],
@@ -411,6 +423,11 @@ export class ConfigValidator {
     const configuredKeys = Object.keys(config);
     
     for (const key of configuredKeys) {
+      // Skip internal properties that are always present
+      if (key === '@version' || key.startsWith('_')) {
+        continue;
+      }
+      
       if (!visibleProps.find(p => p.name === key)) {
         warnings.push({
           type: 'inefficient',
@@ -461,6 +478,131 @@ export class ConfigValidator {
             break;
           }
         }
+      }
+    }
+  }
+  
+  /**
+   * Basic JavaScript syntax validation
+   */
+  private static validateJavaScriptSyntax(
+    code: string,
+    errors: ValidationError[],
+    warnings: ValidationWarning[]
+  ): void {
+    // Check for common syntax errors
+    const openBraces = (code.match(/\{/g) || []).length;
+    const closeBraces = (code.match(/\}/g) || []).length;
+    if (openBraces !== closeBraces) {
+      errors.push({
+        type: 'invalid_value',
+        property: 'jsCode',
+        message: 'Unbalanced braces detected',
+        fix: 'Check that all { have matching }'
+      });
+    }
+    
+    const openParens = (code.match(/\(/g) || []).length;
+    const closeParens = (code.match(/\)/g) || []).length;
+    if (openParens !== closeParens) {
+      errors.push({
+        type: 'invalid_value',
+        property: 'jsCode',
+        message: 'Unbalanced parentheses detected',
+        fix: 'Check that all ( have matching )'
+      });
+    }
+    
+    // Check for unterminated strings
+    const stringMatches = code.match(/(["'`])(?:(?=(\\?))\2.)*?\1/g) || [];
+    const quotesInStrings = stringMatches.join('').match(/["'`]/g)?.length || 0;
+    const totalQuotes = (code.match(/["'`]/g) || []).length;
+    if ((totalQuotes - quotesInStrings) % 2 !== 0) {
+      warnings.push({
+        type: 'inefficient',
+        message: 'Possible unterminated string detected',
+        suggestion: 'Check that all strings are properly closed'
+      });
+    }
+  }
+  
+  /**
+   * Basic Python syntax validation
+   */
+  private static validatePythonSyntax(
+    code: string,
+    errors: ValidationError[],
+    warnings: ValidationWarning[]
+  ): void {
+    // Check indentation consistency
+    const lines = code.split('\n');
+    const indentTypes = new Set<string>();
+    
+    lines.forEach(line => {
+      const indent = line.match(/^(\s+)/);
+      if (indent) {
+        if (indent[1].includes('\t')) indentTypes.add('tabs');
+        if (indent[1].includes(' ')) indentTypes.add('spaces');
+      }
+    });
+    
+    if (indentTypes.size > 1) {
+      errors.push({
+        type: 'invalid_value',
+        property: 'pythonCode',
+        message: 'Mixed tabs and spaces in indentation',
+        fix: 'Use either tabs or spaces consistently, not both'
+      });
+    }
+    
+    // Check for colons after control structures
+    const controlStructures = /^\s*(if|elif|else|for|while|def|class|try|except|finally|with)\s+.*[^:]\s*$/gm;
+    if (controlStructures.test(code)) {
+      warnings.push({
+        type: 'inefficient',
+        message: 'Missing colon after control structure',
+        suggestion: 'Add : at the end of if/for/def/class statements'
+      });
+    }
+  }
+  
+  /**
+   * Validate n8n-specific code patterns
+   */
+  private static validateN8nCodePatterns(
+    code: string,
+    language: string,
+    warnings: ValidationWarning[]
+  ): void {
+    // Check for return statement
+    const hasReturn = language === 'python' 
+      ? /return\s+/.test(code)
+      : /return\s+/.test(code);
+    
+    if (!hasReturn) {
+      warnings.push({
+        type: 'missing_common',
+        message: 'No return statement found',
+        suggestion: 'Code node should return data for the next node. Add: return items (Python) or return items; (JavaScript)'
+      });
+    }
+    
+    // Check for common n8n patterns
+    if (language === 'javascript') {
+      if (!code.includes('items') && !code.includes('$input')) {
+        warnings.push({
+          type: 'missing_common',
+          message: 'Code doesn\'t reference input items',
+          suggestion: 'Access input data with: items or $input.all()'
+        });
+      }
+    } else if (language === 'python') {
+      if (!code.includes('items') && !code.includes('_input')) {
+        warnings.push({
+          type: 'missing_common',
+          message: 'Code doesn\'t reference input items',
+          suggestion: 'Access input data with: items variable'
+        });
       }
     }
   }
