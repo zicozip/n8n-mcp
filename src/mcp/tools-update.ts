@@ -180,18 +180,18 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
     },
   },
   {
-    name: 'validate_node_config',
-    description: `Check node configuration structure and property dependencies. Works well for simple nodes but shows many false positives for complex multi-operation nodes. Reveals which fields are visible/hidden based on settings. Does NOT validate code syntax or catch runtime errors. Useful for learning node structure, less reliable for pre-execution validation.`,
+    name: 'validate_node_operation',
+    description: `Verify your node configuration is correct before using it. Checks: required fields are present, values are valid types/formats, operation-specific rules are met. Returns specific errors with fixes (e.g., "Channel required to send Slack message - add channel: '#general'"), warnings about common issues, working examples when errors found, and suggested next steps. Smart validation that only checks properties relevant to your selected operation/action. Essential for Slack, Google Sheets, MongoDB, OpenAI nodes.`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
-          description: 'The node type to validate (e.g., "nodes-base.httpRequest")',
+          description: 'The node type to validate (e.g., "nodes-base.slack")',
         },
         config: {
           type: 'object',
-          description: 'The node configuration to validate',
+          description: 'Your node configuration. Must include operation fields (resource/operation/action) if the node has multiple operations.',
         },
       },
       required: ['nodeType', 'config'],
@@ -300,10 +300,11 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
  * QUICK REFERENCE for AI Agents:
  * 
  * 1. RECOMMENDED WORKFLOW:
- *    - Start: search_nodes → get_node_essentials → get_node_for_task → validate_node_config
+ *    - Start: search_nodes → get_node_essentials → get_node_for_task → validate_node_operation
  *    - Discovery: list_nodes({category:"trigger"}) for browsing categories
  *    - Quick Config: get_node_essentials("nodes-base.httpRequest") - only essential properties
  *    - Full Details: get_node_info only when essentials aren't enough
+ *    - Validation: Use validate_node_operation for complex nodes (Slack, Google Sheets, etc.)
  * 
  * 2. COMMON NODE TYPES:
  *    Triggers: webhook, schedule, emailReadImap, slackTrigger

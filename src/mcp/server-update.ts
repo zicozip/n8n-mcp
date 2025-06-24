@@ -15,6 +15,7 @@ import { PropertyFilter } from '../services/property-filter';
 import { ExampleGenerator } from '../services/example-generator';
 import { TaskTemplates } from '../services/task-templates';
 import { ConfigValidator } from '../services/config-validator';
+import { EnhancedConfigValidator, ValidationMode } from '../services/enhanced-config-validator';
 import { PropertyDependencies } from '../services/property-dependencies';
 import { SimpleCache } from '../utils/simple-cache';
 import { TemplateService } from '../templates/template-service';
@@ -187,8 +188,8 @@ export class N8NDocumentationMCPServer {
         return this.getNodeForTask(args.task);
       case 'list_tasks':
         return this.listTasks(args.category);
-      case 'validate_node_config':
-        return this.validateNodeConfig(args.nodeType, args.config);
+      case 'validate_node_operation':
+        return this.validateNodeConfig(args.nodeType, args.config, 'operation');
       case 'get_property_dependencies':
         return this.getPropertyDependencies(args.nodeType, args.config);
       case 'list_node_templates':
@@ -701,7 +702,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     return result;
   }
   
-  private async validateNodeConfig(nodeType: string, config: Record<string, any>): Promise<any> {
+  private async validateNodeConfig(nodeType: string, config: Record<string, any>, mode: ValidationMode = 'operation'): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
     
@@ -733,8 +734,13 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     // Get properties
     const properties = node.properties || [];
     
-    // Validate configuration
-    const validationResult = ConfigValidator.validate(node.nodeType, config, properties);
+    // Use enhanced validator with operation mode by default
+    const validationResult = EnhancedConfigValidator.validateWithMode(
+      node.nodeType, 
+      config, 
+      properties, 
+      mode
+    );
     
     // Add node context to result
     return {

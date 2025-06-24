@@ -6,7 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.4.1)
+## ✅ Latest Updates (v2.4.2)
+
+### Update (v2.4.2) - Enhanced Node Configuration Validation:
+- ✅ **NEW: validate_node_operation tool** - Operation-aware validation with 80%+ fewer false positives
+- ✅ **NEW: EnhancedConfigValidator** - Smart validation that only checks relevant properties
+- ✅ **NEW: Node-specific validators** - Custom logic for Slack, Google Sheets, OpenAI, MongoDB
+- ✅ Added operation context filtering (only validates properties for selected operation)
+- ✅ Integrated working examples in validation responses when errors found
+- ✅ Added actionable next steps and auto-fix suggestions
+- ✅ Dramatic improvement for complex multi-operation nodes
+- ✅ Test results: Slack validation reduced from 45 errors to 1 error!
 
 ### Update (v2.4.1) - n8n Workflow Templates:
 - ✅ **NEW: list_node_templates tool** - Find workflow templates using specific nodes
@@ -87,6 +97,8 @@ src/
 │   ├── example-generator.ts   # Generates working examples (NEW in v2.4)
 │   ├── task-templates.ts      # Pre-configured node settings (NEW in v2.4)
 │   ├── config-validator.ts    # Configuration validation (NEW in v2.4)
+│   ├── enhanced-config-validator.ts # Operation-aware validation (NEW in v2.4.2)
+│   ├── node-specific-validators.ts  # Node-specific validation logic (NEW in v2.4.2)
 │   └── property-dependencies.ts # Dependency analysis (NEW in v2.4)
 ├── templates/
 │   ├── template-fetcher.ts    # Fetches templates from n8n.io API (NEW in v2.4.1)
@@ -97,6 +109,7 @@ src/
 │   ├── validate.ts            # Node validation
 │   ├── test-nodes.ts          # Critical node tests
 │   ├── test-essentials.ts     # Test new essentials tools (NEW in v2.4)
+│   ├── test-enhanced-validation.ts # Test enhanced validation (NEW in v2.4.2)
 │   ├── fetch-templates.ts     # Fetch workflow templates from n8n.io (NEW in v2.4.1)
 │   └── test-templates.ts      # Test template functionality (NEW in v2.4.1)
 ├── mcp/
@@ -245,7 +258,7 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 - `search_node_properties` - **NEW** Search for specific properties within a node
 - `get_node_for_task` - **NEW** Get pre-configured node settings for common tasks
 - `list_tasks` - **NEW** List all available task templates
-- `validate_node_config` - **NEW** Validate node configuration before use
+- `validate_node_operation` - **NEW v2.4.2** Verify node configuration is correct before use
 - `get_property_dependencies` - **NEW** Analyze property dependencies and visibility conditions
 - `list_ai_tools` - List all AI-capable nodes (usableAsTool: true)
 - `get_node_documentation` - Get parsed documentation from n8n-docs

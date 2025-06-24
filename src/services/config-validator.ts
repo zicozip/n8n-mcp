@@ -120,7 +120,7 @@ export class ConfigValidator {
   /**
    * Check if a property is visible given current config
    */
-  private static isPropertyVisible(prop: any, config: Record<string, any>): boolean {
+  protected static isPropertyVisible(prop: any, config: Record<string, any>): boolean {
     if (!prop.displayOptions) return true;
     
     // Check show conditions
