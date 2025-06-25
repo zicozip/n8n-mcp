@@ -27,8 +27,8 @@ docker compose up -d
 
 ### Prerequisites
 
-- Docker Desktop or Docker Engine
-- Docker Compose (included with Docker Desktop)
+- Docker Engine (install via package manager or Docker Desktop)
+- Docker Compose V2 (included with modern Docker installations)
 
 ### Method 1: Using Pre-built Images
 

@@ -5,7 +5,7 @@ This guide provides comprehensive instructions for deploying n8n-MCP using Docke
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Docker Engine 20.10+ or Docker Desktop
+- Docker Engine 20.10+ (Docker Desktop on Windows/macOS, or Docker Engine on Linux)
 - Docker Compose V2
 - (Optional) openssl for generating auth tokens
 

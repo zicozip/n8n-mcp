@@ -37,7 +37,52 @@ Get n8n-MCP running in 5 minutes:
 
 ### Option 1: Docker (Easiest) 🚀
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on your system
+**Prerequisites:** Docker installed on your system
+
+<details>
+<summary><strong>📦 Install Docker</strong> (click to expand)</summary>
+
+**macOS:**
+```bash
+# Using Homebrew
+brew install --cask docker
+
+# Or download from https://www.docker.com/products/docker-desktop/
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+# Update package index
+sudo apt-get update
+
+# Install Docker
+sudo apt-get install docker.io
+
+# Start Docker service
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add your user to docker group (optional, to run without sudo)
+sudo usermod -aG docker $USER
+# Log out and back in for this to take effect
+```
+
+**Windows:**
+```bash
+# Option 1: Using winget (Windows Package Manager)
+winget install Docker.DockerDesktop
+
+# Option 2: Using Chocolatey
+choco install docker-desktop
+
+# Option 3: Download installer from https://www.docker.com/products/docker-desktop/
+```
+
+**Verify installation:**
+```bash
+docker --version
+```
+</details>
 
 ```bash
 # Pull the Docker image (~280MB, no n8n dependencies!)

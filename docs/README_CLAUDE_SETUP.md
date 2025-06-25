@@ -6,7 +6,7 @@ This guide helps you connect n8n-MCP to Claude Desktop, giving Claude comprehens
 
 - Claude Desktop installed
 - For local installation: Node.js (any version)
-- For Docker: Docker Desktop or Docker Engine
+- For Docker: Docker installed (see installation instructions in main README)
 
 ## 🛠️ Configuration Methods
 
