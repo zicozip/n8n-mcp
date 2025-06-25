@@ -142,7 +142,12 @@ Add to Claude Desktop config:
   "mcpServers": {
     "n8n-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/n8n-mcp/dist/mcp/index.js"]
+      "args": ["/absolute/path/to/n8n-mcp/dist/mcp/index.js"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true"
+      }
     }
   }
 }
