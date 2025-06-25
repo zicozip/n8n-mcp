@@ -27,6 +27,10 @@
     "test:templates": "node dist/scripts/test-templates.js",
     "test:workflow-validation": "node dist/scripts/test-workflow-validation.js",
     "test:template-validation": "node dist/scripts/test-template-validation.js",
+    "test:essentials": "node dist/scripts/test-essentials.js",
+    "test:enhanced-validation": "node dist/scripts/test-enhanced-validation.js",
+    "test:ai-workflow-validation": "node dist/scripts/test-ai-workflow-validation.js",
+    "test:mcp-tools": "node dist/scripts/test-mcp-tools.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
     "docs:rebuild": "ts-node src/scripts/rebuild-database.ts"

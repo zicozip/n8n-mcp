@@ -185,7 +185,16 @@ npm run test-nodes   # Test critical node properties/operations
 
 # Template Commands:
 npm run fetch:templates   # Fetch workflow templates from n8n.io (manual)
+npm run fetch:templates:robust  # Robust template fetching with retries
 npm run test:templates    # Test template functionality
+
+# Test Commands:
+npm run test:essentials     # Test new essentials tools
+npm run test:enhanced-validation  # Test enhanced validation
+npm run test:ai-workflow-validation  # Test AI workflow validation
+npm run test:mcp-tools      # Test MCP tool enhancements
+npm run test:single-session # Test single session HTTP
+npm run test:template-validation  # Test template validation
 
 # Workflow Validation Commands:
 npm run test:workflow-validation   # Test workflow validation features
@@ -196,6 +205,8 @@ npm run update:n8n        # Update n8n packages to latest versions
 
 # HTTP Server Commands:
 npm run start:http   # Start server in HTTP mode
+npm run start:http:fixed    # Start with fixed HTTP implementation
+npm run start:http:legacy   # Start with legacy HTTP server
 npm run http         # Build and start HTTP server
 npm run dev:http     # HTTP server with auto-reload
 
@@ -223,7 +234,7 @@ The project includes ultra-optimized Docker support with NO n8n dependencies at 
 
 ### 🚀 Key Optimization: Runtime-Only Dependencies
 **Important**: Since the database is always pre-built before deployment, the Docker image contains NO n8n dependencies. This results in:
-- **87% smaller images** (~200MB vs ~1.5GB)
+- **82% smaller images** (~280MB vs ~1.5GB)
 - **10x faster builds** (~1-2 minutes vs ~12 minutes)
 - **No n8n version conflicts** at runtime
 - **Minimal attack surface** for security
@@ -251,7 +262,7 @@ The Docker image contains ONLY these runtime dependencies:
 - `dotenv` - Environment configuration
 
 ### Docker Features
-- **Ultra-optimized size** (~200MB runtime-only)
+- **Ultra-optimized size** (~280MB runtime-only)
 - **No n8n dependencies** in production image
 - **Pre-built database** required (nodes.db)
 - **BuildKit optimizations** for fast builds
@@ -261,7 +272,7 @@ The Docker image contains ONLY these runtime dependencies:
 ### Docker Images
 - `ghcr.io/czlonkowski/n8n-mcp:latest` - Runtime-only production image
 - Multi-architecture support (amd64, arm64)
-- ~200MB compressed size (87% smaller!)
+- ~280MB compressed size (82% smaller!)
 
 ### Docker Development
 ```bash
@@ -585,7 +596,7 @@ search_node_properties("nodes-base.httpRequest", "auth")  # Find specific option
 3. Separate `package.runtime.json` for clarity
 
 **Results**:
-- **87% smaller images** (200MB vs 1.5GB)
+- **82% smaller images** (280MB vs 1.5GB)
 - **10x faster builds** (1-2 minutes vs 12+ minutes)
 - **No version conflicts** - n8n updates don't affect runtime
 - **Better security** - minimal attack surface

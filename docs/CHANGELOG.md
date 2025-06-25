@@ -2,6 +2,100 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.1] - 2025-01-25
+
+### Added
+- **AI Tool Support Enhancement**: Major improvements to AI tool integration
+  - **NEW**: `get_node_as_tool_info` tool - Get specific information about using ANY node as an AI tool
+  - **ENHANCED**: `get_node_info` now includes `aiToolCapabilities` section for all nodes
+  - **ENHANCED**: `list_ai_tools` - Added usage guidance explaining ANY node can be used as a tool
+  - **ENHANCED**: `WorkflowValidator` - Now validates `ai_tool` connections in workflows
+  - AI workflow pattern detection - Warns when AI Agents have no tools connected
+  - Community node detection - Reminds about N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE environment variable
+  - **NEW**: AI Tool TaskTemplates - Added use_google_sheets_as_tool, use_slack_as_tool, multi_tool_ai_agent
+  - Comprehensive examples showing how to connect regular nodes as AI tools
+  - Tool usage documentation with $fromAI() expression examples
+
+### Changed
+- Clarified that ANY node can be used as an AI tool, not just nodes with usableAsTool property
+- Enhanced workflow validation to understand and validate ai_tool connections
+- Improved expression validation to support $fromAI() dynamic AI parameters
+
+## [2.5.0] - 2025-01-20
+
+### Added
+- **Complete Workflow Validation**: Professional-grade workflow validation system
+  - **NEW**: `validate_workflow` tool - Validate entire workflows before deployment
+  - **NEW**: `validate_workflow_connections` tool - Check workflow structure and connections
+  - **NEW**: `validate_workflow_expressions` tool - Validate all n8n expressions in a workflow
+  - **NEW**: `ExpressionValidator` - Comprehensive n8n expression syntax validation
+  - **NEW**: `WorkflowValidator` - Complete workflow structure and logic validation
+  - Detects cycles (infinite loops) in workflows
+  - Validates node references in expressions ($node["Node Name"])
+  - Checks for orphaned nodes and missing connections
+  - Expression syntax validation with common mistake detection
+  - Workflow best practices analysis with suggestions
+  - Supports partial validation (nodes only, connections only, expressions only)
+  - Test coverage for all validation scenarios
+
+## [2.4.2] - 2025-01-15
+
+### Added
+- **Enhanced Node Configuration Validation**: Operation-aware validation with dramatic accuracy improvements
+  - **NEW**: `validate_node_operation` tool - Operation-aware validation with 80%+ fewer false positives
+  - **NEW**: `validate_node_minimal` tool - Lightning-fast validation for just required fields
+  - **NEW**: Validation profiles - Choose between minimal, runtime, ai-friendly, or strict validation
+  - **NEW**: `EnhancedConfigValidator` - Smart validation that only checks relevant properties
+  - **NEW**: Node-specific validators - Custom logic for Slack, Google Sheets, OpenAI, MongoDB, Webhook, Postgres, MySQL
+  - **NEW**: SQL safety features - Detects SQL injection risks, unsafe DELETE/UPDATE queries
+  - Added operation context filtering (only validates properties for selected operation)
+  - Integrated working examples in validation responses when errors found
+  - Added actionable next steps and auto-fix suggestions
+  - Basic code syntax validation for JavaScript/Python in Code node
+  - Dramatic improvement for complex multi-operation nodes
+  - Test results: Slack validation reduced from 45 errors to 1 error!
+
+### Removed
+- Deprecated `validate_node_config` tool in favor of new operation-aware validators
+
+## [2.4.1] - 2025-01-10
+
+### Added
+- **n8n Workflow Templates**: Integration with n8n.io template library
+  - **NEW**: `list_node_templates` tool - Find workflow templates using specific nodes
+  - **NEW**: `get_template` tool - Get complete workflow JSON for import
+  - **NEW**: `search_templates` tool - Search templates by keywords
+  - **NEW**: `get_templates_for_task` tool - Get curated templates for common tasks
+  - Added Templates system with n8n.io API integration
+  - Templates filtered to last 6 months only (freshness guarantee)
+  - Manual fetch system - not part of regular rebuild
+  - Full workflow JSON available for immediate use
+  - 10 task categories: AI automation, data sync, webhooks, etc.
+
+## [2.4.0] - 2025-01-05
+
+### Added
+- **AI-Optimized MCP Tools**: Dramatically improved AI agent experience
+  - **NEW**: `get_node_essentials` tool - Returns only 10-20 essential properties (95% size reduction)
+  - **NEW**: `search_node_properties` tool - Search for specific properties within nodes
+  - **NEW**: `get_node_for_task` tool - Pre-configured settings for 14 common tasks
+  - **NEW**: `list_tasks` tool - Discover available task templates
+  - **NEW**: `validate_node_config` tool - Validate configurations before use
+  - **NEW**: `get_property_dependencies` tool - Analyze property visibility dependencies
+  - Added PropertyFilter service with curated essential properties for 20+ nodes
+  - Added ExampleGenerator with working examples for common use cases
+  - Added TaskTemplates service with 14 pre-configured tasks
+  - Added ConfigValidator service for comprehensive validation
+  - Added PropertyDependencies service for dependency analysis
+  - Enhanced all property descriptions - 100% coverage
+  - Added version information to essentials response
+  - Response sizes reduced from 100KB+ to <5KB for common nodes
+
+### Changed
+- **License Change**: Changed from Apache 2.0 to MIT License for wider adoption
+- Fixed missing AI and LangChain node documentation
+- Improved documentation mapping for better coverage
+
 ## [2.3.3] - 2025-06-16
 
 ### Added

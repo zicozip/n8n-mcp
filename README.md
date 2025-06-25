@@ -40,11 +40,11 @@ Get n8n-MCP running in 5 minutes:
 **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed on your system
 
 ```bash
-# Pull the Docker image (~200MB, no n8n dependencies!)
+# Pull the Docker image (~280MB, no n8n dependencies!)
 docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 ```
 
-> **⚡ Ultra-optimized:** Our Docker image is 87% smaller than typical n8n images because it contains NO n8n dependencies - just the runtime MCP server with a pre-built database!
+> **⚡ Ultra-optimized:** Our Docker image is 82% smaller than typical n8n images because it contains NO n8n dependencies - just the runtime MCP server with a pre-built database!
 
 Add to Claude Desktop config:
 ```json
@@ -323,27 +323,27 @@ See [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) for detailed instructions
 ## 📚 Documentation
 
 ### Setup Guides
-- [Quick Start Guide](./docs/QUICKSTART.md) - Get running in 5 minutes
-- [Claude Desktop Setup](./docs/CLAUDE_DESKTOP_SETUP.md) - Detailed Claude configuration
+- [Installation Guide](./docs/INSTALLATION.md) - Comprehensive installation instructions
+- [Claude Desktop Setup](./docs/README_CLAUDE_SETUP.md) - Detailed Claude configuration
 - [Docker Guide](./docs/DOCKER_README.md) - Advanced Docker deployment options
 
 ### Usage & Best Practices
 - [Claude's Interview](./docs/CLAUDE_INTERVIEW.md) - Real-world impact of n8n-MCP
 - [Claude Project Instructions](#claude-project-setup) - Optimal system instructions for n8n workflows
-- [MCP Tools Reference](./docs/TOOLS_REFERENCE.md) - Detailed tool documentation
+- [MCP Tools List](#-available-mcp-tools) - Complete list of available tools
 
 ### Technical Documentation
-- [Architecture Overview](./docs/ARCHITECTURE.md) - System design and components
 - [HTTP Deployment (Beta)](./docs/HTTP_DEPLOYMENT.md) - Remote server setup
-- [Development Guide](./docs/DEVELOPMENT.md) - Contributing and local development
+- [Dependency Updates](./docs/DEPENDENCY_UPDATES.md) - Managing n8n dependencies
+- [Validation Improvements](./docs/validation-improvements-v2.4.2.md) - Validation system details
 
 ### Troubleshooting
-- [Common Issues](./docs/TROUBLESHOOTING.md) - Solutions to frequent problems
-- [FAQ](./docs/FAQ.md) - Frequently asked questions
+- [Change Log](./docs/CHANGELOG.md) - Version history and updates
+- [Docker Fixes](./docs/DOCKER_FIX_IMPLEMENTATION.md) - Docker-specific troubleshooting
 
 ## 📊 Metrics & Coverage
 
-Current database coverage (n8n v1.97.1):
+Current database coverage (n8n v1.99.1):
 
 - ✅ **525/525** nodes loaded (100%)
 - ✅ **520** nodes with properties (99%)

@@ -39,7 +39,7 @@ curl http://localhost:3000/health
 Pre-built images are available on GitHub Container Registry:
 
 ```bash
-# Pull the latest image (~150MB optimized)
+# Pull the latest image (~280MB optimized)
 docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 
 # Run with HTTP mode
@@ -434,7 +434,7 @@ secrets:
 ### Image Details
 
 - Base: `node:20-alpine`
-- Size: ~283MB compressed
+- Size: ~280MB compressed
 - Features: Pre-built database with all node information
 - Database: Complete SQLite with 525+ nodes
 - Architectures: `linux/amd64`, `linux/arm64`

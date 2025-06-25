@@ -42,8 +42,8 @@ docker run --rm n8n-mcp:latest node -e "console.log('Build OK - Runtime dependen
 echo ""
 echo "💰 Size comparison:"
 echo "   Old approach (with n8n deps): ~1.5GB"
-echo "   New approach (runtime only):  ~200MB"
-echo "   Savings: ~87% smaller!"
+echo "   New approach (runtime only):  ~280MB"
+echo "   Savings: ~82% smaller!"
 
 echo ""
 echo "✅ Build complete!"
