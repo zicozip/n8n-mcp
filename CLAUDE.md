@@ -6,7 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.5.1)
+## ✅ Latest Updates (v2.6.0)
+
+### Update (v2.6.0) - n8n Management Tools Integration:
+- ✅ **NEW: 14 n8n management tools** - Create, update, execute workflows via API
+- ✅ **NEW: n8n_create_workflow** - Create workflows programmatically
+- ✅ **NEW: n8n_update_workflow** - Update existing workflows
+- ✅ **NEW: n8n_trigger_webhook_workflow** - Execute workflows via webhooks
+- ✅ **NEW: n8n_list_executions** - Monitor workflow executions
+- ✅ **NEW: n8n_health_check** - Check n8n instance connectivity
+- ✅ Integrated n8n-manager-for-ai-agents functionality
+- ✅ Optional feature - only enabled when N8N_API_URL and N8N_API_KEY configured
+- ✅ Complete workflow lifecycle: discover → build → validate → deploy → execute
+- ✅ Smart error handling for API limitations (activation, direct execution)
+- ✅ Conditional tool registration based on configuration
+
+## ✅ Previous Updates (v2.5.1)
 
 ### Update (v2.5.1) - AI Tool Support Enhancements:
 - ✅ **NEW: get_node_as_tool_info tool** - Get specific information about using ANY node as an AI tool
@@ -195,6 +210,7 @@ npm run test:ai-workflow-validation  # Test AI workflow validation
 npm run test:mcp-tools      # Test MCP tool enhancements
 npm run test:single-session # Test single session HTTP
 npm run test:template-validation  # Test template validation
+npm run test:n8n-manager   # Test n8n management tools integration
 
 # Workflow Validation Commands:
 npm run test:workflow-validation   # Test workflow validation features
@@ -320,6 +336,29 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 - `get_template` - **NEW** Get complete workflow JSON for import
 - `search_templates` - **NEW** Search templates by keywords
 - `get_templates_for_task` - **NEW** Get curated templates for common tasks
+
+### n8n Management Tools (NEW v2.6.0 - Requires API Configuration)
+These tools are only available when N8N_API_URL and N8N_API_KEY are configured:
+
+#### Workflow Management
+- `n8n_create_workflow` - Create new workflows with nodes and connections
+- `n8n_get_workflow` - Get complete workflow by ID
+- `n8n_get_workflow_details` - Get workflow with execution statistics
+- `n8n_get_workflow_structure` - Get simplified workflow structure
+- `n8n_get_workflow_minimal` - Get minimal workflow info
+- `n8n_update_workflow` - Update existing workflows
+- `n8n_delete_workflow` - Delete workflows permanently
+- `n8n_list_workflows` - List workflows with filtering
+
+#### Execution Management
+- `n8n_trigger_webhook_workflow` - Trigger workflows via webhook URL
+- `n8n_get_execution` - Get execution details by ID
+- `n8n_list_executions` - List executions with status filtering
+- `n8n_delete_execution` - Delete execution records
+
+#### System Tools
+- `n8n_health_check` - Check n8n API connectivity and features
+- `n8n_list_available_tools` - List all available management tools
 
 ### Database Structure
 Uses SQLite with enhanced schema:

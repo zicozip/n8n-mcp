@@ -8,6 +8,7 @@ import {
 import { existsSync } from 'fs';
 import path from 'path';
 import { n8nDocumentationToolsFinal } from './tools-update';
+import { n8nManagementTools } from './tools-n8n-manager';
 import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
@@ -20,6 +21,8 @@ import { PropertyDependencies } from '../services/property-dependencies';
 import { SimpleCache } from '../utils/simple-cache';
 import { TemplateService } from '../templates/template-service';
 import { WorkflowValidator } from '../services/workflow-validator';
+import { isN8nApiConfigured } from '../config/n8n-api';
+import * as n8nHandlers from './handlers-n8n-manager';
 
 interface NodeRow {
   node_type: string;
@@ -130,9 +133,19 @@ export class N8NDocumentationMCPServer {
     });
 
     // Handle tool listing
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: n8nDocumentationToolsFinal,
-    }));
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      // Combine documentation tools with management tools if API is configured
+      const tools = [...n8nDocumentationToolsFinal];
+      
+      if (isN8nApiConfigured()) {
+        tools.push(...n8nManagementTools);
+        logger.info('n8n management tools enabled');
+      } else {
+        logger.info('n8n management tools disabled (API not configured)');
+      }
+      
+      return { tools };
+    });
 
     // Handle tool execution
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -211,6 +224,37 @@ export class N8NDocumentationMCPServer {
         return this.validateWorkflowConnections(args.workflow);
       case 'validate_workflow_expressions':
         return this.validateWorkflowExpressions(args.workflow);
+      
+      // n8n Management Tools (if API is configured)
+      case 'n8n_create_workflow':
+        return n8nHandlers.handleCreateWorkflow(args);
+      case 'n8n_get_workflow':
+        return n8nHandlers.handleGetWorkflow(args);
+      case 'n8n_get_workflow_details':
+        return n8nHandlers.handleGetWorkflowDetails(args);
+      case 'n8n_get_workflow_structure':
+        return n8nHandlers.handleGetWorkflowStructure(args);
+      case 'n8n_get_workflow_minimal':
+        return n8nHandlers.handleGetWorkflowMinimal(args);
+      case 'n8n_update_workflow':
+        return n8nHandlers.handleUpdateWorkflow(args);
+      case 'n8n_delete_workflow':
+        return n8nHandlers.handleDeleteWorkflow(args);
+      case 'n8n_list_workflows':
+        return n8nHandlers.handleListWorkflows(args);
+      case 'n8n_trigger_webhook_workflow':
+        return n8nHandlers.handleTriggerWebhookWorkflow(args);
+      case 'n8n_get_execution':
+        return n8nHandlers.handleGetExecution(args);
+      case 'n8n_list_executions':
+        return n8nHandlers.handleListExecutions(args);
+      case 'n8n_delete_execution':
+        return n8nHandlers.handleDeleteExecution(args);
+      case 'n8n_health_check':
+        return n8nHandlers.handleHealthCheck();
+      case 'n8n_list_available_tools':
+        return n8nHandlers.handleListAvailableTools();
+        
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

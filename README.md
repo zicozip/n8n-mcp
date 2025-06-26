@@ -104,6 +104,9 @@ Add to Claude Desktop config:
         "-e", "MCP_MODE=stdio",
         "-e", "LOG_LEVEL=error",
         "-e", "DISABLE_CONSOLE_OUTPUT=true",
+        // Optional: Enable n8n management tools
+        // "-e", "N8N_API_URL=https://your-n8n-instance.com",
+        // "-e", "N8N_API_KEY=your-api-key",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
       ]
     }
@@ -191,6 +194,29 @@ Once connected, Claude can use these powerful tools:
 - **`get_node_documentation`** - Get parsed documentation from n8n-docs
 - **`get_database_statistics`** - View database metrics and coverage
 
+### n8n Management Tools (NEW! Requires API Configuration)
+These tools allow you to manage n8n workflows directly. Configure with `N8N_API_URL` and `N8N_API_KEY`.
+
+#### Workflow Management
+- **`n8n_create_workflow`** - Create new workflows with nodes and connections
+- **`n8n_get_workflow`** - Get complete workflow by ID
+- **`n8n_get_workflow_details`** - Get workflow with execution statistics
+- **`n8n_get_workflow_structure`** - Get simplified workflow structure
+- **`n8n_get_workflow_minimal`** - Get minimal workflow info (ID, name, active status)
+- **`n8n_update_workflow`** - Update existing workflows
+- **`n8n_delete_workflow`** - Delete workflows permanently
+- **`n8n_list_workflows`** - List workflows with filtering and pagination
+
+#### Execution Management
+- **`n8n_trigger_webhook_workflow`** - Trigger workflows via webhook URL
+- **`n8n_get_execution`** - Get execution details by ID
+- **`n8n_list_executions`** - List executions with status filtering
+- **`n8n_delete_execution`** - Delete execution records
+
+#### System Tools
+- **`n8n_health_check`** - Check n8n API connectivity and features
+- **`n8n_list_available_tools`** - List all available management tools
+
 ### Example Usage
 
 ```typescript
@@ -237,7 +263,10 @@ If you prefer running locally:
         "NODE_ENV": "production",
         "LOG_LEVEL": "error",
         "MCP_MODE": "stdio",
-        "DISABLE_CONSOLE_OUTPUT": "true"
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        // Optional: Enable n8n management tools
+        // "N8N_API_URL": "https://your-n8n-instance.com",
+        // "N8N_API_KEY": "your-api-key"
       }
     }
   }

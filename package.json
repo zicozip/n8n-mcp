@@ -31,6 +31,7 @@
     "test:enhanced-validation": "node dist/scripts/test-enhanced-validation.js",
     "test:ai-workflow-validation": "node dist/scripts/test-ai-workflow-validation.js",
     "test:mcp-tools": "node dist/scripts/test-mcp-tools.js",
+    "test:n8n-manager": "node dist/scripts/test-n8n-manager-integration.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
     "docs:rebuild": "ts-node src/scripts/rebuild-database.ts"

@@ -1,0 +1,732 @@
+import { N8nApiClient } from '../services/n8n-api-client';
+import { n8nApiConfig } from '../config/n8n-api';
+import { 
+  Workflow, 
+  WorkflowNode, 
+  WorkflowConnection,
+  ExecutionStatus,
+  WebhookRequest,
+  McpToolResponse 
+} from '../types/n8n-api';
+import { 
+  validateWorkflowStructure, 
+  hasWebhookTrigger,
+  getWebhookUrl 
+} from '../services/n8n-validation';
+import { 
+  N8nApiError, 
+  N8nNotFoundError,
+  getUserFriendlyErrorMessage 
+} from '../utils/n8n-errors';
+import { logger } from '../utils/logger';
+import { z } from 'zod';
+
+// Singleton n8n API client instance
+let apiClient: N8nApiClient | null = null;
+
+// Get or create API client
+export function getN8nApiClient(): N8nApiClient | null {
+  if (!n8nApiConfig) {
+    return null;
+  }
+  
+  if (!apiClient) {
+    apiClient = new N8nApiClient(n8nApiConfig);
+  }
+  
+  return apiClient;
+}
+
+// Helper to ensure API is configured
+function ensureApiConfigured(): N8nApiClient {
+  const client = getN8nApiClient();
+  if (!client) {
+    throw new Error('n8n API not configured. Please set N8N_API_URL and N8N_API_KEY environment variables.');
+  }
+  return client;
+}
+
+// Zod schemas for input validation
+const createWorkflowSchema = z.object({
+  name: z.string(),
+  nodes: z.array(z.any()),
+  connections: z.record(z.any()),
+  settings: z.object({
+    executionOrder: z.enum(['v0', 'v1']).optional(),
+    timezone: z.string().optional(),
+    saveDataErrorExecution: z.enum(['all', 'none']).optional(),
+    saveDataSuccessExecution: z.enum(['all', 'none']).optional(),
+    saveManualExecutions: z.boolean().optional(),
+    saveExecutionProgress: z.boolean().optional(),
+    executionTimeout: z.number().optional(),
+    errorWorkflow: z.string().optional(),
+  }).optional(),
+});
+
+const updateWorkflowSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  nodes: z.array(z.any()).optional(),
+  connections: z.record(z.any()).optional(),
+  settings: z.any().optional(),
+});
+
+const listWorkflowsSchema = z.object({
+  limit: z.number().min(1).max(100).optional(),
+  cursor: z.string().optional(),
+  active: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+  projectId: z.string().optional(),
+  excludePinnedData: z.boolean().optional(),
+});
+
+const triggerWebhookSchema = z.object({
+  webhookUrl: z.string().url(),
+  httpMethod: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional(),
+  data: z.record(z.unknown()).optional(),
+  headers: z.record(z.string()).optional(),
+  waitForResponse: z.boolean().optional(),
+});
+
+const listExecutionsSchema = z.object({
+  limit: z.number().min(1).max(100).optional(),
+  cursor: z.string().optional(),
+  workflowId: z.string().optional(),
+  projectId: z.string().optional(),
+  status: z.enum(['success', 'error', 'waiting']).optional(),
+  includeData: z.boolean().optional(),
+});
+
+// Workflow Management Handlers
+
+export async function handleCreateWorkflow(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const input = createWorkflowSchema.parse(args);
+    
+    // Validate workflow structure
+    const errors = validateWorkflowStructure(input);
+    if (errors.length > 0) {
+      return {
+        success: false,
+        error: 'Workflow validation failed',
+        details: { errors }
+      };
+    }
+    
+    // Create workflow
+    const workflow = await client.createWorkflow(input);
+    
+    return {
+      success: true,
+      data: workflow,
+      message: `Workflow "${workflow.name}" created successfully with ID: ${workflow.id}`
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code,
+        details: error.details as Record<string, unknown> | undefined
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleGetWorkflow(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const { id } = z.object({ id: z.string() }).parse(args);
+    
+    const workflow = await client.getWorkflow(id);
+    
+    return {
+      success: true,
+      data: workflow
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleGetWorkflowDetails(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const { id } = z.object({ id: z.string() }).parse(args);
+    
+    const workflow = await client.getWorkflow(id);
+    
+    // Get recent executions for this workflow
+    const executions = await client.listExecutions({
+      workflowId: id,
+      limit: 10
+    });
+    
+    // Calculate execution statistics
+    const stats = {
+      totalExecutions: executions.data.length,
+      successCount: executions.data.filter(e => e.status === ExecutionStatus.SUCCESS).length,
+      errorCount: executions.data.filter(e => e.status === ExecutionStatus.ERROR).length,
+      lastExecutionTime: executions.data[0]?.startedAt || null
+    };
+    
+    return {
+      success: true,
+      data: {
+        workflow,
+        executionStats: stats,
+        hasWebhookTrigger: hasWebhookTrigger(workflow),
+        webhookPath: getWebhookUrl(workflow)
+      }
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleGetWorkflowStructure(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const { id } = z.object({ id: z.string() }).parse(args);
+    
+    const workflow = await client.getWorkflow(id);
+    
+    // Simplify nodes to just essential structure
+    const simplifiedNodes = workflow.nodes.map(node => ({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      position: node.position,
+      disabled: node.disabled || false
+    }));
+    
+    return {
+      success: true,
+      data: {
+        id: workflow.id,
+        name: workflow.name,
+        active: workflow.active,
+        nodes: simplifiedNodes,
+        connections: workflow.connections,
+        nodeCount: workflow.nodes.length,
+        connectionCount: Object.keys(workflow.connections).length
+      }
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleGetWorkflowMinimal(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const { id } = z.object({ id: z.string() }).parse(args);
+    
+    const workflow = await client.getWorkflow(id);
+    
+    return {
+      success: true,
+      data: {
+        id: workflow.id,
+        name: workflow.name,
+        active: workflow.active,
+        tags: workflow.tags || [],
+        createdAt: workflow.createdAt,
+        updatedAt: workflow.updatedAt
+      }
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleUpdateWorkflow(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const input = updateWorkflowSchema.parse(args);
+    const { id, ...updateData } = input;
+    
+    // If nodes/connections are being updated, validate the structure
+    if (updateData.nodes || updateData.connections) {
+      // Fetch current workflow if only partial update
+      let fullWorkflow = updateData as Partial<Workflow>;
+      
+      if (!updateData.nodes || !updateData.connections) {
+        const current = await client.getWorkflow(id);
+        fullWorkflow = {
+          ...current,
+          ...updateData
+        };
+      }
+      
+      const errors = validateWorkflowStructure(fullWorkflow);
+      if (errors.length > 0) {
+        return {
+          success: false,
+          error: 'Workflow validation failed',
+          details: { errors }
+        };
+      }
+    }
+    
+    // Update workflow
+    const workflow = await client.updateWorkflow(id, updateData);
+    
+    return {
+      success: true,
+      data: workflow,
+      message: `Workflow "${workflow.name}" updated successfully`
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code,
+        details: error.details as Record<string, unknown> | undefined
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleDeleteWorkflow(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const { id } = z.object({ id: z.string() }).parse(args);
+    
+    await client.deleteWorkflow(id);
+    
+    return {
+      success: true,
+      message: `Workflow ${id} deleted successfully`
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleListWorkflows(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const input = listWorkflowsSchema.parse(args || {});
+    
+    const response = await client.listWorkflows({
+      limit: input.limit || 100,
+      cursor: input.cursor,
+      active: input.active,
+      tags: input.tags,
+      projectId: input.projectId,
+      excludePinnedData: input.excludePinnedData ?? true
+    });
+    
+    return {
+      success: true,
+      data: {
+        workflows: response.data,
+        nextCursor: response.nextCursor,
+        total: response.data.length
+      }
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+// Execution Management Handlers
+
+export async function handleTriggerWebhookWorkflow(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const input = triggerWebhookSchema.parse(args);
+    
+    const webhookRequest: WebhookRequest = {
+      webhookUrl: input.webhookUrl,
+      httpMethod: input.httpMethod || 'POST',
+      data: input.data,
+      headers: input.headers,
+      waitForResponse: input.waitForResponse ?? true
+    };
+    
+    const response = await client.triggerWebhook(webhookRequest);
+    
+    return {
+      success: true,
+      data: response,
+      message: 'Webhook triggered successfully'
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code,
+        details: error.details as Record<string, unknown> | undefined
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleGetExecution(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const { id, includeData } = z.object({ 
+      id: z.string(),
+      includeData: z.boolean().optional()
+    }).parse(args);
+    
+    const execution = await client.getExecution(id, includeData || false);
+    
+    return {
+      success: true,
+      data: execution
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleListExecutions(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const input = listExecutionsSchema.parse(args || {});
+    
+    const response = await client.listExecutions({
+      limit: input.limit || 100,
+      cursor: input.cursor,
+      workflowId: input.workflowId,
+      projectId: input.projectId,
+      status: input.status as ExecutionStatus | undefined,
+      includeData: input.includeData || false
+    });
+    
+    return {
+      success: true,
+      data: {
+        executions: response.data,
+        nextCursor: response.nextCursor,
+        total: response.data.length
+      }
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleDeleteExecution(args: unknown): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const { id } = z.object({ id: z.string() }).parse(args);
+    
+    await client.deleteExecution(id);
+    
+    return {
+      success: true,
+      message: `Execution ${id} deleted successfully`
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+// System Tools Handlers
+
+export async function handleHealthCheck(): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const health = await client.healthCheck();
+    
+    return {
+      success: true,
+      data: {
+        status: health.status,
+        instanceId: health.instanceId,
+        n8nVersion: health.n8nVersion,
+        features: health.features,
+        apiUrl: n8nApiConfig?.baseUrl
+      }
+    };
+  } catch (error) {
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code,
+        details: {
+          apiUrl: n8nApiConfig?.baseUrl,
+          hint: 'Check if n8n is running and API is enabled'
+        }
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+export async function handleListAvailableTools(): Promise<McpToolResponse> {
+  const tools = [
+    {
+      category: 'Workflow Management',
+      tools: [
+        { name: 'n8n_create_workflow', description: 'Create new workflows' },
+        { name: 'n8n_get_workflow', description: 'Get workflow by ID' },
+        { name: 'n8n_get_workflow_details', description: 'Get detailed workflow info with stats' },
+        { name: 'n8n_get_workflow_structure', description: 'Get simplified workflow structure' },
+        { name: 'n8n_get_workflow_minimal', description: 'Get minimal workflow info' },
+        { name: 'n8n_update_workflow', description: 'Update existing workflows' },
+        { name: 'n8n_delete_workflow', description: 'Delete workflows' },
+        { name: 'n8n_list_workflows', description: 'List workflows with filters' }
+      ]
+    },
+    {
+      category: 'Execution Management',
+      tools: [
+        { name: 'n8n_trigger_webhook_workflow', description: 'Trigger workflows via webhook' },
+        { name: 'n8n_get_execution', description: 'Get execution details' },
+        { name: 'n8n_list_executions', description: 'List executions with filters' },
+        { name: 'n8n_delete_execution', description: 'Delete execution records' }
+      ]
+    },
+    {
+      category: 'System',
+      tools: [
+        { name: 'n8n_health_check', description: 'Check API connectivity' },
+        { name: 'n8n_list_available_tools', description: 'List all available tools' }
+      ]
+    }
+  ];
+  
+  const apiConfigured = n8nApiConfig !== null;
+  
+  return {
+    success: true,
+    data: {
+      tools,
+      apiConfigured,
+      configuration: apiConfigured ? {
+        apiUrl: n8nApiConfig!.baseUrl,
+        timeout: n8nApiConfig!.timeout,
+        maxRetries: n8nApiConfig!.maxRetries
+      } : null,
+      limitations: [
+        'Cannot activate/deactivate workflows via API',
+        'Cannot execute workflows directly (must use webhooks)',
+        'Cannot stop running executions',
+        'Tags and credentials have limited API support'
+      ]
+    }
+  };
+}
