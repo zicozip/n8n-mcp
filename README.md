@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.5.1-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.6.2-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -433,6 +433,30 @@ Current database coverage (n8n v1.99.1):
 - 💾 **Database size**: ~15MB (optimized)
 
 ## 🔄 Recent Updates
+
+### v2.6.2 - Enhanced Workflow Creation Validation
+- ✅ **NEW**: Node type validation - Verifies node types actually exist in n8n
+- ✅ **FIXED**: Critical issue with `nodes-base.webhook` validation - now caught before database lookup
+- ✅ **NEW**: Smart suggestions for common mistakes (e.g., `webhook` → `n8n-nodes-base.webhook`)
+- ✅ **NEW**: Minimum viable workflow validation - Prevents single-node workflows (except webhooks)
+- ✅ **NEW**: Empty connection detection - Catches multi-node workflows with no connections
+- ✅ **ENHANCED**: Error messages with clear guidance and examples
+- ✅ **PREVENTS**: Broken workflows that show as question marks in n8n UI
+
+### v2.6.1 - Enhanced typeVersion Validation
+- ✅ **NEW**: typeVersion validation for all versioned nodes
+- ✅ **CATCHES**: Missing typeVersion with correct version suggestions
+- ✅ **WARNS**: Outdated node versions in use
+- ✅ **PREVENTS**: Invalid versions that exceed maximum supported
+- ✅ **HELPS**: AI agents avoid common workflow creation mistakes
+
+### v2.6.0 - n8n Management Tools Integration
+- ✅ **NEW**: 14 n8n management tools for complete workflow lifecycle
+- ✅ **NEW**: Create, update, execute workflows via API
+- ✅ **NEW**: Webhook workflow triggering support
+- ✅ **NEW**: Execution monitoring and management
+- ✅ **INTEGRATED**: n8n-manager-for-ai-agents functionality
+- ✅ **OPTIONAL**: Only enabled when N8N_API_URL and N8N_API_KEY configured
 
 ### v2.5.1 - AI Tool Support Enhancement
 - ✅ **NEW**: AI tool connection validation in workflows

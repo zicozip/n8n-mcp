@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.2] - 2025-06-26
+
+### Added
+- **Enhanced Workflow Creation Validation**: Major improvements to prevent broken workflows
+  - **NEW**: Node type existence validation - Verifies node types actually exist in n8n
+  - **NEW**: Smart suggestions for common mistakes - Detects `webhook` and suggests `n8n-nodes-base.webhook`
+  - **NEW**: Minimum viable workflow validation - Prevents single-node workflows (except webhooks)
+  - **NEW**: Empty connection detection - Catches multi-node workflows with no connections
+  - **NEW**: Helper functions - `getWorkflowStructureExample()` and `getWorkflowFixSuggestions()`
+  - Enhanced error messages with clear guidance and connection examples
+  - Prevents broken workflows that show as question marks in n8n UI
+
+### Fixed
+- **Critical**: `nodes-base.webhook` validation - Now caught BEFORE database lookup
+  - Previously, `nodes-base.webhook` would pass validation because it existed in the normalized database
+  - Now explicitly checks for and rejects `nodes-base.` prefix before any database operations
+  - This fixes the exact issue causing workflows to appear broken in n8n UI
+
+### Changed
+- Workflow validator now checks node types in order: invalid patterns → database lookup → suggestions
+- Connection validation messages now include proper format examples
+- Error messages are more actionable with specific fix instructions
+
+## [2.6.1] - 2025-06-26
+
+### Added
+- **Enhanced typeVersion Validation**: Comprehensive validation for versioned nodes
+  - **NEW**: typeVersion validation enforced on all versioned nodes
+  - Catches missing typeVersion and provides correct version to use
+  - Warns on outdated versions when newer versions are available
+  - Prevents invalid versions that exceed maximum supported
+  - Helps AI agents avoid common workflow creation mistakes
+  - Test coverage for all typeVersion scenarios
+
+### Changed
+- WorkflowValidator now includes typeVersion in its validation pipeline
+- Enhanced error messages for typeVersion issues with actionable suggestions
+
+## [2.6.0] - 2025-06-26
+
+### Added
+- **n8n Management Tools Integration**: Complete workflow lifecycle management via API
+  - **NEW**: 14 n8n management tools for creating, updating, and executing workflows
+  - **NEW**: `n8n_create_workflow` - Create workflows programmatically with validation
+  - **NEW**: `n8n_update_workflow` - Update existing workflows with safety checks
+  - **NEW**: `n8n_trigger_webhook_workflow` - Execute workflows via webhooks
+  - **NEW**: `n8n_list_executions` - Monitor workflow executions with filtering
+  - **NEW**: `n8n_health_check` - Check n8n instance connectivity and features
+  - **NEW**: Workflow management tools with smart error handling
+  - **NEW**: Execution management tools for monitoring and debugging
+  - Integrated n8n-manager-for-ai-agents functionality
+  - Optional feature - only enabled when N8N_API_URL and N8N_API_KEY configured
+  - Complete workflow lifecycle: discover → build → validate → deploy → execute
+  - Smart error handling for API limitations (activation, direct execution)
+  - Conditional tool registration based on configuration
+
+### Changed
+- Updated `start_here_workflow_guide` to include n8n management tools documentation
+- Enhanced MCP server to conditionally register management tools
+- Added comprehensive integration tests for all management features
+
 ## [2.5.1] - 2025-01-25
 
 ### Added
