@@ -1182,7 +1182,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
             quick_config: "get_node_essentials() - 95% smaller than get_node_info",
             tasks: "list_tasks() then get_node_for_task() - Pre-configured common tasks",
             validation: "validate_node_minimal() for quick checks, validate_node_operation() for full validation",
-            ai_tools: "get_node_as_tool_info() - Learn how to use ANY node as an AI tool"
+            ai_tools: "get_node_as_tool_info() - Learn how to use ANY node as an AI tool",
+            management: "n8n_create_workflow, n8n_list_workflows - Manage workflows (if API configured)"
           },
           ai_workflow_pattern: {
             title: "AI Agent Workflows",
@@ -1200,6 +1201,41 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
               "HTTP Request → AI Agent's tool port = AI can call any API"
             ],
             validation: "Use validate_workflow() to verify ai_tool connections are valid"
+          },
+          complete_workflow_lifecycle: {
+            title: "Complete Workflow Lifecycle (NEW!)",
+            overview: "With n8n management tools, you can now manage the entire workflow lifecycle:",
+            phases: {
+              "1. Discover": {
+                tools: ["search_nodes", "list_nodes", "get_node_documentation"],
+                purpose: "Find the right nodes for your automation"
+              },
+              "2. Build": {
+                tools: ["get_node_essentials", "get_node_for_task", "search_node_properties"],
+                purpose: "Configure nodes with the right settings"
+              },
+              "3. Validate": {
+                tools: ["validate_node_minimal", "validate_node_operation", "validate_workflow"],
+                purpose: "Ensure your workflow is correct before deployment"
+              },
+              "4. Deploy": {
+                tools: ["n8n_create_workflow", "n8n_update_workflow", "n8n_list_workflows"],
+                purpose: "Create or update workflows in your n8n instance",
+                requirement: "Requires N8N_API_URL and N8N_API_KEY configuration"
+              },
+              "5. Execute": {
+                tools: ["n8n_trigger_webhook_workflow", "n8n_list_executions", "n8n_get_execution"],
+                purpose: "Run workflows and monitor their execution",
+                note: "Workflows must be activated manually in n8n UI"
+              }
+            },
+            example_flow: [
+              "1. search_nodes({query: 'slack'}) - Find Slack node",
+              "2. get_node_essentials('nodes-base.slack') - Get configuration",
+              "3. validate_node_operation() - Validate settings",
+              "4. n8n_create_workflow() - Deploy to n8n",
+              "5. n8n_trigger_webhook_workflow() - Execute via webhook"
+            ]
           }
         }
       },
@@ -1340,6 +1376,81 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           "validate_workflow() - Verify ai_tool connections",
           "get_node_essentials() - Configure tool nodes efficiently"
         ]
+      },
+      n8n_management: {
+        title: "n8n Workflow Management Tools (NEW!)",
+        overview: "Manage n8n workflows directly through MCP. Create, update, execute, and monitor workflows programmatically.",
+        requirements: {
+          configuration: "Set N8N_API_URL and N8N_API_KEY environment variables",
+          access: "n8n instance with API access enabled",
+          version: "n8n v1.0.0 or higher"
+        },
+        available_tools: {
+          workflow_management: [
+            "n8n_create_workflow - Create new workflows with nodes and connections",
+            "n8n_get_workflow - Get complete workflow by ID",
+            "n8n_get_workflow_details - Get workflow with execution statistics",
+            "n8n_update_workflow - Update existing workflows (requires full node array)",
+            "n8n_delete_workflow - Delete workflows permanently",
+            "n8n_list_workflows - List workflows with filtering"
+          ],
+          execution_management: [
+            "n8n_trigger_webhook_workflow - Execute workflows via webhook",
+            "n8n_get_execution - Get execution details",
+            "n8n_list_executions - List executions with status filtering",
+            "n8n_delete_execution - Delete execution records"
+          ],
+          system_tools: [
+            "n8n_health_check - Check API connectivity",
+            "n8n_list_available_tools - List all management tools"
+          ]
+        },
+        limitations: {
+          "Workflow Activation": "Cannot activate/deactivate workflows via API - use n8n UI",
+          "Direct Execution": "No direct execution - must use webhook triggers",
+          "Update Requirements": "Updates require complete nodes array, not just changes",
+          "Tags": "Read-only during creation/update"
+        },
+        workflow_examples: {
+          "Create Simple Workflow": {
+            tools: ["n8n_create_workflow"],
+            example: {
+              name: "My Test Workflow",
+              nodes: [
+                {id: "1", name: "Start", type: "n8n-nodes-base.start", position: [250, 300]},
+                {id: "2", name: "Set", type: "n8n-nodes-base.set", position: [450, 300]}
+              ],
+              connections: {"1": {main: [[{node: "2", type: "main", index: 0}]]}}
+            }
+          },
+          "Execute via Webhook": {
+            tools: ["n8n_trigger_webhook_workflow"],
+            steps: [
+              "1. Workflow must have webhook trigger node",
+              "2. Workflow must be manually activated in UI",
+              "3. Use webhook URL from workflow"
+            ]
+          }
+        },
+        best_practices: [
+          "Always use n8n_health_check first to verify connectivity",
+          "Fetch full workflow before updating (n8n_get_workflow)",
+          "Validate workflows before creating (validate_workflow)",
+          "Monitor executions after triggering webhooks",
+          "Use descriptive workflow names for easy management"
+        ],
+        integration_pattern: {
+          title: "Complete Automation Pipeline",
+          steps: [
+            "1. Design: Use documentation tools to understand nodes",
+            "2. Build: Configure nodes with get_node_essentials",
+            "3. Validate: Use validate_workflow before deployment",
+            "4. Deploy: Create with n8n_create_workflow",
+            "5. Activate: Manually activate in n8n UI",
+            "6. Execute: Trigger with n8n_trigger_webhook_workflow",
+            "7. Monitor: Check status with n8n_list_executions"
+          ]
+        }
       }
     };
 
@@ -1357,7 +1468,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         commonNodes: guides.common_nodes,
         knownIssues: guides.known_issues,
         performance: guides.performance,
-        aiTools: guides.ai_tools
+        aiTools: guides.ai_tools,
+        n8nManagement: guides.n8n_management
       },
       examples: {
         "Find and configure Slack": [
@@ -1382,6 +1494,20 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           "// Connect Slack to AI Agent's ai_tool port",
           "// Configure with $fromAI() expressions",
           "validate_workflow(workflow)"
+        ],
+        "Complete Workflow Lifecycle": [
+          "// 1. Discover & Design",
+          "search_nodes({query: 'webhook'})",
+          "get_node_essentials('nodes-base.webhook')",
+          "// 2. Build & Validate",
+          "const workflow = { nodes: [...], connections: {...} }",
+          "validate_workflow(workflow)",
+          "// 3. Deploy (requires API config)",
+          "n8n_create_workflow(workflow)",
+          "// 4. Execute",
+          "n8n_trigger_webhook_workflow({webhookUrl: '...'})",
+          "// 5. Monitor",
+          "n8n_list_executions({workflowId: '...'})"
         ]
       },
       validation_guide: {

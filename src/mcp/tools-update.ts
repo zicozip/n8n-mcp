@@ -15,7 +15,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
       properties: {
         topic: {
           type: 'string',
-          enum: ['overview', 'workflow', 'search_tips', 'common_nodes', 'known_issues', 'performance', 'ai_tools'],
+          enum: ['overview', 'workflow', 'search_tips', 'common_nodes', 'known_issues', 'performance', 'ai_tools', 'n8n_management'],
           description: 'Optional: Get specific guidance on a topic. Default returns complete overview.',
         },
       },
