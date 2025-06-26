@@ -1412,6 +1412,16 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           "Tags": "Read-only during creation/update"
         },
         workflow_examples: {
+          "⚠️ CRITICAL: Connection Rules": {
+            warning: "ALWAYS use node NAMES in connections, NEVER use node IDs!",
+            explanation: "Using IDs will make nodes appear disconnected in n8n UI",
+            wrong: {
+              connections: {"1": {main: [[{node: "2", type: "main", index: 0}]]}}  // ❌ WRONG - uses IDs
+            },
+            correct: {
+              connections: {"Start": {main: [[{node: "Set", type: "main", index: 0}]]}}  // ✅ CORRECT - uses names
+            }
+          },
           "Create Simple Workflow": {
             tools: ["n8n_create_workflow"],
             example: {
@@ -1420,7 +1430,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
                 {id: "1", name: "Start", type: "n8n-nodes-base.start", position: [250, 300]},
                 {id: "2", name: "Set", type: "n8n-nodes-base.set", position: [450, 300]}
               ],
-              connections: {"1": {main: [[{node: "2", type: "main", index: 0}]]}}
+              connections: {"Start": {main: [[{node: "Set", type: "main", index: 0}]]}}  // ✅ Uses node names!
             }
           },
           "Execute via Webhook": {
@@ -1433,6 +1443,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           }
         },
         best_practices: [
+          "⚠️ ALWAYS use node NAMES in connections, NEVER node IDs",
           "Always use n8n_health_check first to verify connectivity",
           "Fetch full workflow before updating (n8n_get_workflow)",
           "Validate workflows before creating (validate_workflow)",

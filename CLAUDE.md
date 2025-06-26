@@ -6,7 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.6.1)
+## ✅ Latest Updates (v2.6.2)
+
+### Update (v2.6.2) - Enhanced Workflow Creation Validation:
+- ✅ **NEW: Node type validation** - Verifies node types actually exist in n8n
+- ✅ **FIXED: nodes-base prefix detection** - Now catches `nodes-base.webhook` BEFORE database lookup
+- ✅ **NEW: Smart suggestions** - Detects `nodes-base.webhook` and suggests `n8n-nodes-base.webhook`
+- ✅ **NEW: Common mistake detection** - Catches missing package prefixes (e.g., `webhook` → `n8n-nodes-base.webhook`)
+- ✅ **NEW: Minimum viable workflow validation** - Prevents single-node workflows (except webhooks)
+- ✅ **NEW: Empty connection detection** - Catches multi-node workflows with no connections
+- ✅ **Enhanced error messages** - Clear guidance on proper workflow structure
+- ✅ **Connection examples** - Shows correct format: `connections: { "Node Name": { "main": [[{ "node": "Target", "type": "main", "index": 0 }]] } }`
+- ✅ **Helper functions** - `getWorkflowStructureExample()` and `getWorkflowFixSuggestions()`
+- ✅ **Prevents broken workflows** - Like single webhook nodes with empty connections that show as question marks
+- ✅ **Reinforces best practices** - Use node NAMES (not IDs) in connections
 
 ### Update (v2.6.1) - Enhanced typeVersion Validation:
 - ✅ **NEW: typeVersion validation** - Workflow validator now enforces typeVersion on all versioned nodes
