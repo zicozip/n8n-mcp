@@ -202,6 +202,43 @@ export const n8nManagementTools: ToolDefinition[] = [
       }
     }
   },
+  {
+    name: 'n8n_validate_workflow',
+    description: `Validate a workflow from n8n instance by ID. Fetches the workflow and runs comprehensive validation including node configurations, connections, and expressions. Returns detailed validation report with errors, warnings, and suggestions.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { 
+          type: 'string', 
+          description: 'Workflow ID to validate' 
+        },
+        options: {
+          type: 'object',
+          description: 'Validation options',
+          properties: {
+            validateNodes: { 
+              type: 'boolean', 
+              description: 'Validate node configurations (default: true)' 
+            },
+            validateConnections: { 
+              type: 'boolean', 
+              description: 'Validate workflow connections (default: true)' 
+            },
+            validateExpressions: { 
+              type: 'boolean', 
+              description: 'Validate n8n expressions (default: true)' 
+            },
+            profile: { 
+              type: 'string', 
+              enum: ['minimal', 'runtime', 'ai-friendly', 'strict'],
+              description: 'Validation profile to use (default: runtime)' 
+            }
+          }
+        }
+      },
+      required: ['id']
+    }
+  },
 
   // Execution Management Tools
   {

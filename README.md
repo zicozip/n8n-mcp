@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.6.2-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.6.3-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -221,6 +221,7 @@ These tools allow you to manage n8n workflows directly. Configure with `N8N_API_
 - **`n8n_update_workflow`** - Update existing workflows
 - **`n8n_delete_workflow`** - Delete workflows permanently
 - **`n8n_list_workflows`** - List workflows with filtering and pagination
+- **`n8n_validate_workflow`** - Validate workflows already in n8n by ID (NEW in v2.6.3)
 
 #### Execution Management
 - **`n8n_trigger_webhook_workflow`** - Trigger workflows via webhook URL
@@ -474,6 +475,14 @@ Current database coverage (n8n v1.99.1):
 
 ## 🔄 Recent Updates
 
+### v2.6.3 - n8n Instance Workflow Validation
+- ✅ **NEW**: `n8n_validate_workflow` tool - Validate workflows directly from n8n instance by ID
+- ✅ **FETCHES**: Retrieves workflow from n8n API and runs comprehensive validation
+- ✅ **CONSISTENT**: Uses same WorkflowValidator for reliability
+- ✅ **FLEXIBLE**: Supports all validation profiles and options
+- ✅ **INTEGRATED**: Part of complete workflow lifecycle management
+- ✅ **SIMPLE**: AI agents need only workflow ID, no JSON required
+
 ### v2.6.2 - Enhanced Workflow Creation Validation
 - ✅ **NEW**: Node type validation - Verifies node types actually exist in n8n
 - ✅ **FIXED**: Critical issue with `nodes-base.webhook` validation - now caught before database lookup
@@ -577,6 +586,7 @@ You are an expert in n8n automation software. Your role is to answer questions a
    - `validate_node_minimal(nodeType, config)` - Quick required fields check
    - `validate_node_operation(nodeType, config, profile)` - Full smart validation
    - `validate_workflow(workflow)` - Complete workflow validation including AI connections
+   - `n8n_validate_workflow({id: 'workflow-id'})` - Validate workflows already in n8n (NEW!)
 
 5. **AI Tool Integration** (when building AI workflows):
    - `get_node_as_tool_info(nodeType)` - Learn how to use ANY node as AI tool
@@ -590,6 +600,7 @@ You are an expert in n8n automation software. Your role is to answer questions a
 - **Use validate_node_minimal first** - fastest way to check required fields
 - **Avoid get_node_info** - returns 100KB+ of data; use get_node_essentials instead
 - **Pre-built templates exist** - check get_node_for_task() for common scenarios
+- **Validate existing workflows** - use n8n_validate_workflow() to check workflows in n8n
 
 ## Response Structure
 
@@ -625,6 +636,13 @@ You are an expert in n8n automation software. Your role is to answer questions a
 2. get_node_for_task('webhook_with_response')
 3. validate_node_minimal() on the configuration
 4. Provide ready-to-use solution
+
+### n8n Workflow Management (if API configured)
+1. n8n_list_workflows() // see existing workflows
+2. n8n_get_workflow({id: 'workflow-id'}) // fetch specific workflow
+3. n8n_validate_workflow({id: 'workflow-id'}) // validate existing workflow
+4. n8n_update_workflow() // update if validation shows issues
+5. n8n_trigger_webhook_workflow() // execute via webhook
 
 ## Important Rules
 

@@ -20,6 +20,9 @@ import {
 } from '../utils/n8n-errors';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
+import { WorkflowValidator } from '../services/workflow-validator';
+import { EnhancedConfigValidator } from '../services/enhanced-config-validator';
+import { NodeRepository } from '../database/node-repository';
 
 // Singleton n8n API client instance
 let apiClient: N8nApiClient | null = null;
@@ -78,6 +81,16 @@ const listWorkflowsSchema = z.object({
   tags: z.array(z.string()).optional(),
   projectId: z.string().optional(),
   excludePinnedData: z.boolean().optional(),
+});
+
+const validateWorkflowSchema = z.object({
+  id: z.string(),
+  options: z.object({
+    validateNodes: z.boolean().optional(),
+    validateConnections: z.boolean().optional(),
+    validateExpressions: z.boolean().optional(),
+    profile: z.enum(['minimal', 'runtime', 'ai-friendly', 'strict']).optional(),
+  }).optional(),
 });
 
 const triggerWebhookSchema = z.object({
@@ -473,6 +486,94 @@ export async function handleListWorkflows(args: unknown): Promise<McpToolRespons
   }
 }
 
+export async function handleValidateWorkflow(
+  args: unknown, 
+  repository: NodeRepository
+): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured();
+    const input = validateWorkflowSchema.parse(args);
+    
+    // First, fetch the workflow from n8n
+    const workflowResponse = await handleGetWorkflow({ id: input.id });
+    
+    if (!workflowResponse.success) {
+      return workflowResponse; // Return the error from fetching
+    }
+    
+    const workflow = workflowResponse.data as Workflow;
+    
+    // Create validator instance using the provided repository
+    const validator = new WorkflowValidator(repository, EnhancedConfigValidator);
+    
+    // Run validation
+    const validationResult = await validator.validateWorkflow(workflow, input.options);
+    
+    // Format the response (same format as the regular validate_workflow tool)
+    const response: any = {
+      valid: validationResult.valid,
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      summary: {
+        totalNodes: validationResult.statistics.totalNodes,
+        enabledNodes: validationResult.statistics.enabledNodes,
+        triggerNodes: validationResult.statistics.triggerNodes,
+        validConnections: validationResult.statistics.validConnections,
+        invalidConnections: validationResult.statistics.invalidConnections,
+        expressionsValidated: validationResult.statistics.expressionsValidated,
+        errorCount: validationResult.errors.length,
+        warningCount: validationResult.warnings.length
+      }
+    };
+    
+    if (validationResult.errors.length > 0) {
+      response.errors = validationResult.errors.map(e => ({
+        node: e.nodeName || 'workflow',
+        message: e.message,
+        details: e.details
+      }));
+    }
+    
+    if (validationResult.warnings.length > 0) {
+      response.warnings = validationResult.warnings.map(w => ({
+        node: w.nodeName || 'workflow',
+        message: w.message,
+        details: w.details
+      }));
+    }
+    
+    if (validationResult.suggestions.length > 0) {
+      response.suggestions = validationResult.suggestions;
+    }
+    
+    return {
+      success: true,
+      data: response
+    };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+    
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
 // Execution Management Handlers
 
 export async function handleTriggerWebhookWorkflow(args: unknown): Promise<McpToolResponse> {
@@ -688,7 +789,8 @@ export async function handleListAvailableTools(): Promise<McpToolResponse> {
         { name: 'n8n_get_workflow_minimal', description: 'Get minimal workflow info' },
         { name: 'n8n_update_workflow', description: 'Update existing workflows' },
         { name: 'n8n_delete_workflow', description: 'Delete workflows' },
-        { name: 'n8n_list_workflows', description: 'List workflows with filters' }
+        { name: 'n8n_list_workflows', description: 'List workflows with filters' },
+        { name: 'n8n_validate_workflow', description: 'Validate workflow from n8n instance' }
       ]
     },
     {

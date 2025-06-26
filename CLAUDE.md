@@ -6,7 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.6.2)
+## ✅ Latest Updates (v2.6.3)
+
+### Update (v2.6.3) - n8n Instance Workflow Validation:
+- ✅ **NEW: n8n_validate_workflow tool** - Validate workflows directly from n8n instance by ID
+- ✅ **Fetches and validates** - Retrieves workflow from n8n API and runs comprehensive validation
+- ✅ **Same validation logic** - Uses existing WorkflowValidator for consistency
+- ✅ **Full validation options** - Supports all validation profiles and options
+- ✅ **Integrated workflow** - Part of complete lifecycle: discover → build → validate → deploy → execute
+- ✅ **No JSON needed** - AI agents can validate by just providing workflow ID
 
 ### Update (v2.6.2) - Enhanced Workflow Creation Validation:
 - ✅ **NEW: Node type validation** - Verifies node types actually exist in n8n
@@ -180,6 +188,7 @@ src/
 │   ├── test-workflow-validation.ts # Test workflow validation (NEW in v2.5.0)
 │   ├── test-ai-workflow-validation.ts # Test AI workflow validation (NEW in v2.5.1)
 │   ├── test-mcp-tools.ts      # Test MCP tool enhancements (NEW in v2.5.1)
+│   ├── test-n8n-validate-workflow.ts # Test n8n_validate_workflow tool (NEW in v2.6.3)
 │   ├── test-typeversion-validation.ts # Test typeVersion validation (NEW in v2.6.1)
 │   ├── fetch-templates.ts     # Fetch workflow templates from n8n.io (NEW in v2.4.1)
 │   └── test-templates.ts      # Test template functionality (NEW in v2.4.1)
@@ -233,6 +242,7 @@ npm run test:mcp-tools      # Test MCP tool enhancements
 npm run test:single-session # Test single session HTTP
 npm run test:template-validation  # Test template validation
 npm run test:n8n-manager   # Test n8n management tools integration
+npm run test:n8n-validate-workflow  # Test n8n_validate_workflow tool
 npm run test:typeversion-validation  # Test typeVersion validation
 
 # Workflow Validation Commands:
@@ -372,6 +382,7 @@ These tools are only available when N8N_API_URL and N8N_API_KEY are configured:
 - `n8n_update_workflow` - Update existing workflows
 - `n8n_delete_workflow` - Delete workflows permanently
 - `n8n_list_workflows` - List workflows with filtering
+- `n8n_validate_workflow` - **NEW v2.6.3** Validate workflow from n8n instance by ID
 
 #### Execution Management
 - `n8n_trigger_webhook_workflow` - Trigger workflows via webhook URL

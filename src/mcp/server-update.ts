@@ -242,6 +242,10 @@ export class N8NDocumentationMCPServer {
         return n8nHandlers.handleDeleteWorkflow(args);
       case 'n8n_list_workflows':
         return n8nHandlers.handleListWorkflows(args);
+      case 'n8n_validate_workflow':
+        await this.ensureInitialized();
+        if (!this.repository) throw new Error('Repository not initialized');
+        return n8nHandlers.handleValidateWorkflow(args, this.repository);
       case 'n8n_trigger_webhook_workflow':
         return n8nHandlers.handleTriggerWebhookWorkflow(args);
       case 'n8n_get_execution':
@@ -1215,8 +1219,9 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
                 purpose: "Configure nodes with the right settings"
               },
               "3. Validate": {
-                tools: ["validate_node_minimal", "validate_node_operation", "validate_workflow"],
-                purpose: "Ensure your workflow is correct before deployment"
+                tools: ["validate_node_minimal", "validate_node_operation", "validate_workflow", "n8n_validate_workflow"],
+                purpose: "Ensure your workflow is correct before deployment",
+                new: "n8n_validate_workflow - Validate workflows already in n8n by ID"
               },
               "4. Deploy": {
                 tools: ["n8n_create_workflow", "n8n_update_workflow", "n8n_list_workflows"],
@@ -1234,7 +1239,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
               "2. get_node_essentials('nodes-base.slack') - Get configuration",
               "3. validate_node_operation() - Validate settings",
               "4. n8n_create_workflow() - Deploy to n8n",
-              "5. n8n_trigger_webhook_workflow() - Execute via webhook"
+              "5. n8n_validate_workflow({id: 'workflow-id'}) - Validate deployed workflow",
+              "6. n8n_trigger_webhook_workflow() - Execute via webhook"
             ]
           }
         }

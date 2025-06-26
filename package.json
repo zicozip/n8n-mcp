@@ -1,6 +1,6 @@
 {
   "name": "n8n-mcp",
-  "version": "2.6.2",
+  "version": "2.6.3",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
   "scripts": {
@@ -32,6 +32,7 @@
     "test:ai-workflow-validation": "node dist/scripts/test-ai-workflow-validation.js",
     "test:mcp-tools": "node dist/scripts/test-mcp-tools.js",
     "test:n8n-manager": "node dist/scripts/test-n8n-manager-integration.js",
+    "test:n8n-validate-workflow": "node dist/scripts/test-n8n-validate-workflow.js",
     "test:typeversion-validation": "node dist/scripts/test-typeversion-validation.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
