@@ -104,14 +104,17 @@ Add to Claude Desktop config:
         "-e", "MCP_MODE=stdio",
         "-e", "LOG_LEVEL=error",
         "-e", "DISABLE_CONSOLE_OUTPUT=true",
-        // Optional: Enable n8n management tools
-        // "-e", "N8N_API_URL=https://your-n8n-instance.com",
-        // "-e", "N8N_API_KEY=your-api-key",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
       ]
     }
   }
 }
+```
+
+To enable n8n management tools, add these lines before the image name:
+```
+"-e", "N8N_API_URL=https://your-n8n-instance.com",
+"-e", "N8N_API_KEY=your-api-key",
 ```
 
 **Important:** The `-i` flag is required for MCP stdio communication.
@@ -135,7 +138,11 @@ npm install
 npm run build
 npm run rebuild
 
-# 2. Test it works
+# 2. (Optional) Configure n8n API for management tools
+cp .env.example .env
+# Edit .env to add your N8N_API_URL and N8N_API_KEY
+
+# 3. Test it works
 npm start
 ```
 
@@ -155,6 +162,14 @@ Add to Claude Desktop config:
   }
 }
 ```
+
+**Note:** You can configure n8n API credentials either:
+- **Option A:** In a `.env` file (see step 2 above)
+- **Option B:** Directly in the Claude config by adding to the `env` section:
+  ```json
+  "N8N_API_URL": "https://your-n8n-instance.com",
+  "N8N_API_KEY": "your-api-key"
+  ```
 
 
 ## Features
@@ -253,6 +268,32 @@ If you prefer running locally:
 
 **Prerequisites:** [Node.js](https://nodejs.org/) installed on your system (any version)
 
+**Method A: Using .env file (recommended for development)**
+```bash
+# Create .env file from example
+cp .env.example .env
+# Edit .env to add N8N_API_URL and N8N_API_KEY
+```
+
+Then use this config:
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "node",
+      "args": ["/path/to/n8n-mcp/dist/mcp/index.js"],
+      "env": {
+        "NODE_ENV": "production",
+        "LOG_LEVEL": "error",
+        "MCP_MODE": "stdio",
+        "DISABLE_CONSOLE_OUTPUT": "true"
+      }
+    }
+  }
+}
+```
+
+**Method B: Direct environment variables (simpler)**
 ```json
 {
   "mcpServers": {
@@ -264,9 +305,8 @@ If you prefer running locally:
         "LOG_LEVEL": "error",
         "MCP_MODE": "stdio",
         "DISABLE_CONSOLE_OUTPUT": "true",
-        // Optional: Enable n8n management tools
-        // "N8N_API_URL": "https://your-n8n-instance.com",
-        // "N8N_API_KEY": "your-api-key"
+        "N8N_API_URL": "https://your-n8n-instance.com",
+        "N8N_API_KEY": "your-api-key"
       }
     }
   }
