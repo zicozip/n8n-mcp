@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Ultra-optimized Dockerfile - no n8n dependencies needed at runtime
+# Ultra-optimized Dockerfile - minimal runtime dependencies (no n8n packages)
 
 # Stage 1: Builder (TypeScript compilation only)
 FROM node:20-alpine AS builder
