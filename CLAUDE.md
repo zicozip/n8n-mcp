@@ -6,7 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.6.0)
+## ✅ Latest Updates (v2.6.1)
+
+### Update (v2.6.1) - Enhanced typeVersion Validation:
+- ✅ **NEW: typeVersion validation** - Workflow validator now enforces typeVersion on all versioned nodes
+- ✅ **Catches missing typeVersion** - Returns error with correct version to use
+- ✅ **Warns on outdated versions** - Alerts when using older node versions
+- ✅ **Prevents invalid versions** - Errors on versions that exceed maximum supported
+- ✅ Helps AI agents avoid common workflow creation mistakes
+- ✅ Ensures workflows use compatible node versions before deployment
 
 ### Update (v2.6.0) - n8n Management Tools Integration:
 - ✅ **NEW: 14 n8n management tools** - Create, update, execute workflows via API
@@ -159,6 +167,7 @@ src/
 │   ├── test-workflow-validation.ts # Test workflow validation (NEW in v2.5.0)
 │   ├── test-ai-workflow-validation.ts # Test AI workflow validation (NEW in v2.5.1)
 │   ├── test-mcp-tools.ts      # Test MCP tool enhancements (NEW in v2.5.1)
+│   ├── test-typeversion-validation.ts # Test typeVersion validation (NEW in v2.6.1)
 │   ├── fetch-templates.ts     # Fetch workflow templates from n8n.io (NEW in v2.4.1)
 │   └── test-templates.ts      # Test template functionality (NEW in v2.4.1)
 ├── mcp/
@@ -211,6 +220,7 @@ npm run test:mcp-tools      # Test MCP tool enhancements
 npm run test:single-session # Test single session HTTP
 npm run test:template-validation  # Test template validation
 npm run test:n8n-manager   # Test n8n management tools integration
+npm run test:typeversion-validation  # Test typeVersion validation
 
 # Workflow Validation Commands:
 npm run test:workflow-validation   # Test workflow validation features

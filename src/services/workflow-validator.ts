@@ -259,6 +259,46 @@ export class WorkflowValidator {
           continue;
         }
 
+        // Validate typeVersion for versioned nodes
+        if (nodeInfo.isVersioned) {
+          // Check if typeVersion is missing
+          if (!node.typeVersion) {
+            result.errors.push({
+              type: 'error',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: `Missing required property 'typeVersion'. Add typeVersion: ${nodeInfo.version || 1}`
+            });
+          } 
+          // Check if typeVersion is invalid
+          else if (typeof node.typeVersion !== 'number' || node.typeVersion < 1) {
+            result.errors.push({
+              type: 'error',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: `Invalid typeVersion: ${node.typeVersion}. Must be a positive number`
+            });
+          }
+          // Check if typeVersion is outdated (less than latest)
+          else if (nodeInfo.version && node.typeVersion < nodeInfo.version) {
+            result.warnings.push({
+              type: 'warning',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: `Outdated typeVersion: ${node.typeVersion}. Latest is ${nodeInfo.version}`
+            });
+          }
+          // Check if typeVersion exceeds maximum supported
+          else if (nodeInfo.version && node.typeVersion > nodeInfo.version) {
+            result.errors.push({
+              type: 'error',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: `typeVersion ${node.typeVersion} exceeds maximum supported version ${nodeInfo.version}`
+            });
+          }
+        }
+
         // Validate node configuration
         const nodeValidation = this.nodeValidator.validateWithMode(
           node.type,
