@@ -12,12 +12,13 @@ COPY tsconfig.json ./
 RUN --mount=type=cache,target=/root/.npm \
     echo '{}' > package.json && \
     npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3 \
-        @modelcontextprotocol/sdk@^1.12.1 dotenv@^16.5.0 express@^5.1.0 axios@^1.10.0
+        @modelcontextprotocol/sdk@^1.12.1 dotenv@^16.5.0 express@^5.1.0 axios@^1.10.0 \
+        n8n-workflow@^1.96.0 uuid@^11.0.5 @types/uuid@^10.0.0
 
-# Copy source and build (excluding n8n-specific files)
+# Copy source and build
 COPY src ./src
-# Remove n8n node implementation and related utils that aren't needed for MCP server
-RUN rm -rf src/n8n src/utils/bridge.ts src/utils/mcp-client.ts
+# Note: src/n8n contains TypeScript types needed for compilation
+# These will be compiled but not included in runtime
 RUN npx tsc
 
 # Stage 2: Runtime (minimal dependencies)
