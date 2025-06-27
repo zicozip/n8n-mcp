@@ -23,7 +23,7 @@ export interface WorkflowNode {
 
 export interface WorkflowConnection {
   [sourceNodeId: string]: {
-    main: Array<Array<{
+    [outputType: string]: Array<Array<{
       node: string;
       type: string;
       index: number;

@@ -23,6 +23,7 @@ import { TemplateService } from '../templates/template-service';
 import { WorkflowValidator } from '../services/workflow-validator';
 import { isN8nApiConfigured } from '../config/n8n-api';
 import * as n8nHandlers from './handlers-n8n-manager';
+import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 
 interface NodeRow {
   node_type: string;
@@ -236,8 +237,10 @@ export class N8NDocumentationMCPServer {
         return n8nHandlers.handleGetWorkflowStructure(args);
       case 'n8n_get_workflow_minimal':
         return n8nHandlers.handleGetWorkflowMinimal(args);
-      case 'n8n_update_workflow':
+      case 'n8n_update_full_workflow':
         return n8nHandlers.handleUpdateWorkflow(args);
+      case 'n8n_update_partial_workflow':
+        return handleUpdatePartialWorkflow(args);
       case 'n8n_delete_workflow':
         return n8nHandlers.handleDeleteWorkflow(args);
       case 'n8n_list_workflows':

@@ -125,8 +125,8 @@ export const n8nManagementTools: ToolDefinition[] = [
     }
   },
   {
-    name: 'n8n_update_workflow',
-    description: `Update an existing workflow. Requires the full nodes array when modifying nodes/connections. Cannot activate workflows via API - use UI instead.`,
+    name: 'n8n_update_full_workflow',
+    description: `Update an existing workflow with complete replacement. Requires the full nodes array and connections object when modifying workflow structure. Use n8n_update_partial_workflow for incremental changes. Cannot activate workflows via API - use UI instead.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -152,6 +152,135 @@ export const n8nManagementTools: ToolDefinition[] = [
         }
       },
       required: ['id']
+    }
+  },
+  {
+    name: 'n8n_update_partial_workflow',
+    description: `Update a workflow using diff operations for precise, incremental changes. More efficient than n8n_update_full_workflow for small modifications. Supports adding/removing/updating nodes and connections without sending the entire workflow.
+
+PARAMETERS:
+• id (required) - Workflow ID to update
+• operations (required) - Array of operations to apply (max 5)
+• validateOnly (optional) - Test operations without applying (default: false)
+
+TRANSACTIONAL UPDATES (v2.7.0+):
+• Maximum 5 operations per request for reliability
+• Two-pass processing: nodes first, then connections/metadata
+• Add nodes and connect them in the same request
+• Operations can be in any order - engine handles dependencies
+
+IMPORTANT NOTES:
+• Operations are atomic - all succeed or all fail
+• Use validateOnly: true to test before applying
+• Node references use NAME, not ID (except in node definition)
+• updateNode with nested paths: use dot notation like "parameters.values[0]"
+• All nodes require: id, name, type, typeVersion, position, parameters
+
+OPERATION TYPES:
+
+addNode - Add a new node
+  Required: node object with id, name, type, typeVersion, position, parameters
+  Example: {
+    type: "addNode",
+    node: {
+      id: "unique_id",
+      name: "HTTP Request",
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4.2,
+      position: [400, 300],
+      parameters: { url: "https://api.example.com", method: "GET" }
+    }
+  }
+
+removeNode - Remove node by name
+  Required: nodeName or nodeId
+  Example: {type: "removeNode", nodeName: "Old Node"}
+
+updateNode - Update node properties
+  Required: nodeName, changes
+  Example: {type: "updateNode", nodeName: "Webhook", changes: {"parameters.path": "/new-path"}}
+
+moveNode - Change node position
+  Required: nodeName, position
+  Example: {type: "moveNode", nodeName: "Set", position: [600, 400]}
+
+enableNode/disableNode - Toggle node status
+  Required: nodeName
+  Example: {type: "disableNode", nodeName: "Debug"}
+
+addConnection - Connect nodes
+  Required: source, target
+  Optional: sourceOutput (default: "main"), targetInput (default: "main"), 
+           sourceIndex (default: 0), targetIndex (default: 0)
+  Example: {
+    type: "addConnection",
+    source: "Webhook",
+    target: "Set",
+    sourceOutput: "main",  // for nodes with multiple outputs
+    targetInput: "main"    // for nodes with multiple inputs
+  }
+
+removeConnection - Disconnect nodes
+  Required: source, target
+  Optional: sourceOutput, targetInput
+  Example: {type: "removeConnection", source: "Set", target: "HTTP Request"}
+
+updateSettings - Change workflow settings
+  Required: settings object
+  Example: {type: "updateSettings", settings: {executionOrder: "v1", timezone: "Europe/Berlin"}}
+
+updateName - Rename workflow
+  Required: name
+  Example: {type: "updateName", name: "New Workflow Name"}
+
+addTag/removeTag - Manage tags
+  Required: tag
+  Example: {type: "addTag", tag: "production"}
+
+EXAMPLES:
+
+Simple update:
+operations: [
+  {type: "updateName", name: "My Updated Workflow"},
+  {type: "disableNode", nodeName: "Debug Node"}
+]
+
+Complex example - Add nodes and connect (any order works):
+operations: [
+  {type: "addConnection", source: "Webhook", target: "Format Date"},
+  {type: "addNode", node: {id: "abc123", name: "Format Date", type: "n8n-nodes-base.dateTime", typeVersion: 2, position: [400, 300], parameters: {}}},
+  {type: "addConnection", source: "Format Date", target: "Logger"},
+  {type: "addNode", node: {id: "def456", name: "Logger", type: "n8n-nodes-base.n8n", typeVersion: 1, position: [600, 300], parameters: {}}}
+]
+
+Validation example:
+{
+  id: "workflow-id",
+  operations: [{type: "addNode", node: {...}}],
+  validateOnly: true  // Test without applying
+}`,
+    inputSchema: {
+      type: 'object',
+      additionalProperties: true,  // Allow any extra properties Claude Desktop might add
+      properties: {
+        id: { 
+          type: 'string', 
+          description: 'Workflow ID to update' 
+        },
+        operations: {
+          type: 'array',
+          description: 'Array of diff operations to apply. Each operation must have a "type" field and relevant properties for that operation type.',
+          items: {
+            type: 'object',
+            additionalProperties: true
+          }
+        },
+        validateOnly: {
+          type: 'boolean',
+          description: 'If true, only validate operations without applying them'
+        }
+      },
+      required: ['id', 'operations']
     }
   },
   {

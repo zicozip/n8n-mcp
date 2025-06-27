@@ -6,7 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.6.3)
+## ✅ Latest Updates (v2.7.0)
+
+### Update (v2.7.0) - Diff-Based Workflow Editing with Transactional Updates:
+- ✅ **NEW: n8n_update_partial_workflow tool** - Update workflows using diff operations for precise, incremental changes
+- ✅ **RENAMED: n8n_update_workflow → n8n_update_full_workflow** - Clarifies that it replaces the entire workflow
+- ✅ **NEW: WorkflowDiffEngine** - Applies targeted edits without sending full workflow JSON
+- ✅ **80-90% token savings** - Only send the changes, not the entire workflow
+- ✅ **13 diff operations** - addNode, removeNode, updateNode, moveNode, enableNode, disableNode, addConnection, removeConnection, updateConnection, updateSettings, updateName, addTag, removeTag
+- ✅ **Smart node references** - Use either node ID or name for operations
+- ✅ **Transaction safety** - Validates all operations before applying any changes
+- ✅ **Validation-only mode** - Test your diff operations without applying them
+- ✅ **Comprehensive test coverage** - All operations and edge cases tested
+- ✅ **Example guide** - See [workflow-diff-examples.md](./docs/workflow-diff-examples.md) for usage patterns
+- ✅ **FIXED: MCP validation error** - Simplified schema to fix "additional properties" error in Claude Desktop
+- ✅ **FIXED: n8n API validation** - Updated cleanWorkflowForUpdate to remove all read-only fields
+- ✅ **FIXED: Claude Desktop compatibility** - Added additionalProperties: true to handle extra metadata from Claude Desktop
+- ✅ **NEW: Transactional Updates** - Two-pass processing allows adding nodes and connections in any order
+- ✅ **Operation Limit** - Maximum 5 operations per request ensures reliability
+- ✅ **Order Independence** - Add connections before nodes - engine handles dependencies automatically
 
 ### Update (v2.6.3) - n8n Instance Workflow Validation:
 - ✅ **NEW: n8n_validate_workflow tool** - Validate workflows directly from n8n instance by ID
@@ -244,6 +262,7 @@ npm run test:template-validation  # Test template validation
 npm run test:n8n-manager   # Test n8n management tools integration
 npm run test:n8n-validate-workflow  # Test n8n_validate_workflow tool
 npm run test:typeversion-validation  # Test typeVersion validation
+npm run test:workflow-diff  # Test workflow diff engine
 
 # Workflow Validation Commands:
 npm run test:workflow-validation   # Test workflow validation features
@@ -379,7 +398,8 @@ These tools are only available when N8N_API_URL and N8N_API_KEY are configured:
 - `n8n_get_workflow_details` - Get workflow with execution statistics
 - `n8n_get_workflow_structure` - Get simplified workflow structure
 - `n8n_get_workflow_minimal` - Get minimal workflow info
-- `n8n_update_workflow` - Update existing workflows
+- `n8n_update_full_workflow` - Update existing workflows (complete replacement)
+- `n8n_update_partial_workflow` - **NEW v2.7.0** Update workflows using diff operations
 - `n8n_delete_workflow` - Delete workflows permanently
 - `n8n_list_workflows` - List workflows with filtering
 - `n8n_validate_workflow` - **NEW v2.6.3** Validate workflow from n8n instance by ID

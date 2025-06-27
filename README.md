@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.6.3-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -218,7 +218,8 @@ These tools allow you to manage n8n workflows directly. Configure with `N8N_API_
 - **`n8n_get_workflow_details`** - Get workflow with execution statistics
 - **`n8n_get_workflow_structure`** - Get simplified workflow structure
 - **`n8n_get_workflow_minimal`** - Get minimal workflow info (ID, name, active status)
-- **`n8n_update_workflow`** - Update existing workflows
+- **`n8n_update_full_workflow`** - Update entire workflow (complete replacement)
+- **`n8n_update_partial_workflow`** - Update workflow using diff operations (NEW in v2.7.0!)
 - **`n8n_delete_workflow`** - Delete workflows permanently
 - **`n8n_list_workflows`** - List workflows with filtering and pagination
 - **`n8n_validate_workflow`** - Validate workflows already in n8n by ID (NEW in v2.6.3)
@@ -475,6 +476,16 @@ Current database coverage (n8n v1.99.1):
 
 ## 🔄 Recent Updates
 
+### v2.7.0 - Diff-Based Workflow Editing with Transactional Updates
+- ✅ **NEW**: `n8n_update_partial_workflow` tool - Update workflows using diff operations
+- ✅ **RENAMED**: `n8n_update_workflow` → `n8n_update_full_workflow` for clarity
+- ✅ **80-90% TOKEN SAVINGS**: Only send changes, not entire workflow JSON
+- ✅ **13 OPERATIONS**: addNode, removeNode, updateNode, moveNode, enable/disable, connections, settings, tags
+- ✅ **TRANSACTIONAL**: Two-pass processing allows adding nodes and connections in any order
+- ✅ **5 OPERATION LIMIT**: Ensures reliability and atomic updates
+- ✅ **VALIDATION MODE**: Test changes with `validateOnly: true` before applying
+- ✅ **IMPROVED DOCS**: Comprehensive parameter documentation and examples
+
 ### v2.6.3 - n8n Instance Workflow Validation
 - ✅ **NEW**: `n8n_validate_workflow` tool - Validate workflows directly from n8n instance by ID
 - ✅ **FETCHES**: Retrieves workflow from n8n API and runs comprehensive validation
@@ -641,8 +652,9 @@ You are an expert in n8n automation software. Your role is to answer questions a
 1. n8n_list_workflows() // see existing workflows
 2. n8n_get_workflow({id: 'workflow-id'}) // fetch specific workflow
 3. n8n_validate_workflow({id: 'workflow-id'}) // validate existing workflow
-4. n8n_update_workflow() // update if validation shows issues
-5. n8n_trigger_webhook_workflow() // execute via webhook
+4. n8n_update_partial_workflow() // NEW! Update using diff operations (v2.7.0)
+5. n8n_update_full_workflow() // Replace entire workflow
+6. n8n_trigger_webhook_workflow() // execute via webhook
 
 ## Important Rules
 
