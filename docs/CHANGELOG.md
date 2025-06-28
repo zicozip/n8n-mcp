@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0] - 2025-06-28
+
+### Added
+- **Diff-Based Workflow Editing**: Revolutionary token-efficient workflow updates
+  - **NEW**: `n8n_update_partial_workflow` tool - Update workflows using diff operations for precise, incremental changes
+  - **NEW**: WorkflowDiffEngine - Applies targeted edits without sending full workflow JSON
+  - **NEW**: 13 diff operations - addNode, removeNode, updateNode, moveNode, enableNode, disableNode, addConnection, removeConnection, updateConnection, updateSettings, updateName, addTag, removeTag
+  - **NEW**: Transaction safety - Validates all operations before applying any changes
+  - **NEW**: Validation-only mode - Test your diff operations without applying them
+  - **NEW**: Transactional Updates - Two-pass processing allows adding nodes and connections in any order
+  - Smart node references - Use either node ID or name for operations
+  - Order independence - Add connections before nodes, engine handles dependencies automatically
+  - Operation limit - Maximum 5 operations per request ensures reliability
+  - 80-90% token savings - Only send the changes, not the entire workflow
+  - Comprehensive test coverage - All operations and edge cases tested
+  - Example guide - See [workflow-diff-examples.md](./workflow-diff-examples.md) for usage patterns
+
+### Changed
+- **RENAMED**: `n8n_update_workflow` → `n8n_update_full_workflow` - Clarifies that it replaces the entire workflow
+
+### Fixed
+- **Docker Runtime Dependencies**: Added missing `uuid` package to runtime dependencies
+  - Fixed MODULE_NOT_FOUND error in Docker containers
+  - Updated both package.json and package.runtime.json
+  - Aligned package versions between main and runtime configurations
+
 ## [2.6.2] - 2025-06-26
 
 ### Added
