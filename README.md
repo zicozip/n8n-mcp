@@ -17,19 +17,6 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 - 📄 **Documentation** - 90% coverage from official n8n docs (including AI nodes)
 - 🤖 **AI tools** - 263 AI-capable nodes detected with full documentation
 
-## 💬 Why n8n-MCP? A Testimonial from Claude
-
-> *"Before MCP, I was translating. Now I'm composing. And that changes everything about how we can build automation."*
-
-When Claude, Anthropic's AI assistant, tested n8n-MCP, the results were transformative:
-
-**Without MCP:** "I was basically playing a guessing game. 'Is it `scheduleTrigger` or `schedule`? Does it take `interval` or `rule`?' I'd write what seemed logical, but n8n has its own conventions that you can't just intuit. I made six different configuration errors in a simple HackerNews scraper."
-
-**With MCP:** "Everything just... worked. Instead of guessing, I could ask `get_node_essentials()` and get exactly what I needed - not a 100KB JSON dump, but the actual 5-10 properties that matter. What took 45 minutes now takes 3 minutes."
-
-**The Real Value:** "It's about confidence. When you're building automation workflows, uncertainty is expensive. One wrong parameter and your workflow fails at 3 AM. With MCP, I could validate my configuration before deployment. That's not just time saved - that's peace of mind."
-
-[Read the full interview →](docs/CLAUDE_INTERVIEW.md)
 
 ## 🚀 Quick Start
 
@@ -202,6 +189,129 @@ Add to Claude Desktop config:
 
 > **Note**: The n8n API credentials can be configured either in a `.env` file (create from `.env.example`) or directly in the Claude config as shown above.
 
+## 🤖 Claude Project Setup
+
+For the best results when using n8n-MCP with Claude Projects, use these enhanced system instructions:
+
+```markdown
+You are an expert in n8n automation software using n8n-MCP tools. Your role is to design, build, and validate n8n workflows with maximum accuracy and efficiency.
+
+## Core Workflow Process
+
+1. **ALWAYS start with**: `start_here_workflow_guide()` to understand best practices and available tools.
+
+2. **Discovery Phase** - Find the right nodes:
+   - `search_nodes({query: 'keyword'})` - Search by functionality
+   - `list_nodes({category: 'trigger'})` - Browse by category
+   - `list_ai_tools()` - See AI-capable nodes (remember: ANY node can be an AI tool!)
+
+3. **Configuration Phase** - Get node details efficiently:
+   - `get_node_essentials(nodeType)` - Start here! Only 10-20 essential properties
+   - `search_node_properties(nodeType, 'auth')` - Find specific properties
+   - `get_node_for_task('send_email')` - Get pre-configured templates
+   - `get_node_documentation(nodeType)` - Human-readable docs when needed
+
+4. **Pre-Validation Phase** - Validate BEFORE building:
+   - `validate_node_minimal(nodeType, config)` - Quick required fields check
+   - `validate_node_operation(nodeType, config, profile)` - Full operation-aware validation
+   - Fix any validation errors before proceeding
+
+5. **Building Phase** - Create the workflow:
+   - Use validated configurations from step 4
+   - Connect nodes with proper structure
+   - Add error handling where appropriate
+   - Use expressions like $json, $node["NodeName"].json
+
+6. **Workflow Validation Phase** - Validate complete workflow:
+   - `validate_workflow(workflow)` - Complete validation including connections
+   - `validate_workflow_connections(workflow)` - Check structure and AI tool connections
+   - `validate_workflow_expressions(workflow)` - Validate all n8n expressions
+   - Fix any issues found before deployment
+
+7. **Deployment Phase** (if n8n API configured):
+   - `n8n_create_workflow(workflow)` - Deploy validated workflow
+   - `n8n_validate_workflow({id: 'workflow-id'})` - Post-deployment validation
+   - `n8n_update_partial_workflow()` - Make incremental updates using diffs
+   - `n8n_trigger_webhook_workflow()` - Test webhook workflows
+
+## Key Insights
+
+- **VALIDATE EARLY AND OFTEN** - Catch errors before they reach production
+- **USE DIFF UPDATES** - Use n8n_update_partial_workflow for 80-90% token savings
+- **ANY node can be an AI tool** - not just those with usableAsTool=true
+- **Pre-validate configurations** - Use validate_node_minimal before building
+- **Post-validate workflows** - Always validate complete workflows before deployment
+- **Incremental updates** - Use diff operations for existing workflows
+- **Test thoroughly** - Validate both locally and after deployment to n8n
+
+## Validation Strategy
+
+### Before Building:
+1. validate_node_minimal() - Check required fields
+2. validate_node_operation() - Full configuration validation
+3. Fix all errors before proceeding
+
+### After Building:
+1. validate_workflow() - Complete workflow validation
+2. validate_workflow_connections() - Structure validation
+3. validate_workflow_expressions() - Expression syntax check
+
+### After Deployment:
+1. n8n_validate_workflow({id}) - Validate deployed workflow
+2. n8n_list_executions() - Monitor execution status
+3. n8n_update_partial_workflow() - Fix issues using diffs
+
+## Response Structure
+
+1. **Discovery**: Show available nodes and options
+2. **Pre-Validation**: Validate node configurations first
+3. **Configuration**: Show only validated, working configs
+4. **Building**: Construct workflow with validated components
+5. **Workflow Validation**: Full workflow validation results
+6. **Deployment**: Deploy only after all validations pass
+7. **Post-Validation**: Verify deployment succeeded
+
+## Example Workflow
+
+### 1. Discovery & Configuration
+search_nodes({query: 'slack'})
+get_node_essentials('n8n-nodes-base.slack')
+
+### 2. Pre-Validation
+validate_node_minimal('n8n-nodes-base.slack', {resource:'message', operation:'send'})
+validate_node_operation('n8n-nodes-base.slack', fullConfig, 'runtime')
+
+### 3. Build Workflow
+// Create workflow JSON with validated configs
+
+### 4. Workflow Validation
+validate_workflow(workflowJson)
+validate_workflow_connections(workflowJson)
+validate_workflow_expressions(workflowJson)
+
+### 5. Deploy (if configured)
+n8n_create_workflow(validatedWorkflow)
+n8n_validate_workflow({id: createdWorkflowId})
+
+### 6. Update Using Diffs
+n8n_update_partial_workflow({
+  workflowId: id,
+  operations: [
+    {type: 'updateNode', nodeId: 'slack1', changes: {position: [100, 200]}}
+  ]
+})
+
+## Important Rules
+
+- ALWAYS validate before building
+- ALWAYS validate after building
+- NEVER deploy unvalidated workflows
+- USE diff operations for updates (80-90% token savings)
+- STATE validation results clearly
+- FIX all errors before proceeding
+```
+
+Save these instructions in your Claude Project for optimal n8n workflow assistance with comprehensive validation.
 
 ## Features
 
@@ -213,6 +323,20 @@ Add to Claude Desktop config:
 - **💡 Working Examples**: Real-world examples for immediate use
 - **⚡ Fast Response**: Average query time ~12ms with optimized SQLite
 - **🌐 Universal Compatibility**: Works with any Node.js version
+
+## 💬 Why n8n-MCP? A Testimonial from Claude
+
+> *"Before MCP, I was translating. Now I'm composing. And that changes everything about how we can build automation."*
+
+When Claude, Anthropic's AI assistant, tested n8n-MCP, the results were transformative:
+
+**Without MCP:** "I was basically playing a guessing game. 'Is it `scheduleTrigger` or `schedule`? Does it take `interval` or `rule`?' I'd write what seemed logical, but n8n has its own conventions that you can't just intuit. I made six different configuration errors in a simple HackerNews scraper."
+
+**With MCP:** "Everything just... worked. Instead of guessing, I could ask `get_node_essentials()` and get exactly what I needed - not a 100KB JSON dump, but the actual 5-10 properties that matter. What took 45 minutes now takes 3 minutes."
+
+**The Real Value:** "It's about confidence. When you're building automation workflows, uncertainty is expensive. One wrong parameter and your workflow fails at 3 AM. With MCP, I could validate my configuration before deployment. That's not just time saved - that's peace of mind."
+
+[Read the full interview →](docs/CLAUDE_INTERVIEW.md)
 
 ## 📡 Available MCP Tools
 
@@ -291,47 +415,6 @@ validate_node_minimal({
 })
 ```
 
-## 🔧 Claude Desktop Configuration
-
-### Option 1: Docker (Recommended)
-See Quick Start above for the simplest setup.
-
-### Option 2: Local Installation
-If you prefer running locally:
-
-**Prerequisites:** [Node.js](https://nodejs.org/) installed on your system (any version)
-
-The recommended configurations are shown in Option 1 (Docker) and Option 2 (Local) above.
-
-### Option 3: Remote Server (Beta)
-⚠️ **Note**: HTTP mode is under development and not thoroughly tested. Use with caution.
-
-For team deployments:
-
-**Prerequisites:** [Node.js](https://nodejs.org/) 18+ installed locally (for mcp-http-client)
-
-```json
-{
-  "mcpServers": {
-    "n8n-remote": {
-      "command": "node",
-      "args": [
-        "/path/to/n8n-mcp/scripts/mcp-http-client.js",
-        "http://your-server.com:3000/mcp"
-      ],
-      "env": {
-        "MCP_AUTH_TOKEN": "your-auth-token"
-      }
-    }
-  }
-}
-```
-
-**Configuration file locations:**
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
 ## 💻 Local Development Setup
 
 For contributors and advanced users:
@@ -379,78 +462,6 @@ npm run update:n8n        # Update n8n packages
 npm run dev            # Development with auto-reload
 npm run dev:http       # HTTP dev mode
 ```
-
-## 🚀 Production Deployment
-
-### HTTP Server for Teams (Beta)
-
-⚠️ **Note**: HTTP mode is under development and not thoroughly tested. Use with caution in production.
-
-Deploy n8n-MCP as a shared service:
-
-```bash
-# Using Docker (minimal setup)
-docker run -d \
-  --name n8n-mcp \
-  --restart unless-stopped \
-  -e MCP_MODE=http \
-  -e USE_FIXED_HTTP=true \
-  -e AUTH_TOKEN=$AUTH_TOKEN \
-  -p 3000:3000 \
-  ghcr.io/czlonkowski/n8n-mcp:latest
-
-# Using Docker (with n8n management tools)
-docker run -d \
-  --name n8n-mcp \
-  --restart unless-stopped \
-  -e MCP_MODE=http \
-  -e USE_FIXED_HTTP=true \
-  -e AUTH_TOKEN=$AUTH_TOKEN \
-  -e N8N_API_URL=https://your-n8n-instance.com \
-  -e N8N_API_KEY=your-api-key \
-  -p 3000:3000 \
-  ghcr.io/czlonkowski/n8n-mcp:latest
-
-# Using Docker Compose (recommended)
-cat > docker-compose.yml << 'EOF'
-services:
-  n8n-mcp:
-    image: ghcr.io/czlonkowski/n8n-mcp:latest
-    container_name: n8n-mcp
-    ports:
-      - "3000:3000"
-    environment:
-      # Required
-      - MCP_MODE=http
-      - USE_FIXED_HTTP=true
-      - AUTH_TOKEN=${AUTH_TOKEN}
-      
-      # Optional - for n8n management tools
-      # - N8N_API_URL=${N8N_API_URL}
-      # - N8N_API_KEY=${N8N_API_KEY}
-    volumes:
-      - n8n-mcp-data:/app/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  n8n-mcp-data:
-EOF
-
-# Create .env file for sensitive values
-echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
-# Optionally add:
-# echo "N8N_API_URL=https://your-n8n-instance.com" >> .env
-# echo "N8N_API_KEY=your-api-key" >> .env
-
-docker compose up -d
-```
-
-See [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md) for detailed instructions.
 
 ## 📚 Documentation
 
@@ -582,101 +593,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 - 💬 Mentioning it in your project
 - 🔗 Linking back to this repo
 
-## 🤖 Claude Project Setup
-
-For the best results when using n8n-MCP with Claude Projects, use these system instructions:
-
-```markdown
-You are an expert in n8n automation software. Your role is to answer questions about how to deliver specific functionalities that users ask for, or design and implement single nodes or entire workflows.
-
-## Core Workflow Process
-
-1. **ALWAYS start with**: `start_here_workflow_guide()` to understand best practices and available tools.
-
-2. **Discovery Phase** - Find the right nodes:
-   - `search_nodes({query: 'keyword'})` - Search by functionality
-   - `list_nodes({category: 'trigger'})` - Browse by category
-   - `list_ai_tools()` - See AI-optimized nodes (but remember: ANY node can be an AI tool!)
-
-3. **Configuration Phase** - Get node details efficiently:
-   - `get_node_essentials(nodeType)` - Start here! Only 10-20 essential properties
-   - `search_node_properties(nodeType, 'auth')` - Find specific properties
-   - `get_node_for_task('send_email')` - Get pre-configured templates
-   - `get_node_documentation(nodeType)` - Human-readable docs when needed
-
-4. **Validation Phase** - Ensure correctness:
-   - `validate_node_minimal(nodeType, config)` - Quick required fields check
-   - `validate_node_operation(nodeType, config, profile)` - Full smart validation
-   - `validate_workflow(workflow)` - Complete workflow validation including AI connections
-   - `n8n_validate_workflow({id: 'workflow-id'})` - Validate workflows already in n8n (NEW!)
-
-5. **AI Tool Integration** (when building AI workflows):
-   - `get_node_as_tool_info(nodeType)` - Learn how to use ANY node as AI tool
-   - Remember: Connect ANY node to AI Agent's 'ai_tool' port
-   - Use `$fromAI()` expressions for dynamic values
-   - Validate with `validate_workflow()` to check ai_tool connections
-
-## Key Insights
-
-- **ANY node can be an AI tool** - not just those with usableAsTool=true
-- **Use validate_node_minimal first** - fastest way to check required fields
-- **Avoid get_node_info** - returns 100KB+ of data; use get_node_essentials instead
-- **Pre-built templates exist** - check get_node_for_task() for common scenarios
-- **Validate existing workflows** - use n8n_validate_workflow() to check workflows in n8n
-
-## Response Structure
-
-1. **Analysis**: Brief explanation of the solution approach
-2. **Node Selection**: Which nodes to use and why
-3. **Configuration**: 
-   - Use get_node_essentials for clean configs
-   - Show only necessary properties
-   - Include validation results
-4. **Code Examples**: If using Code node, provide working JavaScript
-5. **Validation**: Always validate before providing final solution
-6. **Export Options**:
-   - Single node JSON if requested
-   - Complete workflow JSON for full solutions
-
-## Example Patterns
-
-### Standard Automation
-1. search_nodes({query: 'slack'})
-2. get_node_essentials('nodes-base.slack')
-3. validate_node_minimal('nodes-base.slack', {resource:'message',operation:'post'})
-4. get_node_for_task('send_slack_message') // for pre-configured version
-
-### AI Agent with Tools
-1. search_nodes({query: 'agent'})
-2. get_node_as_tool_info('nodes-base.googleSheets') // ANY node as tool!
-3. Configure AI Agent with tool connections
-4. Use $fromAI() in tool node configurations
-5. validate_workflow(fullWorkflow) // validates ai_tool connections
-
-### Quick Task Solutions
-1. list_tasks() // see all available templates
-2. get_node_for_task('webhook_with_response')
-3. validate_node_minimal() on the configuration
-4. Provide ready-to-use solution
-
-### n8n Workflow Management (if API configured)
-1. n8n_list_workflows() // see existing workflows
-2. n8n_get_workflow({id: 'workflow-id'}) // fetch specific workflow
-3. n8n_validate_workflow({id: 'workflow-id'}) // validate existing workflow
-4. n8n_update_partial_workflow() // NEW! Update using diff operations (v2.7.0)
-5. n8n_update_full_workflow() // Replace entire workflow
-6. n8n_trigger_webhook_workflow() // execute via webhook
-
-## Important Rules
-
-- Start with essentials, not full node info
-- Validate incrementally (minimal → operation → workflow)
-- For AI workflows, explain that ANY node can be a tool
-- Always provide working, validated configurations
-- State uncertainty clearly and suggest alternatives
-```
-
-Save these instructions in your Claude Project for optimal n8n workflow assistance.
 
 ## 🤝 Contributing
 
