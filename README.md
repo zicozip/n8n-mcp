@@ -92,6 +92,8 @@ docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 > **⚡ Ultra-optimized:** Our Docker image is 82% smaller than typical n8n images because it contains NO n8n dependencies - just the runtime MCP server with a pre-built database!
 
 Add to Claude Desktop config:
+
+**Basic configuration (documentation tools only):**
 ```json
 {
   "mcpServers": {
@@ -111,11 +113,29 @@ Add to Claude Desktop config:
 }
 ```
 
-To enable n8n management tools, add these lines before the image name:
+**Full configuration (with n8n management tools):**
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e", "MCP_MODE=stdio",
+        "-e", "LOG_LEVEL=error",
+        "-e", "DISABLE_CONSOLE_OUTPUT=true",
+        "-e", "N8N_API_URL=https://your-n8n-instance.com",
+        "-e", "N8N_API_KEY=your-api-key",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ]
+    }
+  }
+}
 ```
-"-e", "N8N_API_URL=https://your-n8n-instance.com",
-"-e", "N8N_API_KEY=your-api-key",
-```
+
+> **Note**: The n8n API credentials are optional. Without them, you'll have access to all documentation and validation tools. With them, you'll additionally get workflow management capabilities (create, update, execute workflows).
 
 **Important:** The `-i` flag is required for MCP stdio communication.
 
@@ -138,15 +158,13 @@ npm install
 npm run build
 npm run rebuild
 
-# 2. (Optional) Configure n8n API for management tools
-cp .env.example .env
-# Edit .env to add your N8N_API_URL and N8N_API_KEY
-
-# 3. Test it works
+# 2. Test it works
 npm start
 ```
 
 Add to Claude Desktop config:
+
+**Basic configuration (documentation tools only):**
 ```json
 {
   "mcpServers": {
@@ -163,13 +181,26 @@ Add to Claude Desktop config:
 }
 ```
 
-**Note:** You can configure n8n API credentials either:
-- **Option A:** In a `.env` file (see step 2 above)
-- **Option B:** Directly in the Claude config by adding to the `env` section:
-  ```json
-  "N8N_API_URL": "https://your-n8n-instance.com",
-  "N8N_API_KEY": "your-api-key"
-  ```
+**Full configuration (with n8n management tools):**
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "node",
+      "args": ["/absolute/path/to/n8n-mcp/dist/mcp/index.js"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "https://your-n8n-instance.com",
+        "N8N_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+> **Note**: The n8n API credentials can be configured either in a `.env` file (create from `.env.example`) or directly in the Claude config as shown above.
 
 
 ## Features
@@ -209,8 +240,8 @@ Once connected, Claude can use these powerful tools:
 - **`get_node_documentation`** - Get parsed documentation from n8n-docs
 - **`get_database_statistics`** - View database metrics and coverage
 
-### n8n Management Tools (NEW! Requires API Configuration)
-These tools allow you to manage n8n workflows directly. Configure with `N8N_API_URL` and `N8N_API_KEY`.
+### n8n Management Tools (Optional - Requires API Configuration)
+These powerful tools allow you to manage n8n workflows directly from Claude. They're only available when you provide `N8N_API_URL` and `N8N_API_KEY` in your configuration.
 
 #### Workflow Management
 - **`n8n_create_workflow`** - Create new workflows with nodes and connections
@@ -270,50 +301,7 @@ If you prefer running locally:
 
 **Prerequisites:** [Node.js](https://nodejs.org/) installed on your system (any version)
 
-**Method A: Using .env file (recommended for development)**
-```bash
-# Create .env file from example
-cp .env.example .env
-# Edit .env to add N8N_API_URL and N8N_API_KEY
-```
-
-Then use this config:
-```json
-{
-  "mcpServers": {
-    "n8n-mcp": {
-      "command": "node",
-      "args": ["/path/to/n8n-mcp/dist/mcp/index.js"],
-      "env": {
-        "NODE_ENV": "production",
-        "LOG_LEVEL": "error",
-        "MCP_MODE": "stdio",
-        "DISABLE_CONSOLE_OUTPUT": "true"
-      }
-    }
-  }
-}
-```
-
-**Method B: Direct environment variables (simpler)**
-```json
-{
-  "mcpServers": {
-    "n8n-mcp": {
-      "command": "node",
-      "args": ["/path/to/n8n-mcp/dist/mcp/index.js"],
-      "env": {
-        "NODE_ENV": "production",
-        "LOG_LEVEL": "error",
-        "MCP_MODE": "stdio",
-        "DISABLE_CONSOLE_OUTPUT": "true",
-        "N8N_API_URL": "https://your-n8n-instance.com",
-        "N8N_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
+The recommended configurations are shown in Option 1 (Docker) and Option 2 (Local) above.
 
 ### Option 3: Remote Server (Beta)
 ⚠️ **Note**: HTTP mode is under development and not thoroughly tested. Use with caution.
@@ -401,7 +389,7 @@ npm run dev:http       # HTTP dev mode
 Deploy n8n-MCP as a shared service:
 
 ```bash
-# Using Docker
+# Using Docker (minimal setup)
 docker run -d \
   --name n8n-mcp \
   --restart unless-stopped \
@@ -411,7 +399,19 @@ docker run -d \
   -p 3000:3000 \
   ghcr.io/czlonkowski/n8n-mcp:latest
 
-# Using Docker Compose
+# Using Docker (with n8n management tools)
+docker run -d \
+  --name n8n-mcp \
+  --restart unless-stopped \
+  -e MCP_MODE=http \
+  -e USE_FIXED_HTTP=true \
+  -e AUTH_TOKEN=$AUTH_TOKEN \
+  -e N8N_API_URL=https://your-n8n-instance.com \
+  -e N8N_API_KEY=your-api-key \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+
+# Using Docker Compose (recommended)
 cat > docker-compose.yml << 'EOF'
 services:
   n8n-mcp:
@@ -420,9 +420,14 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Required
       - MCP_MODE=http
       - USE_FIXED_HTTP=true
       - AUTH_TOKEN=${AUTH_TOKEN}
+      
+      # Optional - for n8n management tools
+      # - N8N_API_URL=${N8N_API_URL}
+      # - N8N_API_KEY=${N8N_API_KEY}
     volumes:
       - n8n-mcp-data:/app/data
     restart: unless-stopped
@@ -435,6 +440,12 @@ services:
 volumes:
   n8n-mcp-data:
 EOF
+
+# Create .env file for sensitive values
+echo "AUTH_TOKEN=$(openssl rand -base64 32)" > .env
+# Optionally add:
+# echo "N8N_API_URL=https://your-n8n-instance.com" >> .env
+# echo "N8N_API_KEY=your-api-key" >> .env
 
 docker compose up -d
 ```
