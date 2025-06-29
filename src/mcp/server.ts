@@ -7,7 +7,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { existsSync } from 'fs';
 import path from 'path';
-import { n8nDocumentationToolsFinal } from './tools-update';
+import { n8nDocumentationToolsFinal } from './tools';
 import { n8nManagementTools } from './tools-n8n-manager';
 import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
@@ -24,6 +24,7 @@ import { WorkflowValidator } from '../services/workflow-validator';
 import { isN8nApiConfigured } from '../config/n8n-api';
 import * as n8nHandlers from './handlers-n8n-manager';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
+import { PROJECT_VERSION } from '../utils/version';
 
 interface NodeRow {
   node_type: string;
@@ -121,7 +122,7 @@ export class N8NDocumentationMCPServer {
         },
         serverInfo: {
           name: 'n8n-documentation-mcp',
-          version: '2.4.1',
+          version: PROJECT_VERSION,
         },
       };
       
@@ -261,6 +262,8 @@ export class N8NDocumentationMCPServer {
         return n8nHandlers.handleHealthCheck();
       case 'n8n_list_available_tools':
         return n8nHandlers.handleListAvailableTools();
+      case 'n8n_diagnostic':
+        return n8nHandlers.handleDiagnostic({ params: { arguments: args } });
         
       default:
         throw new Error(`Unknown tool: ${name}`);

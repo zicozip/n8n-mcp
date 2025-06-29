@@ -24,18 +24,18 @@ else
     echo "❌ dist/mcp/index.js not found - run 'npm run build'"
 fi
 
-if [ -f "dist/mcp/server-update.js" ]; then
-    echo "✅ dist/mcp/server-update.js exists"
-    echo "   Last modified: $(stat -f "%Sm" dist/mcp/server-update.js 2>/dev/null || stat -c "%y" dist/mcp/server-update.js 2>/dev/null)"
+if [ -f "dist/mcp/server.js" ]; then
+    echo "✅ dist/mcp/server.js exists"
+    echo "   Last modified: $(stat -f "%Sm" dist/mcp/server.js 2>/dev/null || stat -c "%y" dist/mcp/server.js 2>/dev/null)"
 else
-    echo "❌ dist/mcp/server-update.js not found"
+    echo "❌ dist/mcp/server.js not found"
 fi
 
-if [ -f "dist/mcp/tools-update.js" ]; then
-    echo "✅ dist/mcp/tools-update.js exists"
-    echo "   Last modified: $(stat -f "%Sm" dist/mcp/tools-update.js 2>/dev/null || stat -c "%y" dist/mcp/tools-update.js 2>/dev/null)"
+if [ -f "dist/mcp/tools.js" ]; then
+    echo "✅ dist/mcp/tools.js exists"
+    echo "   Last modified: $(stat -f "%Sm" dist/mcp/tools.js 2>/dev/null || stat -c "%y" dist/mcp/tools.js 2>/dev/null)"
 else
-    echo "❌ dist/mcp/tools-update.js not found"
+    echo "❌ dist/mcp/tools.js not found"
 fi
 echo ""
 
@@ -52,12 +52,12 @@ echo ""
 
 # Check tools in compiled code
 echo "5. Compiled tools check:"
-if [ -f "dist/mcp/tools-update.js" ]; then
-    TOOL_COUNT=$(grep "name: '" dist/mcp/tools-update.js | wc -l | tr -d ' ')
+if [ -f "dist/mcp/tools.js" ]; then
+    TOOL_COUNT=$(grep "name: '" dist/mcp/tools.js | wc -l | tr -d ' ')
     echo "   Total tools found: $TOOL_COUNT"
     echo "   New tools present:"
     for tool in "get_node_for_task" "validate_node_config" "get_property_dependencies" "list_tasks" "search_node_properties" "get_node_essentials"; do
-        if grep -q "name: '$tool'" dist/mcp/tools-update.js; then
+        if grep -q "name: '$tool'" dist/mcp/tools.js; then
             echo "   ✅ $tool"
         else
             echo "   ❌ $tool"

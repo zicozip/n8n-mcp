@@ -3,7 +3,7 @@
  * Test get_node_info to diagnose timeout issues
  */
 
-const { N8NDocumentationMCPServer } = require('../dist/mcp/server-update');
+const { N8NDocumentationMCPServer } = require('../dist/mcp/server');
 
 async function testNodeInfo() {
   console.log('🔍 Testing get_node_info...\n');

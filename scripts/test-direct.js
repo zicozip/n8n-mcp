@@ -3,7 +3,7 @@
  * Direct test of the server functionality without MCP protocol
  */
 
-const { N8NDocumentationMCPServer } = require('../dist/mcp/server-update');
+const { N8NDocumentationMCPServer } = require('../dist/mcp/server');
 
 async function testDirect() {
   console.log('🧪 Direct server test\n');

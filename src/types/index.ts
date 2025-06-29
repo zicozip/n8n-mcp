@@ -4,11 +4,6 @@ export interface MCPServerConfig {
   authToken?: string;
 }
 
-export interface N8NConfig {
-  apiUrl: string;
-  apiKey: string;
-}
-
 export interface ToolDefinition {
   name: string;
   description: string;

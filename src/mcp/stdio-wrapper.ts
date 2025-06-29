@@ -40,7 +40,7 @@ console.count = () => {};
 console.countReset = () => {};
 
 // Import and run the server AFTER suppressing output
-import { N8NDocumentationMCPServer } from './server-update';
+import { N8NDocumentationMCPServer } from './server';
 
 async function main() {
   try {

@@ -484,5 +484,18 @@ Validation example:
       type: 'object',
       properties: {}
     }
+  },
+  {
+    name: 'n8n_diagnostic',
+    description: `Diagnose n8n API configuration and management tools availability. Shows current configuration status, which tools are enabled/disabled, and helps troubleshoot why management tools might not be appearing. Returns detailed diagnostic information including environment variables, API connectivity, and tool registration status.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        verbose: {
+          type: 'boolean',
+          description: 'Include detailed debug information (default: false)'
+        }
+      }
+    }
   }
 ];

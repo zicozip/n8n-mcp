@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { N8NDocumentationMCPServer } from './server-update';
+import { N8NDocumentationMCPServer } from './server';
 import { logger } from '../utils/logger';
 
 // Add error details to stderr for Claude Desktop debugging
@@ -35,7 +35,7 @@ async function main() {
       // Check if we should use the fixed implementation
       if (process.env.USE_FIXED_HTTP === 'true') {
         // Use the fixed HTTP implementation that bypasses StreamableHTTPServerTransport issues
-        const { startFixedHTTPServer } = await import('../http-server-fixed');
+        const { startFixedHTTPServer } = await import('../http-server');
         await startFixedHTTPServer();
       } else {
         // HTTP mode - for remote deployment with single-session architecture

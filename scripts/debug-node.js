@@ -3,7 +3,7 @@
  * Debug script to check node data structure
  */
 
-const { N8NDocumentationMCPServer } = require('../dist/mcp/server-update');
+const { N8NDocumentationMCPServer } = require('../dist/mcp/server');
 
 async function debugNode() {
   console.log('🔍 Debugging node data\n');

@@ -12,7 +12,6 @@
     "start": "node dist/mcp/index.js",
     "start:http": "MCP_MODE=http node dist/mcp/index.js",
     "start:http:fixed": "MCP_MODE=http USE_FIXED_HTTP=true node dist/mcp/index.js",
-    "start:http:legacy": "MCP_MODE=http node dist/http-server.js",
     "http": "npm run build && npm run start:http:fixed",
     "dev": "npm run build && npm run rebuild && npm run validate",
     "dev:http": "MCP_MODE=http nodemon --watch src --ext ts --exec 'npm run build && npm run start:http'",
@@ -40,7 +39,8 @@
     "test:update-partial:debug": "node dist/scripts/test-update-partial-debug.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
-    "docs:rebuild": "ts-node src/scripts/rebuild-database.ts"
+    "docs:rebuild": "ts-node src/scripts/rebuild-database.ts",
+    "sync:runtime-version": "node scripts/sync-runtime-version.js"
   },
   "repository": {
     "type": "git",

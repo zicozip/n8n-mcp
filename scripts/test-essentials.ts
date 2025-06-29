@@ -9,7 +9,7 @@
  * 4. Tests the property search functionality
  */
 
-import { N8NDocumentationMCPServer } from '../src/mcp/server-update';
+import { N8NDocumentationMCPServer } from '../src/mcp/server';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 

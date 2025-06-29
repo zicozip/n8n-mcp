@@ -4,7 +4,7 @@
  */
 import { createDatabaseAdapter } from '../database/database-adapter';
 import { NodeRepository } from '../database/node-repository';
-import { N8NDocumentationMCPServer } from '../mcp/server-update';
+import { N8NDocumentationMCPServer } from '../mcp/server';
 import { Logger } from '../utils/logger';
 
 const logger = new Logger({ prefix: '[TestMCPTools]' });

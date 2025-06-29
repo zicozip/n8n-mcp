@@ -3,7 +3,7 @@
  * Debug the essentials implementation
  */
 
-const { N8NDocumentationMCPServer } = require('../dist/mcp/server-update');
+const { N8NDocumentationMCPServer } = require('../dist/mcp/server');
 const { PropertyFilter } = require('../dist/services/property-filter');
 const { ExampleGenerator } = require('../dist/services/example-generator');
 

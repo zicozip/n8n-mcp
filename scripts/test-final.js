@@ -3,7 +3,7 @@
  * Final validation test
  */
 
-const { N8NDocumentationMCPServer } = require('../dist/mcp/server-update');
+const { N8NDocumentationMCPServer } = require('../dist/mcp/server');
 
 const colors = {
   green: '\x1b[32m',
