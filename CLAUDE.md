@@ -68,94 +68,14 @@ n8n-mcp is a comprehensive documentation and knowledge server that provides AI a
 - ✅ Smart error handling for API limitations (activation, direct execution)
 - ✅ Conditional tool registration based on configuration
 
-## ✅ Previous Updates (v2.5.1)
+## ✅ Previous Updates
 
-### Update (v2.5.1) - AI Tool Support Enhancements:
-- ✅ **NEW: get_node_as_tool_info tool** - Get specific information about using ANY node as an AI tool
-- ✅ **Enhanced: get_node_info** - Now includes `aiToolCapabilities` section for all nodes
-- ✅ **Enhanced: list_ai_tools** - Added usage guidance explaining ANY node can be used as a tool
-- ✅ **Enhanced: WorkflowValidator** - Now validates `ai_tool` connections in workflows
-- ✅ AI workflow pattern detection - Warns when AI Agents have no tools connected
-- ✅ Community node detection - Reminds about N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE environment variable
-- ✅ **NEW: AI Tool TaskTemplates** - Added use_google_sheets_as_tool, use_slack_as_tool, multi_tool_ai_agent
-- ✅ Comprehensive examples showing how to connect regular nodes as AI tools
-- ✅ Tool usage documentation with $fromAI() expression examples
+For a complete history of all updates from v2.0.0 to v2.5.1, please see [CHANGELOG.md](./CHANGELOG.md).
 
-### Update (v2.5.0) - Complete Workflow Validation:
-- ✅ **NEW: validate_workflow tool** - Validate entire workflows before deployment
-- ✅ **NEW: validate_workflow_connections tool** - Check workflow structure and connections
-- ✅ **NEW: validate_workflow_expressions tool** - Validate all n8n expressions in a workflow
-- ✅ **NEW: ExpressionValidator** - Comprehensive n8n expression syntax validation
-- ✅ **NEW: WorkflowValidator** - Complete workflow structure and logic validation
-- ✅ Detects cycles (infinite loops) in workflows
-- ✅ Validates node references in expressions ($node["Node Name"])
-- ✅ Checks for orphaned nodes and missing connections
-- ✅ Expression syntax validation with common mistake detection
-- ✅ Workflow best practices analysis with suggestions
-- ✅ Supports partial validation (nodes only, connections only, expressions only)
-- ✅ Test coverage for all validation scenarios
-
-### Update (v2.4.2) - Enhanced Node Configuration Validation:
-- ✅ **NEW: validate_node_operation tool** - Operation-aware validation with 80%+ fewer false positives
-- ✅ **NEW: validate_node_minimal tool** - Lightning-fast validation for just required fields
-- ✅ **NEW: Validation profiles** - Choose between minimal, runtime, ai-friendly, or strict validation
-- ✅ **NEW: EnhancedConfigValidator** - Smart validation that only checks relevant properties
-- ✅ **NEW: Node-specific validators** - Custom logic for Slack, Google Sheets, OpenAI, MongoDB, Webhook, Postgres, MySQL
-- ✅ **NEW: SQL safety features** - Detects SQL injection risks, unsafe DELETE/UPDATE queries
-- ✅ Added operation context filtering (only validates properties for selected operation)
-- ✅ Integrated working examples in validation responses when errors found
-- ✅ Added actionable next steps and auto-fix suggestions
-- ✅ Basic code syntax validation for JavaScript/Python in Code node
-- ✅ Dramatic improvement for complex multi-operation nodes
-- ✅ Test results: Slack validation reduced from 45 errors to 1 error!
-
-### Update (v2.4.1) - n8n Workflow Templates:
-- ✅ **NEW: list_node_templates tool** - Find workflow templates using specific nodes
-- ✅ **NEW: get_template tool** - Get complete workflow JSON for import
-- ✅ **NEW: search_templates tool** - Search templates by keywords
-- ✅ **NEW: get_templates_for_task tool** - Get curated templates for common tasks
-- ✅ Added Templates system with n8n.io API integration
-- ✅ Templates filtered to last 6 months only (freshness guarantee)
-- ✅ Manual fetch system - not part of regular rebuild
-- ✅ Full workflow JSON available for immediate use
-- ✅ 10 task categories: AI automation, data sync, webhooks, etc.
-
-### Update (v2.4.0) - AI-Optimized MCP Tools:
-- ✅ **NEW: get_node_essentials tool** - Returns only 10-20 essential properties (95% size reduction)
-- ✅ **NEW: search_node_properties tool** - Search for specific properties within nodes
-- ✅ **NEW: get_node_for_task tool** - Pre-configured settings for 14 common tasks
-- ✅ **NEW: list_tasks tool** - Discover available task templates
-- ✅ **NEW: validate_node_config tool** - Validate configurations before use
-- ✅ **NEW: get_property_dependencies tool** - Analyze property visibility dependencies
-- ✅ Added PropertyFilter service with curated essential properties for 20+ nodes
-- ✅ Added ExampleGenerator with working examples for common use cases
-- ✅ Added TaskTemplates service with 14 pre-configured tasks
-- ✅ Added ConfigValidator service for comprehensive validation
-- ✅ Added PropertyDependencies service for dependency analysis
-- ✅ Enhanced all property descriptions - 100% coverage
-- ✅ Added version information to essentials response
-- ✅ Dramatically improved AI agent experience for workflow building
-- ✅ Response sizes reduced from 100KB+ to <5KB for common nodes
-
-### Update (v2.3.3) - Automated Dependency Updates & Validation Fixes:
-- ✅ Implemented automated n8n dependency update system
-- ✅ Created GitHub Actions workflow for weekly updates
-- ✅ Fixed validation script to use correct node type format
-- ✅ Successfully updated to n8n v1.97.1 with all dependencies in sync
-- ✅ All 525 nodes loading correctly with validation passing
-
-### Previous Update (v2.3.2) - Complete MCP HTTP Fix:
-- ✅ Fixed "stream is not readable" error by removing body parsing middleware
-- ✅ Fixed "Server not initialized" error with direct JSON-RPC implementation
-- ✅ Created http-server-fixed.ts that bypasses StreamableHTTPServerTransport issues
-- ✅ Full MCP protocol compatibility without transport complications
-- ✅ Use `USE_FIXED_HTTP=true` environment variable to enable the fixed server
-
-### Previous Update (v2.3) - Universal Node.js Compatibility:
-- ✅ Automatic database adapter fallback system implemented
-- ✅ Works with ANY Node.js version (no more v20.17.0 requirement)
-- ✅ Seamless fallback from better-sqlite3 to sql.js
-- ✅ No manual configuration needed for Claude Desktop
+Key highlights from recent versions:
+- **v2.5.x**: AI tool support enhancements, workflow validation, expression validation
+- **v2.4.x**: AI-optimized tools, workflow templates, enhanced validation profiles
+- **v2.3.x**: Universal Node.js compatibility, HTTP server fixes, dependency management
 - ✅ Maintains full functionality with either adapter
 
 ## ✅ Previous Achievements (v2.2)

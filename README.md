@@ -387,6 +387,7 @@ These powerful tools allow you to manage n8n workflows directly from Claude. The
 
 #### System Tools
 - **`n8n_health_check`** - Check n8n API connectivity and features
+- **`n8n_diagnostic`** - Troubleshoot management tools visibility and configuration issues
 - **`n8n_list_available_tools`** - List all available management tools
 
 ### Example Usage
@@ -469,20 +470,23 @@ npm run dev:http       # HTTP dev mode
 - [Installation Guide](./docs/INSTALLATION.md) - Comprehensive installation instructions
 - [Claude Desktop Setup](./docs/README_CLAUDE_SETUP.md) - Detailed Claude configuration
 - [Docker Guide](./docs/DOCKER_README.md) - Advanced Docker deployment options
+- [MCP Quick Start](./docs/MCP_QUICK_START_GUIDE.md) - Get started quickly with n8n-MCP
 
-### Usage & Best Practices
+### Feature Documentation
+- [Workflow Diff Operations](./docs/workflow-diff-examples.md) - Token-efficient workflow updates (NEW!)
+- [Transactional Updates](./docs/transactional-updates-example.md) - Two-pass workflow editing
+- [MCP Essentials](./docs/MCP_ESSENTIALS_README.md) - AI-optimized tools guide
+- [Validation System](./docs/validation-improvements-v2.4.2.md) - Smart validation profiles
+
+### Development & Deployment
+- [HTTP Deployment](./docs/HTTP_DEPLOYMENT.md) - Remote server setup guide
+- [Dependency Management](./docs/DEPENDENCY_UPDATES.md) - Keeping n8n packages in sync
 - [Claude's Interview](./docs/CLAUDE_INTERVIEW.md) - Real-world impact of n8n-MCP
-- [Claude Project Instructions](#claude-project-setup) - Optimal system instructions for n8n workflows
-- [MCP Tools List](#-available-mcp-tools) - Complete list of available tools
 
-### Technical Documentation
-- [HTTP Deployment (Beta)](./docs/HTTP_DEPLOYMENT.md) - Remote server setup
-- [Dependency Updates](./docs/DEPENDENCY_UPDATES.md) - Managing n8n dependencies
-- [Validation Improvements](./docs/validation-improvements-v2.4.2.md) - Validation system details
-
-### Troubleshooting
-- [Change Log](./docs/CHANGELOG.md) - Version history and updates
-- [Docker Fixes](./docs/DOCKER_FIX_IMPLEMENTATION.md) - Docker-specific troubleshooting
+### Project Information
+- [Change Log](./CHANGELOG.md) - Complete version history
+- [Claude Instructions](./CLAUDE.md) - AI guidance for this codebase
+- [MCP Tools Reference](#-available-mcp-tools) - Complete list of available tools
 
 ## 📊 Metrics & Coverage
 
