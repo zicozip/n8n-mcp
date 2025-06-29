@@ -276,7 +276,7 @@ export class N8NDocumentationMCPServer {
     let query = 'SELECT * FROM nodes WHERE 1=1';
     const params: any[] = [];
     
-    console.log('DEBUG list_nodes:', { filters, query, params }); // ADD THIS
+    // console.log('DEBUG list_nodes:', { filters, query, params }); // Removed to prevent stdout interference
 
     if (filters.package) {
       // Handle both formats
@@ -451,11 +451,11 @@ export class N8NDocumentationMCPServer {
     
     // Debug: Check if is_ai_tool column is populated
     const aiCount = this.db!.prepare('SELECT COUNT(*) as ai_count FROM nodes WHERE is_ai_tool = 1').get() as any;
-    console.log('DEBUG list_ai_tools:', { 
-      toolsLength: tools.length, 
-      aiCountInDB: aiCount.ai_count,
-      sampleTools: tools.slice(0, 3)
-    });
+    // console.log('DEBUG list_ai_tools:', { 
+    //   toolsLength: tools.length, 
+    //   aiCountInDB: aiCount.ai_count,
+    //   sampleTools: tools.slice(0, 3)
+    // }); // Removed to prevent stdout interference
     
     return {
       tools,
