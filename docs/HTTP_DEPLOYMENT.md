@@ -2,7 +2,7 @@
 
 Deploy n8n-MCP as a remote HTTP server to provide n8n knowledge to Claude from anywhere.
 
-📌 **Latest Version**: v2.7.1 (includes fix for n8n management tools in Docker)
+📌 **Latest Version**: v2.7.2 (includes fix for n8n management tools in Docker, updated documentation)
 
 ## 🎯 Overview
 
@@ -13,6 +13,40 @@ n8n-MCP HTTP mode enables:
 - ⚡ Production-ready performance (~12ms response time)
 - 🔧 Fixed implementation (v2.3.2) for stability
 - 🚀 Optional n8n management tools (16 additional tools when configured)
+
+## 📐 Deployment Scenarios
+
+### 1. Local Development (Simplest)
+Use **stdio mode** - Claude Desktop connects directly to the Node.js process:
+```
+Claude Desktop → n8n-mcp (stdio mode)
+```
+- ✅ No HTTP server needed
+- ✅ No authentication required
+- ✅ Fastest performance
+- ❌ Only works locally
+
+### 2. Local HTTP Server
+Run HTTP server locally for testing remote features:
+```
+Claude Desktop → http-bridge.js → localhost:3000
+```
+- ✅ Test HTTP features locally
+- ✅ Multiple Claude instances can connect
+- ✅ Good for development
+- ❌ Still only local access
+
+### 3. Remote Server
+Deploy to cloud for access from anywhere:
+```
+Claude Desktop → mcp-remote → https://your-server.com
+```
+- ✅ Access from anywhere
+- ✅ Team collaboration
+- ✅ Production-ready
+- ❌ Requires server setup
+
+⚠️ **Experimental Feature**: Remote server deployment has not been thoroughly tested. If you encounter any issues, please [open an issue](https://github.com/czlonkowski/n8n-mcp/issues) on GitHub.
 
 ## 📋 Prerequisites
 
@@ -29,7 +63,7 @@ n8n-MCP HTTP mode enables:
 
 ## 🚀 Quick Start
 
-### Option 1: Docker Deployment (Recommended)
+### Option 1: Docker Deployment (Recommended for Production)
 
 ```bash
 # 1. Create environment file
@@ -55,7 +89,7 @@ docker run -d \
 curl http://localhost:3000/health
 ```
 
-### Option 2: Manual Installation
+### Option 2: Local Development (Without Docker)
 
 ```bash
 # 1. Clone and setup
@@ -73,6 +107,27 @@ export PORT=3000
 
 # 3. Start server
 npm run start:http
+```
+
+### Option 3: Direct stdio Mode (Simplest for Local)
+
+Skip HTTP entirely and use stdio mode directly:
+
+```json
+{
+  "mcpServers": {
+    "n8n-local": {
+      "command": "node",
+      "args": [
+        "/path/to/n8n-mcp/dist/mcp/index.js"
+      ],
+      "env": {
+        "N8N_API_URL": "https://your-n8n-instance.com",
+        "N8N_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
 ```
 
 💡 **Save your AUTH_TOKEN** - clients will need it to connect!
@@ -183,7 +238,19 @@ your-domain.com {
 
 ## 💻 Client Configuration
 
-### For All Claude Desktop Users
+### Understanding the Architecture
+
+Claude Desktop only supports stdio (standard input/output) communication, but our HTTP server requires HTTP requests. We bridge this gap using one of two methods:
+
+```
+Method 1: Using mcp-remote (npm package)
+Claude Desktop (stdio) → mcp-remote → HTTP Server
+
+Method 2: Using custom bridge script
+Claude Desktop (stdio) → http-bridge.js → HTTP Server
+```
+
+### Method 1: Using mcp-remote (Recommended)
 
 **Requirements**: Node.js 18+ installed locally
 
@@ -201,6 +268,48 @@ your-domain.com {
       ],
       "env": {
         "AUTH_TOKEN": "your-auth-token-here"
+      }
+    }
+  }
+}
+```
+
+### Method 2: Using Custom Bridge Script
+
+For local testing or when mcp-remote isn't available:
+
+```json
+{
+  "mcpServers": {
+    "n8n-local-http": {
+      "command": "node",
+      "args": [
+        "/path/to/n8n-mcp/scripts/http-bridge.js"
+      ],
+      "env": {
+        "MCP_URL": "http://localhost:3000/mcp",
+        "AUTH_TOKEN": "your-auth-token-here"
+      }
+    }
+  }
+}
+```
+
+### Local Development with Docker
+
+When testing locally with Docker:
+
+```json
+{
+  "mcpServers": {
+    "n8n-docker-http": {
+      "command": "node",
+      "args": [
+        "/path/to/n8n-mcp/scripts/http-bridge.js"
+      ],
+      "env": {
+        "MCP_URL": "http://localhost:3001/mcp",
+        "AUTH_TOKEN": "docker-test-token"
       }
     }
   }
@@ -390,6 +499,19 @@ docker scan ghcr.io/czlonkowski/n8n-mcp:latest
 **"TransformStream is not defined" (client-side):**
 - 🔄 Update Node.js to v18+ on client machine
 - Or use Docker stdio mode instead
+
+**"Why is command 'node' instead of 'docker'?"**
+- Claude Desktop only supports stdio communication
+- The bridge script (http-bridge.js or mcp-remote) translates between stdio and HTTP
+- Docker containers running HTTP servers need this bridge
+
+**Bridge script not working:**
+```bash
+# Test the bridge manually
+export MCP_URL=http://localhost:3000/mcp
+export AUTH_TOKEN=your-token
+echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | node /path/to/http-bridge.js
+```
 
 **Connection refused:**
 ```bash

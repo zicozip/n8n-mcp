@@ -6,9 +6,11 @@
 import express from 'express';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { n8nDocumentationToolsFinal } from './mcp/tools';
+import { n8nManagementTools } from './mcp/tools-n8n-manager';
 import { N8NDocumentationMCPServer } from './mcp/server';
 import { logger } from './utils/logger';
 import { PROJECT_VERSION } from './utils/version';
+import { isN8nApiConfigured } from './config/n8n-api';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -203,10 +205,18 @@ export async function startFixedHTTPServer() {
               break;
               
             case 'tools/list':
+              // Use the proper tool list that includes management tools when configured
+              const tools = [...n8nDocumentationToolsFinal];
+              
+              // Add management tools if n8n API is configured
+              if (isN8nApiConfigured()) {
+                tools.push(...n8nManagementTools);
+              }
+              
               response = {
                 jsonrpc: '2.0',
                 result: {
-                  tools: n8nDocumentationToolsFinal
+                  tools
                 },
                 id: jsonRpcRequest.id
               };
