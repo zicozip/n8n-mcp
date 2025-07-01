@@ -188,7 +188,7 @@ export async function startFixedHTTPServer() {
               response = {
                 jsonrpc: '2.0',
                 result: {
-                  protocolVersion: '1.0',
+                  protocolVersion: '2024-11-05',
                   capabilities: {
                     tools: {},
                     resources: {}
