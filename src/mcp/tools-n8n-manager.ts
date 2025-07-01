@@ -140,7 +140,11 @@ export const n8nManagementTools: ToolDefinition[] = [
         },
         nodes: { 
           type: 'array', 
-          description: 'Complete array of workflow nodes (required if modifying workflow structure)' 
+          description: 'Complete array of workflow nodes (required if modifying workflow structure)',
+          items: {
+            type: 'object',
+            additionalProperties: true
+          }
         },
         connections: { 
           type: 'object', 
