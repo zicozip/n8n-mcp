@@ -2,6 +2,8 @@
 
 Deploy n8n-MCP as a remote HTTP server to provide n8n knowledge to Claude from anywhere.
 
+📌 **Latest Version**: v2.7.1 (includes fix for n8n management tools in Docker)
+
 ## 🎯 Overview
 
 n8n-MCP HTTP mode enables:
@@ -10,6 +12,7 @@ n8n-MCP HTTP mode enables:
 - 🔒 Token-based authentication
 - ⚡ Production-ready performance (~12ms response time)
 - 🔧 Fixed implementation (v2.3.2) for stability
+- 🚀 Optional n8n management tools (16 additional tools when configured)
 
 ## 📋 Prerequisites
 
@@ -35,6 +38,9 @@ AUTH_TOKEN=$(openssl rand -base64 32)
 USE_FIXED_HTTP=true
 MCP_MODE=http
 PORT=3000
+# Optional: Enable n8n management tools
+# N8N_API_URL=https://your-n8n-instance.com
+# N8N_API_KEY=your-api-key-here
 EOF
 
 # 2. Deploy with Docker
@@ -89,6 +95,52 @@ npm run start:http
 | `HOST` | Bind address | `0.0.0.0` |
 | `LOG_LEVEL` | Log verbosity | `info` |
 | `NODE_ENV` | Environment | `production` |
+
+### n8n Management Tools (Optional)
+
+Enable 16 additional tools for managing n8n workflows by configuring API access:
+
+⚠️ **Requires v2.7.1+** - Earlier versions had an issue with tool registration in Docker environments.
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `N8N_API_URL` | Your n8n instance URL | `https://your-n8n.com` |
+| `N8N_API_KEY` | n8n API key (from Settings > API) | `n8n_api_key_xxx` |
+| `N8N_API_TIMEOUT` | Request timeout (ms) | `30000` |
+| `N8N_API_MAX_RETRIES` | Max retry attempts | `3` |
+
+#### What This Enables
+
+When configured, you get **16 additional tools** (total: 38 tools):
+
+**Workflow Management (11 tools):**
+- `n8n_create_workflow` - Create new workflows
+- `n8n_get_workflow` - Get workflow by ID
+- `n8n_update_full_workflow` - Update entire workflow
+- `n8n_update_partial_workflow` - Update using diff operations (v2.7.0+)
+- `n8n_delete_workflow` - Delete workflows
+- `n8n_list_workflows` - List all workflows
+- And more workflow detail/structure tools
+
+**Execution Management (4 tools):**
+- `n8n_trigger_webhook_workflow` - Execute via webhooks
+- `n8n_get_execution` - Get execution details
+- `n8n_list_executions` - List workflow runs
+- `n8n_delete_execution` - Delete execution records
+
+**System Tools:**
+- `n8n_health_check` - Check n8n connectivity
+- `n8n_diagnostic` - System diagnostics
+- `n8n_validate_workflow` - Validate from n8n instance
+
+#### Getting Your n8n API Key
+
+1. Log into your n8n instance
+2. Go to **Settings** > **API**
+3. Click **Create API Key**
+4. Copy the generated key
+
+⚠️ **Security Note**: Store API keys securely and never commit them to version control.
 
 ## 🔐 Security Setup
 
@@ -182,6 +234,9 @@ services:
       AUTH_TOKEN: ${AUTH_TOKEN:?AUTH_TOKEN required}
       NODE_ENV: production
       LOG_LEVEL: info
+      # Optional: Enable n8n management tools
+      # N8N_API_URL: ${N8N_API_URL}
+      # N8N_API_KEY: ${N8N_API_KEY}
     ports:
       - "127.0.0.1:3000:3000"  # Bind to localhost only
     volumes:
@@ -408,6 +463,41 @@ While n8n-MCP is designed for single-user deployments, you can build a multi-use
 4. **Implement rate limiting** per user
 
 See [Architecture Guide](./ARCHITECTURE.md) for building multi-user services.
+
+## 🔧 Using n8n Management Tools
+
+When n8n API is configured, Claude can manage workflows directly:
+
+### Example: Create a Workflow via Claude
+
+```bash
+# Test n8n connectivity first
+curl -X POST https://your-server.com/mcp \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "n8n_health_check",
+    "params": {},
+    "id": 1
+  }'
+```
+
+### Common Use Cases
+
+1. **Workflow Automation**: Claude can create, update, and manage workflows
+2. **CI/CD Integration**: Deploy workflows from version control
+3. **Workflow Templates**: Claude can apply templates to new workflows
+4. **Monitoring**: Track execution status and debug failures
+5. **Incremental Updates**: Use diff-based updates for efficient changes
+
+### Security Best Practices for n8n API
+
+- 🔐 Use separate API keys for different environments
+- 🔄 Rotate API keys regularly
+- 📝 Audit workflow changes via n8n's audit log
+- 🚫 Never expose n8n API directly to the internet
+- ✅ Use MCP server as a security layer
 
 ## 📦 Updates & Maintenance
 
