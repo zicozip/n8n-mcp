@@ -8,7 +8,7 @@ export interface LoadedNode {
 
 export class N8nNodeLoader {
   private readonly CORE_PACKAGES = [
-    { name: 'n8n-nodes-base', path: 'n8n/node_modules/n8n-nodes-base' },
+    { name: 'n8n-nodes-base', path: 'n8n-nodes-base' },
     { name: '@n8n/n8n-nodes-langchain', path: '@n8n/n8n-nodes-langchain' }
   ];
 
