@@ -78,6 +78,14 @@ export class N8NDocumentationMCPServer {
     
     logger.info('Initializing n8n Documentation MCP server');
     
+    // Log n8n API configuration status at startup
+    const apiConfigured = isN8nApiConfigured();
+    const totalTools = apiConfigured ? 
+      n8nDocumentationToolsFinal.length + n8nManagementTools.length : 
+      n8nDocumentationToolsFinal.length;
+    
+    logger.info(`MCP server initialized with ${totalTools} tools (n8n API: ${apiConfigured ? 'configured' : 'not configured'})`);
+    
     this.server = new Server(
       {
         name: 'n8n-documentation-mcp',
@@ -126,9 +134,9 @@ export class N8NDocumentationMCPServer {
         },
       };
       
-      // Debug: Log to stderr to see if handler is called
+      // Debug logging
       if (process.env.DEBUG_MCP === 'true') {
-        console.error('Initialize handler called, returning:', JSON.stringify(response));
+        logger.debug('Initialize handler called', { response });
       }
       
       return response;
@@ -138,12 +146,13 @@ export class N8NDocumentationMCPServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       // Combine documentation tools with management tools if API is configured
       const tools = [...n8nDocumentationToolsFinal];
+      const isConfigured = isN8nApiConfigured();
       
-      if (isN8nApiConfigured()) {
+      if (isConfigured) {
         tools.push(...n8nManagementTools);
-        logger.info('n8n management tools enabled');
+        logger.debug(`Tool listing: ${tools.length} tools available (${n8nDocumentationToolsFinal.length} documentation + ${n8nManagementTools.length} management)`);
       } else {
-        logger.info('n8n management tools disabled (API not configured)');
+        logger.debug(`Tool listing: ${tools.length} tools available (documentation only)`);
       }
       
       return { tools };

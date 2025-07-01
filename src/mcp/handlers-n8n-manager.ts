@@ -1,5 +1,5 @@
 import { N8nApiClient } from '../services/n8n-api-client';
-import { n8nApiConfig } from '../config/n8n-api';
+import { getN8nApiConfig } from '../config/n8n-api';
 import { 
   Workflow, 
   WorkflowNode, 
@@ -26,15 +26,26 @@ import { NodeRepository } from '../database/node-repository';
 
 // Singleton n8n API client instance
 let apiClient: N8nApiClient | null = null;
+let lastConfigUrl: string | null = null;
 
-// Get or create API client
+// Get or create API client (with lazy config loading)
 export function getN8nApiClient(): N8nApiClient | null {
-  if (!n8nApiConfig) {
+  const config = getN8nApiConfig();
+  
+  if (!config) {
+    if (apiClient) {
+      logger.info('n8n API configuration removed, clearing client');
+      apiClient = null;
+      lastConfigUrl = null;
+    }
     return null;
   }
   
-  if (!apiClient) {
-    apiClient = new N8nApiClient(n8nApiConfig);
+  // Check if config has changed
+  if (!apiClient || lastConfigUrl !== config.baseUrl) {
+    logger.info('n8n API client initialized', { url: config.baseUrl });
+    apiClient = new N8nApiClient(config);
+    lastConfigUrl = config.baseUrl;
   }
   
   return apiClient;
@@ -754,7 +765,7 @@ export async function handleHealthCheck(): Promise<McpToolResponse> {
         instanceId: health.instanceId,
         n8nVersion: health.n8nVersion,
         features: health.features,
-        apiUrl: n8nApiConfig?.baseUrl
+        apiUrl: getN8nApiConfig()?.baseUrl
       }
     };
   } catch (error) {
@@ -764,7 +775,7 @@ export async function handleHealthCheck(): Promise<McpToolResponse> {
         error: getUserFriendlyErrorMessage(error),
         code: error.code,
         details: {
-          apiUrl: n8nApiConfig?.baseUrl,
+          apiUrl: getN8nApiConfig()?.baseUrl,
           hint: 'Check if n8n is running and API is enabled'
         }
       };
@@ -811,17 +822,18 @@ export async function handleListAvailableTools(): Promise<McpToolResponse> {
     }
   ];
   
-  const apiConfigured = n8nApiConfig !== null;
+  const config = getN8nApiConfig();
+  const apiConfigured = config !== null;
   
   return {
     success: true,
     data: {
       tools,
       apiConfigured,
-      configuration: apiConfigured ? {
-        apiUrl: n8nApiConfig!.baseUrl,
-        timeout: n8nApiConfig!.timeout,
-        maxRetries: n8nApiConfig!.maxRetries
+      configuration: config ? {
+        apiUrl: config.baseUrl,
+        timeout: config.timeout,
+        maxRetries: config.maxRetries
       } : null,
       limitations: [
         'Cannot activate/deactivate workflows via API',
@@ -846,7 +858,8 @@ export async function handleDiagnostic(request: any): Promise<McpToolResponse> {
   };
   
   // Check API configuration
-  const apiConfigured = n8nApiConfig !== null;
+  const apiConfig = getN8nApiConfig();
+  const apiConfigured = apiConfig !== null;
   const apiClient = getN8nApiClient();
   
   // Test API connectivity if configured
@@ -879,10 +892,10 @@ export async function handleDiagnostic(request: any): Promise<McpToolResponse> {
     apiConfiguration: {
       configured: apiConfigured,
       status: apiStatus,
-      config: apiConfigured && n8nApiConfig ? {
-        baseUrl: n8nApiConfig.baseUrl,
-        timeout: n8nApiConfig.timeout,
-        maxRetries: n8nApiConfig.maxRetries
+      config: apiConfig ? {
+        baseUrl: apiConfig.baseUrl,
+        timeout: apiConfig.timeout,
+        maxRetries: apiConfig.maxRetries
       } : null
     },
     toolsAvailability: {

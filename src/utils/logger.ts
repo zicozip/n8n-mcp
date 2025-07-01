@@ -16,6 +16,10 @@ export class Logger {
   private static instance: Logger;
   private useFileLogging = false;
   private fileStream: any = null;
+  // Cache environment variables for performance
+  private readonly isStdio = process.env.MCP_MODE === 'stdio';
+  private readonly isDisabled = process.env.DISABLE_CONSOLE_OUTPUT === 'true';
+  private readonly isHttp = process.env.MCP_MODE === 'http';
 
   constructor(config?: Partial<LoggerConfig>) {
     this.config = {
@@ -53,10 +57,7 @@ export class Logger {
   private log(level: LogLevel, levelName: string, message: string, ...args: any[]): void {
     // Check environment variables FIRST, before level check
     // In stdio mode, suppress ALL console output to avoid corrupting JSON-RPC
-    const isStdio = process.env.MCP_MODE === 'stdio';
-    const isDisabled = process.env.DISABLE_CONSOLE_OUTPUT === 'true';
-    
-    if (isStdio || isDisabled) {
+    if (this.isStdio || this.isDisabled) {
       // Silently drop all logs in stdio mode
       return;
     }
@@ -66,7 +67,7 @@ export class Logger {
       
       // In HTTP mode during request handling, suppress console output
       // The ConsoleManager will handle this, but we add a safety check
-      if (process.env.MCP_MODE === 'http' && process.env.MCP_REQUEST_ACTIVE === 'true') {
+      if (this.isHttp && process.env.MCP_REQUEST_ACTIVE === 'true') {
         // Silently drop the log during active MCP requests
         return;
       }

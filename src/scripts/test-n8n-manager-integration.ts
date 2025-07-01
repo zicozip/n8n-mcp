@@ -2,7 +2,7 @@
 
 import { config } from 'dotenv';
 import { logger } from '../utils/logger';
-import { isN8nApiConfigured, n8nApiConfig } from '../config/n8n-api';
+import { isN8nApiConfigured, getN8nApiConfig } from '../config/n8n-api';
 import { getN8nApiClient } from '../mcp/handlers-n8n-manager';
 import { N8nApiClient } from '../services/n8n-api-client';
 import { Workflow, ExecutionStatus } from '../types/n8n-api';
@@ -21,10 +21,11 @@ async function testN8nManagerIntegration() {
     return;
   }
   
+  const apiConfig = getN8nApiConfig();
   logger.info('n8n API Configuration:', {
-    url: n8nApiConfig!.baseUrl,
-    timeout: n8nApiConfig!.timeout,
-    maxRetries: n8nApiConfig!.maxRetries
+    url: apiConfig!.baseUrl,
+    timeout: apiConfig!.timeout,
+    maxRetries: apiConfig!.maxRetries
   });
   
   const client = getN8nApiClient();
