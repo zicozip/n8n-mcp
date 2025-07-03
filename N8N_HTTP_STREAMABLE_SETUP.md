@@ -68,7 +68,7 @@ Add an MCP Client node to your workflow with these settings:
 
 ### List Tools
 Shows all available MCP tools:
-- `start_here_workflow_guide`
+- `tools_documentation`
 - `list_nodes`
 - `get_node_info`
 - `search_nodes`

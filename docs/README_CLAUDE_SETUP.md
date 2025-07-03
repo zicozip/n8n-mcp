@@ -115,7 +115,7 @@ After restarting Claude Desktop:
 ## 🔧 Available Tools (v2.5.1)
 
 ### Essential Tool - Start Here!
-- **`start_here_workflow_guide`** - Essential guide and best practices (ALWAYS use this first!)
+- **`tools_documentation`** - Get documentation for any MCP tool (ALWAYS use this first!)
 
 ### Core Tools
 - **`list_nodes`** - List all n8n nodes with filtering options

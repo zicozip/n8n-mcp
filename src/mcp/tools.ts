@@ -8,15 +8,20 @@ import { ToolDefinition } from '../types';
  */
 export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   {
-    name: 'start_here_workflow_guide',
-    description: `START HERE! Essential guide for using n8n MCP tools effectively. Returns workflow recommendations, common patterns, performance tips, and known issues. Call this FIRST before using other tools to avoid common mistakes and work efficiently.`,
+    name: 'tools_documentation',
+    description: `Get documentation for n8n MCP tools. Call without parameters for quick start guide. Use topic parameter to get documentation for specific tools. Use depth='full' for comprehensive documentation.`,
     inputSchema: {
       type: 'object',
       properties: {
         topic: {
           type: 'string',
-          enum: ['overview', 'workflow', 'search_tips', 'common_nodes', 'known_issues', 'performance', 'ai_tools', 'n8n_management'],
-          description: 'Optional: Get specific guidance on a topic. Default returns complete overview.',
+          description: 'Tool name (e.g., "search_nodes") or "overview" for general guide. Leave empty for quick reference.',
+        },
+        depth: {
+          type: 'string',
+          enum: ['essentials', 'full'],
+          description: 'Level of detail. "essentials" (default) for quick reference, "full" for comprehensive docs.',
+          default: 'essentials',
         },
       },
     },

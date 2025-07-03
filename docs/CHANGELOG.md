@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.4] - 2025-07-03
+
+### Changed
+- Renamed `start_here_workflow_guide` tool to `tools_documentation` for better clarity
+- Converted tool output from JSON to LLM-friendly plain text format
+- Made documentation concise by default with "essentials" depth
+
+### Added
+- `depth` parameter to control documentation detail level ("essentials" or "full")
+- Per-tool documentation - get help for any specific MCP tool
+- Two-tier documentation system:
+  - Essentials: Brief description, key parameters, example, performance, tips
+  - Full: Complete documentation with all details, examples, best practices
+- Quick reference mode when called without parameters
+- Documentation for 8 commonly used tools
+- Test script for tools documentation (`test:tools-documentation`)
+
+### Removed
+- Removed duplicate `tools_documentation` tool definition
+- Removed unused `getWorkflowGuide` method (380+ lines)
+- Removed old `handlers-documentation.ts` file
+
+## [2.7.3] - 2025-07-02
+
+### Added
+- MCP Tools Documentation system (initial implementation)
+- `tools_documentation` tool for comprehensive MCP tool documentation
+- Documentation includes parameters, examples, best practices, and pitfalls
+- Search tools by keyword functionality
+- Browse tools by category
+- Quick reference guide with workflow patterns
+
+### Fixed
+- Cleaned up redundant tool definitions
+
+## [2.7.2] - 2025-07-01
+
+### Fixed
+- HTTP deployment documentation improvements
+- Docker configuration updates with n8n API options
+
+### Changed
+- Updated version handling in multiple configuration files
+
+## [2.7.1] - 2025-06-30
+
+### Fixed
+- Workflow diff engine edge cases
+- Transactional update processing improvements
+
+### Added
+- Additional test coverage for diff operations
+- Debug scripts for update operations
+
 ## [2.7.0] - 2025-06-29
 
 ### Added
@@ -257,6 +311,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.4]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.3...v2.7.4
+[2.7.3]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.2...v2.7.3
+[2.7.2]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.1...v2.7.2
+[2.7.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.6.3...v2.7.0
 [2.6.3]: https://github.com/czlonkowski/n8n-mcp/compare/v2.6.2...v2.6.3
 [2.6.2]: https://github.com/czlonkowski/n8n-mcp/compare/v2.6.1...v2.6.2

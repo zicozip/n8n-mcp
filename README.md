@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.7.4-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -198,7 +198,7 @@ You are an expert in n8n automation software using n8n-MCP tools. Your role is t
 
 ## Core Workflow Process
 
-1. **ALWAYS start with**: `start_here_workflow_guide()` to understand best practices and available tools.
+1. **ALWAYS start with**: `tools_documentation()` to understand best practices and available tools.
 
 2. **Discovery Phase** - Find the right nodes:
    - `search_nodes({query: 'keyword'})` - Search by functionality
@@ -343,7 +343,7 @@ When Claude, Anthropic's AI assistant, tested n8n-MCP, the results were transfor
 Once connected, Claude can use these powerful tools:
 
 ### Core Tools
-- **`start_here_workflow_guide`** - Essential guide and best practices (START HERE!)
+- **`tools_documentation`** - Get documentation for any MCP tool (START HERE!)
 - **`list_nodes`** - List all n8n nodes with filtering options
 - **`get_node_info`** - Get comprehensive information about a specific node
 - **`get_node_essentials`** - Get only essential properties with examples (10-20 properties instead of 200+)
@@ -501,6 +501,15 @@ Current database coverage (n8n v1.99.1):
 - 💾 **Database size**: ~15MB (optimized)
 
 ## 🔄 Recent Updates
+
+### v2.7.4 - Self-Documenting MCP Tools
+- ✅ **RENAMED**: `start_here_workflow_guide` → `tools_documentation` for clarity
+- ✅ **NEW**: Depth parameter - Control documentation detail with "essentials" or "full"
+- ✅ **NEW**: Per-tool documentation - Get help for any specific MCP tool by name
+- ✅ **CONCISE**: Essential info by default, comprehensive docs on demand
+- ✅ **LLM-FRIENDLY**: Plain text format instead of JSON for better readability
+- ✅ **QUICK HELP**: Call without parameters for immediate quick reference
+- ✅ **8 TOOLS DOCUMENTED**: Complete documentation for most commonly used tools
 
 ### v2.7.0 - Diff-Based Workflow Editing with Transactional Updates
 - ✅ **NEW**: `n8n_update_partial_workflow` tool - Update workflows using diff operations

@@ -6,7 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.7.0)
+## ✅ Latest Updates (v2.7.4)
+
+### Update (v2.7.4) - Self-Documenting MCP Tools:
+- ✅ **RENAMED: start_here_workflow_guide → tools_documentation** - More descriptive name
+- ✅ **NEW: Depth parameter** - Control documentation detail level with "essentials" or "full"
+- ✅ **NEW: Per-tool documentation** - Get help for any specific tool by name
+- ✅ **Concise by default** - Essential info only, unless full depth requested
+- ✅ **LLM-friendly format** - Plain text, not JSON for better readability
+- ✅ **Two-tier documentation**:
+  - **Essentials**: Brief description, key parameters, example, performance, 2-3 tips
+  - **Full**: Complete documentation with all parameters, examples, use cases, best practices, pitfalls
+- ✅ **Quick reference** - Call without parameters for immediate help
+- ✅ **8 documented tools** - Comprehensive docs for most commonly used tools
+- ✅ **Performance guidance** - Clear indication of which tools are fast vs slow
+- ✅ **Error prevention** - Common pitfalls documented upfront
 
 ### Update (v2.7.0) - Diff-Based Workflow Editing with Transactional Updates:
 - ✅ **NEW: n8n_update_partial_workflow tool** - Update workflows using diff operations for precise, incremental changes
@@ -128,11 +142,14 @@ src/
 │   ├── test-mcp-tools.ts      # Test MCP tool enhancements (NEW in v2.5.1)
 │   ├── test-n8n-validate-workflow.ts # Test n8n_validate_workflow tool (NEW in v2.6.3)
 │   ├── test-typeversion-validation.ts # Test typeVersion validation (NEW in v2.6.1)
+│   ├── test-workflow-diff.ts  # Test workflow diff engine (NEW in v2.7.0)
+│   ├── test-tools-documentation.ts # Test tools documentation (NEW in v2.7.3)
 │   ├── fetch-templates.ts     # Fetch workflow templates from n8n.io (NEW in v2.4.1)
 │   └── test-templates.ts      # Test template functionality (NEW in v2.4.1)
 ├── mcp/
-│   ├── server-update.ts       # MCP server with enhanced tools
-│   ├── tools-update.ts        # Tool definitions including new essentials
+│   ├── server.ts              # MCP server with enhanced tools
+│   ├── tools.ts               # Tool definitions including new essentials
+│   ├── tools-documentation.ts # Tool documentation system (NEW in v2.7.3)
 │   └── index.ts               # Main entry point with mode selection
 ├── utils/
 │   ├── console-manager.ts     # Console output isolation (NEW in v2.3.1)
@@ -183,6 +200,7 @@ npm run test:n8n-manager   # Test n8n management tools integration
 npm run test:n8n-validate-workflow  # Test n8n_validate_workflow tool
 npm run test:typeversion-validation  # Test typeVersion validation
 npm run test:workflow-diff  # Test workflow diff engine
+npm run test:tools-documentation  # Test MCP tools documentation system
 
 # Workflow Validation Commands:
 npm run test:workflow-validation   # Test workflow validation features
@@ -308,6 +326,7 @@ The project implements MCP (Model Context Protocol) to expose n8n node documenta
 - `get_template` - **NEW** Get complete workflow JSON for import
 - `search_templates` - **NEW** Search templates by keywords
 - `get_templates_for_task` - **NEW** Get curated templates for common tasks
+- `tools_documentation` - **NEW v2.7.3** Get comprehensive documentation for MCP tools
 
 ### n8n Management Tools (NEW v2.6.0 - Requires API Configuration)
 These tools are only available when N8N_API_URL and N8N_API_KEY are configured:
