@@ -331,9 +331,9 @@ export class N8NDocumentationMCPServer {
         category: node.category,
         package: node.package_name,
         developmentStyle: node.development_style,
-        isAITool: !!node.is_ai_tool,
-        isTrigger: !!node.is_trigger,
-        isVersioned: !!node.is_versioned,
+        isAITool: Number(node.is_ai_tool) === 1,
+        isTrigger: Number(node.is_trigger) === 1,
+        isVersioned: Number(node.is_versioned) === 1,
       })),
       totalCount: nodes.length,
     };

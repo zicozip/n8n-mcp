@@ -338,7 +338,7 @@ class SQLJSStatement implements PreparedStatement {
     if (this.stmt.step()) {
       const result = this.stmt.getAsObject();
       this.stmt.reset();
-      return result;
+      return this.convertIntegerColumns(result);
     }
     
     this.stmt.reset();
@@ -354,7 +354,7 @@ class SQLJSStatement implements PreparedStatement {
     
     const results: any[] = [];
     while (this.stmt.step()) {
-      results.push(this.stmt.getAsObject());
+      results.push(this.convertIntegerColumns(this.stmt.getAsObject()));
     }
     
     this.stmt.reset();
@@ -399,5 +399,25 @@ class SQLJSStatement implements PreparedStatement {
       // Positional parameters - sql.js uses array for positional
       this.boundParams = params;
     }
+  }
+  
+  /**
+   * Convert SQLite integer columns to JavaScript numbers
+   * sql.js returns all values as strings, but we need proper types for boolean conversion
+   */
+  private convertIntegerColumns(row: any): any {
+    if (!row) return row;
+    
+    // Known integer columns in the nodes table
+    const integerColumns = ['is_ai_tool', 'is_trigger', 'is_webhook', 'is_versioned'];
+    
+    const converted = { ...row };
+    for (const col of integerColumns) {
+      if (col in converted && typeof converted[col] === 'string') {
+        converted[col] = parseInt(converted[col], 10);
+      }
+    }
+    
+    return converted;
   }
 }
