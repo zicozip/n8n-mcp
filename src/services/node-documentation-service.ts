@@ -64,7 +64,7 @@ export class NodeDocumentationService {
   private initialized: Promise<void>;
   
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes-v2.db');
+    this.dbPath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes.db');
     
     // Ensure directory exists
     const dbDir = path.dirname(this.dbPath);

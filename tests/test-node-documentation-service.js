@@ -5,8 +5,8 @@ const { NodeDocumentationService } = require('../dist/services/node-documentatio
 async function testService() {
   console.log('=== Testing Node Documentation Service ===\n');
   
-  // Use a separate database for v2
-  const service = new NodeDocumentationService('./data/nodes-v2.db');
+  // Use the main database
+  const service = new NodeDocumentationService('./data/nodes.db');
   
   try {
     // Test 1: List nodes
