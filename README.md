@@ -124,7 +124,6 @@ Add to Claude Desktop config:
 
 >💡 Tip: If you’re running n8n locally on the same machine (e.g., via Docker), use http://host.docker.internal:5678 as the N8N_API_URL.
 
-
 > **Note**: The n8n API credentials are optional. Without them, you'll have access to all documentation and validation tools. With them, you'll additionally get workflow management capabilities (create, update, execute workflows).
 
 **Important:** The `-i` flag is required for MCP stdio communication.
