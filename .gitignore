@@ -70,10 +70,12 @@ temp/
 tmp/
 
 # Database files
-data/*.db
+# Database files - nodes.db is now tracked directly
+# data/*.db
 data/*.db-journal
 data/*.db.bak
 !data/.gitkeep
+!data/nodes.db
 
 # Claude Desktop configs (personal)
 claude_desktop_config.json
