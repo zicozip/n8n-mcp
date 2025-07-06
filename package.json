@@ -38,6 +38,7 @@
     "test:tools-documentation": "node dist/scripts/test-tools-documentation.js",
     "test:mcp:update-partial": "node dist/scripts/test-mcp-n8n-update-partial.js",
     "test:update-partial:debug": "node dist/scripts/test-update-partial-debug.js",
+    "sanitize:templates": "node dist/scripts/sanitize-templates.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
     "docs:rebuild": "ts-node src/scripts/rebuild-database.ts",

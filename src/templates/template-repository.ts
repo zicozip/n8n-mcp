@@ -1,6 +1,7 @@
 import { DatabaseAdapter } from '../database/database-adapter';
 import { TemplateWorkflow, TemplateDetail } from './template-fetcher';
 import { logger } from '../utils/logger';
+import { TemplateSanitizer } from '../utils/template-sanitizer';
 
 export interface StoredTemplate {
   id: number;
@@ -21,7 +22,11 @@ export interface StoredTemplate {
 }
 
 export class TemplateRepository {
-  constructor(private db: DatabaseAdapter) {}
+  private sanitizer: TemplateSanitizer;
+  
+  constructor(private db: DatabaseAdapter) {
+    this.sanitizer = new TemplateSanitizer();
+  }
   
   /**
    * Save a template to the database
@@ -41,6 +46,20 @@ export class TemplateRepository {
     // Build URL
     const url = `https://n8n.io/workflows/${workflow.id}`;
     
+    // Sanitize the workflow to remove API tokens
+    const { sanitized: sanitizedWorkflow, wasModified } = this.sanitizer.sanitizeWorkflow(detail.workflow);
+    
+    // Log if we sanitized any tokens
+    if (wasModified) {
+      const detectedTokens = this.sanitizer.detectTokens(detail.workflow);
+      logger.warn(`Sanitized API tokens in template ${workflow.id}: ${workflow.name}`, {
+        templateId: workflow.id,
+        templateName: workflow.name,
+        tokensFound: detectedTokens.length,
+        tokenPreviews: detectedTokens.map(t => t.substring(0, 20) + '...')
+      });
+    }
+    
     stmt.run(
       workflow.id,
       workflow.id,
@@ -50,7 +69,7 @@ export class TemplateRepository {
       workflow.user.username,
       workflow.user.verified ? 1 : 0,
       JSON.stringify(nodeTypes),
-      JSON.stringify(detail.workflow),
+      JSON.stringify(sanitizedWorkflow),
       JSON.stringify(categories),
       workflow.totalViews || 0,
       workflow.createdAt,
