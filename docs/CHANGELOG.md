@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.8] - 2025-07-06
+
+### Added
+- npx support for zero-installation usage - users can now run `npx n8n-mcp` without installing
+- npm package distribution with runtime-only dependencies (8 deps vs 50+ dev deps)
+- Dedicated publish script for npm releases with OTP support
+- Database path resolution supporting npx, global, and local installations
+
+### Fixed
+- Issue #15: Added npx execution support as requested
+- Removed development dependencies from npm package (reduced from 1GB+ to ~50MB)
+- Node.js version conflicts by excluding n8n dependencies from runtime package
+
+### Changed
+- npm package now uses package.runtime.json for publishing (no n8n dependencies)
+- Enhanced .gitignore to exclude npm publishing artifacts
+- README now highlights npx as the primary installation method
+
 ## [2.7.5] - 2025-07-06
 
 ### Added
@@ -326,6 +344,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.8]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.5...v2.7.8
+[2.7.5]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.1...v2.7.2

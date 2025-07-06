@@ -90,3 +90,19 @@ rebuild-v20.sh
 # n8n-docs repo (cloned locally)
 ../n8n-docs/
 n8n-docs/
+
+# npm publish temporary directory
+npm-publish-temp/
+
+# Test files and logs
+test-npx/
+mcp-server-*.log
+server.log
+server-fixed.log
+mcp-debug.log
+
+# Temporary wrapper scripts
+n8n-mcp-wrapper.sh
+
+# Package tarballs
+*.tgz

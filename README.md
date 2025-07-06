@@ -2,7 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.7.4-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.7.8-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
+[![n8n version](https://img.shields.io/badge/n8n-v1.100.1-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -22,7 +24,63 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 
 Get n8n-MCP running in 5 minutes:
 
-### Option 1: Docker (Easiest) 🚀
+### Option 1: npx (Fastest - No Installation!) 🚀
+
+**Prerequisites:** [Node.js](https://nodejs.org/) installed on your system
+
+```bash
+# Run directly with npx (no installation needed!)
+npx n8n-mcp
+```
+
+Add to Claude Desktop config:
+
+**Basic configuration (documentation tools only):**
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["n8n-mcp"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true"
+      }
+    }
+  }
+}
+```
+
+**Full configuration (with n8n management tools):**
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["n8n-mcp"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "https://your-n8n-instance.com",
+        "N8N_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+> **Note**: npx will download and run the latest version automatically. The package includes a pre-built database with all n8n node information.
+
+**Configuration file locations:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+**Restart Claude Desktop after updating configuration** - That's it! 🎉
+
+### Option 2: Docker (Easy & Isolated) 🐳
 
 **Prerequisites:** Docker installed on your system
 
@@ -135,7 +193,7 @@ Add to Claude Desktop config:
 
 **Restart Claude Desktop after updating configuration** - That's it! 🎉
 
-### Option 2: Local Installation
+### Option 3: Local Installation (For Development)
 
 **Prerequisites:** [Node.js](https://nodejs.org/) installed on your system
 
@@ -495,7 +553,7 @@ npm run dev:http       # HTTP dev mode
 
 ## 📊 Metrics & Coverage
 
-Current database coverage (n8n v1.99.1):
+Current database coverage (n8n v1.100.1):
 
 - ✅ **525/525** nodes loaded (100%)
 - ✅ **520** nodes with properties (99%)

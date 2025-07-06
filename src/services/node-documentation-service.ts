@@ -64,7 +64,8 @@ export class NodeDocumentationService {
   private initialized: Promise<void>;
   
   constructor(dbPath?: string) {
-    this.dbPath = dbPath || process.env.NODE_DB_PATH || path.join(process.cwd(), 'data', 'nodes.db');
+    // Determine database path with multiple fallbacks for npx support
+    this.dbPath = dbPath || process.env.NODE_DB_PATH || this.findDatabasePath();
     
     // Ensure directory exists
     const dbDir = path.dirname(this.dbPath);
@@ -77,6 +78,32 @@ export class NodeDocumentationService {
     
     // Initialize database asynchronously
     this.initialized = this.initializeAsync();
+  }
+  
+  private findDatabasePath(): string {
+    const fs = require('fs');
+    
+    // Priority order for database locations:
+    // 1. Local working directory (current behavior)
+    const localPath = path.join(process.cwd(), 'data', 'nodes.db');
+    if (fs.existsSync(localPath)) {
+      return localPath;
+    }
+    
+    // 2. Package installation directory (for npx)
+    const packagePath = path.join(__dirname, '..', '..', 'data', 'nodes.db');
+    if (fs.existsSync(packagePath)) {
+      return packagePath;
+    }
+    
+    // 3. Global npm modules directory (for global install)
+    const globalPath = path.join(__dirname, '..', '..', '..', 'data', 'nodes.db');
+    if (fs.existsSync(globalPath)) {
+      return globalPath;
+    }
+    
+    // 4. Default to local path (will be created if needed)
+    return localPath;
   }
   
   private async initializeAsync(): Promise<void> {
