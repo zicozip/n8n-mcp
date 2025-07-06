@@ -79,7 +79,7 @@ export class SimpleParser {
       properties: description.properties || [],
       credentials: description.credentials || [],
       isAITool: description.usableAsTool === true,
-      isTrigger: description.polling === true || description.trigger === true,
+      isTrigger: this.detectTrigger(description),
       isWebhook: description.webhooks?.length > 0,
       operations: isDeclarative ? this.extractOperations(description.routing) : this.extractProgrammaticOperations(description),
       version: this.extractVersion(nodeClass),
@@ -87,6 +87,21 @@ export class SimpleParser {
     };
   }
   
+  private detectTrigger(description: any): boolean {
+    // Primary check: group includes 'trigger'
+    if (description.group && Array.isArray(description.group)) {
+      if (description.group.includes('trigger')) {
+        return true;
+      }
+    }
+    
+    // Fallback checks for edge cases
+    return description.polling === true || 
+           description.trigger === true ||
+           description.eventTrigger === true ||
+           description.name?.toLowerCase().includes('trigger');
+  }
+
   private extractOperations(routing: any): any[] {
     // Simple extraction without complex logic
     const operations: any[] = [];

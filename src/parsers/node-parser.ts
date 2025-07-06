@@ -107,6 +107,14 @@ export class NodeParser {
   }
   
   private detectTrigger(description: any): boolean {
+    // Primary check: group includes 'trigger'
+    if (description.group && Array.isArray(description.group)) {
+      if (description.group.includes('trigger')) {
+        return true;
+      }
+    }
+    
+    // Fallback checks for edge cases
     return description.polling === true || 
            description.trigger === true ||
            description.eventTrigger === true ||
