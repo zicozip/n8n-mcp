@@ -6,7 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.7.5)
+## ✅ Latest Updates (v2.7.6)
+
+### Update (v2.7.6) - Trust Proxy Support for Correct IP Logging:
+- ✅ **NEW: TRUST_PROXY support** - Log real client IPs when behind reverse proxy
+- ✅ **FIXED: Issue #19** - Docker internal IPs no longer logged when proxy configured
+- ✅ **ENHANCED: HTTP deployment** - Better nginx/proxy configuration documentation
+- ✅ **FLEXIBLE: Proxy hop configuration** - Support for single or multiple proxy layers
+- ✅ **BACKWARD COMPATIBLE**: Defaults to current behavior when not configured
 
 ### Update (v2.7.5) - AUTH_TOKEN_FILE Support & Known Issues:
 - ✅ **NEW: AUTH_TOKEN_FILE support** - Read authentication token from file (Docker secrets compatible)
@@ -479,6 +486,10 @@ Required environment variables (see `.env.example`):
 NODE_ENV=development
 PORT=3000
 AUTH_TOKEN=your-secure-token
+
+# Trust proxy for correct IP logging (optional)
+# Set to 1 when behind a reverse proxy (Nginx, etc.)
+TRUST_PROXY=0
 
 # MCP Configuration  
 MCP_SERVER_NAME=n8n-documentation-mcp

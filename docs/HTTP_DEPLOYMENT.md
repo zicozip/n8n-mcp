@@ -2,7 +2,7 @@
 
 Deploy n8n-MCP as a remote HTTP server to provide n8n knowledge to Claude from anywhere.
 
-📌 **Latest Version**: v2.7.2 (includes fix for n8n management tools in Docker, updated documentation)
+📌 **Latest Version**: v2.7.6 (includes trust proxy support for correct IP logging behind reverse proxies)
 
 ## 🎯 Overview
 
@@ -150,6 +150,7 @@ Skip HTTP entirely and use stdio mode directly:
 | `HOST` | Bind address | `0.0.0.0` |
 | `LOG_LEVEL` | Log verbosity | `info` |
 | `NODE_ENV` | Environment | `production` |
+| `TRUST_PROXY` | Trust proxy headers for correct IP logging | `0` |
 
 ### n8n Management Tools (Optional)
 
@@ -197,6 +198,35 @@ When configured, you get **16 additional tools** (total: 38 tools):
 
 ⚠️ **Security Note**: Store API keys securely and never commit them to version control.
 
+## 🌐 Reverse Proxy Configuration
+
+### Trust Proxy for Correct IP Logging
+
+When running n8n-MCP behind a reverse proxy (Nginx, Traefik, etc.), enable trust proxy to log real client IPs instead of proxy IPs:
+
+```bash
+# Enable trust proxy in your environment
+TRUST_PROXY=1  # Trust 1 proxy hop (standard setup)
+# or
+TRUST_PROXY=2  # Trust 2 proxy hops (CDN → Load Balancer → n8n-mcp)
+```
+
+**Without TRUST_PROXY:**
+```
+[INFO] GET /health { ip: '172.19.0.2' }  # Docker internal IP
+```
+
+**With TRUST_PROXY=1:**
+```
+[INFO] GET /health { ip: '203.0.113.1' }  # Real client IP
+```
+
+This is especially important when:
+- Running in Docker/Kubernetes
+- Using load balancers
+- Debugging client issues
+- Implementing rate limiting
+
 ## 🔐 Security Setup
 
 ### Authentication
@@ -225,6 +255,10 @@ server {
     location /mcp {
         proxy_pass http://localhost:3000;
         proxy_set_header Authorization $http_authorization;
+        # Important: Forward client IP headers
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
@@ -343,6 +377,7 @@ services:
       AUTH_TOKEN: ${AUTH_TOKEN:?AUTH_TOKEN required}
       NODE_ENV: production
       LOG_LEVEL: info
+      TRUST_PROXY: 1  # Enable if behind reverse proxy
       # Optional: Enable n8n management tools
       # N8N_API_URL: ${N8N_API_URL}
       # N8N_API_KEY: ${N8N_API_KEY}

@@ -95,6 +95,13 @@ export async function startFixedHTTPServer() {
   
   const app = express();
   
+  // Configure trust proxy for correct IP logging behind reverse proxies
+  const trustProxy = process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : 0;
+  if (trustProxy > 0) {
+    app.set('trust proxy', trustProxy);
+    logger.info(`Trust proxy enabled with ${trustProxy} hop(s)`);
+  }
+  
   // CRITICAL: Don't use any body parser - StreamableHTTPServerTransport needs raw stream
   
   // Security headers

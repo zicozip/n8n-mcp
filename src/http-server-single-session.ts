@@ -154,6 +154,13 @@ export class SingleSessionHTTPServer {
   async start(): Promise<void> {
     const app = express();
     
+    // Configure trust proxy for correct IP logging behind reverse proxies
+    const trustProxy = process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : 0;
+    if (trustProxy > 0) {
+      app.set('trust proxy', trustProxy);
+      logger.info(`Trust proxy enabled with ${trustProxy} hop(s)`);
+    }
+    
     // DON'T use any body parser globally - StreamableHTTPServerTransport needs raw stream
     // Only use JSON parser for specific endpoints that need it
     
