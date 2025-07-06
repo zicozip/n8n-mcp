@@ -6,7 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 n8n-mcp is a comprehensive documentation and knowledge server that provides AI assistants with complete access to n8n node information through the Model Context Protocol (MCP). It serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively.
 
-## ✅ Latest Updates (v2.7.4)
+## ✅ Latest Updates (v2.7.5)
+
+### Update (v2.7.5) - AUTH_TOKEN_FILE Support & Known Issues:
+- ✅ **NEW: AUTH_TOKEN_FILE support** - Read authentication token from file (Docker secrets compatible)
+- ✅ **ADDED: Known Issues section** - Documented Claude Desktop container duplication bug
+- ✅ **ENHANCED: Authentication flexibility** - Support both AUTH_TOKEN and AUTH_TOKEN_FILE variables
+- ✅ **FIXED: Issue #16** - AUTH_TOKEN_FILE now properly implemented as documented
+- ✅ **DOCKER SECRETS**: Seamlessly integrate with Docker secrets management
+- ✅ **BACKWARD COMPATIBLE**: AUTH_TOKEN continues to work as before
 
 ### Update (v2.7.4) - Self-Documenting MCP Tools:
 - ✅ **RENAMED: start_here_workflow_guide → tools_documentation** - More descriptive name

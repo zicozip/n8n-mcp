@@ -12,26 +12,56 @@ import { logger } from './utils/logger';
 import { PROJECT_VERSION } from './utils/version';
 import { isN8nApiConfigured } from './config/n8n-api';
 import dotenv from 'dotenv';
+import { readFileSync } from 'fs';
 
 dotenv.config();
 
 let expressServer: any;
+let authToken: string | null = null;
+
+/**
+ * Load auth token from environment variable or file
+ */
+export function loadAuthToken(): string | null {
+  // First, try AUTH_TOKEN environment variable
+  if (process.env.AUTH_TOKEN) {
+    logger.info('Using AUTH_TOKEN from environment variable');
+    return process.env.AUTH_TOKEN;
+  }
+  
+  // Then, try AUTH_TOKEN_FILE
+  if (process.env.AUTH_TOKEN_FILE) {
+    try {
+      const token = readFileSync(process.env.AUTH_TOKEN_FILE, 'utf-8').trim();
+      logger.info(`Loaded AUTH_TOKEN from file: ${process.env.AUTH_TOKEN_FILE}`);
+      return token;
+    } catch (error) {
+      logger.error(`Failed to read AUTH_TOKEN_FILE: ${process.env.AUTH_TOKEN_FILE}`, error);
+      console.error(`ERROR: Failed to read AUTH_TOKEN_FILE: ${process.env.AUTH_TOKEN_FILE}`);
+      console.error(error instanceof Error ? error.message : 'Unknown error');
+      return null;
+    }
+  }
+  
+  return null;
+}
 
 /**
  * Validate required environment variables
  */
 function validateEnvironment() {
-  const required = ['AUTH_TOKEN'];
-  const missing = required.filter(key => !process.env[key]);
+  // Load auth token from env var or file
+  authToken = loadAuthToken();
   
-  if (missing.length > 0) {
-    logger.error(`Missing required environment variables: ${missing.join(', ')}`);
-    console.error(`ERROR: Missing required environment variables: ${missing.join(', ')}`);
+  if (!authToken) {
+    logger.error('No authentication token found');
+    console.error('ERROR: AUTH_TOKEN is required for HTTP mode');
+    console.error('Set AUTH_TOKEN environment variable or AUTH_TOKEN_FILE pointing to a file containing the token');
     console.error('Generate AUTH_TOKEN with: openssl rand -base64 32');
     process.exit(1);
   }
   
-  if (process.env.AUTH_TOKEN && process.env.AUTH_TOKEN.length < 32) {
+  if (authToken.length < 32) {
     logger.warn('AUTH_TOKEN should be at least 32 characters for security');
     console.warn('WARNING: AUTH_TOKEN should be at least 32 characters for security');
   }
@@ -151,7 +181,7 @@ export async function startFixedHTTPServer() {
       ? authHeader.slice(7) 
       : authHeader;
     
-    if (token !== process.env.AUTH_TOKEN) {
+    if (token !== authToken) {
       logger.warn('Authentication failed', { 
         ip: req.ip,
         userAgent: req.get('user-agent')

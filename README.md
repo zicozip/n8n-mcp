@@ -546,6 +546,42 @@ Current database coverage (n8n v1.99.1):
 
 See [CHANGELOG.md](./docs/CHANGELOG.md) for full version history.
 
+## ⚠️ Known Issues
+
+### Claude Desktop Container Duplication
+When using n8n-MCP with Claude Desktop in Docker mode, Claude Desktop may start the container twice during initialization. This is a known Claude Desktop bug ([modelcontextprotocol/servers#812](https://github.com/modelcontextprotocol/servers/issues/812)).
+
+**Symptoms:**
+- Two identical containers running for the same MCP server
+- Container name conflicts if using `--name` parameter
+- Doubled resource usage
+
+**Workarounds:**
+1. **Avoid using --name parameter** - Let Docker assign random names:
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+2. **Use HTTP mode instead** - Deploy n8n-mcp as a standalone HTTP server:
+```bash
+docker compose up -d  # Start HTTP server
+```
+Then connect via mcp-remote (see [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md))
+
+3. **Use Docker MCP Toolkit** - Better container management through Docker Desktop
+
+This issue does not affect the functionality of n8n-MCP itself, only the container management in Claude Desktop.
+
 ## 📦 License
 
 MIT License - see [LICENSE](LICENSE) for details.

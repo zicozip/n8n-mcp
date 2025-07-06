@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.5] - 2025-07-06
+
+### Added
+- AUTH_TOKEN_FILE support for reading authentication tokens from files (Docker secrets compatible)
+- Known Issues section in README documenting Claude Desktop container duplication bug
+- Enhanced authentication documentation in Docker README
+
+### Fixed
+- Issue #16: AUTH_TOKEN_FILE was documented but not implemented
+- HTTP server now properly supports both AUTH_TOKEN and AUTH_TOKEN_FILE environment variables
+
+### Changed
+- Authentication logic now checks AUTH_TOKEN first, then falls back to AUTH_TOKEN_FILE
+- Updated Docker documentation to clarify authentication options
+
 ## [2.7.4] - 2025-07-03
 
 ### Changed

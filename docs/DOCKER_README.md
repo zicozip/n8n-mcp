@@ -59,10 +59,13 @@ docker run -d \
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `MCP_MODE` | Server mode: `stdio` or `http` | `stdio` | No |
-| `AUTH_TOKEN` | Bearer token for HTTP authentication | - | Yes (HTTP mode) |
+| `AUTH_TOKEN` | Bearer token for HTTP authentication | - | Yes (HTTP mode)* |
+| `AUTH_TOKEN_FILE` | Path to file containing auth token (v2.7.5+) | - | Yes (HTTP mode)* |
 | `PORT` | HTTP server port | `3000` | No |
 | `NODE_ENV` | Environment: `development` or `production` | `production` | No |
 | `LOG_LEVEL` | Logging level: `debug`, `info`, `warn`, `error` | `info` | No |
+
+*Either `AUTH_TOKEN` or `AUTH_TOKEN_FILE` must be set for HTTP mode. If both are set, `AUTH_TOKEN` takes precedence.
 
 ### Docker Compose Configuration
 
@@ -238,17 +241,39 @@ docker inspect n8n-mcp | jq '.[0].State.Health'
 
 ### Authentication
 
-- Always use a strong AUTH_TOKEN (minimum 32 characters)
-- Never commit tokens to version control
-- Rotate tokens regularly
+n8n-MCP supports two authentication methods for HTTP mode:
+
+#### Method 1: AUTH_TOKEN (Environment Variable)
+- Set the token directly as an environment variable
+- Simple and straightforward for basic deployments
+- Always use a strong token (minimum 32 characters)
 
 ```bash
 # Generate secure token
 openssl rand -base64 32
 
-# Or use uuidgen
-uuidgen | tr -d '-' | base64
+# Use in Docker
+docker run -e AUTH_TOKEN=your-secure-token ...
 ```
+
+#### Method 2: AUTH_TOKEN_FILE (File Path) - NEW in v2.7.5
+- Read token from a file (Docker secrets compatible)
+- More secure for production deployments
+- Prevents token exposure in process lists
+
+```bash
+# Create token file
+echo "your-secure-token" > /path/to/token.txt
+
+# Use with Docker secrets
+docker run -e AUTH_TOKEN_FILE=/run/secrets/auth_token ...
+```
+
+#### Best Practices
+- Never commit tokens to version control
+- Rotate tokens regularly
+- Use AUTH_TOKEN_FILE with Docker secrets for production
+- Ensure token files have restricted permissions (600)
 
 ### Network Security
 
