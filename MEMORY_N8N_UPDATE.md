@@ -20,6 +20,7 @@ git commit -m "chore: update n8n to vX.X.X
 - Updated n8n-workflow from X.X.X to X.X.X
 - Updated @n8n/n8n-nodes-langchain from X.X.X to X.X.X
 - Rebuilt node database with XXX nodes
+- Sanitized XXX workflow templates (if present)
 - All validation tests passing
 
 🤖 Generated with [Claude Code](https://claude.ai/code)
@@ -36,7 +37,8 @@ This single command:
 2. Updates n8n and all its required dependencies (n8n-core, n8n-workflow, @n8n/n8n-nodes-langchain)
 3. Runs `npm install` to update package-lock.json
 4. Automatically rebuilds the node database
-5. Shows you exactly what versions were updated
+5. Sanitizes any workflow templates to remove API tokens
+6. Shows you exactly what versions were updated
 
 ### `npm run validate`
 - Validates critical nodes (httpRequest, code, slack, agent)
@@ -48,7 +50,16 @@ This single command:
 1. **Always run on main branch** - Make sure you're on main and it's clean
 2. **The update script is smart** - It automatically syncs all n8n dependencies to compatible versions
 3. **Database rebuild is automatic** - The update script handles this for you
-4. **Docker image builds automatically** - Pushing to GitHub triggers the workflow
+4. **Template sanitization is automatic** - Any API tokens in workflow templates are replaced with placeholders
+5. **Docker image builds automatically** - Pushing to GitHub triggers the workflow
+
+## GitHub Push Protection
+
+As of July 2025, GitHub's push protection may block database pushes if they contain API tokens in workflow templates. Our rebuild process now automatically sanitizes these tokens, but if you encounter push protection errors:
+
+1. Make sure you've run the latest rebuild with `npm run rebuild`
+2. Verify sanitization with `npm run sanitize:templates`
+3. If push is still blocked, use the GitHub web interface to review and allow the push
 
 ## Time Estimate
 - Total time: ~3-5 minutes

@@ -8,6 +8,7 @@ import { N8nNodeLoader } from '../loaders/node-loader';
 import { NodeParser } from '../parsers/node-parser';
 import { DocsMapper } from '../mappers/docs-mapper';
 import { NodeRepository } from '../database/node-repository';
+import { TemplateSanitizer } from '../utils/template-sanitizer';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -97,6 +98,33 @@ async function rebuild() {
   if (!validationResults.passed) {
     console.log('\n⚠️  Validation Issues:');
     validationResults.issues.forEach(issue => console.log(`   - ${issue}`));
+  }
+  
+  // Sanitize templates if they exist
+  console.log('\n🧹 Checking for templates to sanitize...');
+  const templateCount = db.prepare('SELECT COUNT(*) as count FROM templates').get() as { count: number };
+  
+  if (templateCount && templateCount.count > 0) {
+    console.log(`   Found ${templateCount.count} templates, sanitizing...`);
+    const sanitizer = new TemplateSanitizer();
+    let sanitizedCount = 0;
+    
+    const templates = db.prepare('SELECT id, name, workflow_json FROM templates').all() as any[];
+    for (const template of templates) {
+      const originalWorkflow = JSON.parse(template.workflow_json);
+      const { sanitized: sanitizedWorkflow, wasModified } = sanitizer.sanitizeWorkflow(originalWorkflow);
+      
+      if (wasModified) {
+        const stmt = db.prepare('UPDATE templates SET workflow_json = ? WHERE id = ?');
+        stmt.run(JSON.stringify(sanitizedWorkflow), template.id);
+        sanitizedCount++;
+        console.log(`   ✅ Sanitized template ${template.id}: ${template.name}`);
+      }
+    }
+    
+    console.log(`   Sanitization complete: ${sanitizedCount} templates cleaned`);
+  } else {
+    console.log('   No templates found in database');
   }
   
   console.log('\n✨ Rebuild complete!');
