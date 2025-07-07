@@ -9,6 +9,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { N8NDocumentationMCPServer } from './mcp/server';
 import { ConsoleManager } from './utils/console-manager';
 import { logger } from './utils/logger';
+import { readFileSync } from 'fs';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -25,6 +26,7 @@ export class SingleSessionHTTPServer {
   private consoleManager = new ConsoleManager();
   private expressServer: any;
   private sessionTimeout = 30 * 60 * 1000; // 30 minutes
+  private authToken: string | null = null;
   
   constructor() {
     // Validate environment on construction
@@ -32,19 +34,49 @@ export class SingleSessionHTTPServer {
   }
   
   /**
+   * Load auth token from environment variable or file
+   */
+  private loadAuthToken(): string | null {
+    // First, try AUTH_TOKEN environment variable
+    if (process.env.AUTH_TOKEN) {
+      logger.info('Using AUTH_TOKEN from environment variable');
+      return process.env.AUTH_TOKEN;
+    }
+    
+    // Then, try AUTH_TOKEN_FILE
+    if (process.env.AUTH_TOKEN_FILE) {
+      try {
+        const token = readFileSync(process.env.AUTH_TOKEN_FILE, 'utf-8').trim();
+        logger.info(`Loaded AUTH_TOKEN from file: ${process.env.AUTH_TOKEN_FILE}`);
+        return token;
+      } catch (error) {
+        logger.error(`Failed to read AUTH_TOKEN_FILE: ${process.env.AUTH_TOKEN_FILE}`, error);
+        console.error(`ERROR: Failed to read AUTH_TOKEN_FILE: ${process.env.AUTH_TOKEN_FILE}`);
+        console.error(error instanceof Error ? error.message : 'Unknown error');
+        return null;
+      }
+    }
+    
+    return null;
+  }
+  
+  /**
    * Validate required environment variables
    */
   private validateEnvironment(): void {
-    const required = ['AUTH_TOKEN'];
-    const missing = required.filter(key => !process.env[key]);
+    // Load auth token from env var or file
+    this.authToken = this.loadAuthToken();
     
-    if (missing.length > 0) {
-      const message = `Missing required environment variables: ${missing.join(', ')}`;
+    if (!this.authToken || this.authToken.trim() === '') {
+      const message = 'No authentication token found or token is empty. Set AUTH_TOKEN environment variable or AUTH_TOKEN_FILE pointing to a file containing the token.';
       logger.error(message);
       throw new Error(message);
     }
     
-    if (process.env.AUTH_TOKEN && process.env.AUTH_TOKEN.length < 32) {
+    // Update authToken to trimmed version
+    this.authToken = this.authToken.trim();
+    
+    if (this.authToken.length < 32) {
       logger.warn('AUTH_TOKEN should be at least 32 characters for security');
     }
   }
@@ -220,16 +252,55 @@ export class SingleSessionHTTPServer {
     
     // Main MCP endpoint with authentication
     app.post('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
-      // Simple auth check
+      // Enhanced authentication check with specific logging
       const authHeader = req.headers.authorization;
-      const token = authHeader?.startsWith('Bearer ') 
-        ? authHeader.slice(7) 
-        : authHeader;
       
-      if (token !== process.env.AUTH_TOKEN) {
-        logger.warn('Authentication failed', { 
+      // Check if Authorization header is missing
+      if (!authHeader) {
+        logger.warn('Authentication failed: Missing Authorization header', { 
           ip: req.ip,
-          userAgent: req.get('user-agent')
+          userAgent: req.get('user-agent'),
+          reason: 'no_auth_header'
+        });
+        res.status(401).json({ 
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Unauthorized'
+          },
+          id: null
+        });
+        return;
+      }
+      
+      // Check if Authorization header has Bearer prefix
+      if (!authHeader.startsWith('Bearer ')) {
+        logger.warn('Authentication failed: Invalid Authorization header format (expected Bearer token)', { 
+          ip: req.ip,
+          userAgent: req.get('user-agent'),
+          reason: 'invalid_auth_format',
+          headerPrefix: authHeader.substring(0, 10) + '...'  // Log first 10 chars for debugging
+        });
+        res.status(401).json({ 
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Unauthorized'
+          },
+          id: null
+        });
+        return;
+      }
+      
+      // Extract token and trim whitespace
+      const token = authHeader.slice(7).trim();
+      
+      // Check if token matches
+      if (token !== this.authToken) {
+        logger.warn('Authentication failed: Invalid token', { 
+          ip: req.ip,
+          userAgent: req.get('user-agent'),
+          reason: 'invalid_token'
         });
         res.status(401).json({ 
           jsonrpc: '2.0',

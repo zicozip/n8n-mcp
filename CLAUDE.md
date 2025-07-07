@@ -566,7 +566,7 @@ For detailed deployment instructions, see [HTTP Deployment Guide](./docs/HTTP_DE
 
 **Technical Details**:
 - `src/http-server-single-session.ts` - Single-session implementation (partial fix)
-- `src/http-server-fixed.ts` - Direct JSON-RPC implementation (complete fix)
+- `src/http-server.ts` - Direct JSON-RPC implementation (complete fix)
 - `src/utils/console-manager.ts` - Console output isolation
 - Use `USE_FIXED_HTTP=true` to enable the fixed implementation
 

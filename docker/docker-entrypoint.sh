@@ -2,8 +2,14 @@
 set -e
 
 # Environment variable validation
-if [ "$MCP_MODE" = "http" ] && [ -z "$AUTH_TOKEN" ]; then
-    echo "ERROR: AUTH_TOKEN is required for HTTP mode"
+if [ "$MCP_MODE" = "http" ] && [ -z "$AUTH_TOKEN" ] && [ -z "$AUTH_TOKEN_FILE" ]; then
+    echo "ERROR: AUTH_TOKEN or AUTH_TOKEN_FILE is required for HTTP mode"
+    exit 1
+fi
+
+# Validate AUTH_TOKEN_FILE if provided
+if [ -n "$AUTH_TOKEN_FILE" ] && [ ! -f "$AUTH_TOKEN_FILE" ]; then
+    echo "ERROR: AUTH_TOKEN_FILE specified but file not found: $AUTH_TOKEN_FILE"
     exit 1
 fi
 

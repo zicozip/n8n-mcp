@@ -1,6 +1,6 @@
 {
   "name": "n8n-mcp",
-  "version": "2.7.9",
+  "version": "2.7.10",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
   "bin": {
@@ -41,6 +41,7 @@
     "test:tools-documentation": "node dist/scripts/test-tools-documentation.js",
     "test:mcp:update-partial": "node dist/scripts/test-mcp-n8n-update-partial.js",
     "test:update-partial:debug": "node dist/scripts/test-update-partial-debug.js",
+    "test:auth-logging": "tsx scripts/test-auth-logging.ts",
     "sanitize:templates": "node dist/scripts/sanitize-templates.js",
     "db:rebuild": "node dist/scripts/rebuild-database.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",

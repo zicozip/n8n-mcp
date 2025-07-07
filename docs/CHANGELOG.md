@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.10] - 2025-07-07
+
+### Added
+- Enhanced authentication logging for better debugging of client authentication issues
+- Specific error reasons for authentication failures: `no_auth_header`, `invalid_auth_format`, `invalid_token`
+- AUTH_TOKEN_FILE support in single-session HTTP server for consistency
+- Empty token validation to prevent security issues
+- Whitespace trimming for authentication tokens
+
+### Fixed
+- Issue #22: Improved authentication failure diagnostics for mcp-remote client debugging
+- Issue #16: Fixed AUTH_TOKEN_FILE validation for HTTP mode in Docker production stacks - Docker entrypoint now properly validates and supports AUTH_TOKEN_FILE environment variable
+- Security: Removed token length from logs to prevent information disclosure
+
+### Security
+- Authentication tokens are now trimmed to handle whitespace edge cases
+- Empty tokens are explicitly rejected with clear error messages
+- Removed sensitive information (token lengths) from authentication logs
+
 ## [2.7.8] - 2025-07-06
 
 ### Added
@@ -26,12 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.7.5] - 2025-07-06
 
 ### Added
-- AUTH_TOKEN_FILE support for reading authentication tokens from files (Docker secrets compatible)
+- AUTH_TOKEN_FILE support for reading authentication tokens from files (Docker secrets compatible) - partial implementation
 - Known Issues section in README documenting Claude Desktop container duplication bug
 - Enhanced authentication documentation in Docker README
 
 ### Fixed
-- Issue #16: AUTH_TOKEN_FILE was documented but not implemented
+- Issue #16: AUTH_TOKEN_FILE was documented but not implemented (partially fixed - see v2.7.10 for complete fix)
 - HTTP server now properly supports both AUTH_TOKEN and AUTH_TOKEN_FILE environment variables
 
 ### Changed
@@ -344,6 +363,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.10]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.8...v2.7.10
 [2.7.8]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.5...v2.7.8
 [2.7.5]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.3...v2.7.4
