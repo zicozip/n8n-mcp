@@ -315,11 +315,12 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
       performance: 'API call - depends on n8n instance',
       tips: [
         'ALWAYS use node names in connections, never IDs',
+        'Error handling properties go at NODE level, not inside parameters!',
         'Requires N8N_API_URL and N8N_API_KEY configuration'
       ]
     },
     full: {
-      description: 'Creates a new workflow in your n8n instance via API. Requires proper API configuration. Returns the created workflow with assigned ID.',
+      description: 'Creates a new workflow in your n8n instance via API. Requires proper API configuration. Returns the created workflow with assigned ID.\n\n⚠️ CRITICAL: Error handling properties (onError, retryOnFail, etc.) are NODE-LEVEL properties, not inside parameters!',
       parameters: {
         name: { type: 'string', description: 'Workflow name', required: true },
         nodes: { type: 'array', description: 'Array of node configurations', required: true },
@@ -329,14 +330,61 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
       },
       returns: 'Created workflow object with id, name, nodes, connections, and metadata',
       examples: [
-        `n8n_create_workflow({
-  name: "Slack Notification",
+        `// Basic workflow with proper error handling
+n8n_create_workflow({
+  name: "Slack Notification with Error Handling",
   nodes: [
-    {id: "1", name: "Webhook", type: "n8n-nodes-base.webhook", position: [250, 300]},
-    {id: "2", name: "Slack", type: "n8n-nodes-base.slack", position: [450, 300], parameters: {...}}
+    {
+      id: "1",
+      name: "Webhook",
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2,
+      position: [250, 300],
+      parameters: {
+        path: "/webhook",
+        method: "POST"
+      },
+      // ✅ CORRECT - Error handling at node level
+      onError: "continueRegularOutput"
+    },
+    {
+      id: "2",
+      name: "Database Query",
+      type: "n8n-nodes-base.postgres",
+      typeVersion: 2.4,
+      position: [450, 300],
+      parameters: {
+        operation: "executeQuery",
+        query: "SELECT * FROM users"
+      },
+      // ✅ CORRECT - Error handling at node level
+      onError: "continueErrorOutput",
+      retryOnFail: true,
+      maxTries: 3,
+      waitBetweenTries: 2000
+    },
+    {
+      id: "3",
+      name: "Error Handler",
+      type: "n8n-nodes-base.slack",
+      typeVersion: 2.2,
+      position: [650, 450],
+      parameters: {
+        resource: "message",
+        operation: "post",
+        channel: "#errors",
+        text: "Database query failed!"
+      }
+    }
   ],
   connections: {
-    "Webhook": {main: [[{node: "Slack", type: "main", index: 0}]]}
+    "Webhook": {
+      main: [[{node: "Database Query", type: "main", index: 0}]]
+    },
+    "Database Query": {
+      main: [[{node: "Success Handler", type: "main", index: 0}]],
+      error: [[{node: "Error Handler", type: "main", index: 0}]]  // Error output
+    }
   }
 })`
       ],
@@ -344,17 +392,20 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
         'Deploying workflows programmatically',
         'Automating workflow creation',
         'Migrating workflows between instances',
-        'Creating workflows from templates'
+        'Creating workflows from templates',
+        'Building error-resilient workflows'
       ],
       performance: 'Depends on n8n instance and network. Typically 100-500ms.',
       bestPractices: [
         'CRITICAL: Use node NAMES in connections, not IDs',
+        'CRITICAL: Place error handling at NODE level, not in parameters',
         'Validate workflow before creating',
         'Use meaningful workflow names',
-        'Check n8n_health_check before creating',
-        'Handle API errors gracefully'
+        'Add error handling to external service nodes',
+        'Check n8n_health_check before creating'
       ],
       pitfalls: [
+        'Placing error handling properties inside parameters object',
         'Using node IDs in connections breaks UI display',
         'Workflow not automatically activated',
         'Tags must exist (use tag IDs not names)',
@@ -370,15 +421,16 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
     essentials: {
       description: 'Update workflows using diff operations - only send changes, not entire workflow',
       keyParameters: ['id', 'operations'],
-      example: 'n8n_update_partial_workflow({id: "123", operations: [{type: "updateNode", nodeId: "Slack", updates: {...}}]})',
+      example: 'n8n_update_partial_workflow({id: "123", operations: [{type: "updateNode", nodeName: "Slack", changes: {onError: "continueRegularOutput"}}]})',
       performance: '80-90% more efficient than full updates',
       tips: [
         'Maximum 5 operations per request',
-        'Can reference nodes by name or ID'
+        'Can reference nodes by name or ID',
+        'Error handling properties go at NODE level, not inside parameters!'
       ]
     },
     full: {
-      description: 'Update existing workflows using diff operations. Much more efficient than full updates as it only sends the changes. Supports 13 different operation types.',
+      description: 'Update existing workflows using diff operations. Much more efficient than full updates as it only sends the changes. Supports 13 different operation types.\n\n⚠️ CRITICAL: Error handling properties (onError, retryOnFail, maxTries, etc.) are NODE-LEVEL properties, not parameters!',
       parameters: {
         id: { type: 'string', description: 'Workflow ID to update', required: true },
         operations: { type: 'array', description: 'Array of diff operations (max 5)', required: true },
@@ -386,29 +438,50 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
       },
       returns: 'Updated workflow with applied changes and operation results',
       examples: [
-        `// Update node parameters
+        `// Update node parameters (properties inside parameters object)
 n8n_update_partial_workflow({
   id: "123",
   operations: [{
     type: "updateNode",
-    nodeId: "Slack",
-    updates: {parameters: {channel: "general"}}
+    nodeName: "Slack",
+    changes: {
+      "parameters.channel": "#general",  // Nested property
+      "parameters.text": "Hello world"    // Nested property
+    }
   }]
 })`,
-        `// Add connection between nodes
+        `// Update error handling (NODE-LEVEL properties, NOT inside parameters!)
+n8n_update_partial_workflow({
+  id: "123",
+  operations: [{
+    type: "updateNode",
+    nodeName: "HTTP Request",
+    changes: {
+      onError: "continueErrorOutput",    // ✅ Correct - node level
+      retryOnFail: true,                 // ✅ Correct - node level
+      maxTries: 3,                       // ✅ Correct - node level
+      waitBetweenTries: 2000             // ✅ Correct - node level
+    }
+  }]
+})`,
+        `// WRONG - Don't put error handling inside parameters!
+// ❌ BAD: changes: {"parameters.onError": "continueErrorOutput"}
+// ✅ GOOD: changes: {onError: "continueErrorOutput"}`,
+        `// Add error connection between nodes
 n8n_update_partial_workflow({
   id: "123",
   operations: [{
     type: "addConnection",
-    from: "HTTP Request",
-    to: "Slack",
-    fromOutput: "main",
-    toInput: "main"
+    source: "Database Query",
+    target: "Error Handler",
+    sourceOutput: "error",  // Error output
+    targetInput: "main"
   }]
 })`
       ],
       useCases: [
         'Updating node configurations',
+        'Adding error handling to nodes',
         'Adding/removing connections',
         'Enabling/disabling nodes',
         'Moving nodes in canvas',
@@ -416,13 +489,14 @@ n8n_update_partial_workflow({
       ],
       performance: 'Very efficient - only sends changes. 80-90% less data than full updates.',
       bestPractices: [
+        'Error handling properties (onError, retryOnFail, etc.) go at NODE level, not in parameters',
+        'Use dot notation for nested properties: "parameters.url"',
         'Batch related operations together',
         'Use validateOnly:true to test first',
-        'Reference nodes by name for clarity',
-        'Keep under 5 operations per request',
-        'Check operation results for success'
+        'Reference nodes by name for clarity'
       ],
       pitfalls: [
+        'Placing error handling properties inside parameters (common mistake!)',
         'Maximum 5 operations per request',
         'Some operations have dependencies',
         'Node must exist for update operations',
@@ -577,6 +651,55 @@ validate_workflow(workflow)
 // 4. Deploy (if API configured)
 n8n_create_workflow(workflow)
 \`\`\`
+
+### Node-Level Properties Reference
+⚠️ **CRITICAL**: These properties go at the NODE level, not inside parameters!
+
+\`\`\`javascript
+{
+  // Required properties
+  "id": "unique_id",
+  "name": "Node Name",
+  "type": "n8n-nodes-base.postgres",
+  "typeVersion": 2.6,
+  "position": [450, 300],
+  "parameters": { /* operation-specific params */ },
+  
+  // Optional properties (all at node level!)
+  "credentials": {
+    "postgres": {
+      "id": "cred-id",
+      "name": "My Postgres"
+    }
+  },
+  "disabled": false,              // Disable node execution
+  "notes": "Internal note",       // Node documentation
+  "notesInFlow": true,           // Show notes on canvas
+  "executeOnce": true,           // Execute only once per run
+  
+  // Error handling (at node level!)
+  "onError": "continueErrorOutput",  // or "continueRegularOutput", "stopWorkflow"
+  "retryOnFail": true,
+  "maxTries": 3,
+  "waitBetweenTries": 2000,
+  "alwaysOutputData": true,
+  
+  // Deprecated (use onError instead)
+  "continueOnFail": false
+}
+\`\`\`
+
+**Common properties explained:**
+- **credentials**: Links to credential sets (use credential ID and name)
+- **disabled**: Node won't execute when true
+- **notes**: Internal documentation for the node
+- **notesInFlow**: Display notes on workflow canvas
+- **executeOnce**: Execute node only once even with multiple input items
+- **onError**: Modern error handling - what to do on failure
+- **retryOnFail**: Automatically retry failed executions
+- **maxTries**: Number of retry attempts (with retryOnFail)
+- **waitBetweenTries**: Milliseconds between retries
+- **alwaysOutputData**: Output data even on error (for debugging)
 
 ### Using AI Tools
 Any node can be an AI tool! Connect it to an AI Agent's ai_tool port:

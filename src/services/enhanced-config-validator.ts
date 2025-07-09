@@ -491,9 +491,11 @@ export class EnhancedConfigValidator extends ConfigValidator {
       case 'strict':
         // Keep everything, add more suggestions
         if (result.warnings.length === 0 && result.errors.length === 0) {
-          result.suggestions.push('Consider adding error handling and timeout configuration');
+          result.suggestions.push('Consider adding error handling with onError property and timeout configuration');
           result.suggestions.push('Add authentication if connecting to external services');
         }
+        // Require error handling for external service nodes
+        this.enforceErrorHandlingForProfile(result, profile);
         break;
         
       case 'ai-friendly':
@@ -503,7 +505,64 @@ export class EnhancedConfigValidator extends ConfigValidator {
         result.warnings = result.warnings.filter(w => 
           w.type !== 'inefficient' || !w.property?.startsWith('_')
         );
+        // Add error handling suggestions for AI-friendly profile
+        this.addErrorHandlingSuggestions(result);
         break;
+    }
+  }
+  
+  /**
+   * Enforce error handling requirements based on profile
+   */
+  private static enforceErrorHandlingForProfile(
+    result: EnhancedValidationResult,
+    profile: ValidationProfile
+  ): void {
+    // Only enforce for strict profile on external service nodes
+    if (profile !== 'strict') return;
+    
+    const nodeType = result.operation?.resource || '';
+    const errorProneTypes = ['httpRequest', 'webhook', 'database', 'api', 'slack', 'email', 'openai'];
+    
+    if (errorProneTypes.some(type => nodeType.toLowerCase().includes(type))) {
+      // Add general warning for strict profile
+      // The actual error handling validation is done in node-specific validators
+      result.warnings.push({
+        type: 'best_practice',
+        property: 'errorHandling',
+        message: 'External service nodes should have error handling configured',
+        suggestion: 'Add onError: "continueRegularOutput" or "stopWorkflow" with retryOnFail: true for resilience'
+      });
+    }
+  }
+  
+  /**
+   * Add error handling suggestions for AI-friendly profile
+   */
+  private static addErrorHandlingSuggestions(
+    result: EnhancedValidationResult
+  ): void {
+    // Check if there are any network/API related errors
+    const hasNetworkErrors = result.errors.some(e => 
+      e.message.toLowerCase().includes('url') || 
+      e.message.toLowerCase().includes('endpoint') ||
+      e.message.toLowerCase().includes('api')
+    );
+    
+    if (hasNetworkErrors) {
+      result.suggestions.push(
+        'For API calls, consider adding onError: "continueRegularOutput" with retryOnFail: true and maxTries: 3'
+      );
+    }
+    
+    // Check for webhook configurations
+    const isWebhook = result.operation?.resource === 'webhook' || 
+                     result.errors.some(e => e.message.toLowerCase().includes('webhook'));
+    
+    if (isWebhook) {
+      result.suggestions.push(
+        'Webhooks should use onError: "continueRegularOutput" to ensure responses are always sent'
+      );
     }
   }
 }

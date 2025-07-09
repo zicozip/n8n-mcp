@@ -19,7 +19,15 @@ interface WorkflowNode {
   credentials?: any;
   disabled?: boolean;
   notes?: string;
+  notesInFlow?: boolean;
   typeVersion?: number;
+  continueOnFail?: boolean;
+  onError?: 'continueRegularOutput' | 'continueErrorOutput' | 'stopWorkflow';
+  retryOnFail?: boolean;
+  maxTries?: number;
+  waitBetweenTries?: number;
+  alwaysOutputData?: boolean;
+  executeOnce?: boolean;
 }
 
 interface WorkflowConnection {
@@ -775,6 +783,9 @@ export class WorkflowValidator {
       });
     }
 
+    // Check node-level error handling properties
+    this.checkNodeErrorHandling(workflow, result);
+
     // Check for very long linear workflows
     const linearChainLength = this.getLongestLinearChain(workflow);
     if (linearChainLength > 10) {
@@ -1001,6 +1012,335 @@ export class WorkflowValidator {
     if (workflow.nodes.length === 1 && Object.keys(workflow.connections).length === 0) {
       result.suggestions.push(
         'A minimal workflow needs: 1) A trigger node (e.g., Manual Trigger), 2) An action node (e.g., Set, HTTP Request), 3) A connection between them'
+      );
+    }
+  }
+
+  /**
+   * Check node-level error handling configuration
+   */
+  private checkNodeErrorHandling(
+    workflow: WorkflowJson,
+    result: WorkflowValidationResult
+  ): void {
+    // Define node types that typically interact with external services
+    const errorProneNodeTypes = [
+      'httpRequest',
+      'webhook',
+      'emailSend',
+      'slack',
+      'discord',
+      'telegram',
+      'postgres',
+      'mysql',
+      'mongodb',
+      'redis',
+      'github',
+      'gitlab',
+      'jira',
+      'salesforce',
+      'hubspot',
+      'airtable',
+      'googleSheets',
+      'googleDrive',
+      'dropbox',
+      's3',
+      'ftp',
+      'ssh',
+      'mqtt',
+      'kafka',
+      'rabbitmq',
+      'graphql',
+      'openai',
+      'anthropic'
+    ];
+
+    for (const node of workflow.nodes) {
+      if (node.disabled) continue;
+
+      const normalizedType = node.type.toLowerCase();
+      const isErrorProne = errorProneNodeTypes.some(type => normalizedType.includes(type));
+
+      // CRITICAL: Check for node-level properties in wrong location (inside parameters)
+      const nodeLevelProps = [
+        // Error handling properties
+        'onError', 'continueOnFail', 'retryOnFail', 'maxTries', 'waitBetweenTries', 'alwaysOutputData',
+        // Other node-level properties
+        'executeOnce', 'disabled', 'notes', 'notesInFlow', 'credentials'
+      ];
+      const misplacedProps: string[] = [];
+      
+      if (node.parameters) {
+        for (const prop of nodeLevelProps) {
+          if (node.parameters[prop] !== undefined) {
+            misplacedProps.push(prop);
+          }
+        }
+      }
+      
+      if (misplacedProps.length > 0) {
+        result.errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: `Node-level properties ${misplacedProps.join(', ')} are in the wrong location. They must be at the node level, not inside parameters.`,
+          details: {
+            fix: `Move these properties from node.parameters to the node level. Example:\n` +
+                 `{\n` +
+                 `  "name": "${node.name}",\n` +
+                 `  "type": "${node.type}",\n` +
+                 `  "parameters": { /* operation-specific params */ },\n` +
+                 `  "onError": "continueErrorOutput",  // ✅ Correct location\n` +
+                 `  "retryOnFail": true,               // ✅ Correct location\n` +
+                 `  "executeOnce": true,               // ✅ Correct location\n` +
+                 `  "disabled": false,                 // ✅ Correct location\n` +
+                 `  "credentials": { /* ... */ }       // ✅ Correct location\n` +
+                 `}`
+          }
+        });
+      }
+
+      // Validate error handling properties
+      
+      // Check for onError property (the modern approach)
+      if (node.onError !== undefined) {
+        const validOnErrorValues = ['continueRegularOutput', 'continueErrorOutput', 'stopWorkflow'];
+        if (!validOnErrorValues.includes(node.onError)) {
+          result.errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `Invalid onError value: "${node.onError}". Must be one of: ${validOnErrorValues.join(', ')}`
+          });
+        }
+      }
+
+      // Check for deprecated continueOnFail
+      if (node.continueOnFail !== undefined) {
+        if (typeof node.continueOnFail !== 'boolean') {
+          result.errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: 'continueOnFail must be a boolean value'
+          });
+        } else if (node.continueOnFail === true) {
+          // Warn about using deprecated property
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: 'Using deprecated "continueOnFail: true". Use "onError: \'continueRegularOutput\'" instead for better control and UI compatibility.'
+          });
+        }
+      }
+
+      // Check for conflicting error handling properties
+      if (node.continueOnFail !== undefined && node.onError !== undefined) {
+        result.errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'Cannot use both "continueOnFail" and "onError" properties. Use only "onError" for modern workflows.'
+        });
+      }
+
+      if (node.retryOnFail !== undefined) {
+        if (typeof node.retryOnFail !== 'boolean') {
+          result.errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: 'retryOnFail must be a boolean value'
+          });
+        }
+
+        // If retry is enabled, check retry configuration
+        if (node.retryOnFail === true) {
+          if (node.maxTries !== undefined) {
+            if (typeof node.maxTries !== 'number' || node.maxTries < 1) {
+              result.errors.push({
+                type: 'error',
+                nodeId: node.id,
+                nodeName: node.name,
+                message: 'maxTries must be a positive number when retryOnFail is enabled'
+              });
+            } else if (node.maxTries > 10) {
+              result.warnings.push({
+                type: 'warning',
+                nodeId: node.id,
+                nodeName: node.name,
+                message: `maxTries is set to ${node.maxTries}. Consider if this many retries is necessary.`
+              });
+            }
+          } else {
+            // maxTries defaults to 3 if not specified
+            result.warnings.push({
+              type: 'warning',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: 'retryOnFail is enabled but maxTries is not specified. Default is 3 attempts.'
+            });
+          }
+
+          if (node.waitBetweenTries !== undefined) {
+            if (typeof node.waitBetweenTries !== 'number' || node.waitBetweenTries < 0) {
+              result.errors.push({
+                type: 'error',
+                nodeId: node.id,
+                nodeName: node.name,
+                message: 'waitBetweenTries must be a non-negative number (milliseconds)'
+              });
+            } else if (node.waitBetweenTries > 300000) { // 5 minutes
+              result.warnings.push({
+                type: 'warning',
+                nodeId: node.id,
+                nodeName: node.name,
+                message: `waitBetweenTries is set to ${node.waitBetweenTries}ms (${(node.waitBetweenTries/1000).toFixed(1)}s). This seems excessive.`
+              });
+            }
+          }
+        }
+      }
+
+      if (node.alwaysOutputData !== undefined && typeof node.alwaysOutputData !== 'boolean') {
+        result.errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'alwaysOutputData must be a boolean value'
+        });
+      }
+
+      // Warnings for error-prone nodes without error handling
+      const hasErrorHandling = node.onError || node.continueOnFail || node.retryOnFail;
+      
+      if (isErrorProne && !hasErrorHandling) {
+        const nodeTypeSimple = normalizedType.split('.').pop() || normalizedType;
+        
+        // Special handling for specific node types
+        if (normalizedType.includes('httprequest')) {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: 'HTTP Request node without error handling. Consider adding "onError: \'continueRegularOutput\'" for non-critical requests or "retryOnFail: true" for transient failures.'
+          });
+        } else if (normalizedType.includes('webhook')) {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: 'Webhook node without error handling. Consider adding "onError: \'continueRegularOutput\'" to prevent workflow failures from blocking webhook responses.'
+          });
+        } else if (errorProneNodeTypes.some(db => normalizedType.includes(db) && ['postgres', 'mysql', 'mongodb'].includes(db))) {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `Database operation without error handling. Consider adding "retryOnFail: true" for connection issues or "onError: \'continueRegularOutput\'" for non-critical queries.`
+          });
+        } else {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `${nodeTypeSimple} node interacts with external services but has no error handling configured. Consider using "onError" property.`
+          });
+        }
+      }
+
+      // Check for problematic combinations
+      if (node.continueOnFail && node.retryOnFail) {
+        result.warnings.push({
+          type: 'warning',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'Both continueOnFail and retryOnFail are enabled. The node will retry first, then continue on failure.'
+        });
+      }
+
+      // Validate additional node-level properties
+      
+      // Check executeOnce
+      if (node.executeOnce !== undefined && typeof node.executeOnce !== 'boolean') {
+        result.errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'executeOnce must be a boolean value'
+        });
+      }
+
+      // Check disabled
+      if (node.disabled !== undefined && typeof node.disabled !== 'boolean') {
+        result.errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'disabled must be a boolean value'
+        });
+      }
+
+      // Check notesInFlow
+      if (node.notesInFlow !== undefined && typeof node.notesInFlow !== 'boolean') {
+        result.errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'notesInFlow must be a boolean value'
+        });
+      }
+
+      // Check notes
+      if (node.notes !== undefined && typeof node.notes !== 'string') {
+        result.errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'notes must be a string value'
+        });
+      }
+
+      // Provide guidance for executeOnce
+      if (node.executeOnce === true) {
+        result.warnings.push({
+          type: 'warning',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: 'executeOnce is enabled. This node will execute only once regardless of input items.'
+        });
+      }
+
+      // Suggest alwaysOutputData for debugging
+      if ((node.continueOnFail || node.retryOnFail) && !node.alwaysOutputData) {
+        if (normalizedType.includes('httprequest') || normalizedType.includes('webhook')) {
+          result.suggestions.push(
+            `Consider enabling alwaysOutputData on "${node.name}" to capture error responses for debugging`
+          );
+        }
+      }
+    }
+
+    // Add general suggestions based on findings
+    const nodesWithoutErrorHandling = workflow.nodes.filter(n => 
+      !n.disabled && !n.onError && !n.continueOnFail && !n.retryOnFail
+    ).length;
+
+    if (nodesWithoutErrorHandling > 5 && workflow.nodes.length > 5) {
+      result.suggestions.push(
+        'Most nodes lack error handling. Use "onError" property for modern error handling: "continueRegularOutput" (continue on error), "continueErrorOutput" (use error output), or "stopWorkflow" (stop execution).'
+      );
+    }
+
+    // Check for nodes using deprecated continueOnFail
+    const nodesWithDeprecatedErrorHandling = workflow.nodes.filter(n => 
+      !n.disabled && n.continueOnFail === true
+    ).length;
+
+    if (nodesWithDeprecatedErrorHandling > 0) {
+      result.suggestions.push(
+        'Replace "continueOnFail: true" with "onError: \'continueRegularOutput\'" for better UI compatibility and control.'
       );
     }
   }

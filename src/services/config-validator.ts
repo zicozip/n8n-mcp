@@ -16,14 +16,14 @@ export interface ValidationResult {
 }
 
 export interface ValidationError {
-  type: 'missing_required' | 'invalid_type' | 'invalid_value' | 'incompatible';
+  type: 'missing_required' | 'invalid_type' | 'invalid_value' | 'incompatible' | 'invalid_configuration';
   property: string;
   message: string;
   fix?: string;
 }
 
 export interface ValidationWarning {
-  type: 'missing_common' | 'deprecated' | 'inefficient' | 'security';
+  type: 'missing_common' | 'deprecated' | 'inefficient' | 'security' | 'best_practice' | 'invalid_value';
   property?: string;
   message: string;
   suggestion?: string;

@@ -9,11 +9,12 @@ export interface WorkflowNode {
   typeVersion: number;
   position: [number, number];
   parameters: Record<string, unknown>;
-  credentials?: Record<string, string>;
+  credentials?: Record<string, unknown>;
   disabled?: boolean;
   notes?: string;
   notesInFlow?: boolean;
   continueOnFail?: boolean;
+  onError?: 'continueRegularOutput' | 'continueErrorOutput' | 'stopWorkflow';
   retryOnFail?: boolean;
   maxTries?: number;
   waitBetweenTries?: number;

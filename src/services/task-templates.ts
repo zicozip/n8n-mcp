@@ -33,7 +33,13 @@ export class TaskTemplates {
       configuration: {
         method: 'GET',
         url: '',
-        authentication: 'none'
+        authentication: 'none',
+        // Default error handling for API calls
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 1000,
+        alwaysOutputData: true
       },
       userMustProvide: [
         {
@@ -52,6 +58,11 @@ export class TaskTemplates {
           property: 'sendHeaders',
           description: 'Add custom headers if needed',
           when: 'API requires specific headers'
+        },
+        {
+          property: 'alwaysOutputData',
+          description: 'Set to true to capture error responses',
+          when: 'Need to debug API errors'
         }
       ]
     },
@@ -66,7 +77,13 @@ export class TaskTemplates {
         sendBody: true,
         contentType: 'json',
         specifyBody: 'json',
-        jsonBody: ''
+        jsonBody: '',
+        // POST requests might modify data, so be careful with retries
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 1000,
+        alwaysOutputData: true
       },
       userMustProvide: [
         {
@@ -84,11 +101,17 @@ export class TaskTemplates {
         {
           property: 'authentication',
           description: 'Add authentication if required'
+        },
+        {
+          property: 'onError',
+          description: 'Set to "continueRegularOutput" for non-critical operations',
+          when: 'Failure should not stop the workflow'
         }
       ],
       notes: [
         'Make sure jsonBody contains valid JSON',
-        'Content-Type header is automatically set to application/json'
+        'Content-Type header is automatically set to application/json',
+        'Be careful with retries on non-idempotent operations'
       ]
     },
     
@@ -102,6 +125,12 @@ export class TaskTemplates {
         authentication: 'genericCredentialType',
         genericAuthType: 'headerAuth',
         sendHeaders: true,
+        // Authentication calls should handle auth failures gracefully
+        onError: 'continueErrorOutput',
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 2000,
+        alwaysOutputData: true,
         headerParameters: {
           parameters: [
             {
@@ -144,7 +173,10 @@ export class TaskTemplates {
         httpMethod: 'POST',
         path: 'webhook',
         responseMode: 'lastNode',
-        responseData: 'allEntries'
+        responseData: 'allEntries',
+        // Webhooks should always respond, even on error
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
       },
       userMustProvide: [
         {
@@ -178,7 +210,10 @@ export class TaskTemplates {
         path: 'webhook',
         responseMode: 'responseNode',
         responseData: 'firstEntryJson',
-        responseCode: 200
+        responseCode: 200,
+        // Ensure webhook always sends response
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
       },
       userMustProvide: [
         {
@@ -199,7 +234,12 @@ export class TaskTemplates {
       nodeType: 'nodes-base.postgres',
       configuration: {
         operation: 'executeQuery',
-        query: ''
+        query: '',
+        // Database reads can continue on error
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 1000
       },
       userMustProvide: [
         {
@@ -229,7 +269,12 @@ export class TaskTemplates {
         operation: 'insert',
         table: '',
         columns: '',
-        returnFields: '*'
+        returnFields: '*',
+        // Database writes should stop on error by default
+        onError: 'stopWorkflow',
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 1000
       },
       userMustProvide: [
         {
@@ -265,7 +310,13 @@ export class TaskTemplates {
               content: ''
             }
           ]
-        }
+        },
+        // AI calls should handle rate limits and API errors
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 5000,
+        alwaysOutputData: true
       },
       userMustProvide: [
         {
@@ -393,7 +444,12 @@ return results;`
         resource: 'message',
         operation: 'post',
         channel: '',
-        text: ''
+        text: '',
+        // Messaging can continue on error
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 2000
       },
       userMustProvide: [
         {
@@ -427,7 +483,13 @@ return results;`
         fromEmail: '',
         toEmail: '',
         subject: '',
-        text: ''
+        text: '',
+        // Email sending should retry on transient failures
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 3000,
+        alwaysOutputData: true
       },
       userMustProvide: [
         {
@@ -562,6 +624,255 @@ return results;`
         'Test each tool individually before combining',
         'Set N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true for community nodes'
       ]
+    },
+    
+    // Error Handling Templates
+    'api_call_with_retry': {
+      task: 'api_call_with_retry',
+      description: 'Resilient API call with automatic retry on failure',
+      nodeType: 'nodes-base.httpRequest',
+      configuration: {
+        method: 'GET',
+        url: '',
+        // Retry configuration for transient failures
+        retryOnFail: true,
+        maxTries: 5,
+        waitBetweenTries: 2000,
+        // Always capture response for debugging
+        alwaysOutputData: true,
+        // Add request tracking
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'X-Request-ID',
+              value: '={{ $workflow.id }}-{{ $itemIndex }}'
+            }
+          ]
+        }
+      },
+      userMustProvide: [
+        {
+          property: 'url',
+          description: 'The API endpoint to call',
+          example: 'https://api.example.com/resource/{{ $json.id }}'
+        }
+      ],
+      optionalEnhancements: [
+        {
+          property: 'authentication',
+          description: 'Add API authentication'
+        },
+        {
+          property: 'onError',
+          description: 'Change to "stopWorkflow" for critical API calls',
+          when: 'This is a critical API call that must succeed'
+        }
+      ],
+      notes: [
+        'Retries help with rate limits and transient network issues',
+        'waitBetweenTries prevents hammering the API',
+        'alwaysOutputData captures error responses for debugging',
+        'Consider exponential backoff for production use'
+      ]
+    },
+    
+    'fault_tolerant_processing': {
+      task: 'fault_tolerant_processing',
+      description: 'Data processing that continues despite individual item failures',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'javaScript',
+        jsCode: `// Process items with error handling
+const results = [];
+
+for (const item of items) {
+  try {
+    // Your processing logic here
+    const processed = {
+      ...item.json,
+      processed: true,
+      timestamp: new Date().toISOString()
+    };
+    
+    results.push({ json: processed });
+  } catch (error) {
+    // Log error but continue processing
+    console.error('Processing failed for item:', item.json.id, error);
+    
+    // Add error item to results
+    results.push({
+      json: {
+        ...item.json,
+        error: error.message,
+        processed: false
+      }
+    });
+  }
+}
+
+return results;`,
+        // Continue workflow even if code fails entirely
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
+      },
+      userMustProvide: [
+        {
+          property: 'Processing logic',
+          description: 'Replace the comment with your data transformation logic'
+        }
+      ],
+      optionalEnhancements: [
+        {
+          property: 'Error notification',
+          description: 'Add IF node after to handle error items separately'
+        }
+      ],
+      notes: [
+        'Individual item failures won\'t stop processing of other items',
+        'Error items are marked and can be handled separately',
+        'continueOnFail ensures workflow continues even on total failure'
+      ]
+    },
+    
+    'webhook_with_error_handling': {
+      task: 'webhook_with_error_handling',
+      description: 'Webhook that gracefully handles processing errors',
+      nodeType: 'nodes-base.webhook',
+      configuration: {
+        httpMethod: 'POST',
+        path: 'resilient-webhook',
+        responseMode: 'responseNode',
+        responseData: 'firstEntryJson',
+        // Always continue to ensure response is sent
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
+      },
+      userMustProvide: [
+        {
+          property: 'path',
+          description: 'Unique webhook path',
+          example: 'order-processor'
+        },
+        {
+          property: 'Respond to Webhook node',
+          description: 'Add node to send appropriate success/error responses'
+        }
+      ],
+      optionalEnhancements: [
+        {
+          property: 'Validation',
+          description: 'Add IF node to validate webhook payload'
+        },
+        {
+          property: 'Error logging',
+          description: 'Add error handler node for failed requests'
+        }
+      ],
+      notes: [
+        'onError: continueRegularOutput ensures webhook always sends a response',
+        'Use Respond to Webhook node to send appropriate status codes',
+        'Log errors but don\'t expose internal errors to webhook callers',
+        'Consider rate limiting for public webhooks'
+      ]
+    },
+    
+    // Modern Error Handling Patterns
+    'modern_error_handling_patterns': {
+      task: 'modern_error_handling_patterns',
+      description: 'Examples of modern error handling using onError property',
+      nodeType: 'nodes-base.httpRequest',
+      configuration: {
+        method: 'GET',
+        url: '',
+        // Modern error handling approach
+        onError: 'continueRegularOutput', // Options: continueRegularOutput, continueErrorOutput, stopWorkflow
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 2000,
+        alwaysOutputData: true
+      },
+      userMustProvide: [
+        {
+          property: 'url',
+          description: 'The API endpoint'
+        },
+        {
+          property: 'onError',
+          description: 'Choose error handling strategy',
+          example: 'continueRegularOutput'
+        }
+      ],
+      notes: [
+        'onError replaces the deprecated continueOnFail property',
+        'continueRegularOutput: Continue with normal output on error',
+        'continueErrorOutput: Route errors to error output for special handling', 
+        'stopWorkflow: Stop the entire workflow on error',
+        'Combine with retryOnFail for resilient workflows'
+      ]
+    },
+    
+    'database_transaction_safety': {
+      task: 'database_transaction_safety',
+      description: 'Database operations with proper error handling',
+      nodeType: 'nodes-base.postgres',
+      configuration: {
+        operation: 'executeQuery',
+        query: 'BEGIN; INSERT INTO orders ...; COMMIT;',
+        // For transactions, don\'t retry automatically
+        onError: 'continueErrorOutput',
+        retryOnFail: false,
+        alwaysOutputData: true
+      },
+      userMustProvide: [
+        {
+          property: 'query',
+          description: 'Your SQL query or transaction'
+        }
+      ],
+      notes: [
+        'Transactions should not be retried automatically',
+        'Use continueErrorOutput to handle errors separately',
+        'Consider implementing compensating transactions',
+        'Always log transaction failures for audit'
+      ]
+    },
+    
+    'ai_rate_limit_handling': {
+      task: 'ai_rate_limit_handling',
+      description: 'AI API calls with rate limit handling',
+      nodeType: 'nodes-base.openAi',
+      configuration: {
+        resource: 'chat',
+        operation: 'message',
+        modelId: 'gpt-4',
+        messages: {
+          values: [
+            {
+              role: 'user',
+              content: ''
+            }
+          ]
+        },
+        // Handle rate limits with exponential backoff
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 5,
+        waitBetweenTries: 5000,
+        alwaysOutputData: true
+      },
+      userMustProvide: [
+        {
+          property: 'messages.values[0].content',
+          description: 'The prompt for the AI'
+        }
+      ],
+      notes: [
+        'AI APIs often have rate limits',
+        'Longer wait times help avoid hitting limits',
+        'Consider implementing exponential backoff in Code node',
+        'Monitor usage to stay within quotas'
+      ]
     }
   };
   
@@ -589,6 +900,13 @@ return results;`
   }
   
   /**
+   * Get a specific task template (alias for getTaskTemplate)
+   */
+  static getTemplate(task: string): TaskTemplate | undefined {
+    return this.getTaskTemplate(task);
+  }
+  
+  /**
    * Search for tasks by keyword
    */
   static searchTasks(keyword: string): string[] {
@@ -607,13 +925,14 @@ return results;`
    */
   static getTaskCategories(): Record<string, string[]> {
     return {
-      'HTTP/API': ['get_api_data', 'post_json_request', 'call_api_with_auth'],
-      'Webhooks': ['receive_webhook', 'webhook_with_response'],
-      'Database': ['query_postgres', 'insert_postgres_data'],
-      'AI/LangChain': ['chat_with_ai', 'ai_agent_workflow', 'multi_tool_ai_agent'],
-      'Data Processing': ['transform_data', 'filter_data'],
+      'HTTP/API': ['get_api_data', 'post_json_request', 'call_api_with_auth', 'api_call_with_retry'],
+      'Webhooks': ['receive_webhook', 'webhook_with_response', 'webhook_with_error_handling'],
+      'Database': ['query_postgres', 'insert_postgres_data', 'database_transaction_safety'],
+      'AI/LangChain': ['chat_with_ai', 'ai_agent_workflow', 'multi_tool_ai_agent', 'ai_rate_limit_handling'],
+      'Data Processing': ['transform_data', 'filter_data', 'fault_tolerant_processing'],
       'Communication': ['send_slack_message', 'send_email'],
-      'AI Tool Usage': ['use_google_sheets_as_tool', 'use_slack_as_tool', 'multi_tool_ai_agent']
+      'AI Tool Usage': ['use_google_sheets_as_tool', 'use_slack_as_tool', 'multi_tool_ai_agent'],
+      'Error Handling': ['modern_error_handling_patterns', 'api_call_with_retry', 'fault_tolerant_processing', 'webhook_with_error_handling', 'database_transaction_safety', 'ai_rate_limit_handling']
     };
   }
 }

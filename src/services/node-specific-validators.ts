@@ -20,7 +20,7 @@ export class NodeSpecificValidators {
    * Validate Slack node configuration with operation awareness
    */
   static validateSlack(context: NodeValidationContext): void {
-    const { config, errors, warnings, suggestions } = context;
+    const { config, errors, warnings, suggestions, autofix } = context;
     const { resource, operation } = config;
     
     // Message operations
@@ -61,6 +61,30 @@ export class NodeSpecificValidators {
           fix: 'Set user to an email like "john@example.com" or user ID like "U1234567890"'
         });
       }
+    }
+    
+    // Error handling for Slack operations
+    if (!config.onError && !config.retryOnFail && !config.continueOnFail) {
+      warnings.push({
+        type: 'best_practice',
+        property: 'errorHandling',
+        message: 'Slack API can have rate limits and transient failures',
+        suggestion: 'Add onError: "continueRegularOutput" with retryOnFail for resilience'
+      });
+      autofix.onError = 'continueRegularOutput';
+      autofix.retryOnFail = true;
+      autofix.maxTries = 2;
+      autofix.waitBetweenTries = 3000; // Slack rate limits
+    }
+    
+    // Check for deprecated continueOnFail
+    if (config.continueOnFail !== undefined) {
+      warnings.push({
+        type: 'deprecated',
+        property: 'continueOnFail',
+        message: 'continueOnFail is deprecated. Use onError instead',
+        suggestion: 'Replace with onError: "continueRegularOutput"'
+      });
     }
   }
   
@@ -376,7 +400,7 @@ export class NodeSpecificValidators {
    * Validate OpenAI node configuration
    */
   static validateOpenAI(context: NodeValidationContext): void {
-    const { config, errors, warnings, suggestions } = context;
+    const { config, errors, warnings, suggestions, autofix } = context;
     const { resource, operation } = config;
     
     if (resource === 'chat' && operation === 'create') {
@@ -433,13 +457,38 @@ export class NodeSpecificValidators {
         }
       }
     }
+    
+    // Error handling for AI API calls
+    if (!config.onError && !config.retryOnFail && !config.continueOnFail) {
+      warnings.push({
+        type: 'best_practice',
+        property: 'errorHandling',
+        message: 'AI APIs have rate limits and can return errors',
+        suggestion: 'Add onError: "continueRegularOutput" with retryOnFail and longer wait times'
+      });
+      autofix.onError = 'continueRegularOutput';
+      autofix.retryOnFail = true;
+      autofix.maxTries = 3;
+      autofix.waitBetweenTries = 5000; // Longer wait for rate limits
+      autofix.alwaysOutputData = true;
+    }
+    
+    // Check for deprecated continueOnFail
+    if (config.continueOnFail !== undefined) {
+      warnings.push({
+        type: 'deprecated',
+        property: 'continueOnFail',
+        message: 'continueOnFail is deprecated. Use onError instead',
+        suggestion: 'Replace with onError: "continueRegularOutput"'
+      });
+    }
   }
   
   /**
    * Validate MongoDB node configuration
    */
   static validateMongoDB(context: NodeValidationContext): void {
-    const { config, errors, warnings } = context;
+    const { config, errors, warnings, autofix } = context;
     const { operation } = config;
     
     // Collection is always required
@@ -501,91 +550,44 @@ export class NodeSpecificValidators {
         }
         break;
     }
+    
+    // Error handling for MongoDB operations
+    if (!config.onError && !config.retryOnFail && !config.continueOnFail) {
+      if (operation === 'find') {
+        warnings.push({
+          type: 'best_practice',
+          property: 'errorHandling',
+          message: 'MongoDB queries can fail due to connection issues',
+          suggestion: 'Add onError: "continueRegularOutput" with retryOnFail'
+        });
+        autofix.onError = 'continueRegularOutput';
+        autofix.retryOnFail = true;
+        autofix.maxTries = 3;
+      } else if (['insert', 'update', 'delete'].includes(operation)) {
+        warnings.push({
+          type: 'best_practice',
+          property: 'errorHandling',
+          message: 'MongoDB write operations should handle errors carefully',
+          suggestion: 'Add onError: "continueErrorOutput" to handle write failures separately'
+        });
+        autofix.onError = 'continueErrorOutput';
+        autofix.retryOnFail = true;
+        autofix.maxTries = 2;
+        autofix.waitBetweenTries = 1000;
+      }
+    }
+    
+    // Check for deprecated continueOnFail
+    if (config.continueOnFail !== undefined) {
+      warnings.push({
+        type: 'deprecated',
+        property: 'continueOnFail',
+        message: 'continueOnFail is deprecated. Use onError instead',
+        suggestion: 'Replace with onError: "continueRegularOutput" or "continueErrorOutput"'
+      });
+    }
   }
   
-  /**
-   * Validate Webhook node configuration
-   */
-  static validateWebhook(context: NodeValidationContext): void {
-    const { config, errors, warnings, suggestions } = context;
-    
-    // Path validation
-    if (!config.path) {
-      errors.push({
-        type: 'missing_required',
-        property: 'path',
-        message: 'Webhook path is required',
-        fix: 'Set a unique path like "my-webhook" (no leading slash)'
-      });
-    } else {
-      const path = config.path;
-      
-      // Check for leading slash
-      if (path.startsWith('/')) {
-        warnings.push({
-          type: 'inefficient',
-          property: 'path',
-          message: 'Webhook path should not start with /',
-          suggestion: 'Remove the leading slash: use "my-webhook" instead of "/my-webhook"'
-        });
-      }
-      
-      // Check for spaces
-      if (path.includes(' ')) {
-        errors.push({
-          type: 'invalid_value',
-          property: 'path',
-          message: 'Webhook path cannot contain spaces',
-          fix: 'Replace spaces with hyphens or underscores'
-        });
-      }
-      
-      // Check for special characters
-      if (!/^[a-zA-Z0-9\-_\/]+$/.test(path.replace(/^\//, ''))) {
-        warnings.push({
-          type: 'inefficient',
-          property: 'path',
-          message: 'Webhook path contains special characters',
-          suggestion: 'Use only letters, numbers, hyphens, and underscores'
-        });
-      }
-    }
-    
-    // Response mode validation
-    if (config.responseMode === 'responseNode') {
-      suggestions.push('Add a "Respond to Webhook" node to send custom responses');
-      
-      if (!config.responseData) {
-        warnings.push({
-          type: 'missing_common',
-          property: 'responseData',
-          message: 'Response data not configured for responseNode mode',
-          suggestion: 'Add a "Respond to Webhook" node or change responseMode'
-        });
-      }
-    }
-    
-    // HTTP method validation
-    if (config.httpMethod && Array.isArray(config.httpMethod)) {
-      if (config.httpMethod.length === 0) {
-        errors.push({
-          type: 'invalid_value',
-          property: 'httpMethod',
-          message: 'At least one HTTP method must be selected',
-          fix: 'Select GET, POST, or other methods your webhook should accept'
-        });
-      }
-    }
-    
-    // Authentication warnings
-    if (!config.authentication || config.authentication === 'none') {
-      warnings.push({
-        type: 'security',
-        message: 'Webhook has no authentication',
-        suggestion: 'Consider adding authentication to prevent unauthorized access'
-      });
-    }
-  }
   
   /**
    * Validate Postgres node configuration
@@ -677,6 +679,42 @@ export class NodeSpecificValidators {
     if (config.connectionTimeout === undefined) {
       suggestions.push('Consider setting connectionTimeout to handle slow connections');
     }
+    
+    // Error handling for database operations
+    if (!config.onError && !config.retryOnFail && !config.continueOnFail) {
+      if (operation === 'execute' && config.query?.toLowerCase().includes('select')) {
+        warnings.push({
+          type: 'best_practice',
+          property: 'errorHandling',
+          message: 'Database reads can fail due to connection issues',
+          suggestion: 'Add onError: "continueRegularOutput" and retryOnFail: true'
+        });
+        autofix.onError = 'continueRegularOutput';
+        autofix.retryOnFail = true;
+        autofix.maxTries = 3;
+      } else if (['insert', 'update', 'delete'].includes(operation)) {
+        warnings.push({
+          type: 'best_practice',
+          property: 'errorHandling',
+          message: 'Database writes should handle errors carefully',
+          suggestion: 'Add onError: "stopWorkflow" with retryOnFail for transient failures'
+        });
+        autofix.onError = 'stopWorkflow';
+        autofix.retryOnFail = true;
+        autofix.maxTries = 2;
+        autofix.waitBetweenTries = 2000;
+      }
+    }
+    
+    // Check for deprecated continueOnFail
+    if (config.continueOnFail !== undefined) {
+      warnings.push({
+        type: 'deprecated',
+        property: 'continueOnFail',
+        message: 'continueOnFail is deprecated. Use onError instead',
+        suggestion: 'Replace with onError: "continueRegularOutput" or "stopWorkflow"'
+      });
+    }
   }
   
   /**
@@ -750,6 +788,25 @@ export class NodeSpecificValidators {
     // MySQL-specific warnings
     if (config.timezone === undefined) {
       suggestions.push('Consider setting timezone to ensure consistent date/time handling');
+    }
+    
+    // Error handling for MySQL operations (similar to Postgres)
+    if (!config.onError && !config.retryOnFail && !config.continueOnFail) {
+      if (operation === 'execute' && config.query?.toLowerCase().includes('select')) {
+        warnings.push({
+          type: 'best_practice',
+          property: 'errorHandling',
+          message: 'Database queries can fail due to connection issues',
+          suggestion: 'Add onError: "continueRegularOutput" and retryOnFail: true'
+        });
+      } else if (['insert', 'update', 'delete'].includes(operation)) {
+        warnings.push({
+          type: 'best_practice',
+          property: 'errorHandling',
+          message: 'Database modifications should handle errors carefully',
+          suggestion: 'Add onError: "stopWorkflow" with retryOnFail for transient failures'
+        });
+      }
     }
   }
   
@@ -833,5 +890,170 @@ export class NodeSpecificValidators {
         suggestions.push('Using backticks for identifiers - ensure they are properly paired');
       }
     }
+  }
+  
+  /**
+   * Validate HTTP Request node configuration with error handling awareness
+   */
+  static validateHttpRequest(context: NodeValidationContext): void {
+    const { config, errors, warnings, suggestions, autofix } = context;
+    const { method = 'GET', url, sendBody, authentication } = config;
+    
+    // Basic URL validation
+    if (!url) {
+      errors.push({
+        type: 'missing_required',
+        property: 'url',
+        message: 'URL is required for HTTP requests',
+        fix: 'Provide the full URL including protocol (https://...)'
+      });
+    } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.includes('{{')) {
+      warnings.push({
+        type: 'invalid_value',
+        property: 'url',
+        message: 'URL should start with http:// or https://',
+        suggestion: 'Use https:// for secure connections'
+      });
+    }
+    
+    // Method-specific validation
+    if (['POST', 'PUT', 'PATCH'].includes(method) && !sendBody) {
+      warnings.push({
+        type: 'missing_common',
+        property: 'sendBody',
+        message: `${method} requests typically include a body`,
+        suggestion: 'Set sendBody: true and configure the body content'
+      });
+    }
+    
+    // Error handling recommendations
+    if (!config.retryOnFail && !config.onError && !config.continueOnFail) {
+      warnings.push({
+        type: 'best_practice',
+        property: 'errorHandling',
+        message: 'HTTP requests can fail due to network issues or server errors',
+        suggestion: 'Add onError: "continueRegularOutput" and retryOnFail: true for resilience'
+      });
+      
+      // Auto-fix suggestion for error handling
+      autofix.onError = 'continueRegularOutput';
+      autofix.retryOnFail = true;
+      autofix.maxTries = 3;
+      autofix.waitBetweenTries = 1000;
+    }
+    
+    // Check for deprecated continueOnFail
+    if (config.continueOnFail !== undefined) {
+      warnings.push({
+        type: 'deprecated',
+        property: 'continueOnFail',
+        message: 'continueOnFail is deprecated. Use onError instead',
+        suggestion: 'Replace with onError: "continueRegularOutput"'
+      });
+      autofix.onError = config.continueOnFail ? 'continueRegularOutput' : 'stopWorkflow';
+      delete autofix.continueOnFail;
+    }
+    
+    // Check retry configuration
+    if (config.retryOnFail) {
+      // Validate retry settings
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && (!config.maxTries || config.maxTries > 3)) {
+        warnings.push({
+          type: 'best_practice',
+          property: 'maxTries',
+          message: `${method} requests might not be idempotent. Use fewer retries.`,
+          suggestion: 'Set maxTries: 2 for non-idempotent operations'
+        });
+      }
+      
+      // Suggest alwaysOutputData for debugging
+      if (!config.alwaysOutputData) {
+        suggestions.push('Enable alwaysOutputData to capture error responses for debugging');
+        autofix.alwaysOutputData = true;
+      }
+    }
+    
+    // Authentication warnings
+    if (url && url.includes('api') && !authentication) {
+      warnings.push({
+        type: 'security',
+        property: 'authentication',
+        message: 'API endpoints typically require authentication',
+        suggestion: 'Configure authentication method (Bearer token, API key, etc.)'
+      });
+    }
+    
+    // Timeout recommendations
+    if (!config.timeout) {
+      suggestions.push('Consider setting a timeout to prevent hanging requests');
+    }
+  }
+  
+  /**
+   * Validate Webhook node configuration with error handling
+   */
+  static validateWebhook(context: NodeValidationContext): void {
+    const { config, errors, warnings, suggestions, autofix } = context;
+    const { path, httpMethod = 'POST', responseMode } = config;
+    
+    // Path validation
+    if (!path) {
+      errors.push({
+        type: 'missing_required',
+        property: 'path',
+        message: 'Webhook path is required',
+        fix: 'Provide a unique path like "my-webhook" or "github-events"'
+      });
+    } else if (path.startsWith('/')) {
+      warnings.push({
+        type: 'invalid_value',
+        property: 'path',
+        message: 'Webhook path should not start with /',
+        suggestion: 'Use "webhook-name" instead of "/webhook-name"'
+      });
+    }
+    
+    // Error handling for webhooks
+    if (!config.onError && !config.continueOnFail) {
+      warnings.push({
+        type: 'best_practice',
+        property: 'onError',
+        message: 'Webhooks should always send a response, even on error',
+        suggestion: 'Set onError: "continueRegularOutput" to ensure webhook responses'
+      });
+      autofix.onError = 'continueRegularOutput';
+    }
+    
+    // Check for deprecated continueOnFail in webhooks
+    if (config.continueOnFail !== undefined) {
+      warnings.push({
+        type: 'deprecated',
+        property: 'continueOnFail',
+        message: 'continueOnFail is deprecated. Use onError instead',
+        suggestion: 'Replace with onError: "continueRegularOutput"'
+      });
+      autofix.onError = 'continueRegularOutput';
+      delete autofix.continueOnFail;
+    }
+    
+    // Response mode validation
+    if (responseMode === 'responseNode' && !config.onError && !config.continueOnFail) {
+      errors.push({
+        type: 'invalid_configuration',
+        property: 'responseMode',
+        message: 'responseNode mode requires onError: "continueRegularOutput"',
+        fix: 'Set onError to ensure response is always sent'
+      });
+    }
+    
+    // Always output data for debugging
+    if (!config.alwaysOutputData) {
+      suggestions.push('Enable alwaysOutputData to debug webhook payloads');
+      autofix.alwaysOutputData = true;
+    }
+    
+    // Security suggestions
+    suggestions.push('Consider adding webhook validation (HMAC signature verification)');
+    suggestions.push('Implement rate limiting for public webhooks');
   }
 }

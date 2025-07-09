@@ -47,7 +47,13 @@ export class ExampleGenerator {
         sendBody: true,
         contentType: 'json',
         specifyBody: 'json',
-        jsonBody: '{\n  "action": "update",\n  "data": {}\n}'
+        jsonBody: '{\n  "action": "update",\n  "data": {}\n}',
+        // Error handling for API calls
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 1000,
+        alwaysOutputData: true
       }
     },
     
@@ -62,7 +68,10 @@ export class ExampleGenerator {
         httpMethod: 'POST',
         responseMode: 'lastNode',
         responseData: 'allEntries',
-        responseCode: 200
+        responseCode: 200,
+        // Webhooks should continue on fail to avoid blocking responses
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
       }
     },
     
@@ -220,7 +229,12 @@ DO UPDATE SET
 RETURNING *;`,
         additionalFields: {
           queryParams: '={{ $json.name }},{{ $json.email }},active'
-        }
+        },
+        // Database operations should retry on connection errors
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 2000,
+        onError: 'continueErrorOutput'
       }
     },
     
@@ -258,7 +272,13 @@ RETURNING *;`,
         options: {
           maxTokens: 150,
           temperature: 0.7
-        }
+        },
+        // AI calls should handle rate limits and transient errors
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 5000,
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
       }
     },
     
@@ -325,7 +345,12 @@ RETURNING *;`,
               ]
             }
           }
-        ]
+        ],
+        // Messaging services should handle rate limits
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 3000,
+        onError: 'continueRegularOutput'
       }
     },
     
@@ -347,7 +372,12 @@ RETURNING *;`,
 <p>Best regards,<br>The Team</p>`,
         options: {
           ccEmail: 'admin@company.com'
-        }
+        },
+        // Email sending should handle transient failures
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 2000,
+        onError: 'continueRegularOutput'
       }
     },
     
@@ -427,7 +457,12 @@ return processedItems;`
         options: {
           upsert: true,
           returnNewDocument: true
-        }
+        },
+        // NoSQL operations should handle connection issues
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 1000,
+        onError: 'continueErrorOutput'
       }
     },
     
@@ -443,7 +478,12 @@ return processedItems;`
         columns: 'customer_id,product_id,quantity,order_date',
         options: {
           queryBatching: 'independently'
-        }
+        },
+        // Database writes should handle connection errors
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 2000,
+        onError: 'stopWorkflow'
       }
     },
     
@@ -513,6 +553,145 @@ return processedItems;`
 {{ $json.expected }}`,
         assignees: ['maintainer'],
         labels: ['bug', 'needs-triage']
+      }
+    },
+    
+    // Error Handling Examples and Patterns
+    'error-handling.modern-patterns': {
+      minimal: {
+        // Basic error handling - continue on error
+        onError: 'continueRegularOutput'
+      },
+      common: {
+        // Use error output for special handling
+        onError: 'continueErrorOutput',
+        alwaysOutputData: true
+      },
+      advanced: {
+        // Stop workflow on critical errors
+        onError: 'stopWorkflow',
+        // But retry first
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 2000
+      }
+    },
+    
+    'error-handling.api-with-retry': {
+      minimal: {
+        url: 'https://api.example.com/data',
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 1000
+      },
+      common: {
+        method: 'GET',
+        url: 'https://api.example.com/users/{{ $json.userId }}',
+        retryOnFail: true,
+        maxTries: 5,
+        waitBetweenTries: 2000,
+        alwaysOutputData: true,
+        // Headers for better debugging
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            {
+              name: 'X-Request-ID',
+              value: '={{ $workflow.id }}-{{ $execution.id }}'
+            }
+          ]
+        }
+      },
+      advanced: {
+        method: 'POST',
+        url: 'https://api.example.com/critical-operation',
+        sendBody: true,
+        contentType: 'json',
+        specifyBody: 'json',
+        jsonBody: '{{ JSON.stringify($json) }}',
+        // Exponential backoff pattern
+        retryOnFail: true,
+        maxTries: 5,
+        waitBetweenTries: 1000,
+        // Always output for debugging
+        alwaysOutputData: true,
+        // Stop workflow on error for critical operations
+        onError: 'stopWorkflow'
+      }
+    },
+    
+    'error-handling.fault-tolerant': {
+      minimal: {
+        // For non-critical operations
+        onError: 'continueRegularOutput'
+      },
+      common: {
+        // Data processing that shouldn't stop the workflow
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
+      },
+      advanced: {
+        // Combination for resilient processing
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 2,
+        waitBetweenTries: 500,
+        alwaysOutputData: true
+      }
+    },
+    
+    'error-handling.database-patterns': {
+      minimal: {
+        // Database reads can continue on error
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
+      },
+      common: {
+        // Database writes should retry then stop
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 2000,
+        onError: 'stopWorkflow'
+      },
+      advanced: {
+        // Transaction-safe operations
+        onError: 'continueErrorOutput',
+        retryOnFail: false, // Don't retry transactions
+        alwaysOutputData: true
+      }
+    },
+    
+    'error-handling.webhook-patterns': {
+      minimal: {
+        // Always respond to webhooks
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
+      },
+      common: {
+        // Process errors separately
+        onError: 'continueErrorOutput',
+        alwaysOutputData: true,
+        // Add custom error response
+        responseCode: 200,
+        responseData: 'allEntries'
+      }
+    },
+    
+    'error-handling.ai-patterns': {
+      minimal: {
+        // AI calls should handle rate limits
+        retryOnFail: true,
+        maxTries: 3,
+        waitBetweenTries: 5000,
+        onError: 'continueRegularOutput'
+      },
+      common: {
+        // Exponential backoff for rate limits
+        retryOnFail: true,
+        maxTries: 5,
+        waitBetweenTries: 2000,
+        onError: 'continueRegularOutput',
+        alwaysOutputData: true
       }
     }
   };

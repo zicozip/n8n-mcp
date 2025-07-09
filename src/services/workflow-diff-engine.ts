@@ -404,6 +404,7 @@ export class WorkflowDiffEngine {
       notes: operation.node.notes,
       notesInFlow: operation.node.notesInFlow,
       continueOnFail: operation.node.continueOnFail,
+      onError: operation.node.onError,
       retryOnFail: operation.node.retryOnFail,
       maxTries: operation.node.maxTries,
       waitBetweenTries: operation.node.waitBetweenTries,

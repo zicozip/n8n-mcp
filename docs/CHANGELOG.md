@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.11] - 2025-07-09
+
+### Fixed
+- **Issue #26**: Fixed critical issue where AI agents were placing error handling properties inside `parameters` instead of at node level
+  - Root cause: AI agents were confused by examples showing `parameters.path` updates and assumed all properties followed the same pattern
+  - Error handling properties (`onError`, `retryOnFail`, `maxTries`, `waitBetweenTries`, `alwaysOutputData`) must be placed at the NODE level
+  - Other node-level properties (`executeOnce`, `disabled`, `notes`, `notesInFlow`, `credentials`) were previously undocumented for AI agents
+  - Updated `n8n_create_workflow` and `n8n_update_partial_workflow` documentation with explicit examples and warnings
+  - Verified fix with workflows tGyHrsBNWtaK0inQ, usVP2XRXhI35m3Ts, and swuogdCCmNY7jj71
+
+### Added
+- **Comprehensive Node-Level Properties Reference** in tools documentation (`tools_documentation()`)
+  - Documents ALL available node-level properties with explanations
+  - Shows correct placement and usage for each property
+  - Provides complete example node configuration
+  - Accessible via `tools_documentation({depth: "full"})` for AI agents
+- **Enhanced Workflow Validation** for additional node-level properties
+  - Now validates `executeOnce`, `disabled`, `notes`, `notesInFlow` types
+  - Checks for misplacement of ALL node-level properties (expanded from 6 to 11)
+  - Provides clear error messages with correct examples when properties are misplaced
+  - Shows specific fix with example node structure
+- **Test Script** `test-node-level-properties.ts` demonstrating correct usage
+  - Shows all node-level properties in proper configuration
+  - Demonstrates common mistakes to avoid
+  - Validates workflow configurations
+
+### Enhanced
+- **MCP Tool Documentation** significantly improved:
+  - `n8n_create_workflow` now includes complete node example with all properties
+  - `n8n_update_partial_workflow` shows difference between node-level vs parameter updates
+  - Added "CRITICAL" warnings about property placement
+  - Updated best practices and common pitfalls sections
+- **Workflow Validator** improvements:
+  - Expanded property checking from 6 to 11 node-level properties
+  - Better error messages showing complete correct structure
+  - Type validation for all node-level boolean and string properties
+- **Type Definitions** updated:
+  - Added `notesInFlow` to WorkflowNode interface in workflow-validator.ts
+  - Fixed credentials type from `Record<string, string>` to `Record<string, unknown>` in n8n-api.ts
+
+## [2.7.10] - 2025-07-09
+
+### Documentation Update
+- Added comprehensive documentation on how to update error handling properties using `n8n_update_partial_workflow`
+- Error handling properties can be updated at the node level using the workflow diff engine:
+  - `continueOnFail`: boolean - Whether to continue workflow on node failure
+  - `onError`: 'continueRegularOutput' | 'continueErrorOutput' | 'stopWorkflow' - Error handling strategy
+  - `retryOnFail`: boolean - Whether to retry on failure
+  - `maxTries`: number - Maximum retry attempts
+  - `waitBetweenTries`: number - Milliseconds to wait between retries
+  - `alwaysOutputData`: boolean - Always output data even on error
+- Added test script demonstrating error handling property updates
+- Updated WorkflowNode type to include `onError` property in n8n-api types
+- Workflow diff engine now properly handles all error handling properties
+
 ## [2.7.10] - 2025-07-07
 
 ### Added
