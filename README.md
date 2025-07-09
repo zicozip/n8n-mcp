@@ -20,6 +20,16 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 - 🤖 **AI tools** - 263 AI-capable nodes detected with full documentation
 
 
+## ⚠️ Important Safety Warning
+
+**NEVER edit your production workflows directly with AI!** Always:
+- 🔄 **Make a copy** of your workflow before using AI tools
+- 🧪 **Test in development** environment first
+- 💾 **Export backups** of important workflows
+- ⚡ **Validate changes** before deploying to production
+
+AI results can be unpredictable. Protect your work!
+
 ## 🚀 Quick Start
 
 Get n8n-MCP running in 5 minutes:
