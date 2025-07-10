@@ -227,6 +227,94 @@ export class TaskTemplates {
       ]
     },
     
+    'process_webhook_data': {
+      task: 'process_webhook_data',
+      description: 'Process incoming webhook data with Code node (shows correct data access)',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'javaScript',
+        jsCode: `// ⚠️ CRITICAL: Webhook data is nested under 'body' property!
+// Connect this Code node after a Webhook node
+
+// Access webhook payload data - it's under .body, not directly under .json
+const webhookData = items[0].json.body;  // ✅ CORRECT
+const headers = items[0].json.headers;   // HTTP headers
+const query = items[0].json.query;       // Query parameters
+
+// Common mistake to avoid:
+// const command = items[0].json.testCommand;  // ❌ WRONG - will be undefined!
+// const command = items[0].json.body.testCommand;  // ✅ CORRECT
+
+// Process the webhook data
+try {
+  // Validate required fields
+  if (!webhookData.command) {
+    throw new Error('Missing required field: command');
+  }
+  
+  // Process based on command
+  let result = {};
+  switch (webhookData.command) {
+    case 'process':
+      result = {
+        status: 'processed',
+        data: webhookData.data,
+        processedAt: DateTime.now().toISO()
+      };
+      break;
+      
+    case 'validate':
+      result = {
+        status: 'validated',
+        isValid: true,
+        validatedFields: Object.keys(webhookData.data || {})
+      };
+      break;
+      
+    default:
+      result = {
+        status: 'unknown_command',
+        command: webhookData.command
+      };
+  }
+  
+  // Return processed data
+  return [{
+    json: {
+      ...result,
+      requestId: headers['x-request-id'] || crypto.randomUUID(),
+      source: query.source || 'webhook',
+      originalCommand: webhookData.command,
+      metadata: {
+        httpMethod: items[0].json.httpMethod,
+        webhookPath: items[0].json.webhookPath,
+        timestamp: DateTime.now().toISO()
+      }
+    }
+  }];
+  
+} catch (error) {
+  // Return error response
+  return [{
+    json: {
+      status: 'error',
+      error: error.message,
+      timestamp: DateTime.now().toISO()
+    }
+  }];
+}`,
+        onError: 'continueRegularOutput'
+      },
+      userMustProvide: [],
+      notes: [
+        '⚠️ WEBHOOK DATA IS AT items[0].json.body, NOT items[0].json',
+        'This is the most common webhook processing mistake',
+        'Headers are at items[0].json.headers',
+        'Query parameters are at items[0].json.query',
+        'Connect this Code node directly after a Webhook node'
+      ]
+    },
+    
     // Database Tasks
     'query_postgres': {
       task: 'query_postgres',
@@ -873,6 +961,479 @@ return results;`,
         'Consider implementing exponential backoff in Code node',
         'Monitor usage to stay within quotas'
       ]
+    },
+    
+    // Code Node Tasks
+    'custom_ai_tool': {
+      task: 'custom_ai_tool',
+      description: 'Create a custom tool for AI agents using Code node',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'javaScript',
+        mode: 'runOnceForEachItem',
+        jsCode: `// Custom AI Tool - Example: Text Analysis
+// This code will be called by AI agents with $json containing the input
+
+// Access the input from the AI agent
+const text = $json.text || '';
+const operation = $json.operation || 'analyze';
+
+// Perform the requested operation
+let result = {};
+
+switch (operation) {
+  case 'wordCount':
+    result = {
+      wordCount: text.split(/\\s+/).filter(word => word.length > 0).length,
+      characterCount: text.length,
+      lineCount: text.split('\\n').length
+    };
+    break;
+    
+  case 'extract':
+    // Extract specific patterns (emails, URLs, etc.)
+    result = {
+      emails: text.match(/[\\w.-]+@[\\w.-]+\\.\\w+/g) || [],
+      urls: text.match(/https?:\\/\\/[^\\s]+/g) || [],
+      numbers: text.match(/\\b\\d+\\b/g) || []
+    };
+    break;
+    
+  default:
+    result = {
+      error: 'Unknown operation',
+      availableOperations: ['wordCount', 'extract']
+    };
+}
+
+return [{
+  json: {
+    ...result,
+    originalText: text,
+    operation: operation,
+    processedAt: DateTime.now().toISO()
+  }
+}];`,
+        onError: 'continueRegularOutput'
+      },
+      userMustProvide: [],
+      notes: [
+        'Connect this to AI Agent node\'s tool input',
+        'AI will pass data in $json',
+        'Use "Run Once for Each Item" mode for AI tools',
+        'Return structured data the AI can understand'
+      ]
+    },
+    
+    'aggregate_data': {
+      task: 'aggregate_data',
+      description: 'Aggregate data from multiple items into summary statistics',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'javaScript',
+        jsCode: `// Aggregate data from all items
+const stats = {
+  count: 0,
+  sum: 0,
+  min: Infinity,
+  max: -Infinity,
+  values: [],
+  categories: {},
+  errors: []
+};
+
+// Process each item
+for (const item of items) {
+  try {
+    const value = item.json.value || item.json.amount || 0;
+    const category = item.json.category || 'uncategorized';
+    
+    stats.count++;
+    stats.sum += value;
+    stats.min = Math.min(stats.min, value);
+    stats.max = Math.max(stats.max, value);
+    stats.values.push(value);
+    
+    // Count by category
+    stats.categories[category] = (stats.categories[category] || 0) + 1;
+    
+  } catch (error) {
+    stats.errors.push({
+      item: item.json,
+      error: error.message
+    });
+  }
+}
+
+// Calculate additional statistics
+const average = stats.count > 0 ? stats.sum / stats.count : 0;
+const sorted = [...stats.values].sort((a, b) => a - b);
+const median = sorted.length > 0 
+  ? sorted[Math.floor(sorted.length / 2)] 
+  : 0;
+
+return [{
+  json: {
+    totalItems: stats.count,
+    sum: stats.sum,
+    average: average,
+    median: median,
+    min: stats.min === Infinity ? 0 : stats.min,
+    max: stats.max === -Infinity ? 0 : stats.max,
+    categoryCounts: stats.categories,
+    errorCount: stats.errors.length,
+    errors: stats.errors,
+    processedAt: DateTime.now().toISO()
+  }
+}];`,
+        onError: 'continueRegularOutput'
+      },
+      userMustProvide: [],
+      notes: [
+        'Assumes items have "value" or "amount" field',
+        'Groups by "category" field if present',
+        'Returns single item with all statistics',
+        'Handles errors gracefully'
+      ]
+    },
+    
+    'batch_process_with_api': {
+      task: 'batch_process_with_api',
+      description: 'Process items in batches with API calls',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'javaScript',
+        jsCode: `// Batch process items with API calls
+const BATCH_SIZE = 10;
+const API_URL = 'https://api.example.com/batch-process'; // USER MUST UPDATE
+const results = [];
+
+// Process items in batches
+for (let i = 0; i < items.length; i += BATCH_SIZE) {
+  const batch = items.slice(i, i + BATCH_SIZE);
+  
+  try {
+    // Prepare batch data
+    const batchData = batch.map(item => ({
+      id: item.json.id,
+      data: item.json
+    }));
+    
+    // Make API request for batch
+    const response = await $helpers.httpRequest({
+      method: 'POST',
+      url: API_URL,
+      body: {
+        items: batchData
+      },
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Add results
+    if (response.results && Array.isArray(response.results)) {
+      response.results.forEach((result, index) => {
+        results.push({
+          json: {
+            ...batch[index].json,
+            ...result,
+            batchNumber: Math.floor(i / BATCH_SIZE) + 1,
+            processedAt: DateTime.now().toISO()
+          }
+        });
+      });
+    }
+    
+    // Add delay between batches to avoid rate limits
+    if (i + BATCH_SIZE < items.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+  } catch (error) {
+    // Add failed batch items with error
+    batch.forEach(item => {
+      results.push({
+        json: {
+          ...item.json,
+          error: error.message,
+          status: 'failed',
+          batchNumber: Math.floor(i / BATCH_SIZE) + 1
+        }
+      });
+    });
+  }
+}
+
+return results;`,
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 2
+      },
+      userMustProvide: [
+        {
+          property: 'jsCode',
+          description: 'Update API_URL in the code',
+          example: 'https://your-api.com/batch'
+        }
+      ],
+      notes: [
+        'Processes items in batches of 10',
+        'Includes delay between batches',
+        'Handles batch failures gracefully',
+        'Update API_URL and adjust BATCH_SIZE as needed'
+      ]
+    },
+    
+    'error_safe_transform': {
+      task: 'error_safe_transform',
+      description: 'Transform data with comprehensive error handling',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'javaScript',
+        jsCode: `// Safe data transformation with validation
+const results = [];
+const errors = [];
+
+for (const item of items) {
+  try {
+    // Validate required fields
+    const required = ['id', 'name']; // USER SHOULD UPDATE
+    const missing = required.filter(field => !item.json[field]);
+    
+    if (missing.length > 0) {
+      throw new Error(\`Missing required fields: \${missing.join(', ')}\`);
+    }
+    
+    // Transform data with type checking
+    const transformed = {
+      // Ensure ID is string
+      id: String(item.json.id),
+      
+      // Clean and validate name
+      name: String(item.json.name).trim(),
+      
+      // Parse numbers safely
+      amount: parseFloat(item.json.amount) || 0,
+      
+      // Parse dates safely
+      date: item.json.date 
+        ? DateTime.fromISO(item.json.date).isValid 
+          ? DateTime.fromISO(item.json.date).toISO()
+          : null
+        : null,
+      
+      // Boolean conversion
+      isActive: Boolean(item.json.active || item.json.isActive),
+      
+      // Array handling
+      tags: Array.isArray(item.json.tags) 
+        ? item.json.tags.filter(tag => typeof tag === 'string')
+        : [],
+      
+      // Nested object handling
+      metadata: typeof item.json.metadata === 'object' 
+        ? item.json.metadata 
+        : {},
+      
+      // Add processing info
+      processedAt: DateTime.now().toISO(),
+      originalIndex: items.indexOf(item)
+    };
+    
+    results.push({
+      json: transformed
+    });
+    
+  } catch (error) {
+    errors.push({
+      json: {
+        error: error.message,
+        originalData: item.json,
+        index: items.indexOf(item),
+        status: 'failed'
+      }
+    });
+  }
+}
+
+// Add summary at the end
+results.push({
+  json: {
+    _summary: {
+      totalProcessed: results.length - errors.length,
+      totalErrors: errors.length,
+      successRate: ((results.length - errors.length) / items.length * 100).toFixed(2) + '%',
+      timestamp: DateTime.now().toISO()
+    }
+  }
+});
+
+// Include errors at the end
+return [...results, ...errors];`,
+        onError: 'continueRegularOutput'
+      },
+      userMustProvide: [
+        {
+          property: 'jsCode',
+          description: 'Update required fields array',
+          example: "const required = ['id', 'email', 'name'];"
+        }
+      ],
+      notes: [
+        'Validates all data types',
+        'Handles missing/invalid data gracefully',
+        'Returns both successful and failed items',
+        'Includes processing summary'
+      ]
+    },
+    
+    'async_data_processing': {
+      task: 'async_data_processing',
+      description: 'Process data with async operations and proper error handling',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'javaScript',
+        jsCode: `// Async processing with concurrent limits
+const CONCURRENT_LIMIT = 5;
+const results = [];
+
+// Process items with concurrency control
+async function processItem(item, index) {
+  try {
+    // Simulate async operation (replace with actual logic)
+    // Example: API call, database query, file operation
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Actual processing logic here
+    const processed = {
+      ...item.json,
+      processed: true,
+      index: index,
+      timestamp: DateTime.now().toISO()
+    };
+    
+    // Example async operation - external API call
+    if (item.json.needsEnrichment) {
+      const enrichment = await $helpers.httpRequest({
+        method: 'GET',
+        url: \`https://api.example.com/enrich/\${item.json.id}\`
+      });
+      processed.enrichment = enrichment;
+    }
+    
+    return { json: processed };
+    
+  } catch (error) {
+    return {
+      json: {
+        ...item.json,
+        error: error.message,
+        status: 'failed',
+        index: index
+      }
+    };
+  }
+}
+
+// Process in batches with concurrency limit
+for (let i = 0; i < items.length; i += CONCURRENT_LIMIT) {
+  const batch = items.slice(i, i + CONCURRENT_LIMIT);
+  const batchPromises = batch.map((item, batchIndex) => 
+    processItem(item, i + batchIndex)
+  );
+  
+  const batchResults = await Promise.all(batchPromises);
+  results.push(...batchResults);
+}
+
+return results;`,
+        onError: 'continueRegularOutput',
+        retryOnFail: true,
+        maxTries: 2
+      },
+      userMustProvide: [],
+      notes: [
+        'Processes 5 items concurrently',
+        'Prevents overwhelming external services',
+        'Each item processed independently',
+        'Errors don\'t affect other items'
+      ]
+    },
+    
+    'python_data_analysis': {
+      task: 'python_data_analysis',
+      description: 'Analyze data using Python with statistics',
+      nodeType: 'nodes-base.code',
+      configuration: {
+        language: 'python',
+        pythonCode: `# Python data analysis - use underscore prefix for built-in variables
+import json
+from datetime import datetime
+import statistics
+
+# Collect data for analysis
+values = []
+categories = {}
+dates = []
+
+# Use _input.all() to get items in Python
+for item in _input.all():
+    # Convert JsProxy to Python dict for safe access
+    item_data = item.json.to_py()
+    
+    # Extract numeric values
+    if 'value' in item_data or 'amount' in item_data:
+        value = item_data.get('value', item_data.get('amount', 0))
+        if isinstance(value, (int, float)):
+            values.append(value)
+    
+    # Count categories
+    category = item_data.get('category', 'uncategorized')
+    categories[category] = categories.get(category, 0) + 1
+    
+    # Collect dates
+    if 'date' in item_data:
+        dates.append(item_data['date'])
+
+# Calculate statistics
+result = {
+    'itemCount': len(_input.all()),
+    'values': {
+        'count': len(values),
+        'sum': sum(values) if values else 0,
+        'mean': statistics.mean(values) if values else 0,
+        'median': statistics.median(values) if values else 0,
+        'min': min(values) if values else 0,
+        'max': max(values) if values else 0,
+        'stdev': statistics.stdev(values) if len(values) > 1 else 0
+    },
+    'categories': categories,
+    'dateRange': {
+        'earliest': min(dates) if dates else None,
+        'latest': max(dates) if dates else None,
+        'count': len(dates)
+    },
+    'analysis': {
+        'hasNumericData': len(values) > 0,
+        'hasCategoricalData': len(categories) > 0,
+        'hasTemporalData': len(dates) > 0,
+        'dataQuality': 'good' if len(values) > len(items) * 0.8 else 'partial'
+    },
+    'processedAt': datetime.now().isoformat()
+}
+
+# Return single summary item
+return [{'json': result}]`,
+        onError: 'continueRegularOutput'
+      },
+      userMustProvide: [],
+      notes: [
+        'Uses Python statistics module',
+        'Analyzes numeric, categorical, and date data',
+        'Returns comprehensive summary',
+        'Handles missing data gracefully'
+      ]
     }
   };
   
@@ -926,10 +1487,10 @@ return results;`,
   static getTaskCategories(): Record<string, string[]> {
     return {
       'HTTP/API': ['get_api_data', 'post_json_request', 'call_api_with_auth', 'api_call_with_retry'],
-      'Webhooks': ['receive_webhook', 'webhook_with_response', 'webhook_with_error_handling'],
+      'Webhooks': ['receive_webhook', 'webhook_with_response', 'webhook_with_error_handling', 'process_webhook_data'],
       'Database': ['query_postgres', 'insert_postgres_data', 'database_transaction_safety'],
       'AI/LangChain': ['chat_with_ai', 'ai_agent_workflow', 'multi_tool_ai_agent', 'ai_rate_limit_handling'],
-      'Data Processing': ['transform_data', 'filter_data', 'fault_tolerant_processing'],
+      'Data Processing': ['transform_data', 'filter_data', 'fault_tolerant_processing', 'process_webhook_data'],
       'Communication': ['send_slack_message', 'send_email'],
       'AI Tool Usage': ['use_google_sheets_as_tool', 'use_slack_as_tool', 'multi_tool_ai_agent'],
       'Error Handling': ['modern_error_handling_patterns', 'api_call_with_retry', 'fault_tolerant_processing', 'webhook_with_error_handling', 'database_transaction_safety', 'ai_rate_limit_handling']

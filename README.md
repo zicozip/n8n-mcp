@@ -580,48 +580,7 @@ Current database coverage (n8n v1.100.1):
 
 ## 🔄 Recent Updates
 
-### v2.7.10 - Enhanced Authentication Logging
-- ✅ **ENHANCED**: Authentication logging for better debugging of client authentication issues
-- ✅ **ADDED**: Specific error reasons: `no_auth_header`, `invalid_auth_format`, `invalid_token`
-- ✅ **FIXED**: Issue #22 - Improved authentication failure diagnostics
-- ✅ **FIXED**: Issue #16 - AUTH_TOKEN_FILE validation for Docker production stacks
-- ✅ **SECURITY**: Removed token length from logs, trimmed tokens for whitespace edge cases
-
-### v2.7.8 - npx Support & npm Publishing
-- ✅ **NEW**: npx support - Run `npx n8n-mcp` without installation!
-- ✅ **OPTIMIZED**: npm package with runtime-only dependencies (8 deps vs 50+ dev deps)
-- ✅ **REDUCED**: Package size from 1GB+ to ~50MB by excluding dev dependencies
-- ✅ **FIXED**: Issue #15 - Added npx execution support as requested
-- ✅ **ENHANCED**: Database path resolution for npx, global, and local installations
-
-### v2.7.5 - AUTH_TOKEN_FILE Support
-- ✅ **NEW**: AUTH_TOKEN_FILE support for Docker secrets compatibility
-- ✅ **ADDED**: Known Issues section documenting Claude Desktop container duplication
-- ✅ **ENHANCED**: Authentication flexibility with both AUTH_TOKEN and AUTH_TOKEN_FILE
-- ✅ **FIXED**: Issue #16 - AUTH_TOKEN_FILE now properly implemented as documented
-- ✅ **BACKWARD COMPATIBLE**: AUTH_TOKEN continues to work as before
-
-### v2.7.4 - Self-Documenting MCP Tools
-- ✅ **RENAMED**: `start_here_workflow_guide` → `tools_documentation` for clarity
-- ✅ **NEW**: Depth parameter - Control documentation detail with "essentials" or "full"
-- ✅ **NEW**: Per-tool documentation - Get help for any specific MCP tool by name
-- ✅ **CONCISE**: Essential info by default, comprehensive docs on demand
-- ✅ **LLM-FRIENDLY**: Plain text format instead of JSON for better readability
-- ✅ **QUICK HELP**: Call without parameters for immediate quick reference
-- ✅ **8 TOOLS DOCUMENTED**: Complete documentation for most commonly used tools
-
-### v2.7.0 - Diff-Based Workflow Editing with Transactional Updates
-- ✅ **NEW**: `n8n_update_partial_workflow` tool - Update workflows using diff operations
-- ✅ **RENAMED**: `n8n_update_workflow` → `n8n_update_full_workflow` for clarity
-- ✅ **80-90% TOKEN SAVINGS**: Only send changes, not entire workflow JSON
-- ✅ **13 OPERATIONS**: addNode, removeNode, updateNode, moveNode, enable/disable, connections, settings, tags
-- ✅ **TRANSACTIONAL**: Two-pass processing allows adding nodes and connections in any order
-- ✅ **5 OPERATION LIMIT**: Ensures reliability and atomic updates
-- ✅ **VALIDATION MODE**: Test changes with `validateOnly: true` before applying
-- ✅ **IMPROVED DOCS**: Comprehensive parameter documentation and examples
-
-
-See [CHANGELOG.md](./docs/CHANGELOG.md) for full version history.
+See [CHANGELOG.md](./docs/CHANGELOG.md) for full version history and recent changes.
 
 ## ⚠️ Known Issues
 

@@ -213,7 +213,7 @@ export class EnhancedConfigValidator extends ConfigValidator {
         break;
         
       case 'nodes-base.code':
-        // Code node uses base validation which includes syntax checks
+        NodeSpecificValidators.validateCode(context);
         break;
         
       case 'nodes-base.openAi':

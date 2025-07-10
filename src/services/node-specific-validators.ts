@@ -1056,4 +1056,501 @@ export class NodeSpecificValidators {
     suggestions.push('Consider adding webhook validation (HMAC signature verification)');
     suggestions.push('Implement rate limiting for public webhooks');
   }
+  
+  /**
+   * Validate Code node configuration with n8n-specific patterns
+   */
+  static validateCode(context: NodeValidationContext): void {
+    const { config, errors, warnings, suggestions, autofix } = context;
+    const language = config.language || 'javaScript';
+    const codeField = language === 'python' ? 'pythonCode' : 'jsCode';
+    const code = config[codeField] || '';
+    
+    // Check for empty code
+    if (!code || code.trim() === '') {
+      errors.push({
+        type: 'missing_required',
+        property: codeField,
+        message: 'Code cannot be empty',
+        fix: 'Add your code logic. Start with: return [{json: {result: "success"}}]'
+      });
+      return;
+    }
+    
+    // Language-specific validation
+    if (language === 'javaScript') {
+      this.validateJavaScriptCode(code, errors, warnings, suggestions);
+    } else if (language === 'python') {
+      this.validatePythonCode(code, errors, warnings, suggestions);
+    }
+    
+    // Check return statement and format
+    this.validateReturnStatement(code, language, errors, warnings, suggestions);
+    
+    // Check n8n variable usage
+    this.validateN8nVariables(code, language, warnings, suggestions, errors);
+    
+    // Security and best practices
+    this.validateCodeSecurity(code, language, warnings);
+    
+    // Error handling recommendations
+    if (!config.onError && code.length > 100) {
+      warnings.push({
+        type: 'best_practice',
+        property: 'errorHandling',
+        message: 'Code nodes can throw errors - consider error handling',
+        suggestion: 'Add onError: "continueRegularOutput" to handle errors gracefully'
+      });
+      autofix.onError = 'continueRegularOutput';
+    }
+    
+    // Mode-specific suggestions
+    if (config.mode === 'runOnceForEachItem' && code.includes('items')) {
+      warnings.push({
+        type: 'best_practice',
+        message: 'In "Run Once for Each Item" mode, use $json instead of items array',
+        suggestion: 'Access current item data with $json.fieldName'
+      });
+    }
+    
+    if (!config.mode && code.includes('$json')) {
+      warnings.push({
+        type: 'best_practice',
+        message: '$json only works in "Run Once for Each Item" mode',
+        suggestion: 'Either set mode: "runOnceForEachItem" or use items[0].json'
+      });
+    }
+  }
+  
+  private static validateJavaScriptCode(
+    code: string,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
+    suggestions: string[]
+  ): void {
+    // Check for syntax patterns that might fail
+    const syntaxPatterns = [
+      { pattern: /const\s+const/, message: 'Duplicate const declaration' },
+      { pattern: /let\s+let/, message: 'Duplicate let declaration' },
+      { pattern: /\)\s*\)\s*{/, message: 'Extra closing parenthesis before {' },
+      { pattern: /}\s*}$/, message: 'Extra closing brace at end' }
+    ];
+    
+    syntaxPatterns.forEach(({ pattern, message }) => {
+      if (pattern.test(code)) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'jsCode',
+          message: `Syntax error: ${message}`,
+          fix: 'Check your JavaScript syntax'
+        });
+      }
+    });
+    
+    // Common async/await issues
+    // Check for await inside a non-async function (but top-level await is fine)
+    const functionWithAwait = /function\s+\w*\s*\([^)]*\)\s*{[^}]*await/;
+    const arrowWithAwait = /\([^)]*\)\s*=>\s*{[^}]*await/;
+    
+    if ((functionWithAwait.test(code) || arrowWithAwait.test(code)) && !code.includes('async')) {
+      warnings.push({
+        type: 'best_practice',
+        message: 'Using await inside a non-async function',
+        suggestion: 'Add async keyword to the function, or use top-level await (Code nodes support it)'
+      });
+    }
+    
+    // Check for common helper usage
+    if (code.includes('$helpers.httpRequest')) {
+      suggestions.push('$helpers.httpRequest is async - use: const response = await $helpers.httpRequest(...)');
+    }
+    
+    if (code.includes('DateTime') && !code.includes('DateTime.')) {
+      warnings.push({
+        type: 'best_practice',
+        message: 'DateTime is from Luxon library',
+        suggestion: 'Use DateTime.now() or DateTime.fromISO() for date operations'
+      });
+    }
+  }
+  
+  private static validatePythonCode(
+    code: string,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
+    suggestions: string[]
+  ): void {
+    // Python-specific validation
+    const lines = code.split('\n');
+    
+    // Check for tab/space mixing (already done in base validator)
+    
+    // Check for common Python mistakes in n8n context
+    if (code.includes('__name__') && code.includes('__main__')) {
+      warnings.push({
+        type: 'inefficient',
+        message: 'if __name__ == "__main__" is not needed in Code nodes',
+        suggestion: 'Code node Python runs directly - remove the main check'
+      });
+    }
+    
+    // Check for unavailable imports
+    const unavailableImports = [
+      { module: 'requests', suggestion: 'Use JavaScript Code node with $helpers.httpRequest for HTTP requests' },
+      { module: 'pandas', suggestion: 'Use built-in list/dict operations or JavaScript for data manipulation' },
+      { module: 'numpy', suggestion: 'Use standard Python math operations' },
+      { module: 'pip', suggestion: 'External packages cannot be installed in Code nodes' }
+    ];
+    
+    unavailableImports.forEach(({ module, suggestion }) => {
+      if (code.includes(`import ${module}`) || code.includes(`from ${module}`)) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'pythonCode',
+          message: `Module '${module}' is not available in Code nodes`,
+          fix: suggestion
+        });
+      }
+    });
+    
+    // Check indentation after colons
+    lines.forEach((line, i) => {
+      if (line.trim().endsWith(':') && i < lines.length - 1) {
+        const nextLine = lines[i + 1];
+        if (nextLine.trim() && !nextLine.startsWith(' ') && !nextLine.startsWith('\t')) {
+          errors.push({
+            type: 'invalid_value',
+            property: 'pythonCode',
+            message: `Missing indentation after line ${i + 1}`,
+            fix: 'Indent the line after the colon'
+          });
+        }
+      }
+    });
+  }
+  
+  private static validateReturnStatement(
+    code: string,
+    language: string,
+    errors: ValidationError[],
+    warnings: ValidationWarning[],
+    suggestions: string[]
+  ): void {
+    const hasReturn = /return\s+/.test(code);
+    
+    if (!hasReturn) {
+      errors.push({
+        type: 'missing_required',
+        property: language === 'python' ? 'pythonCode' : 'jsCode',
+        message: 'Code must return data for the next node',
+        fix: language === 'python' 
+          ? 'Add: return [{"json": {"result": "success"}}]'
+          : 'Add: return [{json: {result: "success"}}]'
+      });
+      return;
+    }
+    
+    // JavaScript return format validation
+    if (language === 'javaScript') {
+      // Check for object return without array
+      if (/return\s+{(?!.*\[).*}\s*;?$/s.test(code) && !code.includes('json:')) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'jsCode',
+          message: 'Return value must be an array of objects',
+          fix: 'Wrap in array: return [{json: yourObject}]'
+        });
+      }
+      
+      // Check for primitive return
+      if (/return\s+(true|false|null|undefined|\d+|['"`])/m.test(code)) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'jsCode',
+          message: 'Cannot return primitive values directly',
+          fix: 'Return array of objects: return [{json: {value: yourData}}]'
+        });
+      }
+      
+      // Check for array of non-objects
+      if (/return\s+\[[\s\n]*['"`\d]/.test(code)) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'jsCode',
+          message: 'Array items must be objects with json property',
+          fix: 'Use: return [{json: {value: "data"}}] not return ["data"]'
+        });
+      }
+      
+      // Suggest proper return format for items
+      if (/return\s+items\s*;?$/.test(code) && !code.includes('map')) {
+        suggestions.push(
+          'Returning items directly is fine if they already have {json: ...} structure. ' +
+          'To modify: return items.map(item => ({json: {...item.json, newField: "value"}}))'
+        );
+      }
+    }
+    
+    // Python return format validation
+    if (language === 'python') {
+      // Check for dict return without list
+      if (/return\s+{(?!.*\[).*}$/s.test(code)) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'pythonCode',
+          message: 'Return value must be a list of dicts',
+          fix: 'Wrap in list: return [{"json": your_dict}]'
+        });
+      }
+      
+      // Check for primitive return
+      if (/return\s+(True|False|None|\d+|['"`])/m.test(code)) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'pythonCode',
+          message: 'Cannot return primitive values directly',
+          fix: 'Return list of dicts: return [{"json": {"value": your_data}}]'
+        });
+      }
+    }
+  }
+  
+  private static validateN8nVariables(
+    code: string,
+    language: string,
+    warnings: ValidationWarning[],
+    suggestions: string[],
+    errors: ValidationError[]
+  ): void {
+    // Check if code accesses input data
+    const inputPatterns = language === 'javaScript'
+      ? ['items', '$input', '$json', '$node', '$prevNode']
+      : ['items', '_input'];
+    
+    const usesInput = inputPatterns.some(pattern => code.includes(pattern));
+    
+    if (!usesInput && code.length > 50) {
+      warnings.push({
+        type: 'missing_common',
+        message: 'Code doesn\'t reference input data',
+        suggestion: language === 'javaScript'
+          ? 'Access input with: items, $input.all(), or $json (single-item mode)'
+          : 'Access input with: items variable'
+      });
+    }
+    
+    // Check for expression syntax in Code nodes
+    if (code.includes('{{') && code.includes('}}')) {
+      errors.push({
+        type: 'invalid_value',
+        property: language === 'python' ? 'pythonCode' : 'jsCode',
+        message: 'Expression syntax {{...}} is not valid in Code nodes',
+        fix: 'Use regular JavaScript/Python syntax without double curly braces'
+      });
+    }
+    
+    // Check for wrong $node syntax
+    if (code.includes('$node[')) {
+      warnings.push({
+        type: 'invalid_value',
+        property: language === 'python' ? 'pythonCode' : 'jsCode',
+        message: 'Use $(\'Node Name\') instead of $node[\'Node Name\'] in Code nodes',
+        suggestion: 'Replace $node[\'NodeName\'] with $(\'NodeName\')'
+      });
+    }
+    
+    // Check for expression-only functions
+    const expressionOnlyFunctions = ['$now()', '$today()', '$tomorrow()', '.unique()', '.pluck(', '.keys()', '.hash('];
+    expressionOnlyFunctions.forEach(func => {
+      if (code.includes(func)) {
+        warnings.push({
+          type: 'invalid_value',
+          property: language === 'python' ? 'pythonCode' : 'jsCode',
+          message: `${func} is an expression-only function not available in Code nodes`,
+          suggestion: 'See Code node documentation for alternatives'
+        });
+      }
+    });
+    
+    // Check for common variable mistakes
+    if (language === 'javaScript') {
+      // Using $ without proper variable
+      if (/\$(?![a-zA-Z])/.test(code) && !code.includes('${')) {
+        warnings.push({
+          type: 'best_practice',
+          message: 'Invalid $ usage detected',
+          suggestion: 'n8n variables start with $: $json, $input, $node, $workflow, $execution'
+        });
+      }
+      
+      // Check for helpers usage
+      if (code.includes('helpers.') && !code.includes('$helpers')) {
+        warnings.push({
+          type: 'invalid_value',
+          property: 'jsCode',
+          message: 'Use $helpers not helpers',
+          suggestion: 'Change helpers. to $helpers.'
+        });
+      }
+      
+      // Check for $helpers usage without availability check
+      if (code.includes('$helpers') && !code.includes('typeof $helpers')) {
+        warnings.push({
+          type: 'best_practice',
+          message: '$helpers availability varies by n8n version',
+          suggestion: 'Check availability first: if (typeof $helpers !== "undefined" && $helpers.httpRequest) { ... }'
+        });
+      }
+      
+      // Suggest available helpers
+      if (code.includes('$helpers')) {
+        suggestions.push(
+          'Common $helpers methods: httpRequest(), prepareBinaryData(). Note: getWorkflowStaticData is a standalone function - use $getWorkflowStaticData() instead'
+        );
+      }
+      
+      // Check for incorrect getWorkflowStaticData usage
+      if (code.includes('$helpers.getWorkflowStaticData')) {
+        errors.push({
+          type: 'invalid_value',
+          property: 'jsCode',
+          message: '$helpers.getWorkflowStaticData() will cause "$helpers is not defined" error',
+          fix: 'Use $getWorkflowStaticData("global") or $getWorkflowStaticData("node") directly'
+        });
+      }
+      
+      // Check for wrong JMESPath parameter order
+      if (code.includes('$jmespath(') && /\$jmespath\s*\(\s*['"`]/.test(code)) {
+        warnings.push({
+          type: 'invalid_value',
+          property: 'jsCode',
+          message: 'Code node $jmespath has reversed parameter order: $jmespath(data, query)',
+          suggestion: 'Use: $jmespath(dataObject, "query.path") not $jmespath("query.path", dataObject)'
+        });
+      }
+      
+      // Check for webhook data access patterns
+      if (code.includes('items[0].json') && !code.includes('.json.body')) {
+        // Check if previous node reference suggests webhook
+        if (code.includes('Webhook') || code.includes('webhook') || 
+            code.includes('$("Webhook")') || code.includes("$('Webhook')")) {
+          warnings.push({
+            type: 'invalid_value',
+            property: 'jsCode',
+            message: 'Webhook data is nested under .body property',
+            suggestion: 'Use items[0].json.body.fieldName instead of items[0].json.fieldName for webhook data'
+          });
+        }
+        // Also check for common webhook field names that suggest webhook data
+        else if (/items\[0\]\.json\.(payload|data|command|action|event|message)\b/.test(code)) {
+          warnings.push({
+            type: 'best_practice',
+            message: 'If processing webhook data, remember it\'s nested under .body',
+            suggestion: 'Webhook payloads are at items[0].json.body, not items[0].json'
+          });
+        }
+      }
+    }
+    
+    // Check for JMESPath filters with unquoted numeric literals (both JS and Python)
+    const jmespathFunction = language === 'javaScript' ? '$jmespath' : '_jmespath';
+    if (code.includes(jmespathFunction + '(')) {
+      // Look for filter expressions with comparison operators and numbers
+      const filterPattern = /\[?\?[^[\]]*(?:>=?|<=?|==|!=)\s*(\d+(?:\.\d+)?)\s*\]/g;
+      let match;
+      
+      while ((match = filterPattern.exec(code)) !== null) {
+        const number = match[1];
+        // Check if the number is NOT wrapped in backticks
+        const beforeNumber = code.substring(match.index, match.index + match[0].indexOf(number));
+        const afterNumber = code.substring(match.index + match[0].indexOf(number) + number.length);
+        
+        if (!beforeNumber.includes('`') || !afterNumber.startsWith('`')) {
+          errors.push({
+            type: 'invalid_value',
+            property: language === 'python' ? 'pythonCode' : 'jsCode',
+            message: `JMESPath numeric literal ${number} must be wrapped in backticks`,
+            fix: `Change [?field >= ${number}] to [?field >= \`${number}\`]`
+          });
+        }
+      }
+      
+      // Also provide a general suggestion if JMESPath is used
+      suggestions.push(
+        'JMESPath in n8n requires backticks around numeric literals in filters: [?age >= `18`]'
+      );
+    }
+  }
+  
+  private static validateCodeSecurity(
+    code: string,
+    language: string,
+    warnings: ValidationWarning[]
+  ): void {
+    // Security checks
+    const dangerousPatterns = [
+      { pattern: /eval\s*\(/, message: 'Avoid eval() - it\'s a security risk' },
+      { pattern: /Function\s*\(/, message: 'Avoid Function constructor - use regular functions' },
+      { pattern: language === 'python' ? /exec\s*\(/ : /exec\s*\(/, message: 'Avoid exec() - it\'s a security risk' },
+      { pattern: /process\.env/, message: 'Limited environment access in Code nodes' },
+      { pattern: /import\s+\*/, message: 'Avoid import * - be specific about imports' }
+    ];
+    
+    dangerousPatterns.forEach(({ pattern, message }) => {
+      if (pattern.test(code)) {
+        warnings.push({
+          type: 'security',
+          message,
+          suggestion: 'Use safer alternatives or built-in functions'
+        });
+      }
+    });
+    
+    // Special handling for require() - it's allowed for built-in modules
+    if (code.includes('require(')) {
+      // Check if it's requiring a built-in module
+      const builtinModules = ['crypto', 'util', 'querystring', 'url', 'buffer'];
+      const requirePattern = /require\s*\(\s*['"`](\w+)['"`]\s*\)/g;
+      let match;
+      
+      while ((match = requirePattern.exec(code)) !== null) {
+        const moduleName = match[1];
+        if (!builtinModules.includes(moduleName)) {
+          warnings.push({
+            type: 'security',
+            message: `Cannot require('${moduleName}') - only built-in Node.js modules are available`,
+            suggestion: `Available modules: ${builtinModules.join(', ')}`
+          });
+        }
+      }
+      
+      // If require is used without quotes, it might be dynamic
+      if (/require\s*\([^'"`]/.test(code)) {
+        warnings.push({
+          type: 'security',
+          message: 'Dynamic require() not supported',
+          suggestion: 'Use static require with string literals: require("crypto")'
+        });
+      }
+    }
+    
+    // Check for crypto usage without require
+    if ((code.includes('crypto.') || code.includes('randomBytes') || code.includes('randomUUID')) && 
+        !code.includes('require') && language === 'javaScript') {
+      warnings.push({
+        type: 'invalid_value',
+        message: 'Using crypto without require statement',
+        suggestion: 'Add: const crypto = require("crypto"); at the beginning (ignore editor warnings)'
+      });
+    }
+    
+    // File system access warning
+    if (/\b(fs|path|child_process)\b/.test(code)) {
+      warnings.push({
+        type: 'security',
+        message: 'File system and process access not available in Code nodes',
+        suggestion: 'Use other n8n nodes for file operations (e.g., Read/Write Files node)'
+      });
+    }
+  }
 }

@@ -504,6 +504,643 @@ n8n_update_partial_workflow({
       ],
       relatedTools: ['n8n_get_workflow', 'n8n_update_full_workflow', 'validate_workflow']
     }
+  },
+
+  // Code Node specific documentation
+  code_node_guide: {
+    name: 'code_node_guide',
+    category: 'code_node',
+    essentials: {
+      description: 'Comprehensive guide for writing Code node JavaScript and Python',
+      keyParameters: ['topic'],
+      example: 'tools_documentation({topic: "code_node_guide"})',
+      performance: 'Instant - returns documentation',
+      tips: [
+        'Essential reading before writing Code node scripts',
+        'Covers all built-in variables and helpers',
+        'Includes common patterns and error handling'
+      ]
+    },
+    full: {
+      description: `Complete reference for the n8n Code node, covering JavaScript and Python execution environments, built-in variables, helper functions, and best practices.
+
+## Code Node Basics
+
+The Code node allows custom JavaScript or Python code execution within workflows. It runs in a sandboxed environment with access to n8n-specific variables and helpers.
+
+### JavaScript Environment
+- **ES2022 support** with async/await
+- **Built-in libraries**: 
+  - **luxon** (DateTime) - Date/time manipulation
+  - **jmespath** - JSON queries via $jmespath()
+  - **crypto** - Available via require('crypto') despite editor warnings!
+- **Node.js globals**: Buffer, process.env (limited)
+- **require() IS available** for built-in modules only (crypto, util, etc.)
+- **No npm packages** - only Node.js built-ins and n8n-provided libraries
+
+### Python Environment  
+- **Python 3.10+** with standard library (Pyodide runtime)
+- **No pip install** - standard library only
+- **Variables use underscore prefix**: \`_input\`, \`_json\`, \`_jmespath\` (not \`$\`)
+- **item.json is JsProxy**: Use \`.to_py()\` to convert to Python dict
+- **Shared state** between Code nodes in same execution
+
+## Essential Variables
+
+### $input
+Access to all incoming data:
+\`\`\`javascript
+// Get all items from all inputs
+const allItems = $input.all();  // Returns: Item[][]
+
+// Get items from specific input (0-indexed)
+const firstInput = $input.all(0);  // Returns: Item[]
+
+// Get first item from first input
+const firstItem = $input.first();  // Returns: Item
+
+// Get last item from first input  
+const lastItem = $input.last();  // Returns: Item
+
+// Get specific item by index
+const item = $input.item(2);  // Returns: Item at index 2
+\`\`\`
+
+### items
+Direct access to incoming items (legacy, prefer $input):
+\`\`\`javascript
+// items is equivalent to $input.all()[0]
+for (const item of items) {
+  console.log(item.json);  // Access JSON data
+  console.log(item.binary);  // Access binary data
+}
+\`\`\`
+
+### $json
+Shortcut to current item's JSON data (only in "Run Once for Each Item" mode):
+\`\`\`javascript
+// These are equivalent in single-item mode:
+const value1 = $json.fieldName;
+const value2 = items[0].json.fieldName;
+\`\`\`
+
+### Accessing Other Nodes
+Access data from other nodes using $('Node Name') syntax:
+\`\`\`javascript
+// Access another node's output - use $('Node Name') NOT $node
+const prevData = $('Previous Node').all();
+const firstItem = $('Previous Node').first();
+const specificItem = $('Previous Node').item(0);
+
+// Get node parameter
+const webhookUrl = $('Webhook').params.path;
+
+// Python uses underscore prefix
+const pythonData = _('Previous Node').all();
+\`\`\`
+
+⚠️ **Expression vs Code Node Syntax**:
+- **Expressions**: \`{{$node['Previous Node'].json.field}}\`
+- **Code Node**: \`$('Previous Node').first().json.field\`
+- These are NOT interchangeable!
+
+### $workflow
+Workflow metadata:
+\`\`\`javascript
+const workflowId = $workflow.id;
+const workflowName = $workflow.name;
+const isActive = $workflow.active;
+\`\`\`
+
+### $execution
+Execution context:
+\`\`\`javascript
+const executionId = $execution.id;
+const executionMode = $execution.mode;  // 'manual', 'trigger', etc.
+const resumeUrl = $execution.resumeUrl;  // For wait nodes
+\`\`\`
+
+### $prevNode
+Access to the immediate previous node:
+\`\`\`javascript
+const prevOutput = $prevNode.outputIndex;  // Which output triggered this
+const prevData = $prevNode.data;  // Previous node's data
+const prevName = $prevNode.name;  // Previous node's name
+\`\`\`
+
+## Helper Functions
+
+### Date/Time (Luxon)
+\`\`\`javascript
+// Current time
+const now = DateTime.now();
+const iso = now.toISO();
+
+// Parse dates
+const date = DateTime.fromISO('2024-01-01');
+const formatted = date.toFormat('yyyy-MM-dd');
+
+// Time math
+const tomorrow = now.plus({ days: 1 });
+const hourAgo = now.minus({ hours: 1 });
+\`\`\`
+
+### JSON Queries (JMESPath)
+\`\`\`javascript
+// n8n uses $jmespath() - NOTE: parameter order is reversed from standard JMESPath!
+const data = { users: [{ name: 'John', age: 30 }, { name: 'Jane', age: 25 }] };
+const names = $jmespath(data, 'users[*].name');  // ['John', 'Jane']
+
+// ⚠️ IMPORTANT: Numeric literals in filters need BACKTICKS in n8n!
+const adults = $jmespath(data, 'users[?age >= \`18\`]');  // ✅ CORRECT - backticks around 18
+const seniors = $jmespath(data, 'users[?age >= \`65\`]');  // ✅ CORRECT
+
+// ❌ WRONG - This will cause a syntax error!
+// const adults = $jmespath(data, 'users[?age >= 18]');  // Missing backticks
+
+// More filter examples with proper backticks:
+const expensive = $jmespath(items, '[?price > \`100\`]');
+const inStock = $jmespath(products, '[?quantity >= \`1\`]');
+const highPriority = $jmespath(tasks, '[?priority == \`1\`]');
+
+// String comparisons don't need backticks
+const activeUsers = $jmespath(data, 'users[?status == "active"]');
+
+// Python uses underscore prefix
+const pythonAdults = _jmespath(data, 'users[?age >= \`18\`]');
+\`\`\`
+
+⚠️ **CRITICAL DIFFERENCES** from standard JMESPath:
+1. **Parameter order is REVERSED**:
+   - **Expression**: \`{{$jmespath("query", data)}}\`
+   - **Code Node**: \`$jmespath(data, "query")\`
+2. **Numeric literals in filters MUST use backticks**: \`[?age >= \`18\`]\`
+   - This is n8n-specific and differs from standard JMESPath documentation!
+
+### Available Functions and Libraries
+
+#### Built-in Node.js Modules (via require)
+\`\`\`javascript
+// ✅ These modules ARE available via require():
+const crypto = require('crypto');        // Cryptographic functions
+const util = require('util');            // Utility functions
+const querystring = require('querystring'); // URL query string utilities
+
+// Example: Generate secure random token
+const crypto = require('crypto');
+const token = crypto.randomBytes(32).toString('hex');
+const uuid = crypto.randomUUID();
+\`\`\`
+
+**Note**: The editor may show errors for require() but it WORKS at runtime!
+
+#### Standalone Functions (Global Scope)
+\`\`\`javascript
+// ✅ Workflow static data - persists between executions
+// IMPORTANT: These are standalone functions, NOT methods on $helpers!
+const staticData = $getWorkflowStaticData('global'); // Global static data
+const nodeData = $getWorkflowStaticData('node');    // Node-specific data
+
+// Example: Counter that persists
+const staticData = $getWorkflowStaticData('global');
+staticData.counter = (staticData.counter || 0) + 1;
+
+// ❌ WRONG - This will cause "$helpers is not defined" error:
+// const data = $helpers.getWorkflowStaticData('global');
+
+// JMESPath queries - note the parameter order!
+const result = $jmespath(data, 'users[*].name');
+\`\`\`
+
+#### $helpers Object (When Available)
+\`\`\`javascript
+// Some n8n versions provide $helpers with these methods:
+// (Always test availability in your n8n instance)
+
+// HTTP requests
+const response = await $helpers.httpRequest({
+  method: 'GET',
+  url: 'https://api.example.com/data',
+  headers: { 'Authorization': 'Bearer token' }
+});
+
+// Binary data preparation  
+const binaryData = await $helpers.prepareBinaryData(
+  Buffer.from('content'), 
+  'file.txt',
+  'text/plain'
+);
+
+// Check if $helpers exists before using:
+if (typeof $helpers !== 'undefined' && $helpers.httpRequest) {
+  // Use $helpers.httpRequest
+} else {
+  throw new Error('HTTP requests not available in this n8n version');
+}
+\`\`\`
+
+#### Important Notes:
+- **$getWorkflowStaticData()** is ALWAYS a standalone function
+- **require()** works for built-in Node.js modules despite editor warnings
+- **$helpers** availability varies by n8n version - always check first
+- Python uses underscore prefix: \`_getWorkflowStaticData()\`, \`_jmespath()\`
+- Editor red underlines are often false positives - test at runtime!
+
+## Return Format
+
+Code nodes MUST return an array of objects with 'json' property:
+
+\`\`\`javascript
+// ✅ CORRECT - Array of objects with json property
+return [
+  { json: { id: 1, name: 'Item 1' } },
+  { json: { id: 2, name: 'Item 2' } }
+];
+
+// ✅ CORRECT - Single item (still wrapped in array)
+return [{ json: { result: 'success' } }];
+
+// ✅ CORRECT - With binary data
+return [{
+  json: { filename: 'report.pdf' },
+  binary: {
+    data: {
+      data: base64String,
+      mimeType: 'application/pdf',
+      fileName: 'report.pdf'
+    }
+  }
+}];
+
+// ❌ WRONG - Not an array
+return { json: { result: 'success' } };
+
+// ❌ WRONG - No json property
+return [{ result: 'success' }];
+
+// ❌ WRONG - Not wrapped in object
+return ['item1', 'item2'];
+\`\`\`
+
+## Common Patterns
+
+### Data Transformation
+\`\`\`javascript
+// Transform all items
+const transformedItems = [];
+for (const item of items) {
+  transformedItems.push({
+    json: {
+      ...item.json,
+      processed: true,
+      timestamp: DateTime.now().toISO(),
+      uppercaseName: item.json.name?.toUpperCase()
+    }
+  });
+}
+return transformedItems;
+\`\`\`
+
+### Filtering Items
+\`\`\`javascript
+// Filter items based on condition
+return items
+  .filter(item => item.json.status === 'active')
+  .map(item => ({ json: item.json }));
+\`\`\`
+
+### Aggregation
+\`\`\`javascript
+// Aggregate data from all items
+const total = items.reduce((sum, item) => sum + (item.json.amount || 0), 0);
+const average = total / items.length;
+
+return [{
+  json: {
+    total,
+    average,
+    count: items.length,
+    items: items.map(i => i.json)
+  }
+}];
+\`\`\`
+
+### Error Handling
+\`\`\`javascript
+// Safe data access with defaults
+const results = [];
+for (const item of items) {
+  try {
+    const value = item.json?.nested?.field || 'default';
+    results.push({
+      json: {
+        processed: value,
+        status: 'success'
+      }
+    });
+  } catch (error) {
+    results.push({
+      json: {
+        error: error.message,
+        status: 'failed',
+        originalItem: item.json
+      }
+    });
+  }
+}
+return results;
+\`\`\`
+
+### Working with APIs
+\`\`\`javascript
+// Make HTTP request and process response
+try {
+  const response = await $helpers.httpRequest({
+    method: 'POST',
+    url: 'https://api.example.com/process',
+    body: {
+      data: items.map(item => item.json)
+    },
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  
+  return [{ json: response }];
+} catch (error) {
+  throw new Error(\`API request failed: \${error.message}\`);
+}
+\`\`\`
+
+### Async Operations
+\`\`\`javascript
+// Process items with async operations
+const results = [];
+for (const item of items) {
+  // Simulate async operation
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  results.push({
+    json: {
+      ...item.json,
+      processedAt: new Date().toISOString()
+    }
+  });
+}
+return results;
+\`\`\`
+
+### Webhook Data Access (CRITICAL!)
+\`\`\`javascript
+// ⚠️ WEBHOOK DATA IS NESTED UNDER 'body' PROPERTY!
+// This is a common source of errors in webhook-triggered workflows
+
+// ❌ WRONG - This will be undefined for webhook data:
+const command = items[0].json.testCommand;
+
+// ✅ CORRECT - Webhook data is wrapped in 'body':
+const command = items[0].json.body.testCommand;
+
+// Complete webhook data processing example:
+const webhookData = items[0].json.body; // Get the actual webhook payload
+const headers = items[0].json.headers;   // HTTP headers are separate
+const query = items[0].json.query;       // Query parameters are separate
+
+// Process webhook payload
+return [{
+  json: {
+    command: webhookData.testCommand,
+    user: webhookData.user,
+    timestamp: DateTime.now().toISO(),
+    requestId: headers['x-request-id'],
+    source: query.source || 'unknown'
+  }
+}];
+
+// For other trigger nodes (non-webhook), data is directly under json:
+// - Schedule Trigger: items[0].json contains timestamp
+// - Database Trigger: items[0].json contains row data
+// - File Trigger: items[0].json contains file info
+\`\`\`
+
+## Python Code Examples
+
+### Basic Python Structure
+\`\`\`python
+import json
+from datetime import datetime
+
+# Access items - Python uses underscore prefix for built-in variables
+results = []
+for item in _input.all():
+    # IMPORTANT: item.json is NOT a standard Python dict!
+    # Use to_py() to convert to a proper Python dict
+    processed_item = item.json.to_py()  # Converts JsProxy to Python dict
+    processed_item['timestamp'] = datetime.now().isoformat()
+    results.append({'json': processed_item})
+
+return results
+\`\`\`
+
+### Python Data Processing
+\`\`\`python
+# Aggregate data - use _input.all() to get items
+items = _input.all()
+total = sum(item.json.get('amount', 0) for item in items)
+average = total / len(items) if items else 0
+
+# For safe dict operations, convert JsProxy to Python dict
+safe_items = []
+for item in items:
+    # Convert JsProxy to dict to avoid KeyError with null values
+    safe_dict = item.json.to_py()
+    safe_items.append(safe_dict)
+
+# Return aggregated result
+return [{
+    'json': {
+        'total': total,
+        'average': average,
+        'count': len(items),
+        'processed_at': datetime.now().isoformat(),
+        'items': safe_items  # Now these are proper Python dicts
+    }
+}]
+\`\`\`
+
+## Code Node as AI Tool
+
+Code nodes can be used as custom tools for AI agents:
+
+\`\`\`javascript
+// Code node configured as AI tool
+// Name: "Calculate Discount"
+// Description: "Calculates discount based on quantity"
+
+const quantity = $json.quantity || 1;
+const basePrice = $json.price || 0;
+
+let discount = 0;
+if (quantity >= 100) discount = 0.20;
+else if (quantity >= 50) discount = 0.15;
+else if (quantity >= 20) discount = 0.10;
+else if (quantity >= 10) discount = 0.05;
+
+const discountAmount = basePrice * quantity * discount;
+const finalPrice = (basePrice * quantity) - discountAmount;
+
+return [{
+  json: {
+    quantity,
+    basePrice,
+    discountPercentage: discount * 100,
+    discountAmount,
+    finalPrice,
+    savings: discountAmount
+  }
+}];
+\`\`\`
+
+## Security Considerations
+
+### Available Security Features
+\`\`\`javascript
+// ✅ Crypto IS available despite editor warnings!
+const crypto = require('crypto');
+
+// Generate secure random values
+const randomBytes = crypto.randomBytes(32);
+const randomUUID = crypto.randomUUID();
+
+// Create hashes
+const hash = crypto.createHash('sha256')
+  .update('data to hash')
+  .digest('hex');
+
+// HMAC for signatures
+const hmac = crypto.createHmac('sha256', 'secret-key')
+  .update('data to sign')
+  .digest('hex');
+\`\`\`
+
+### Banned Operations
+- No file system access (fs module) - except read-only for some paths
+- No network requests except via $helpers.httpRequest
+- No child process execution
+- No external npm packages (only built-in Node.js modules)
+- No eval() or Function() constructor
+
+### Safe Practices
+\`\`\`javascript
+// ✅ SAFE - Use crypto for secure operations
+const crypto = require('crypto');
+const token = crypto.randomBytes(32).toString('hex');
+
+// ✅ SAFE - Use built-in JSON parsing
+const parsed = JSON.parse(jsonString);
+
+// ❌ UNSAFE - Never use eval
+const parsed = eval('(' + jsonString + ')');
+
+// ✅ SAFE - Validate input
+if (typeof item.json.userId !== 'string') {
+  throw new Error('userId must be a string');
+}
+
+// ✅ SAFE - Sanitize for logs
+const safeLog = String(userInput).substring(0, 100);
+
+// ✅ SAFE - Time-safe comparison for secrets
+const expectedToken = 'abc123';
+const providedToken = item.json.token;
+const tokensMatch = crypto.timingSafeEqual(
+  Buffer.from(expectedToken),
+  Buffer.from(providedToken || '')
+);
+\`\`\`
+
+## Debugging Tips
+
+### Console Output
+\`\`\`javascript
+// Console.log appears in n8n execution logs
+console.log('Processing item:', item.json.id);
+console.error('Error details:', error);
+
+// Return debug info in development
+return [{
+  json: {
+    result: processedData,
+    debug: {
+      itemCount: items.length,
+      executionId: $execution.id,
+      timestamp: new Date().toISOString()
+    }
+  }
+}];
+\`\`\`
+
+### Error Messages
+\`\`\`javascript
+// Provide helpful error context
+if (!item.json.requiredField) {
+  throw new Error(\`Missing required field 'requiredField' in item \${items.indexOf(item)}\`);
+}
+
+// Include original data in errors
+try {
+  // processing...
+} catch (error) {
+  throw new Error(\`Failed to process item \${item.json.id}: \${error.message}\`);
+}
+\`\`\`
+
+## Performance Best Practices
+
+1. **Avoid nested loops** when possible
+2. **Use array methods** (map, filter, reduce) for clarity
+3. **Limit HTTP requests** - batch when possible
+4. **Return early** for error conditions
+5. **Keep state minimal** - Code nodes are stateless between executions
+
+## Common Mistakes to Avoid
+
+1. **Forgetting to return an array**
+2. **Not wrapping in json property**
+3. **Modifying items array directly**
+4. **Using undefined variables**
+5. **Infinite loops with while statements**
+6. **Not handling missing data gracefully**
+7. **Forgetting await for async operations**`,
+      parameters: {
+        topic: { type: 'string', description: 'Specific Code node topic (optional)', required: false }
+      },
+      returns: 'Comprehensive Code node documentation and examples',
+      examples: [
+        'tools_documentation({topic: "code_node_guide"}) - Full guide',
+        'tools_documentation({topic: "code_node_guide", depth: "full"}) - Complete reference'
+      ],
+      useCases: [
+        'Learning Code node capabilities',
+        'Understanding built-in variables',
+        'Finding the right helper function',
+        'Debugging Code node issues',
+        'Building custom AI tools'
+      ],
+      performance: 'Instant - returns static documentation',
+      bestPractices: [
+        'Read before writing Code nodes',
+        'Reference for variable names',
+        'Copy examples as starting points',
+        'Check security considerations'
+      ],
+      pitfalls: [
+        'Not all Node.js features available',
+        'Python has limited libraries',
+        'State not preserved between executions'
+      ],
+      relatedTools: ['get_node_essentials', 'validate_node_operation', 'get_node_for_task']
+    }
   }
 };
 
@@ -584,6 +1221,7 @@ Welcome! Here's how to efficiently work with n8n nodes:
 
 ## Get Help
 - tools_documentation({topic: "search_nodes"}) - Get help for specific tool
+- tools_documentation({topic: "code_node_guide"}) - Essential Code node reference
 - tools_documentation({topic: "overview", depth: "full"}) - See complete guide
 - list_tasks() - See available task templates
 
@@ -650,6 +1288,23 @@ validate_workflow(workflow)
 
 // 4. Deploy (if API configured)
 n8n_create_workflow(workflow)
+\`\`\`
+
+### Working with Code Nodes
+The Code node is essential for custom logic. Always reference the guide:
+\`\`\`javascript
+// Get comprehensive Code node documentation
+tools_documentation({topic: "code_node_guide"})
+
+// Common Code node pattern
+get_node_essentials("n8n-nodes-base.code")
+// Returns minimal config with JavaScript/Python examples
+
+// Validate Code node configuration
+validate_node_operation("n8n-nodes-base.code", {
+  language: "javaScript",
+  jsCode: "return items.map(item => ({json: {...item.json, processed: true}}))"
+})
 \`\`\`
 
 ### Node-Level Properties Reference

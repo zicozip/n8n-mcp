@@ -391,12 +391,18 @@ export class ConfigValidator {
    * Check for common configuration issues
    */
   private static checkCommonIssues(
-    _nodeType: string,
+    nodeType: string,
     config: Record<string, any>,
     properties: any[],
     warnings: ValidationWarning[],
     suggestions: string[]
   ): void {
+    // Skip visibility checks for Code nodes as they have simple property structure
+    if (nodeType === 'nodes-base.code') {
+      // Code nodes don't have complex displayOptions, so skip visibility warnings
+      return;
+    }
+    
     // Check for properties that won't be used
     const visibleProps = properties.filter(p => this.isPropertyVisible(p, config));
     const configuredKeys = Object.keys(config);
@@ -562,25 +568,176 @@ export class ConfigValidator {
       warnings.push({
         type: 'missing_common',
         message: 'No return statement found',
-        suggestion: 'Code node should return data for the next node. Add: return items (Python) or return items; (JavaScript)'
+        suggestion: 'Code node must return data. Example: return [{json: {result: "success"}}]'
       });
     }
     
-    // Check for common n8n patterns
+    // Check return format for JavaScript
+    if (language === 'javascript' && hasReturn) {
+      // Check for common incorrect return patterns
+      if (/return\s+items\s*;/.test(code) && !code.includes('.map') && !code.includes('json:')) {
+        warnings.push({
+          type: 'best_practice',
+          message: 'Returning items directly - ensure each item has {json: ...} structure',
+          suggestion: 'If modifying items, use: return items.map(item => ({json: {...item.json, newField: "value"}}))'
+        });
+      }
+      
+      // Check for return without array
+      if (/return\s+{[^}]+}\s*;/.test(code) && !code.includes('[') && !code.includes(']')) {
+        warnings.push({
+          type: 'invalid_value',
+          message: 'Return value must be an array',
+          suggestion: 'Wrap your return object in an array: return [{json: {your: "data"}}]'
+        });
+      }
+      
+      // Check for direct data return without json wrapper
+      if (/return\s+\[['"`]/.test(code) || /return\s+\[\d/.test(code)) {
+        warnings.push({
+          type: 'invalid_value',
+          message: 'Items must be objects with json property',
+          suggestion: 'Use format: return [{json: {value: "data"}}] not return ["data"]'
+        });
+      }
+    }
+    
+    // Check return format for Python
+    if (language === 'python' && hasReturn) {
+      // Check for common incorrect patterns
+      if (/return\s+items\s*$/.test(code) && !code.includes('json') && !code.includes('dict')) {
+        warnings.push({
+          type: 'best_practice',
+          message: 'Returning items directly - ensure each item is a dict with "json" key',
+          suggestion: 'Use: return [{"json": item.json} for item in items]'
+        });
+      }
+      
+      // Check for dict return without list
+      if (/return\s+{['"]/.test(code) && !code.includes('[') && !code.includes(']')) {
+        warnings.push({
+          type: 'invalid_value',
+          message: 'Return value must be a list',
+          suggestion: 'Wrap your return dict in a list: return [{"json": {"your": "data"}}]'
+        });
+      }
+    }
+    
+    // Check for common n8n variables and patterns
     if (language === 'javascript') {
-      if (!code.includes('items') && !code.includes('$input')) {
+      // Check if accessing items/input
+      if (!code.includes('items') && !code.includes('$input') && !code.includes('$json')) {
         warnings.push({
           type: 'missing_common',
-          message: 'Code doesn\'t reference input items',
-          suggestion: 'Access input data with: items or $input.all()'
+          message: 'Code doesn\'t reference input data',
+          suggestion: 'Access input with: items, $input.all(), or $json (in single-item mode)'
+        });
+      }
+      
+      // Check for common mistakes with $json
+      if (code.includes('$json') && !code.includes('mode')) {
+        warnings.push({
+          type: 'best_practice',
+          message: '$json only works in "Run Once for Each Item" mode',
+          suggestion: 'For all items mode, use: items[0].json or loop through items'
+        });
+      }
+      
+      // Check for undefined variable usage
+      const commonVars = ['$node', '$workflow', '$execution', '$prevNode', 'DateTime', 'jmespath'];
+      const usedVars = commonVars.filter(v => code.includes(v));
+      
+      // Check for incorrect $helpers usage patterns
+      if (code.includes('$helpers.getWorkflowStaticData')) {
+        warnings.push({
+          type: 'invalid_value',
+          message: '$helpers.getWorkflowStaticData() is incorrect - causes "$helpers is not defined" error',
+          suggestion: 'Use $getWorkflowStaticData() as a standalone function (no $helpers prefix)'
+        });
+      }
+      
+      // Check for $helpers usage without checking availability
+      if (code.includes('$helpers') && !code.includes('typeof $helpers')) {
+        warnings.push({
+          type: 'best_practice',
+          message: '$helpers availability varies by n8n version',
+          suggestion: 'Check availability first: if (typeof $helpers !== "undefined" && $helpers.httpRequest) { ... }'
+        });
+      }
+      
+      // Check for async without await
+      if (code.includes('async') || code.includes('.then(')) {
+        if (!code.includes('await')) {
+          warnings.push({
+            type: 'best_practice',
+            message: 'Using async operations without await',
+            suggestion: 'Use await for async operations: await $helpers.httpRequest(...)'
+          });
+        }
+      }
+      
+      // Check for crypto usage without require
+      if ((code.includes('crypto.') || code.includes('randomBytes') || code.includes('randomUUID')) && !code.includes('require')) {
+        warnings.push({
+          type: 'invalid_value',
+          message: 'Using crypto without require statement',
+          suggestion: 'Add: const crypto = require("crypto"); at the beginning (ignore editor warnings)'
+        });
+      }
+      
+      // Check for console.log (informational)
+      if (code.includes('console.log')) {
+        warnings.push({
+          type: 'best_practice',
+          message: 'console.log output appears in n8n execution logs',
+          suggestion: 'Remove console.log statements in production or use them sparingly'
         });
       }
     } else if (language === 'python') {
+      // Python-specific checks
       if (!code.includes('items') && !code.includes('_input')) {
         warnings.push({
           type: 'missing_common',
           message: 'Code doesn\'t reference input items',
           suggestion: 'Access input data with: items variable'
+        });
+      }
+      
+      // Check for print statements
+      if (code.includes('print(')) {
+        warnings.push({
+          type: 'best_practice',
+          message: 'print() output appears in n8n execution logs',
+          suggestion: 'Remove print statements in production or use them sparingly'
+        });
+      }
+      
+      // Check for common Python mistakes
+      if (code.includes('import requests') || code.includes('import pandas')) {
+        warnings.push({
+          type: 'invalid_value',
+          message: 'External libraries not available in Code node',
+          suggestion: 'Only Python standard library is available. For HTTP requests, use JavaScript with $helpers.httpRequest'
+        });
+      }
+    }
+    
+    // Check for infinite loops
+    if (/while\s*\(\s*true\s*\)|while\s+True:/.test(code)) {
+      warnings.push({
+        type: 'security',
+        message: 'Infinite loop detected',
+        suggestion: 'Add a break condition or use a for loop with limits'
+      });
+    }
+    
+    // Check for error handling
+    if (!code.includes('try') && !code.includes('catch') && !code.includes('except')) {
+      if (code.length > 200) { // Only suggest for non-trivial code
+        warnings.push({
+          type: 'best_practice',
+          message: 'No error handling found',
+          suggestion: 'Consider adding try/catch (JavaScript) or try/except (Python) for robust error handling'
         });
       }
     }

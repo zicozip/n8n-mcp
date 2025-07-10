@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Code Node Documentation**: Corrected information about `$helpers` object and `getWorkflowStaticData` function
+  - `$getWorkflowStaticData()` is a standalone function, NOT `$helpers.getWorkflowStaticData()`
+  - Updated Code node guide to clarify which functions are standalone vs methods on $helpers
+  - Added validation warning when using incorrect `$helpers.getWorkflowStaticData` syntax
+  - Based on n8n community feedback and GitHub issues showing this is a common confusion point
+
+### Added
+- **Expression vs Code Node Clarification**: Added comprehensive documentation about differences between expression and Code node contexts
+  - New section "IMPORTANT: Code Node vs Expression Context" explaining key differences
+  - Lists expression-only functions not available in Code nodes ($now(), $today(), Tournament template functions)
+  - Clarifies different syntax: $('Node Name') vs $node['Node Name']
+  - Documents reversed JMESPath parameter order between contexts
+  - Added "Expression Functions NOT in Code Nodes" section with alternatives
+- **Enhanced Code Node Validation**: Added new validation checks for common expression/Code node confusion
+  - Detects expression syntax {{...}} in Code nodes with clear error message
+  - Warns about using $node[] syntax instead of $() in Code nodes
+  - Identifies expression-only functions with helpful alternatives
+  - Checks for wrong JMESPath parameter order
+  - Test script `test-expression-code-validation.ts` to verify validation works correctly
+
 ## [2.7.11] - 2025-07-09
 
 ### Fixed
@@ -30,6 +53,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Shows all node-level properties in proper configuration
   - Demonstrates common mistakes to avoid
   - Validates workflow configurations
+- **Comprehensive Code Node Documentation** in tools_documentation
+  - New `code_node_guide` topic with complete reference for JavaScript and Python
+  - Covers all built-in variables: $input, $json, $node, $workflow, $execution, $prevNode
+  - Documents helper functions: DateTime (Luxon), JMESPath, $helpers methods
+  - Includes return format requirements with correct/incorrect examples
+  - Security considerations and banned operations
+  - Common patterns: data transformation, filtering, aggregation, error handling
+  - Code node as AI tool examples
+  - Performance best practices and debugging tips
+- **Enhanced Code Node Validation** with n8n-specific patterns
+  - Validates return statement presence and format
+  - Checks for array of objects with json property
+  - Detects common mistakes (returning primitives, missing array wrapper)
+  - Validates n8n variable usage ($input, items, $json context)
+  - Security checks (eval, exec, require, file system access)
+  - Language-specific validation for JavaScript and Python
+  - Mode-specific warnings ($json in wrong mode)
+  - Async/await pattern validation
+  - External library detection with helpful alternatives
+- **Expanded Code Node Examples** in ExampleGenerator
+  - Data transformation, aggregation, and filtering examples
+  - API integration with error handling
+  - Python data processing example
+  - Code node as AI tool pattern
+  - CSV to JSON transformation
+  - All examples include proper return format
+- **New Code Node Task Templates**
+  - `custom_ai_tool`: Create custom tools for AI agents
+  - `aggregate_data`: Summary statistics from multiple items
+  - `batch_process_with_api`: Process items in batches with rate limiting
+  - `error_safe_transform`: Robust data transformation with validation
+  - `async_data_processing`: Concurrent processing with limits
+  - `python_data_analysis`: Statistical analysis using Python
+  - All templates include comprehensive error handling
+- **Fixed Misleading Documentation** based on real-world testing:
+  - **Crypto Module**: Clarified that `require('crypto')` IS available despite editor warnings
+  - **Helper Functions**: Fixed documentation showing `$getWorkflowStaticData()` is standalone, not on $helpers
+  - **JMESPath**: Corrected syntax from `jmespath.search()` to `$jmespath()`
+  - **Node Access**: Fixed from `$node['Node Name']` to `$('Node Name')`
+  - **Python**: Documented `item.json.to_py()` for JsProxy conversion
+  - Added comprehensive "Available Functions and Libraries" section
+  - Created security examples showing proper crypto usage
+  - **JMESPath Numeric Literals**: Added critical documentation about n8n-specific requirement for backticks around numbers in filters
+    - Example: `[?age >= \`18\`]` not `[?age >= 18]`
+    - Added validation to detect and warn about missing backticks
+    - Based on Claude Desktop feedback from workflow testing
+  - **Webhook Data Structure**: Fixed common webhook data access gotcha
+    - Webhook payload is at `items[0].json.body`, NOT `items[0].json` 
+    - Added dedicated "Webhook Data Access" section in Code node documentation
+    - Created webhook processing example showing correct data access
+    - Added validation to detect incorrect webhook data access patterns
+    - New task template `process_webhook_data` with complete example
 
 ### Enhanced
 - **MCP Tool Documentation** significantly improved:
@@ -41,9 +116,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expanded property checking from 6 to 11 node-level properties
   - Better error messages showing complete correct structure
   - Type validation for all node-level boolean and string properties
+- **Code Node Validation** enhanced with new checks:
+  - Detects incorrect `$helpers.getWorkflowStaticData()` usage
+  - Warns about `$helpers` usage without availability check
+  - Validates crypto usage with proper require statement
+  - All based on common errors found in production workflows
 - **Type Definitions** updated:
   - Added `notesInFlow` to WorkflowNode interface in workflow-validator.ts
   - Fixed credentials type from `Record<string, string>` to `Record<string, unknown>` in n8n-api.ts
+- **NodeSpecificValidators** now includes comprehensive Code node validation
+  - Language-specific syntax checks
+  - Return format validation with detailed error messages
+  - n8n variable usage validation
+  - Security pattern detection
+  - Error handling recommendations
+  - Mode-specific suggestions
+- **Config Validator** improved Code node validation
+  - Better return statement detection
+  - Enhanced syntax checking for both JavaScript and Python
+  - More helpful error messages with examples
+  - Detection of common n8n Code node mistakes
+- **Fixed Documentation Inaccuracies** based on user testing and n8n official docs:
+  - JMESPath: Corrected syntax to `$jmespath()` instead of `jmespath.search()`
+  - Node Access: Fixed to show `$('Node Name')` syntax, not `$node`
+  - Python: Documented `_input.all()` and `item.json.to_py()` for JsProxy conversion
+  - Python: Added underscore prefix documentation for all built-in variables
+  - Validation: Skip property visibility warnings for Code nodes to reduce false positives
 
 ## [2.7.10] - 2025-07-09
 
