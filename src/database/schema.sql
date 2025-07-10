@@ -47,7 +47,5 @@ CREATE INDEX IF NOT EXISTS idx_template_nodes ON templates(nodes_used);
 CREATE INDEX IF NOT EXISTS idx_template_updated ON templates(updated_at);
 CREATE INDEX IF NOT EXISTS idx_template_name ON templates(name);
 
--- Full-text search for templates
-CREATE VIRTUAL TABLE IF NOT EXISTS templates_fts USING fts5(
-  name, description, content=templates
-);
+-- Note: FTS5 tables are created conditionally at runtime if FTS5 is supported
+-- See template-repository.ts initializeFTS5() method

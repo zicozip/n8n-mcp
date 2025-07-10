@@ -132,6 +132,11 @@ export class TemplateService {
       }
       
       logger.info(`Successfully saved ${saved} templates to database`);
+      
+      // Rebuild FTS5 index after bulk import
+      logger.info('Rebuilding FTS5 index for templates');
+      this.repository.rebuildTemplateFTS();
+      
       progressCallback?.('Complete', saved, saved);
     } catch (error) {
       logger.error('Error fetching templates:', error);

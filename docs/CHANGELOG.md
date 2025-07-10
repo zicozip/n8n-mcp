@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed unnecessary searchInfo messages that appeared on every search
   - Fixed HTTP node type comparison case sensitivity issue
   - Implemented relevance-based ranking with special boosting for primary nodes
+- **search_templates FTS5 Error**: Fixed "no such module: fts5" error in environments without FTS5 support (fixes Claude Desktop issue)
+  - Made FTS5 completely optional - detects support at runtime
+  - Removed FTS5 from required schema to prevent initialization failures
+  - Automatically falls back to LIKE search when FTS5 is unavailable
+  - FTS5 tables and triggers created conditionally only if supported
+  - Template search now works in ALL SQLite environments
 
 ### Added
 - **FTS5 Full-Text Search**: Added SQLite FTS5 support for faster and more intelligent node searching
@@ -32,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports advanced search modes: OR (default), AND (all terms required), FUZZY (typo-tolerant)
   - Significantly improves search performance for large databases
   - FUZZY mode now uses edit distance (Levenshtein) for better typo tolerance
+- **FTS5 Detection**: Added runtime detection of FTS5 support
+  - `checkFTS5Support()` method in database adapters
+  - Conditional initialization of FTS5 features
+  - Graceful degradation when FTS5 not available
 
 ## [Unreleased]
 

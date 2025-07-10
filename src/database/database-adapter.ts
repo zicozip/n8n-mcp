@@ -13,6 +13,7 @@ export interface DatabaseAdapter {
   pragma(key: string, value?: any): any;
   readonly inTransaction: boolean;
   transaction<T>(fn: () => T): T;
+  checkFTS5Support(): boolean;
 }
 
 export interface PreparedStatement {
@@ -174,6 +175,17 @@ class BetterSQLiteAdapter implements DatabaseAdapter {
   transaction<T>(fn: () => T): T {
     return this.db.transaction(fn)();
   }
+  
+  checkFTS5Support(): boolean {
+    try {
+      // Test if FTS5 is available
+      this.exec("CREATE VIRTUAL TABLE IF NOT EXISTS test_fts5 USING fts5(content);");
+      this.exec("DROP TABLE IF EXISTS test_fts5;");
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
 }
 
 /**
@@ -231,6 +243,18 @@ class SQLJSAdapter implements DatabaseAdapter {
     } catch (error) {
       this.exec('ROLLBACK');
       throw error;
+    }
+  }
+  
+  checkFTS5Support(): boolean {
+    try {
+      // Test if FTS5 is available
+      this.exec("CREATE VIRTUAL TABLE IF NOT EXISTS test_fts5 USING fts5(content);");
+      this.exec("DROP TABLE IF EXISTS test_fts5;");
+      return true;
+    } catch (error) {
+      // sql.js doesn't support FTS5
+      return false;
     }
   }
   
