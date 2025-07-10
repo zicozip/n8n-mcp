@@ -26,43 +26,48 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
     name: 'search_nodes',
     category: 'discovery',
     essentials: {
-      description: 'Search for n8n nodes by keyword across names, descriptions, and categories',
-      keyParameters: ['query', 'limit'],
-      example: 'search_nodes({query: "slack", limit: 10})',
-      performance: 'Fast - uses indexed full-text search',
+      description: 'Search nodes. Primary nodes ranked first.',
+      keyParameters: ['query', 'limit', 'mode'],
+      example: 'search_nodes({query: "webhook"})',
+      performance: 'Fast - FTS5 when available',
       tips: [
-        'Uses OR logic - "send slack" finds nodes with ANY of these words',
-        'Single words are more precise than phrases'
+        'Primary nodes first: webhook→Webhook, http→HTTP Request',
+        'Modes: OR (any word), AND (all words), FUZZY (typos OK)'
       ]
     },
     full: {
-      description: 'Performs full-text search across all n8n nodes using indexed search. Returns nodes matching ANY word in the query (OR logic). Searches through node names, display names, descriptions, and categories.',
+      description: 'Search n8n nodes using FTS5 full-text search (when available) with relevance ranking. Supports OR (default), AND, and FUZZY search modes. Results are sorted by relevance, ensuring primary nodes like Webhook and HTTP Request appear first.',
       parameters: {
-        query: { type: 'string', description: 'Search terms (words are ORed together)', required: true },
-        limit: { type: 'number', description: 'Maximum results to return (default: 20)', required: false }
+        query: { type: 'string', description: 'Search terms. Wrap in quotes for exact phrase matching', required: true },
+        limit: { type: 'number', description: 'Maximum results to return (default: 20)', required: false },
+        mode: { type: 'string', description: 'Search mode: OR (any word), AND (all words in ANY field), FUZZY (typo-tolerant using edit distance)', required: false }
       },
-      returns: 'Array of nodes with nodeType, displayName, description, category, and relevance score',
+      returns: 'Array of nodes sorted by relevance with nodeType, displayName, description, category. AND mode includes searchInfo explaining the search scope.',
       examples: [
-        'search_nodes({query: "slack"}) - Find all Slack-related nodes',
-        'search_nodes({query: "webhook trigger", limit: 5}) - Find nodes with "webhook" OR "trigger"',
-        'search_nodes({query: "ai"}) - Find AI-related nodes'
+        'search_nodes({query: "webhook"}) - Webhook node appears first',
+        'search_nodes({query: "http call"}) - HTTP Request node appears first',
+        'search_nodes({query: "send message", mode: "AND"}) - Nodes with both words anywhere in their data',
+        'search_nodes({query: "slak", mode: "FUZZY"}) - Finds Slack using typo tolerance'
       ],
       useCases: [
-        'Finding nodes for specific integrations',
-        'Discovering available functionality',
-        'Exploring nodes by keyword when exact name unknown'
+        'Finding primary nodes quickly (webhook, http, email)',
+        'Discovering nodes with typo tolerance',
+        'Precise searches with AND mode',
+        'Exploratory searches with OR mode'
       ],
-      performance: 'Very fast - uses SQLite FTS5 full-text index. Typically <50ms even for complex queries.',
+      performance: 'FTS5: <20ms for most queries. Falls back to optimized LIKE queries if FTS5 unavailable.',
       bestPractices: [
-        'Use single words for precise matches',
-        'Try different variations if first search fails',
-        'Use list_nodes for browsing by category',
-        'Remember it\'s OR logic, not AND'
+        'Default OR mode is best for exploration',
+        'Use AND mode when you need all terms present',
+        'Use FUZZY mode if unsure of spelling',
+        'Quotes force exact phrase matching',
+        'Primary nodes are boosted in relevance'
       ],
       pitfalls: [
-        'Multi-word queries may return too many results',
-        'Doesn\'t search in node properties or operations',
-        'Case-insensitive but doesn\'t handle typos'
+        'AND mode searches ALL fields (description, documentation, operations) not just names',
+        'FUZZY mode uses edit distance - may return unexpected matches for very short queries',
+        'Special characters are ignored in search',
+        'FTS5 syntax errors fallback to basic LIKE search'
       ],
       relatedTools: ['list_nodes', 'get_node_essentials', 'get_node_info']
     }
@@ -72,13 +77,12 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
     name: 'get_node_essentials',
     category: 'configuration',
     essentials: {
-      description: 'Get only the most important 10-20 properties for a node with examples',
+      description: 'Get 10-20 key properties with examples',
       keyParameters: ['nodeType'],
-      example: 'get_node_essentials("n8n-nodes-base.slack")',
-      performance: 'Very fast - returns <5KB instead of 100KB+',
+      example: 'get_node_essentials("nodes-base.slack")',
+      performance: '<5KB vs 100KB+',
       tips: [
-        'Use this instead of get_node_info for 95% of cases',
-        'Includes working examples for common operations'
+        'Use this first! Has examples.'
       ]
     },
     full: {

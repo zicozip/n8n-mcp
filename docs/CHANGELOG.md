@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.11] - 2025-07-10
+
+### Enhanced
+- **Token Efficiency**: Significantly reduced MCP tool description lengths for better AI agent performance
+  - Documentation tools: Average 129 chars (down from ~250-450)
+  - Management tools: Average 93 chars (down from ~200-400)
+  - Overall token reduction: ~65-70%
+  - Moved detailed documentation to `tools_documentation()` system
+  - Only 2 tools exceed 200 chars (list_nodes: 204, n8n_update_partial_workflow: 284)
+  - Preserved all essential information while removing redundancy
+
+### Fixed
+- **search_nodes Tool**: Major improvements to search functionality for AI agents
+  - Primary nodes (webhook, httpRequest) now appear first in search results instead of being buried
+  - Fixed issue where searching "webhook" returned specialized triggers instead of the main Webhook node
+  - Fixed issue where searching "http call" didn't prioritize HTTP Request node
+  - Fixed FUZZY mode returning no results for typos like "slak" (lowered threshold from 300 to 200)
+  - Removed unnecessary searchInfo messages that appeared on every search
+  - Fixed HTTP node type comparison case sensitivity issue
+  - Implemented relevance-based ranking with special boosting for primary nodes
+
+### Added
+- **FTS5 Full-Text Search**: Added SQLite FTS5 support for faster and more intelligent node searching
+  - Automatic fallback to LIKE queries if FTS5 is unavailable
+  - Supports advanced search modes: OR (default), AND (all terms required), FUZZY (typo-tolerant)
+  - Significantly improves search performance for large databases
+  - FUZZY mode now uses edit distance (Levenshtein) for better typo tolerance
+
 ## [Unreleased]
 
 ### Fixed
@@ -516,6 +544,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.11]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.10...v2.7.11
 [2.7.10]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.8...v2.7.10
 [2.7.8]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.5...v2.7.8
 [2.7.5]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.4...v2.7.5

@@ -10,7 +10,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   // Workflow Management Tools
   {
     name: 'n8n_create_workflow',
-    description: `Create a new workflow in n8n. Requires workflow name, nodes array, and connections object. The workflow will be created in inactive state and must be manually activated in the UI. Returns the created workflow with its ID.`,
+    description: `Create workflow. Requires: name, nodes[], connections{}. Created inactive. Returns workflow with ID.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -84,7 +84,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_get_workflow_details',
-    description: `Get detailed workflow information including metadata, version, and execution statistics. More comprehensive than get_workflow.`,
+    description: `Get workflow details with metadata, version, execution stats. More info than get_workflow.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -98,7 +98,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_get_workflow_structure',
-    description: `Get simplified workflow structure showing only nodes and their connections. Useful for understanding workflow flow without parameter details.`,
+    description: `Get workflow structure: nodes and connections only. No parameter details.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -112,7 +112,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_get_workflow_minimal',
-    description: `Get minimal workflow information (ID, name, active status, tags). Fast and lightweight for listing purposes.`,
+    description: `Get minimal info: ID, name, active status, tags. Fast for listings.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -126,7 +126,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_update_full_workflow',
-    description: `Update an existing workflow with complete replacement. Requires the full nodes array and connections object when modifying workflow structure. Use n8n_update_partial_workflow for incremental changes. Cannot activate workflows via API - use UI instead.`,
+    description: `Full workflow update. Requires complete nodes[] and connections{}. For incremental use n8n_update_partial_workflow.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -160,109 +160,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_update_partial_workflow',
-    description: `Update a workflow using diff operations for precise, incremental changes. More efficient than n8n_update_full_workflow for small modifications. Supports adding/removing/updating nodes and connections without sending the entire workflow.
-
-PARAMETERS:
-• id (required) - Workflow ID to update
-• operations (required) - Array of operations to apply (max 5)
-• validateOnly (optional) - Test operations without applying (default: false)
-
-TRANSACTIONAL UPDATES (v2.7.0+):
-• Maximum 5 operations per request for reliability
-• Two-pass processing: nodes first, then connections/metadata
-• Add nodes and connect them in the same request
-• Operations can be in any order - engine handles dependencies
-
-IMPORTANT NOTES:
-• Operations are atomic - all succeed or all fail
-• Use validateOnly: true to test before applying
-• Node references use NAME, not ID (except in node definition)
-• updateNode with nested paths: use dot notation like "parameters.values[0]"
-• All nodes require: id, name, type, typeVersion, position, parameters
-
-OPERATION TYPES:
-
-addNode - Add a new node
-  Required: node object with id, name, type, typeVersion, position, parameters
-  Example: {
-    type: "addNode",
-    node: {
-      id: "unique_id",
-      name: "HTTP Request",
-      type: "n8n-nodes-base.httpRequest",
-      typeVersion: 4.2,
-      position: [400, 300],
-      parameters: { url: "https://api.example.com", method: "GET" }
-    }
-  }
-
-removeNode - Remove node by name
-  Required: nodeName or nodeId
-  Example: {type: "removeNode", nodeName: "Old Node"}
-
-updateNode - Update node properties
-  Required: nodeName, changes
-  Example: {type: "updateNode", nodeName: "Webhook", changes: {"parameters.path": "/new-path"}}
-
-moveNode - Change node position
-  Required: nodeName, position
-  Example: {type: "moveNode", nodeName: "Set", position: [600, 400]}
-
-enableNode/disableNode - Toggle node status
-  Required: nodeName
-  Example: {type: "disableNode", nodeName: "Debug"}
-
-addConnection - Connect nodes
-  Required: source, target
-  Optional: sourceOutput (default: "main"), targetInput (default: "main"), 
-           sourceIndex (default: 0), targetIndex (default: 0)
-  Example: {
-    type: "addConnection",
-    source: "Webhook",
-    target: "Set",
-    sourceOutput: "main",  // for nodes with multiple outputs
-    targetInput: "main"    // for nodes with multiple inputs
-  }
-
-removeConnection - Disconnect nodes
-  Required: source, target
-  Optional: sourceOutput, targetInput
-  Example: {type: "removeConnection", source: "Set", target: "HTTP Request"}
-
-updateSettings - Change workflow settings
-  Required: settings object
-  Example: {type: "updateSettings", settings: {executionOrder: "v1", timezone: "Europe/Berlin"}}
-
-updateName - Rename workflow
-  Required: name
-  Example: {type: "updateName", name: "New Workflow Name"}
-
-addTag/removeTag - Manage tags
-  Required: tag
-  Example: {type: "addTag", tag: "production"}
-
-EXAMPLES:
-
-Simple update:
-operations: [
-  {type: "updateName", name: "My Updated Workflow"},
-  {type: "disableNode", nodeName: "Debug Node"}
-]
-
-Complex example - Add nodes and connect (any order works):
-operations: [
-  {type: "addConnection", source: "Webhook", target: "Format Date"},
-  {type: "addNode", node: {id: "abc123", name: "Format Date", type: "n8n-nodes-base.dateTime", typeVersion: 2, position: [400, 300], parameters: {}}},
-  {type: "addConnection", source: "Format Date", target: "Logger"},
-  {type: "addNode", node: {id: "def456", name: "Logger", type: "n8n-nodes-base.n8n", typeVersion: 1, position: [600, 300], parameters: {}}}
-]
-
-Validation example:
-{
-  id: "workflow-id",
-  operations: [{type: "addNode", node: {...}}],
-  validateOnly: true  // Test without applying
-}`,
+    description: `Update workflow incrementally with diff operations. Max 5 ops. Types: addNode, removeNode, updateNode, moveNode, enable/disableNode, addConnection, removeConnection, updateSettings, updateName, add/removeTag. See tools_documentation("n8n_update_partial_workflow", "full") for details.`,
     inputSchema: {
       type: 'object',
       additionalProperties: true,  // Allow any extra properties Claude Desktop might add
@@ -337,7 +235,7 @@ Validation example:
   },
   {
     name: 'n8n_validate_workflow',
-    description: `Validate a workflow from n8n instance by ID. Fetches the workflow and runs comprehensive validation including node configurations, connections, and expressions. Returns detailed validation report with errors, warnings, and suggestions.`,
+    description: `Validate workflow by ID. Checks nodes, connections, expressions. Returns errors/warnings/suggestions.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -376,7 +274,7 @@ Validation example:
   // Execution Management Tools
   {
     name: 'n8n_trigger_webhook_workflow',
-    description: `Trigger a workflow via webhook. Workflow must be ACTIVE and have a Webhook trigger node. HTTP method must match webhook configuration.`,
+    description: `Trigger workflow via webhook. Must be ACTIVE with Webhook node. Method must match config.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -483,7 +381,7 @@ Validation example:
   },
   {
     name: 'n8n_list_available_tools',
-    description: `List all available n8n management tools and their capabilities. Useful for understanding what operations are possible.`,
+    description: `List available n8n tools and capabilities.`,
     inputSchema: {
       type: 'object',
       properties: {}
@@ -491,7 +389,7 @@ Validation example:
   },
   {
     name: 'n8n_diagnostic',
-    description: `Diagnose n8n API configuration and management tools availability. Shows current configuration status, which tools are enabled/disabled, and helps troubleshoot why management tools might not be appearing. Returns detailed diagnostic information including environment variables, API connectivity, and tool registration status.`,
+    description: `Diagnose n8n API config. Shows tool status, API connectivity, env vars. Helps troubleshoot missing tools.`,
     inputSchema: {
       type: 'object',
       properties: {

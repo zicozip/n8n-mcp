@@ -199,7 +199,7 @@ export class N8NDocumentationMCPServer {
       case 'get_node_info':
         return this.getNodeInfo(args.nodeType);
       case 'search_nodes':
-        return this.searchNodes(args.query, args.limit);
+        return this.searchNodes(args.query, args.limit, { mode: args.mode });
       case 'list_ai_tools':
         return this.listAITools();
       case 'get_node_documentation':
@@ -384,30 +384,334 @@ export class N8NDocumentationMCPServer {
     };
   }
 
-  private async searchNodes(query: string, limit: number = 20): Promise<any> {
+  private async searchNodes(
+    query: string, 
+    limit: number = 20,
+    options?: { 
+      mode?: 'OR' | 'AND' | 'FUZZY';
+      includeSource?: boolean;
+    }
+  ): Promise<any> {
     await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
     
+    const searchMode = options?.mode || 'OR';
+    
+    // Check if FTS5 table exists
+    const ftsExists = this.db.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='nodes_fts'
+    `).get();
+    
+    if (ftsExists) {
+      // Use FTS5 search
+      return this.searchNodesFTS(query, limit, searchMode);
+    } else {
+      // Fallback to LIKE search (existing implementation)
+      return this.searchNodesLIKE(query, limit);
+    }
+  }
+  
+  private async searchNodesFTS(query: string, limit: number, mode: 'OR' | 'AND' | 'FUZZY'): Promise<any> {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    // Clean and prepare the query
+    const cleanedQuery = query.trim();
+    if (!cleanedQuery) {
+      return { query, results: [], totalCount: 0 };
+    }
+    
+    // For FUZZY mode, use LIKE search with typo patterns
+    if (mode === 'FUZZY') {
+      return this.searchNodesFuzzy(cleanedQuery, limit);
+    }
+    
+    let ftsQuery: string;
+    
+    // Handle exact phrase searches with quotes
+    if (cleanedQuery.startsWith('"') && cleanedQuery.endsWith('"')) {
+      // Keep exact phrase as is for FTS5
+      ftsQuery = cleanedQuery;
+    } else {
+      // Split into words and handle based on mode
+      const words = cleanedQuery.split(/\s+/).filter(w => w.length > 0);
+      
+      switch (mode) {
+        case 'AND':
+          // All words must be present
+          ftsQuery = words.join(' AND ');
+          break;
+          
+        case 'OR':
+        default:
+          // Any word can match (default)
+          ftsQuery = words.join(' OR ');
+          break;
+      }
+    }
+    
+    try {
+      // Use FTS5 with ranking
+      const nodes = this.db.prepare(`
+        SELECT 
+          n.*,
+          rank
+        FROM nodes n
+        JOIN nodes_fts ON n.rowid = nodes_fts.rowid
+        WHERE nodes_fts MATCH ?
+        ORDER BY 
+          rank,
+          CASE 
+            WHEN n.display_name = ? THEN 0
+            WHEN n.display_name LIKE ? THEN 1
+            WHEN n.node_type LIKE ? THEN 2
+            ELSE 3
+          END,
+          n.display_name
+        LIMIT ?
+      `).all(ftsQuery, cleanedQuery, `%${cleanedQuery}%`, `%${cleanedQuery}%`, limit) as (NodeRow & { rank: number })[];
+      
+      // Apply additional relevance scoring for better results
+      const scoredNodes = nodes.map(node => {
+        const relevanceScore = this.calculateRelevanceScore(node, cleanedQuery);
+        return { ...node, relevanceScore };
+      });
+      
+      // Sort by combined score (FTS rank + relevance score)
+      scoredNodes.sort((a, b) => {
+        // Prioritize exact matches
+        if (a.display_name.toLowerCase() === cleanedQuery.toLowerCase()) return -1;
+        if (b.display_name.toLowerCase() === cleanedQuery.toLowerCase()) return 1;
+        
+        // Then by relevance score
+        if (a.relevanceScore !== b.relevanceScore) {
+          return b.relevanceScore - a.relevanceScore;
+        }
+        
+        // Then by FTS rank
+        return a.rank - b.rank;
+      });
+      
+      // If FTS didn't find key primary nodes, augment with LIKE search
+      const hasHttpRequest = scoredNodes.some(n => n.node_type === 'nodes-base.httpRequest');
+      if (cleanedQuery.toLowerCase().includes('http') && !hasHttpRequest) {
+        // FTS missed HTTP Request, fall back to LIKE search
+        logger.debug('FTS missed HTTP Request node, augmenting with LIKE search');
+        return this.searchNodesLIKE(query, limit);
+      }
+      
+      const result: any = {
+        query,
+        results: scoredNodes.map(node => ({
+          nodeType: node.node_type,
+          displayName: node.display_name,
+          description: node.description,
+          category: node.category,
+          package: node.package_name,
+          relevance: this.calculateRelevance(node, cleanedQuery)
+        })),
+        totalCount: scoredNodes.length
+      };
+      
+      // Only include mode if it's not the default
+      if (mode !== 'OR') {
+        result.mode = mode;
+      }
+      
+      return result;
+      
+    } catch (error: any) {
+      // If FTS5 query fails, fallback to LIKE search
+      logger.warn('FTS5 search failed, falling back to LIKE search:', error.message);
+      
+      // Special handling for syntax errors
+      if (error.message.includes('syntax error') || error.message.includes('fts5')) {
+        logger.warn(`FTS5 syntax error for query "${query}" in mode ${mode}`);
+        
+        // For problematic queries, use LIKE search with mode info
+        const likeResult = await this.searchNodesLIKE(query, limit);
+        return {
+          ...likeResult,
+          mode
+        };
+      }
+      
+      return this.searchNodesLIKE(query, limit);
+    }
+  }
+  
+  private async searchNodesFuzzy(query: string, limit: number): Promise<any> {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    // Split into words for fuzzy matching
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    
+    if (words.length === 0) {
+      return { query, results: [], totalCount: 0, mode: 'FUZZY' };
+    }
+    
+    // For fuzzy search, get ALL nodes to ensure we don't miss potential matches
+    // We'll limit results after scoring
+    const candidateNodes = this.db!.prepare(`
+      SELECT * FROM nodes
+    `).all() as NodeRow[];
+    
+    // Calculate fuzzy scores for candidate nodes
+    const scoredNodes = candidateNodes.map(node => {
+      const score = this.calculateFuzzyScore(node, query);
+      return { node, score };
+    });
+    
+    // Filter and sort by score
+    const matchingNodes = scoredNodes
+      .filter(item => item.score >= 200) // Lower threshold for better typo tolerance
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(item => item.node);
+    
+    // Debug logging
+    if (matchingNodes.length === 0) {
+      const topScores = scoredNodes
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+      logger.debug(`FUZZY search for "${query}" - no matches above 400. Top scores:`, 
+        topScores.map(s => ({ name: s.node.display_name, score: s.score })));
+    }
+    
+    return {
+      query,
+      mode: 'FUZZY',
+      results: matchingNodes.map(node => ({
+        nodeType: node.node_type,
+        displayName: node.display_name,
+        description: node.description,
+        category: node.category,
+        package: node.package_name
+      })),
+      totalCount: matchingNodes.length
+    };
+  }
+  
+  private calculateFuzzyScore(node: NodeRow, query: string): number {
+    const queryLower = query.toLowerCase();
+    const displayNameLower = node.display_name.toLowerCase();
+    const nodeTypeLower = node.node_type.toLowerCase();
+    const nodeTypeClean = nodeTypeLower.replace(/^nodes-base\./, '').replace(/^nodes-langchain\./, '');
+    
+    // Exact match gets highest score
+    if (displayNameLower === queryLower || nodeTypeClean === queryLower) {
+      return 1000;
+    }
+    
+    // Calculate edit distances for different parts
+    const nameDistance = this.getEditDistance(queryLower, displayNameLower);
+    const typeDistance = this.getEditDistance(queryLower, nodeTypeClean);
+    
+    // Also check individual words in the display name
+    const nameWords = displayNameLower.split(/\s+/);
+    let minWordDistance = Infinity;
+    for (const word of nameWords) {
+      const distance = this.getEditDistance(queryLower, word);
+      if (distance < minWordDistance) {
+        minWordDistance = distance;
+      }
+    }
+    
+    // Calculate best match score
+    const bestDistance = Math.min(nameDistance, typeDistance, minWordDistance);
+    
+    // Use the length of the matched word for similarity calculation
+    let matchedLen = queryLower.length;
+    if (minWordDistance === bestDistance) {
+      // Find which word matched best
+      for (const word of nameWords) {
+        if (this.getEditDistance(queryLower, word) === minWordDistance) {
+          matchedLen = Math.max(queryLower.length, word.length);
+          break;
+        }
+      }
+    } else if (typeDistance === bestDistance) {
+      matchedLen = Math.max(queryLower.length, nodeTypeClean.length);
+    } else {
+      matchedLen = Math.max(queryLower.length, displayNameLower.length);
+    }
+    
+    const similarity = 1 - (bestDistance / matchedLen);
+    
+    // Boost if query is a substring
+    if (displayNameLower.includes(queryLower) || nodeTypeClean.includes(queryLower)) {
+      return 800 + (similarity * 100);
+    }
+    
+    // Check if it's a prefix match
+    if (displayNameLower.startsWith(queryLower) || 
+        nodeTypeClean.startsWith(queryLower) ||
+        nameWords.some(w => w.startsWith(queryLower))) {
+      return 700 + (similarity * 100);
+    }
+    
+    // Allow up to 1-2 character differences for typos
+    if (bestDistance <= 2) {
+      return 500 + ((2 - bestDistance) * 100) + (similarity * 50);
+    }
+    
+    // Allow up to 3 character differences for longer words
+    if (bestDistance <= 3 && queryLower.length >= 4) {
+      return 400 + ((3 - bestDistance) * 50) + (similarity * 50);
+    }
+    
+    // Base score on similarity
+    return similarity * 300;
+  }
+  
+  private getEditDistance(s1: string, s2: string): number {
+    // Simple Levenshtein distance implementation
+    const m = s1.length;
+    const n = s2.length;
+    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+    
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (s1[i - 1] === s2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+    }
+    
+    return dp[m][n];
+  }
+  
+  private async searchNodesLIKE(query: string, limit: number): Promise<any> {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    // This is the existing LIKE-based implementation
     // Handle exact phrase searches with quotes
     if (query.startsWith('"') && query.endsWith('"')) {
       const exactPhrase = query.slice(1, -1);
       const nodes = this.db!.prepare(`
         SELECT * FROM nodes 
         WHERE node_type LIKE ? OR display_name LIKE ? OR description LIKE ?
-        ORDER BY display_name
         LIMIT ?
-      `).all(`%${exactPhrase}%`, `%${exactPhrase}%`, `%${exactPhrase}%`, limit) as NodeRow[];
+      `).all(`%${exactPhrase}%`, `%${exactPhrase}%`, `%${exactPhrase}%`, limit * 3) as NodeRow[];
+      
+      // Apply relevance ranking for exact phrase search
+      const rankedNodes = this.rankSearchResults(nodes, exactPhrase, limit);
       
       return { 
         query, 
-        results: nodes.map(node => ({
+        results: rankedNodes.map(node => ({
           nodeType: node.node_type,
           displayName: node.display_name,
           description: node.description,
           category: node.category,
           package: node.package_name
         })), 
-        totalCount: nodes.length 
+        totalCount: rankedNodes.length 
       };
     }
     
@@ -424,25 +728,28 @@ export class N8NDocumentationMCPServer {
     ).join(' OR ');
     
     const params: any[] = words.flatMap(w => [`%${w}%`, `%${w}%`, `%${w}%`]);
-    params.push(limit);
+    // Fetch more results initially to ensure we get the best matches after ranking
+    params.push(limit * 3);
     
     const nodes = this.db!.prepare(`
       SELECT DISTINCT * FROM nodes 
       WHERE ${conditions}
-      ORDER BY display_name
       LIMIT ?
     `).all(...params) as NodeRow[];
     
+    // Apply relevance ranking
+    const rankedNodes = this.rankSearchResults(nodes, query, limit);
+    
     return {
       query,
-      results: nodes.map(node => ({
+      results: rankedNodes.map(node => ({
         nodeType: node.node_type,
         displayName: node.display_name,
         description: node.description,
         category: node.category,
         package: node.package_name
       })),
-      totalCount: nodes.length
+      totalCount: rankedNodes.length
     };
   }
 
@@ -452,6 +759,149 @@ export class N8NDocumentationMCPServer {
     if (node.display_name.toLowerCase().includes(lowerQuery)) return 'high';
     if (node.description?.toLowerCase().includes(lowerQuery)) return 'medium';
     return 'low';
+  }
+  
+  private calculateRelevanceScore(node: NodeRow, query: string): number {
+    const query_lower = query.toLowerCase();
+    const name_lower = node.display_name.toLowerCase();
+    const type_lower = node.node_type.toLowerCase();
+    const type_without_prefix = type_lower.replace(/^nodes-base\./, '').replace(/^nodes-langchain\./, '');
+    
+    let score = 0;
+    
+    // Exact match in display name (highest priority)
+    if (name_lower === query_lower) {
+      score = 1000;
+    }
+    // Exact match in node type (without prefix)
+    else if (type_without_prefix === query_lower) {
+      score = 950;
+    }
+    // Special boost for common primary nodes
+    else if (query_lower === 'webhook' && node.node_type === 'nodes-base.webhook') {
+      score = 900;
+    }
+    else if ((query_lower === 'http' || query_lower === 'http request' || query_lower === 'http call') && node.node_type === 'nodes-base.httpRequest') {
+      score = 900;
+    }
+    // Additional boost for multi-word queries matching primary nodes
+    else if (query_lower.includes('http') && query_lower.includes('call') && node.node_type === 'nodes-base.httpRequest') {
+      score = 890;
+    }
+    else if (query_lower.includes('http') && node.node_type === 'nodes-base.httpRequest') {
+      score = 850;
+    }
+    // Boost for webhook queries
+    else if (query_lower.includes('webhook') && node.node_type === 'nodes-base.webhook') {
+      score = 850;
+    }
+    // Display name starts with query
+    else if (name_lower.startsWith(query_lower)) {
+      score = 800;
+    }
+    // Word boundary match in display name
+    else if (new RegExp(`\\b${query_lower}\\b`, 'i').test(node.display_name)) {
+      score = 700;
+    }
+    // Contains in display name
+    else if (name_lower.includes(query_lower)) {
+      score = 600;
+    }
+    // Type contains query (without prefix)
+    else if (type_without_prefix.includes(query_lower)) {
+      score = 500;
+    }
+    // Contains in description
+    else if (node.description?.toLowerCase().includes(query_lower)) {
+      score = 400;
+    }
+    
+    return score;
+  }
+
+  private rankSearchResults(nodes: NodeRow[], query: string, limit: number): NodeRow[] {
+    const query_lower = query.toLowerCase();
+    
+    // Calculate relevance scores for each node
+    const scoredNodes = nodes.map(node => {
+      const name_lower = node.display_name.toLowerCase();
+      const type_lower = node.node_type.toLowerCase();
+      const type_without_prefix = type_lower.replace(/^nodes-base\./, '').replace(/^nodes-langchain\./, '');
+      
+      let score = 0;
+      
+      // Exact match in display name (highest priority)
+      if (name_lower === query_lower) {
+        score = 1000;
+      }
+      // Exact match in node type (without prefix)
+      else if (type_without_prefix === query_lower) {
+        score = 950;
+      }
+      // Special boost for common primary nodes
+      else if (query_lower === 'webhook' && node.node_type === 'nodes-base.webhook') {
+        score = 900;
+      }
+      else if ((query_lower === 'http' || query_lower === 'http request' || query_lower === 'http call') && node.node_type === 'nodes-base.httpRequest') {
+        score = 900;
+      }
+      // Boost for webhook queries
+      else if (query_lower.includes('webhook') && node.node_type === 'nodes-base.webhook') {
+        score = 850;
+      }
+      // Additional boost for http queries
+      else if (query_lower.includes('http') && node.node_type === 'nodes-base.httpRequest') {
+        score = 850;
+      }
+      // Display name starts with query
+      else if (name_lower.startsWith(query_lower)) {
+        score = 800;
+      }
+      // Word boundary match in display name
+      else if (new RegExp(`\\b${query_lower}\\b`, 'i').test(node.display_name)) {
+        score = 700;
+      }
+      // Contains in display name
+      else if (name_lower.includes(query_lower)) {
+        score = 600;
+      }
+      // Type contains query (without prefix)
+      else if (type_without_prefix.includes(query_lower)) {
+        score = 500;
+      }
+      // Contains in description
+      else if (node.description?.toLowerCase().includes(query_lower)) {
+        score = 400;
+      }
+      
+      // For multi-word queries, check if all words are present
+      const words = query_lower.split(/\s+/).filter(w => w.length > 0);
+      if (words.length > 1) {
+        const allWordsInName = words.every(word => name_lower.includes(word));
+        const allWordsInDesc = words.every(word => node.description?.toLowerCase().includes(word));
+        
+        if (allWordsInName) score += 200;
+        else if (allWordsInDesc) score += 100;
+        
+        // Special handling for common multi-word queries
+        if (query_lower === 'http call' && name_lower === 'http request') {
+          score = 920; // Boost HTTP Request for "http call" query
+        }
+      }
+      
+      return { node, score };
+    });
+    
+    // Sort by score (descending) and then by display name (ascending)
+    scoredNodes.sort((a, b) => {
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      return a.node.display_name.localeCompare(b.node.display_name);
+    });
+    
+    // Return only the requested number of results
+    return scoredNodes.slice(0, limit).map(item => item.node);
   }
 
   private async listAITools(): Promise<any> {

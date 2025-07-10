@@ -28,30 +28,30 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'list_nodes',
-    description: `List n8n nodes with optional filters. Common usage: list_nodes({limit:200}) for all nodes, list_nodes({category:'trigger'}) for triggers. Note: Use exact package names - 'n8n-nodes-base' not '@n8n/n8n-nodes-base'. Categories: "trigger" (104 nodes), "transform", "output", "input". Returns node names and descriptions.`,
+    description: `List n8n nodes. Common: list_nodes({limit:200}) for all, list_nodes({category:'trigger'}) for triggers. Package: "n8n-nodes-base" or "@n8n/n8n-nodes-langchain". Categories: trigger/transform/output/input.`,
     inputSchema: {
       type: 'object',
       properties: {
         package: {
           type: 'string',
-          description: 'EXACT package name: "n8n-nodes-base" (435 core integrations like Slack, Gmail) or "@n8n/n8n-nodes-langchain" (90 AI nodes). No other values work.',
+          description: '"n8n-nodes-base" (core) or "@n8n/n8n-nodes-langchain" (AI)',
         },
         category: {
           type: 'string',
-          description: 'Single category only: "trigger" | "transform" | "output" | "input" | "AI". Returns all nodes in that category.',
+          description: 'trigger|transform|output|input|AI',
         },
         developmentStyle: {
           type: 'string',
           enum: ['declarative', 'programmatic'],
-          description: 'Implementation type. Most nodes are "programmatic". Rarely needed.',
+          description: 'Usually "programmatic"',
         },
         isAITool: {
           type: 'boolean',
-          description: 'true = only nodes with usableAsTool for AI agents (263 nodes). Use list_ai_tools instead for better results.',
+          description: 'Filter AI-capable nodes',
         },
         limit: {
           type: 'number',
-          description: 'Results limit. Default 50 may miss nodes - use 200+ for complete results. Max 500.',
+          description: 'Max results (default 50, use 200+ for all)',
           default: 50,
         },
       },
@@ -59,13 +59,13 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_info',
-    description: `Get COMPLETE technical schema for a node. WARNING: Returns massive JSON (often 100KB+) with all properties, operations, credentials. Contains duplicates and complex conditional logic. TIPS: 1) Use get_node_essentials first for common use cases, 2) Try get_node_documentation for human-readable info, 3) Look for "required":true properties, 4) Find properties without "displayOptions" for simpler versions. Node type MUST include prefix: "nodes-base.httpRequest" NOT "httpRequest". NOW INCLUDES: aiToolCapabilities section showing how to use any node as an AI tool.`,
+    description: `Get FULL node schema (100KB+). TIP: Use get_node_essentials first! Returns all properties/operations/credentials. Prefix required: "nodes-base.httpRequest" not "httpRequest".`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
-          description: 'FULL node type with prefix. Format: "nodes-base.{name}" or "nodes-langchain.{name}". Common examples: "nodes-base.httpRequest", "nodes-base.webhook", "nodes-base.code", "nodes-base.slack", "nodes-base.gmail", "nodes-base.googleSheets", "nodes-base.postgres", "nodes-langchain.openAi", "nodes-langchain.agent". CASE SENSITIVE!',
+          description: 'Full type: "nodes-base.{name}" or "nodes-langchain.{name}". Examples: nodes-base.httpRequest, nodes-base.webhook, nodes-base.slack',
         },
       },
       required: ['nodeType'],
@@ -73,18 +73,24 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'search_nodes',
-    description: `Search nodes by keywords. Returns nodes containing ANY of the search words (OR logic). Examples: 'slack' finds Slack node, 'send message' finds any node with 'send' OR 'message'. Best practice: Use single words for precise results, multiple words for broader search. Searches in node names and descriptions. If no results, try shorter words or use list_nodes by category.`,
+    description: `Search nodes by keywords. Modes: OR (any word), AND (all words), FUZZY (typos OK). Primary nodes ranked first. Examples: "webhook"→Webhook, "http call"→HTTP Request.`,
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Search term - MUST BE SINGLE WORD for best results! Good: "slack", "email", "http", "sheet", "database", "webhook". Bad: "send slack message", "read spreadsheet". Case-insensitive.',
+          description: 'Search terms. Use quotes for exact phrase.',
         },
         limit: {
           type: 'number',
-          description: 'Max results. Default 20 is usually enough. Increase if needed.',
+          description: 'Max results (default 20)',
           default: 20,
+        },
+        mode: {
+          type: 'string',
+          enum: ['OR', 'AND', 'FUZZY'],
+          description: 'OR=any word, AND=all words, FUZZY=typo-tolerant',
+          default: 'OR',
         },
       },
       required: ['query'],
@@ -92,7 +98,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'list_ai_tools',
-    description: `List all 263 nodes marked with usableAsTool=true property. IMPORTANT: ANY node in n8n can be used as an AI tool - not just these! These nodes are optimized for AI usage but you can connect any node (Slack, Google Sheets, HTTP Request, etc.) to an AI Agent's tool port. Returns names and descriptions. For community nodes as tools, set N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true. Use get_node_as_tool_info for guidance on using any node as a tool.`,
+    description: `List 263 AI-optimized nodes. Note: ANY node can be AI tool! Connect any node to AI Agent's tool port. Community nodes need N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -100,13 +106,13 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_documentation',
-    description: `Get human-readable documentation for a node. USE THIS BEFORE get_node_info! Returns markdown with explanations, examples, auth setup, common patterns. Much easier to understand than raw schema. 87% of nodes have docs (returns "No documentation available" otherwise). Same nodeType format as get_node_info. Best for understanding what a node does and how to use it.`,
+    description: `Get readable docs with examples/auth/patterns. Better than raw schema! 87% coverage. Format: "nodes-base.slack"`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
-          description: 'Full node type WITH prefix (same as get_node_info): "nodes-base.slack", "nodes-base.httpRequest", etc. CASE SENSITIVE!',
+          description: 'Full type with prefix: "nodes-base.slack"',
         },
       },
       required: ['nodeType'],
@@ -114,7 +120,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_database_statistics',
-    description: `Quick summary of the n8n node ecosystem. Shows: total nodes (525), AI tools (263), triggers (104), versioned nodes, documentation coverage (87%), package breakdown. No parameters needed. Useful for verifying MCP is working and understanding available scope.`,
+    description: `Node stats: 525 total, 263 AI tools, 104 triggers, 87% docs coverage. Verifies MCP working.`,
     inputSchema: {
       type: 'object',
       properties: {},
@@ -122,13 +128,13 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_essentials',
-    description: `Get only the 10-20 most important properties for a node (95% size reduction). USE THIS INSTEAD OF get_node_info for basic configuration! Returns: required properties, common properties, working examples. Perfect for quick workflow building. Same nodeType format as get_node_info (e.g., "nodes-base.httpRequest"). Reduces 100KB+ responses to <5KB focused data.`,
+    description: `Get 10-20 key properties only (<5KB vs 100KB+). USE THIS FIRST! Includes examples. Format: "nodes-base.httpRequest"`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
-          description: 'Full node type WITH prefix: "nodes-base.httpRequest", "nodes-base.webhook", etc. Same format as get_node_info.',
+          description: 'Full type: "nodes-base.httpRequest"',
         },
       },
       required: ['nodeType'],
@@ -136,21 +142,21 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'search_node_properties',
-    description: `Search for specific properties within a node. Find authentication options, body parameters, headers, etc. without parsing the entire schema. Returns matching properties with their paths and descriptions. Use this when you need to find specific configuration options like "auth", "header", "body", etc.`,
+    description: `Find specific properties in a node (auth, headers, body, etc). Returns paths and descriptions.`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
-          description: 'Full node type WITH prefix (same as get_node_info).',
+          description: 'Full type with prefix',
         },
         query: {
           type: 'string',
-          description: 'Property name or keyword to search for. Examples: "auth", "header", "body", "json", "timeout".',
+          description: 'Property to find: "auth", "header", "body", "json"',
         },
         maxResults: {
           type: 'number',
-          description: 'Maximum number of results to return. Default 20.',
+          description: 'Max results (default 20)',
           default: 20,
         },
       },
@@ -159,13 +165,13 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_for_task',
-    description: `Get pre-configured node settings for common tasks. USE THIS to quickly configure nodes for specific use cases like "post_json_request", "receive_webhook", "query_database", etc. Returns ready-to-use configuration with clear indication of what user must provide. Much faster than figuring out configuration from scratch.`,
+    description: `Get pre-configured node for tasks: post_json_request, receive_webhook, query_database, send_slack_message, etc. Use list_tasks for all.`,
     inputSchema: {
       type: 'object',
       properties: {
         task: {
           type: 'string',
-          description: 'The task to accomplish. Available tasks: get_api_data, post_json_request, call_api_with_auth, receive_webhook, webhook_with_response, query_postgres, insert_postgres_data, chat_with_ai, ai_agent_workflow, transform_data, filter_data, send_slack_message, send_email. Use list_tasks to see all available tasks.',
+          description: 'Task name. See list_tasks for options.',
         },
       },
       required: ['task'],
@@ -173,20 +179,20 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'list_tasks',
-    description: `List all available task templates. Use this to discover what pre-configured tasks are available before using get_node_for_task. Tasks are organized by category (HTTP/API, Webhooks, Database, AI, Data Processing, Communication).`,
+    description: `List task templates by category: HTTP/API, Webhooks, Database, AI, Data Processing, Communication.`,
     inputSchema: {
       type: 'object',
       properties: {
         category: {
           type: 'string',
-          description: 'Optional category filter: HTTP/API, Webhooks, Database, AI/LangChain, Data Processing, Communication',
+          description: 'Filter by category (optional)',
         },
       },
     },
   },
   {
     name: 'validate_node_operation',
-    description: `Verify your node configuration is correct before using it. Checks: required fields are present, values are valid types/formats, operation-specific rules are met. Returns specific errors with fixes (e.g., "Channel required to send Slack message - add channel: '#general'"), warnings about common issues, working examples when errors found, and suggested next steps. Smart validation that only checks properties relevant to your selected operation/action. Essential for Slack, Google Sheets, MongoDB, OpenAI nodes. Supports validation profiles for different use cases.`,
+    description: `Validate node config. Checks required fields, types, operation rules. Returns errors with fixes. Essential for Slack/Sheets/DB nodes.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -210,7 +216,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_node_minimal',
-    description: `Quick validation that ONLY checks for missing required fields. Returns just the list of required fields that are missing. Fastest validation option - use when you only need to know if required fields are present. No warnings, no suggestions, no examples - just missing required fields.`,
+    description: `Fast check for missing required fields only. No warnings/suggestions. Returns: list of missing fields.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -228,7 +234,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_property_dependencies',
-    description: `Shows which properties control the visibility of other properties. Helps understand why certain fields appear/disappear based on configuration. Example: In HTTP Request, 'sendBody=true' reveals body-related properties. Optionally provide a config to see what would be visible/hidden with those settings.`,
+    description: `Shows property dependencies and visibility rules. Example: sendBody=true reveals body fields. Test visibility with optional config.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -246,7 +252,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_as_tool_info',
-    description: `Get specific information about using a node as an AI tool. Returns whether the node can be used as a tool, common use cases, requirements, and examples. Essential for understanding how to connect regular nodes to AI Agents. Works for ANY node - not just those marked as AI tools.`,
+    description: `How to use ANY node as AI tool. Shows requirements, use cases, examples. Works for all nodes, not just AI-marked ones.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -260,7 +266,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'list_node_templates',
-    description: `List workflow templates that use specific node type(s). Returns ready-to-use workflows from n8n.io community. Templates are from the last year (399 total). Use FULL node types like "n8n-nodes-base.httpRequest" or "@n8n/n8n-nodes-langchain.openAi". Great for finding proven workflow patterns.`,
+    description: `Find templates using specific nodes. 399 community workflows. Use FULL types: "n8n-nodes-base.httpRequest".`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -280,7 +286,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_template',
-    description: `Get a specific workflow template with complete JSON. Returns the full workflow definition ready to import into n8n. Use template IDs from list_node_templates or search_templates results.`,
+    description: `Get complete workflow JSON by ID. Ready to import. IDs from list_node_templates or search_templates.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -294,7 +300,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'search_templates',
-    description: `Search workflow templates by keywords in template NAMES and DESCRIPTIONS only. NOTE: This does NOT search by node types! To find templates using specific nodes, use list_node_templates(["n8n-nodes-base.slack"]) instead. Examples: search_templates("chatbot") finds templates with "chatbot" in the name/description. All templates are from the last year and include view counts to gauge popularity.`,
+    description: `Search templates by name/description keywords. NOT for node types! For nodes use list_node_templates. Example: "chatbot".`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -313,7 +319,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_templates_for_task',
-    description: `Get recommended templates for common automation tasks. Returns curated templates that solve specific use cases. Available tasks: ai_automation, data_sync, webhook_processing, email_automation, slack_integration, data_transformation, file_processing, scheduling, api_integration, database_operations.`,
+    description: `Curated templates by task: ai_automation, data_sync, webhooks, email, slack, data_transform, files, scheduling, api, database.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -339,7 +345,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_workflow',
-    description: `Validate an entire n8n workflow before deployment. Checks: workflow structure, node connections (including ai_tool connections), expressions, best practices, AI Agent configurations, and more. Returns comprehensive validation report with errors, warnings, and suggestions. Essential for AI agents building complete workflows. Validates AI tool connections and $fromAI() expressions. Prevents common workflow errors before they happen.`,
+    description: `Full workflow validation: structure, connections, expressions, AI tools. Returns errors/warnings/fixes. Essential before deploy.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -380,7 +386,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_workflow_connections',
-    description: `Validate only the connections in a workflow. Checks: all connections point to existing nodes, no cycles (infinite loops), no orphaned nodes, proper trigger node setup, AI tool connections are valid. Validates ai_tool connection types between AI Agents and tool nodes. Faster than full validation when you only need to check workflow structure.`,
+    description: `Check workflow connections only: valid nodes, no cycles, proper triggers, AI tool links. Fast structure validation.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -394,7 +400,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_workflow_expressions',
-    description: `Validate all n8n expressions in a workflow. Checks: expression syntax ({{ }}), variable references ($json, $node, $input), node references exist, context availability. Returns specific errors with locations. Use this to catch expression errors before runtime.`,
+    description: `Validate n8n expressions: syntax {{}}, variables ($json/$node), references. Returns errors with locations.`,
     inputSchema: {
       type: 'object',
       properties: {
