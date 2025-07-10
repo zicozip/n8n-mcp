@@ -192,8 +192,12 @@ export class TemplateRepository {
     }
     
     try {
-      // Use FTS for search
-      const ftsQuery = query.split(' ').map(term => `"${term}"`).join(' OR ');
+      // Use FTS for search - escape quotes in terms
+      const ftsQuery = query.split(' ').map(term => {
+        // Escape double quotes by replacing with two double quotes
+        const escaped = term.replace(/"/g, '""');
+        return `"${escaped}"`;
+      }).join(' OR ');
       logger.debug(`FTS5 query: ${ftsQuery}`);
       
       const results = this.db.prepare(`
