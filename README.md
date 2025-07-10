@@ -2,9 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.7.11-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.7.12-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
-[![n8n version](https://img.shields.io/badge/n8n-v1.100.1-orange.svg)](https://github.com/n8n-io/n8n)
+[![n8n version](https://img.shields.io/badge/n8n-v1.101.1-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
@@ -13,7 +13,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with comprehen
 
 n8n-MCP serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively. It provides structured access to:
 
-- 📚 **525 n8n nodes** from both n8n-nodes-base and @n8n/n8n-nodes-langchain
+- 📚 **528 n8n nodes** from both n8n-nodes-base and @n8n/n8n-nodes-langchain
 - 🔧 **Node properties** - 99% coverage with detailed schemas
 - ⚡ **Node operations** - 63.6% coverage of available actions
 - 📄 **Documentation** - 90% coverage from official n8n docs (including AI nodes)
@@ -568,10 +568,10 @@ npm run dev:http       # HTTP dev mode
 
 ## 📊 Metrics & Coverage
 
-Current database coverage (n8n v1.100.1):
+Current database coverage (n8n v1.101.1):
 
-- ✅ **525/525** nodes loaded (100%)
-- ✅ **520** nodes with properties (99%)
+- ✅ **528/528** nodes loaded (100%)
+- ✅ **520** nodes with properties (98.5%)
 - ✅ **470** nodes with documentation (90%)
 - ✅ **263** AI-capable tools detected
 - ✅ **AI Agent & LangChain nodes** fully documented
