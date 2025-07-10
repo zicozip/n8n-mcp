@@ -29,6 +29,49 @@ async function fetchTemplates() {
   const schema = fs.readFileSync(path.join(__dirname, '../../src/database/schema.sql'), 'utf8');
   db.exec(schema);
   
+  // Pre-create FTS5 tables if supported
+  const hasFTS5 = db.checkFTS5Support();
+  if (hasFTS5) {
+    console.log('🔍  Creating FTS5 tables for template search...');
+    try {
+      // Create FTS5 virtual table
+      db.exec(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS templates_fts USING fts5(
+          name, description, content=templates
+        );
+      `);
+      
+      // Create triggers to keep FTS5 in sync
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS templates_ai AFTER INSERT ON templates BEGIN
+          INSERT INTO templates_fts(rowid, name, description)
+          VALUES (new.id, new.name, new.description);
+        END;
+      `);
+      
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS templates_au AFTER UPDATE ON templates BEGIN
+          UPDATE templates_fts SET name = new.name, description = new.description
+          WHERE rowid = new.id;
+        END;
+      `);
+      
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS templates_ad AFTER DELETE ON templates BEGIN
+          DELETE FROM templates_fts WHERE rowid = old.id;
+        END;
+      `);
+      
+      console.log('✅  FTS5 tables created successfully\n');
+    } catch (error) {
+      console.log('⚠️  Failed to create FTS5 tables:', error);
+      console.log('   Template search will use LIKE fallback\n');
+    }
+  } else {
+    console.log('ℹ️  FTS5 not supported in this SQLite build');
+    console.log('   Template search will use LIKE queries\n');
+  }
+  
   // Create service
   const service = new TemplateService(db);
   
