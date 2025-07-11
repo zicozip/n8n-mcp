@@ -117,14 +117,53 @@ async function createBetterSQLiteAdapter(dbPath: string): Promise<DatabaseAdapte
  * Create sql.js adapter with persistence
  */
 async function createSQLJSAdapter(dbPath: string): Promise<DatabaseAdapter> {
-  const initSqlJs = require('sql.js');
+  let initSqlJs;
+  try {
+    initSqlJs = require('sql.js');
+  } catch (error) {
+    logger.error('Failed to load sql.js module:', error);
+    throw new Error('sql.js module not found. This might be an issue with npm package installation.');
+  }
   
   // Initialize sql.js
   const SQL = await initSqlJs({
     // This will look for the wasm file in node_modules
     locateFile: (file: string) => {
       if (file.endsWith('.wasm')) {
-        return path.join(__dirname, '../../node_modules/sql.js/dist/', file);
+        // Try multiple paths to find the WASM file
+        const possiblePaths = [
+          // Local development path
+          path.join(__dirname, '../../node_modules/sql.js/dist/', file),
+          // When installed as npm package
+          path.join(__dirname, '../../../sql.js/dist/', file),
+          // Alternative npm package path
+          path.join(process.cwd(), 'node_modules/sql.js/dist/', file),
+          // Try to resolve from require
+          path.join(path.dirname(require.resolve('sql.js')), '../dist/', file)
+        ];
+        
+        // Find the first existing path
+        for (const tryPath of possiblePaths) {
+          if (fsSync.existsSync(tryPath)) {
+            if (process.env.MCP_MODE !== 'stdio') {
+              logger.debug(`Found WASM file at: ${tryPath}`);
+            }
+            return tryPath;
+          }
+        }
+        
+        // If not found, try the last resort - require.resolve
+        try {
+          const wasmPath = require.resolve('sql.js/dist/sql-wasm.wasm');
+          if (process.env.MCP_MODE !== 'stdio') {
+            logger.debug(`Found WASM file via require.resolve: ${wasmPath}`);
+          }
+          return wasmPath;
+        } catch (e) {
+          // Fall back to the default path
+          logger.warn(`Could not find WASM file, using default path: ${file}`);
+          return file;
+        }
       }
       return file;
     }

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "n8n-mcp-local": {
+      "command": "node",
+      "args": ["/Users/romualdczlonkowski/Pliki/n8n-mcp/n8n-mcp/dist/mcp/index.js"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true"
+      }
+    }
+  }
+}

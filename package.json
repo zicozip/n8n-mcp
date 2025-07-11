@@ -1,6 +1,6 @@
 {
   "name": "n8n-mcp",
-  "version": "2.7.12",
+  "version": "2.7.13",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
   "bin": {
@@ -103,5 +103,8 @@
     "n8n-workflow": "^1.98.0",
     "sql.js": "^1.13.0",
     "uuid": "^10.0.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.10.0"
   }
 }

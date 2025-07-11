@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.13] - 2025-07-11
+
+### Fixed
+- **npx Execution**: Fixed WASM file resolution for sql.js when running via `npx n8n-mcp` (Issue #31)
+  - Enhanced WASM file locator to try multiple path resolution strategies
+  - Added `require.resolve()` for reliable package location in npm environments
+  - Made better-sqlite3 an optional dependency to prevent installation failures
+  - Improved error messages when sql.js fails to load
+  - The package now works correctly with `npx` without any manual configuration
+
+### Changed
+- **Database Adapter**: Improved path resolution for both local development and npm package contexts
+  - Supports various npm installation scenarios (global, local, npx cache)
+  - Better fallback handling for sql.js WebAssembly file loading
+
 ## [2.7.12] - 2025-07-10
 
 ### Updated
@@ -565,6 +580,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.13]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.12...v2.7.13
 [2.7.12]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.11...v2.7.12
 [2.7.11]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.10...v2.7.11
 [2.7.10]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.8...v2.7.10

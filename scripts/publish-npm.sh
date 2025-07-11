@@ -64,6 +64,7 @@ pkg.license = 'MIT';
 pkg.bugs = { url: 'https://github.com/czlonkowski/n8n-mcp/issues' };
 pkg.homepage = 'https://github.com/czlonkowski/n8n-mcp#readme';
 pkg.files = ['dist/**/*', 'data/nodes.db', '.env.example', 'README.md', 'LICENSE'];
+// Note: node_modules are automatically included for dependencies
 delete pkg.private; // Remove private field so we can publish
 require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
 "
