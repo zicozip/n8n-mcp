@@ -9,6 +9,17 @@
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
+## 🚨 Important: Sharing Guidelines
+
+This project is MIT licensed and free for everyone to use. However:
+
+- **✅ DO**: Share this repository freely with proper attribution
+- **✅ DO**: Include a direct link to https://github.com/czlonkowski/n8n-mcp in your first post/video
+- **❌ DON'T**: Gate this free tool behind engagement requirements (likes, follows, comments)
+- **❌ DON'T**: Use this project for engagement farming on social media
+
+This tool was created to benefit everyone in the n8n community without friction. Please respect the MIT license spirit by keeping it accessible to all.
+
 ## Overview
 
 n8n-MCP serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively. It provides structured access to:
