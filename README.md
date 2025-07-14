@@ -205,6 +205,26 @@ Add to Claude Desktop config:
 
 **Restart Claude Desktop after updating configuration** - That's it! 🎉
 
+## 💖 Support This Project
+
+<div align="center">
+  <a href="https://github.com/sponsors/czlonkowski">
+    <img src="https://img.shields.io/badge/Sponsor-❤️-db61a2?style=for-the-badge&logo=github-sponsors" alt="Sponsor n8n-mcp" />
+  </a>
+</div>
+
+**n8n-mcp** started as a personal tool but now helps tens of thousands of developers automate their workflows efficiently. Maintaining and developing this project competes with my paid work.
+
+Your sponsorship helps me:
+- 🚀 Dedicate focused time to new features
+- 🐛 Respond quickly to issues
+- 📚 Keep documentation up-to-date
+- 🔄 Ensure compatibility with latest n8n releases
+
+Every sponsorship directly translates to hours invested in making n8n-mcp better for everyone. **[Become a sponsor →](https://github.com/sponsors/czlonkowski)**
+
+---
+
 ### Option 3: Local Installation (For Development)
 
 **Prerequisites:** [Node.js](https://nodejs.org/) installed on your system
