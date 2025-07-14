@@ -263,6 +263,10 @@ Add to Claude Desktop config:
 
 > 💡 Tip: If you’re running n8n locally on the same machine (e.g., via Docker), use http://host.docker.internal:5678 as the N8N_API_URL.
 
+## 💻 Visual Studio Code Setup
+
+See [VS Code Project Setup](./docs/VS_CODE_PROJECT_SETUP.md) for instructions.
+
 ## 🤖 Claude Project Setup
 
 For the best results when using n8n-MCP with Claude Projects, use these enhanced system instructions:
