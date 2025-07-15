@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install build dependencies only (no n8n runtime packages)
 COPY tsconfig.json ./
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
     echo '{}' > package.json && \
     npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3 \
         @modelcontextprotocol/sdk@^1.12.1 dotenv@^16.5.0 express@^5.1.0 axios@^1.10.0 \
@@ -24,7 +24,7 @@ RUN apk add --no-cache curl && rm -rf /var/cache/apk/*
 
 # Use only runtime deps
 COPY package.runtime.json package.json
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
     npm install --production --no-audit --no-fund
 
 # Copy built app and essential files
