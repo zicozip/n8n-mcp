@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
-# Ultra-optimized Dockerfile for Railway - production, minimal dependencies
+# Ultra-optimized Dockerfile for Railway deployment of n8n-mcp
 
-# Stage 1: Builder
+# --- Stage 1: Builder ---
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Install build dependencies only (no n8n runtime packages)
 COPY tsconfig.json ./
-
 RUN --mount=type=cache,target=/root/.npm \
     echo '{}' > package.json && \
     npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3 \
@@ -16,52 +16,49 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY src ./src
 RUN npx tsc
 
-# Stage 2: Runtime
+# --- Stage 2: Runtime ---
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-RUN apk add --no-cache curl && \
-    rm -rf /var/cache/apk/*
+RUN apk add --no-cache curl && rm -rf /var/cache/apk/*
 
+# Use only runtime deps
 COPY package.runtime.json package.json
-
 RUN --mount=type=cache,target=/root/.npm \
     npm install --production --no-audit --no-fund
 
+# Copy built app and essential files
 COPY --from=builder /app/dist ./dist
-
 COPY data/nodes.db ./data/
 COPY src/database/schema-optimized.sql ./src/database/
 COPY .env.example ./
 
+# Entrypoint script for any setup (optional, if needed)
 COPY docker/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# Container labels
 LABEL org.opencontainers.image.source="https://github.com/czlonkowski/n8n-mcp"
 LABEL org.opencontainers.image.description="n8n MCP Server - Runtime Only"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.title="n8n-mcp"
 
+# Run as non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 && \
     chown -R nodejs:nodejs /app
-
 USER nodejs
 
 ENV IS_DOCKER=true
 
-# --- KEY Railway detail: EXPOSE 3000, but server MUST respect $PORT env var!
+# Railway exposes $PORT, but default to 3000 if not set
 EXPOSE 3000
 
-# Healthcheck (still port 3000 as default, but Railway sets $PORT!)
+# Healthcheck respects dynamic port
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://127.0.0.1:${PORT:-3000}/health || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-# --- CMD: always run HTTP server (Railway expects an HTTP app)
-CMD ["node", "dist/mcp/index.js", "--http"]
 
-# Optionally, if your app doesn't already do this, make sure that dist/mcp/index.js
-# uses process.env.PORT for the HTTP server:
-#   const port = process.env.PORT || 3000;
-#   app.listen(port, ...)
+# Main CMD: always run HTTP mode (so Claude etc can reach it, and Railway works)
+CMD ["node", "dist/mcp/index.js", "--http"]
