@@ -6,7 +6,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY tsconfig.json ./
-RUN --mount=type=cache,target=/root/.npm,id=npm-cache-builder \
+RUN --mount=type=cache,id=npm-cache-builder \
     echo '{}' > package.json && \
     npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3 \
         @modelcontextprotocol/sdk@^1.12.1 dotenv@^16.5.0 express@^5.1.0 axios@^1.10.0 \
@@ -22,7 +22,7 @@ WORKDIR /app
 RUN apk add --no-cache curl && rm -rf /var/cache/apk/*
 
 COPY package.runtime.json package.json
-RUN --mount=type=cache,target=/root/.npm,id=npm-cache-runtime \
+RUN --mount=type=cache,id=npm-cache-runtime \
     npm install --production --no-audit --no-fund
 
 COPY --from=builder /app/dist ./dist
