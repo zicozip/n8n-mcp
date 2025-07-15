@@ -198,6 +198,8 @@ Add to Claude Desktop config:
 
 **Important:** The `-i` flag is required for MCP stdio communication.
 
+> 🔧 If you encounter any issues with Docker, check our [Docker Troubleshooting Guide](./docs/DOCKER_TROUBLESHOOTING.md).
+
 **Configuration file locations:**
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
