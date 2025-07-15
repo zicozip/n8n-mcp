@@ -151,6 +151,8 @@ Skip HTTP entirely and use stdio mode directly:
 | `LOG_LEVEL` | Log verbosity | `info` |
 | `NODE_ENV` | Environment | `production` |
 | `TRUST_PROXY` | Trust proxy headers for correct IP logging | `0` |
+| `BASE_URL` | Public URL for the server (v2.7.14+) | Auto-detected |
+| `PUBLIC_URL` | Alternative to BASE_URL | Auto-detected |
 
 ### n8n Management Tools (Optional)
 
@@ -199,6 +201,39 @@ When configured, you get **16 additional tools** (total: 38 tools):
 ⚠️ **Security Note**: Store API keys securely and never commit them to version control.
 
 ## 🌐 Reverse Proxy Configuration
+
+### URL Configuration (v2.7.14+)
+
+n8n-MCP now intelligently detects the correct URL for your deployment:
+
+1. **Explicit Configuration** (highest priority):
+   ```bash
+   BASE_URL=https://n8n-mcp.example.com  # Explicitly set public URL
+   # or
+   PUBLIC_URL=https://your-domain.com:8443
+   ```
+
+2. **Auto-Detection from Proxy Headers** (when TRUST_PROXY is enabled):
+   - Detects from `X-Forwarded-Proto` and `X-Forwarded-Host` headers
+   - Perfect for Cloudflare, Nginx, and other proxies
+
+3. **Fallback** (when not configured):
+   - Uses `HOST` and `PORT` configuration
+   - Shows `localhost` when bound to `0.0.0.0`
+
+**Example scenarios:**
+```bash
+# Behind Cloudflare (auto-detected)
+TRUST_PROXY=1
+# Console shows: https://n8n-mcp.example.com
+
+# Explicit configuration
+BASE_URL=https://api.mycompany.com/mcp
+# Console shows: https://api.mycompany.com/mcp
+
+# Local development (no proxy)
+# Console shows: http://localhost:3000
+```
 
 ### Trust Proxy for Correct IP Logging
 
