@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.14] - 2025-07-15
+
+### Fixed
+- **Partial Update Tool**: Fixed validation/execution discrepancy that caused "settings must NOT have additional properties" error (Issue #45)
+  - Removed logic in `cleanWorkflowForUpdate` that was incorrectly adding default settings to workflows
+  - The function now only removes read-only fields without adding any new properties
+  - This fixes the issue where partial updates would pass validation but fail during execution
+  - Added comprehensive test coverage in `test-issue-45-fix.ts`
+
 ## [2.7.13] - 2025-07-11
 
 ### Fixed

@@ -93,6 +93,19 @@ export function cleanWorkflowForCreate(workflow: Partial<Workflow>): Partial<Wor
   return cleanedWorkflow;
 }
 
+/**
+ * Clean workflow data for update operations.
+ * 
+ * This function removes read-only and computed fields that should not be sent
+ * in API update requests. It does NOT add any default values or new fields.
+ * 
+ * Note: Unlike cleanWorkflowForCreate, this function does not add default settings.
+ * The n8n API will reject update requests that include properties not present in
+ * the original workflow ("settings must NOT have additional properties" error).
+ * 
+ * @param workflow - The workflow object to clean
+ * @returns A cleaned partial workflow suitable for API updates
+ */
 export function cleanWorkflowForUpdate(workflow: Workflow): Partial<Workflow> {
   const {
     // Remove read-only/computed fields
@@ -115,11 +128,6 @@ export function cleanWorkflowForUpdate(workflow: Workflow): Partial<Workflow> {
     // Keep everything else
     ...cleanedWorkflow
   } = workflow as any;
-
-  // Ensure settings are present
-  if (!cleanedWorkflow.settings) {
-    cleanedWorkflow.settings = defaultWorkflowSettings;
-  }
 
   return cleanedWorkflow;
 }
