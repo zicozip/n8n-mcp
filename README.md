@@ -285,9 +285,21 @@ Add to Claude Desktop config:
 
 > 💡 Tip: If you’re running n8n locally on the same machine (e.g., via Docker), use http://host.docker.internal:5678 as the N8N_API_URL.
 
-## 💻 Visual Studio Code Setup
+## 💻 Connect your IDE
 
-See [VS Code Project Setup](./docs/VS_CODE_PROJECT_SETUP.md) for instructions.
+n8n-MCP works with multiple AI-powered IDEs and tools. Choose your preferred development environment:
+
+### [Claude Code](./docs/CLAUDE_CODE_SETUP.md)
+Quick setup for Claude Code CLI - just type "add this mcp server" and paste the config.
+
+### [Visual Studio Code](./docs/VS_CODE_PROJECT_SETUP.md)
+Full setup guide for VS Code with GitHub Copilot integration and MCP support.
+
+### [Cursor](./docs/CURSOR_SETUP.md)
+Step-by-step tutorial for connecting n8n-MCP to Cursor IDE with custom rules.
+
+### [Windsurf](./docs/WINDSURF_SETUP.md)
+Complete guide for integrating n8n-MCP with Windsurf using project rules.
 
 ## 🤖 Claude Project Setup
 
