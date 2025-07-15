@@ -33,10 +33,6 @@ COPY data/nodes.db ./data/
 COPY src/database/schema-optimized.sql ./src/database/
 COPY .env.example ./
 
-# Entrypoint script for any setup (optional, if needed)
-COPY docker/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
 # Container labels
 LABEL org.opencontainers.image.source="https://github.com/czlonkowski/n8n-mcp"
 LABEL org.opencontainers.image.description="n8n MCP Server - Runtime Only"
@@ -57,8 +53,6 @@ EXPOSE 3000
 # Healthcheck respects dynamic port
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://127.0.0.1:${PORT:-3000}/health || exit 1
-
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Main CMD: always run HTTP mode (so Claude etc can reach it, and Railway works)
 CMD ["node", "dist/mcp/index.js", "--http"]
