@@ -15,7 +15,8 @@ import * as path from 'path';
 async function rebuild() {
   console.log('🔄 Rebuilding n8n node database...\n');
   
-  const db = await createDatabaseAdapter('./data/nodes.db');
+  const dbPath = process.env.NODE_DB_PATH || './data/nodes.db';
+  const db = await createDatabaseAdapter(dbPath);
   const loader = new N8nNodeLoader();
   const parser = new NodeParser();
   const mapper = new DocsMapper();

@@ -64,6 +64,7 @@ docker run -d \
 | `PORT` | HTTP server port | `3000` | No |
 | `NODE_ENV` | Environment: `development` or `production` | `production` | No |
 | `LOG_LEVEL` | Logging level: `debug`, `info`, `warn`, `error` | `info` | No |
+| `NODE_DB_PATH` | Custom database path (v2.7.16+) | `/app/data/nodes.db` | No |
 
 *Either `AUTH_TOKEN` or `AUTH_TOKEN_FILE` must be set for HTTP mode. If both are set, `AUTH_TOKEN` takes precedence.
 
@@ -342,6 +343,28 @@ docker run --rm \
   alpine tar xzf /backup/n8n-mcp-backup.tar.gz -C /target
 ```
 
+### Custom Database Path (v2.7.16+)
+
+You can specify a custom database location using `NODE_DB_PATH`:
+
+```bash
+# Use custom path within mounted volume
+docker run -d \
+  --name n8n-mcp \
+  -e MCP_MODE=http \
+  -e AUTH_TOKEN=your-token \
+  -e NODE_DB_PATH=/app/data/custom/my-nodes.db \
+  -v n8n-mcp-data:/app/data \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+**Important Notes:**
+- The path must end with `.db`
+- For data persistence, ensure the path is within a mounted volume
+- Paths outside mounted volumes will be lost on container restart
+- The directory will be created automatically if it doesn't exist
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -506,4 +529,4 @@ services:
 
 ---
 
-*Last updated: June 2025 - Docker implementation v1.0*
+*Last updated: July 2025 - Docker implementation v1.1*

@@ -5,6 +5,7 @@ This guide helps resolve common issues when running n8n-mcp with Docker, especia
 ## Table of Contents
 - [Common Issues](#common-issues)
   - [502 Bad Gateway Errors](#502-bad-gateway-errors)
+  - [Custom Database Path Not Working](#custom-database-path-not-working-v27160)
   - [Container Name Conflicts](#container-name-conflicts)
   - [n8n API Connection Issues](#n8n-api-connection-issues)
 - [Docker Networking](#docker-networking)
@@ -12,6 +13,41 @@ This guide helps resolve common issues when running n8n-mcp with Docker, especia
 - [Debugging Steps](#debugging-steps)
 
 ## Common Issues
+
+### Custom Database Path Not Working (v2.7.16+)
+
+**Symptoms:**
+- `NODE_DB_PATH` environment variable is set but ignored
+- Database always created at `/app/data/nodes.db`
+- Custom path setting has no effect
+
+**Root Cause:** Fixed in v2.7.16. Earlier versions had hardcoded paths in docker-entrypoint.sh.
+
+**Solutions:**
+
+1. **Update to v2.7.16 or later:**
+```bash
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+2. **Ensure path ends with .db:**
+```bash
+# Correct
+NODE_DB_PATH=/app/data/custom/my-nodes.db
+
+# Incorrect (will be rejected)
+NODE_DB_PATH=/app/data/custom/my-nodes
+```
+
+3. **Use path within mounted volume for persistence:**
+```yaml
+services:
+  n8n-mcp:
+    environment:
+      NODE_DB_PATH: /app/data/custom/nodes.db
+    volumes:
+      - n8n-mcp-data:/app/data  # Ensure parent directory is mounted
+```
 
 ### 502 Bad Gateway Errors
 
