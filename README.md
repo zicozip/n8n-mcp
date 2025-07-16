@@ -6,6 +6,7 @@
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![n8n version](https://img.shields.io/badge/n8n-v1.101.1-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/VY6UOG?referralCode=n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
@@ -284,6 +285,38 @@ Add to Claude Desktop config:
 > **Note**: The n8n API credentials can be configured either in a `.env` file (create from `.env.example`) or directly in the Claude config as shown above.
 
 > 💡 Tip: If you’re running n8n locally on the same machine (e.g., via Docker), use http://host.docker.internal:5678 as the N8N_API_URL.
+
+### Option 4: Railway Cloud Deployment (One-Click Deploy) ☁️
+
+**Prerequisites:** Railway account (free tier available)
+
+Deploy n8n-MCP to Railway's cloud platform with zero configuration:
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/VY6UOG?referralCode=n8n-mcp)
+
+**Benefits:**
+- ☁️ **Instant cloud hosting** - No server setup required
+- 🔒 **Secure by default** - HTTPS included, auth token warnings
+- 🌐 **Global access** - Connect from any Claude Desktop
+- ⚡ **Auto-scaling** - Railway handles the infrastructure
+- 📊 **Built-in monitoring** - Logs and metrics included
+
+**Quick Setup:**
+1. Click the "Deploy on Railway" button above
+2. Sign in to Railway (or create a free account)
+3. Configure your deployment (project name, region)
+4. Click "Deploy" and wait ~2-3 minutes
+5. Copy your deployment URL and auth token
+6. Add to Claude Desktop config using the HTTPS URL
+
+> 📚 **For detailed setup instructions, troubleshooting, and configuration examples, see our [Railway Deployment Guide](./docs/RAILWAY_DEPLOYMENT.md)**
+
+**Configuration file locations:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+**Restart Claude Desktop after updating configuration** - That's it! 🎉
 
 ## 💻 Connect your IDE
 

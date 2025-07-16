@@ -6,7 +6,7 @@ Deploy n8n-MCP to Railway's cloud platform with zero configuration and connect i
 
 Deploy n8n-MCP with one click:
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/Ep_b-Y?referralCode=n8n-mcp)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/VY6UOG?referralCode=n8n-mcp)
 
 ## 📋 Overview
 
@@ -33,6 +33,8 @@ Railway deployment provides:
 
 **IMPORTANT**: The deployment includes a default AUTH_TOKEN for instant functionality, but you MUST change it:
 
+![Railway Dashboard - Variables Tab](./img/railway-variables.png)
+
 1. **Go to your Railway dashboard**
 2. **Click on your n8n-mcp service**
 3. **Navigate to "Variables" tab**
@@ -48,13 +50,15 @@ Railway deployment provides:
 
 ### 3. Get Your Service URL
 
+![Railway Dashboard - Domain Settings](./img/railway-domain.png)
+
 1. In Railway dashboard, click on your service
 2. Go to **"Settings"** tab
 3. Under **"Domains"**, you'll see your URL:
    ```
    https://your-app-name.up.railway.app
    ```
-4. Copy this URL for Claude Desktop configuration
+4. Copy this URL for Claude Desktop configuration and add /mcp at the end
 
 ### 4. Connect Claude Desktop
 
