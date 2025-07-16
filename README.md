@@ -11,7 +11,6 @@ A Model Context Protocol (MCP) server that provides AI assistants with comprehen
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?sourceUrl=https://github.com/czlonkowski/n8n-mcp)
 
-
 ## Overview
 
 n8n-MCP serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively. It provides structured access to:
@@ -209,6 +208,49 @@ Add to Claude Desktop config:
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 **Restart Claude Desktop after updating configuration** - That's it! 🎉
+
+### Option 4: Railway (Cloud Deployment) ☁️
+
+[Railway](https://railway.app) is a cloud platform that makes deploying applications simple and straightforward. Deploy n8n-MCP with one click:
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/github-czlonkowski-n8n-mcp)
+
+**After deployment:**
+
+1. **Set environment variables** in Railway dashboard:
+   ```
+   AUTH_TOKEN=your-secure-token
+   N8N_API_URL=https://your-n8n-instance.com (optional)
+   N8N_API_KEY=your-api-key (optional)
+   ```
+
+2. **Get your deployment URL** from Railway (e.g., `https://n8n-mcp.up.railway.app`)
+
+3. **Configure Claude Desktop** to use your Railway deployment:
+   ```json
+   {
+     "mcpServers": {
+       "n8n-mcp-remote": {
+         "command": "npx",
+         "args": [
+           "-y",
+           "@modelcontextprotocol/mcp-remote@latest",
+           "connect",
+           "https://your-app.up.railway.app/mcp"
+         ],
+         "env": {
+           "MCP_AUTH_TOKEN": "your-auth-token"
+         }
+       }
+     }
+   }
+   ```
+
+**Notes:**
+- Railway provides automatic HTTPS and scaling
+- The pre-built database (`nodes.db`) is included in the deployment
+- Set AUTH_TOKEN to secure your deployment
+- Railway offers a free tier suitable for personal use
 
 ## 💖 Support This Project
 
