@@ -1,5 +1,3 @@
-RUN echo "USING RAILWAY DOCKERFILE!"
-
 # syntax=docker/dockerfile:1.7
 # Railway-compatible Dockerfile for n8n-mcp
 
