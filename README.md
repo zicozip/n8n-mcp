@@ -213,7 +213,7 @@ Add to Claude Desktop config:
 
 [Railway](https://railway.app) is a cloud platform that makes deploying applications simple and straightforward. Deploy n8n-MCP with one click:
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template/github-czlonkowski-n8n-mcp)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new?template=https://github.com/czlonkowski/n8n-mcp)
 
 **After deployment:**
 
