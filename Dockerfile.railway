@@ -29,11 +29,11 @@ WORKDIR /app
 RUN apk add --no-cache curl python3 make g++ && \
     rm -rf /var/cache/apk/*
 
-# Copy package files
-COPY package*.json ./
+# Copy runtime-only package.json
+COPY package.runtime.json package.json
 
 # Install only production dependencies
-RUN npm ci --only=production --no-audit --no-fund && \
+RUN npm install --production --no-audit --no-fund && \
     npm cache clean --force
 
 # Copy built application from builder stage
