@@ -2,79 +2,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.7.13-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.7.15-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![n8n version](https://img.shields.io/badge/n8n-v1.101.1-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
-
-## 🚀 Zero-Configuration Railway Deployment
-
-Deploy n8n-MCP to Railway with **one click** - no configuration required to start!
-
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/AQSZuP?referralCode=xdb4OL)
-
-### ✨ Features
-- **Works immediately** - Pre-configured with working defaults
-- **Secure by design** - Prominent warnings for default AUTH_TOKEN
-- **Production-ready** - Optimized environment variables included
-- **No setup required** - Just click deploy!
-
-### 🚀 Quick Deploy Steps
-
-1. **Click Deploy** - Use the button above
-2. **Wait ~2 minutes** - Railway builds and deploys automatically
-3. **Get your URL** - Railway provides a public URL instantly
-4. **Start using** - Connect to Claude Desktop immediately!
-
-### ⚠️ IMPORTANT: Post-Deployment Security
-
-**The deployment includes a default AUTH_TOKEN for instant functionality.**
-
-After deployment, you MUST:
-1. Go to Railway dashboard → Variables
-2. Find `AUTH_TOKEN` variable
-3. Replace with secure token: `openssl rand -base64 32`
-4. Railway will automatically redeploy
-
-> **Security Note**: The server will display warnings every 5 minutes until you change the default token!
-
-### 🔧 Environment Variables (Auto-Configured)
-
-| Variable | Default Value | Description |
-|----------|--------------|-------------|
-| `AUTH_TOKEN` | `REPLACE_THIS...` | **⚠️ CHANGE IMMEDIATELY** |
-| `MCP_MODE` | `http` | Required for cloud deployment |
-| `USE_FIXED_HTTP` | `true` | Stable HTTP implementation |
-| `NODE_ENV` | `production` | Production optimizations |
-| `LOG_LEVEL` | `info` | Balanced logging |
-| `TRUST_PROXY` | `1` | Railway runs behind proxy |
-| `CORS_ORIGIN` | `*` | Allow any origin (customize later) |
-| `PORT` | (Railway provides) | Don't set manually |
-
-### 📝 Optional: n8n API Integration
-
-To enable workflow management features, add these variables in Railway:
-- `N8N_API_URL` - Your n8n instance URL
-- `N8N_API_KEY` - API key from n8n settings
-
-### 🎯 Creating Your Own Railway Template
-
-Want to customize and create your own Railway deploy button?
-
-1. **Deploy this project** first using the button above
-2. **Customize** environment variables as needed
-3. **Go to Railway dashboard** → Your project → Settings
-4. **Click "Generate Template"** at the bottom
-5. **Configure template**:
-   - Set required variables (AUTH_TOKEN)
-   - Add description and icon
-   - Publish the template
-6. **Get your template URL** and button code
-7. **Update this README** with your custom button
-
-> **Note**: The current button deploys from kimbo128's fork. Create your own template to deploy from your repository!
 
 ## Overview
 
@@ -265,12 +198,34 @@ Add to Claude Desktop config:
 
 **Important:** The `-i` flag is required for MCP stdio communication.
 
+> 🔧 If you encounter any issues with Docker, check our [Docker Troubleshooting Guide](./docs/DOCKER_TROUBLESHOOTING.md).
+
 **Configuration file locations:**
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 **Restart Claude Desktop after updating configuration** - That's it! 🎉
+
+## 💖 Support This Project
+
+<div align="center">
+  <a href="https://github.com/sponsors/czlonkowski">
+    <img src="https://img.shields.io/badge/Sponsor-❤️-db61a2?style=for-the-badge&logo=github-sponsors" alt="Sponsor n8n-mcp" />
+  </a>
+</div>
+
+**n8n-mcp** started as a personal tool but now helps tens of thousands of developers automate their workflows efficiently. Maintaining and developing this project competes with my paid work.
+
+Your sponsorship helps me:
+- 🚀 Dedicate focused time to new features
+- 🐛 Respond quickly to issues
+- 📚 Keep documentation up-to-date
+- 🔄 Ensure compatibility with latest n8n releases
+
+Every sponsorship directly translates to hours invested in making n8n-mcp better for everyone. **[Become a sponsor →](https://github.com/sponsors/czlonkowski)**
+
+---
 
 ### Option 3: Local Installation (For Development)
 
@@ -329,6 +284,22 @@ Add to Claude Desktop config:
 > **Note**: The n8n API credentials can be configured either in a `.env` file (create from `.env.example`) or directly in the Claude config as shown above.
 
 > 💡 Tip: If you’re running n8n locally on the same machine (e.g., via Docker), use http://host.docker.internal:5678 as the N8N_API_URL.
+
+## 💻 Connect your IDE
+
+n8n-MCP works with multiple AI-powered IDEs and tools. Choose your preferred development environment:
+
+### [Claude Code](./docs/CLAUDE_CODE_SETUP.md)
+Quick setup for Claude Code CLI - just type "add this mcp server" and paste the config.
+
+### [Visual Studio Code](./docs/VS_CODE_PROJECT_SETUP.md)
+Full setup guide for VS Code with GitHub Copilot integration and MCP support.
+
+### [Cursor](./docs/CURSOR_SETUP.md)
+Step-by-step tutorial for connecting n8n-MCP to Cursor IDE with custom rules.
+
+### [Windsurf](./docs/WINDSURF_SETUP.md)
+Complete guide for integrating n8n-MCP with Windsurf using project rules.
 
 ## 🤖 Claude Project Setup
 
@@ -635,6 +606,7 @@ npm run dev:http       # HTTP dev mode
 - [Validation System](./docs/validation-improvements-v2.4.2.md) - Smart validation profiles
 
 ### Development & Deployment
+- [Railway Deployment](./docs/RAILWAY_DEPLOYMENT.md) - One-click cloud deployment guide
 - [HTTP Deployment](./docs/HTTP_DEPLOYMENT.md) - Remote server setup guide
 - [Dependency Management](./docs/DEPENDENCY_UPDATES.md) - Keeping n8n packages in sync
 - [Claude's Interview](./docs/CLAUDE_INTERVIEW.md) - Real-world impact of n8n-MCP
