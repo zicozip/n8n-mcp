@@ -13,7 +13,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with comprehen
 
 Railway is a cloud deployment platform that lets you deploy this project with one click.
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new?template=https://github.com/czlonkowski/n8n-mcp)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/AQSZuP?referralCode=xdb4OL)
 
 
 ### Quickstart
