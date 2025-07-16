@@ -9,7 +9,30 @@
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
+## 🚀 1 Click Deploy on Railway
+
+Railway is a cloud deployment platform that lets you deploy this project with one click.
+
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?sourceUrl=https://github.com/czlonkowski/n8n-mcp)
+
+### Quickstart
+
+1. Click the **Deploy on Railway** button above.
+2. Railway will clone this repository and set up the service.
+3. Configure required environment variables such as `AUTH_TOKEN`.
+4. Optionally connect a database if needed.
+
+### Environment Variables
+
+- `AUTH_TOKEN` (required): Secret token used for authenticating requests.
+- Any database connection string (optional): Ensure your database is accessible to Railway.
+
+### Notes
+
+- Railway automatically builds from the provided `Dockerfile.railway`.
+- The service will expose port 3000 as configured.
+- Make sure to keep your `AUTH_TOKEN` secure.
+
 
 
 ## Overview
