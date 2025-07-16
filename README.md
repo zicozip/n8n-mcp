@@ -9,6 +9,9 @@
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?sourceUrl=https://github.com/czlonkowski/n8n-mcp)
+
+
 ## Overview
 
 n8n-MCP serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively. It provides structured access to:
