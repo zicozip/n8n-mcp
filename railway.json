@@ -4,7 +4,13 @@
     {
       "name": "n8n-mcp",
       "source": ".",
-      "dockerfilePath": "Dockerfile.railway"
+      "dockerfilePath": "Dockerfile.railway",
+      "volumes": [
+        {
+          "mount": "/app/data",
+          "name": "n8n-mcp-data"
+        }
+      ]
     }
   ]
 }
