@@ -23,19 +23,6 @@ Railway is a cloud deployment platform that lets you deploy this project with on
 3. Configure required environment variables such as `AUTH_TOKEN`.
 4. Optionally connect a database if needed.
 
-### Environment Variables
-
-- `AUTH_TOKEN` (required): Secret token used for authenticating requests.
-- Any database connection string (optional): Ensure your database is accessible to Railway.
-
-### Notes
-
-- Railway automatically builds from the provided `Dockerfile.railway`.
-- The service will expose port 3000 as configured.
-- Make sure to keep your `AUTH_TOKEN` secure.
-
-
-
 ## Overview
 
 n8n-MCP serves as a bridge between n8n's workflow automation platform and AI models, enabling them to understand and work with n8n nodes effectively. It provides structured access to:
