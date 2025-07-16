@@ -928,7 +928,7 @@ export async function handleDiagnostic(request: any): Promise<McpToolResponse> {
         '3. Restart the MCP server',
         '4. Management tools will automatically appear'
       ],
-      documentation: 'For detailed setup instructions, see: https://github.com/czlonkowski/n8n-mcp#n8n-management-tools-new-v260---requires-api-configuration'
+      documentation: 'For detailed setup instructions, see: https://github.com/czlonkowski/n8n-mcp?tab=readme-ov-file#n8n-management-tools-optional---requires-api-configuration'
     }
   };
   
