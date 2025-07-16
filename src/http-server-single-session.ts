@@ -11,6 +11,8 @@ import { ConsoleManager } from './utils/console-manager';
 import { logger } from './utils/logger';
 import { readFileSync } from 'fs';
 import dotenv from 'dotenv';
+import { getStartupBaseUrl, formatEndpointUrls, detectBaseUrl } from './utils/url-detector';
+import { PROJECT_VERSION } from './utils/version';
 
 dotenv.config();
 
@@ -244,12 +246,44 @@ export class SingleSessionHTTPServer {
       next();
     });
     
+    // Root endpoint with API information
+    app.get('/', (req, res) => {
+      const port = parseInt(process.env.PORT || '3000');
+      const host = process.env.HOST || '0.0.0.0';
+      const baseUrl = detectBaseUrl(req, host, port);
+      const endpoints = formatEndpointUrls(baseUrl);
+      
+      res.json({
+        name: 'n8n Documentation MCP Server',
+        version: PROJECT_VERSION,
+        description: 'Model Context Protocol server providing comprehensive n8n node documentation and workflow management',
+        endpoints: {
+          health: {
+            url: endpoints.health,
+            method: 'GET',
+            description: 'Health check and status information'
+          },
+          mcp: {
+            url: endpoints.mcp,
+            method: 'GET/POST',
+            description: 'MCP endpoint - GET for info, POST for JSON-RPC'
+          }
+        },
+        authentication: {
+          type: 'Bearer Token',
+          header: 'Authorization: Bearer <token>',
+          required_for: ['POST /mcp']
+        },
+        documentation: 'https://github.com/czlonkowski/n8n-mcp'
+      });
+    });
+
     // Health check endpoint (no body parsing needed for GET)
     app.get('/health', (req, res) => {
       res.json({ 
         status: 'ok', 
         mode: 'single-session',
-        version: '2.3.2',
+        version: PROJECT_VERSION,
         uptime: Math.floor(process.uptime()),
         sessionActive: !!this.session,
         sessionAge: this.session 
@@ -264,6 +298,35 @@ export class SingleSessionHTTPServer {
       });
     });
     
+    // MCP information endpoint (no auth required for discovery)
+    app.get('/mcp', (req, res) => {
+      res.json({
+        description: 'n8n Documentation MCP Server',
+        version: PROJECT_VERSION,
+        endpoints: {
+          mcp: {
+            method: 'POST',
+            path: '/mcp',
+            description: 'Main MCP JSON-RPC endpoint',
+            authentication: 'Bearer token required'
+          },
+          health: {
+            method: 'GET',
+            path: '/health',
+            description: 'Health check endpoint',
+            authentication: 'None'
+          },
+          root: {
+            method: 'GET',
+            path: '/',
+            description: 'API information',
+            authentication: 'None'
+          }
+        },
+        documentation: 'https://github.com/czlonkowski/n8n-mcp'
+      });
+    });
+
     // Main MCP endpoint with authentication
     app.post('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
       // Enhanced authentication check with specific logging
@@ -361,9 +424,14 @@ export class SingleSessionHTTPServer {
     
     this.expressServer = app.listen(port, host, () => {
       logger.info(`n8n MCP Single-Session HTTP Server started`, { port, host });
+      
+      // Detect the base URL using our utility
+      const baseUrl = getStartupBaseUrl(host, port);
+      const endpoints = formatEndpointUrls(baseUrl);
+      
       console.log(`n8n MCP Single-Session HTTP Server running on ${host}:${port}`);
-      console.log(`Health check: http://localhost:${port}/health`);
-      console.log(`MCP endpoint: http://localhost:${port}/mcp`);
+      console.log(`Health check: ${endpoints.health}`);
+      console.log(`MCP endpoint: ${endpoints.mcp}`);
       console.log('\nPress Ctrl+C to stop the server');
       
       // Start periodic warning timer if using default token
@@ -374,6 +442,12 @@ export class SingleSessionHTTPServer {
             console.warn('⚠️ REMINDER: Still using default AUTH_TOKEN - please change it!');
           }
         }, 300000); // Every 5 minutes
+      }
+      
+      if (process.env.BASE_URL || process.env.PUBLIC_URL) {
+        console.log(`\nPublic URL configured: ${baseUrl}`);
+      } else if (process.env.TRUST_PROXY && Number(process.env.TRUST_PROXY) > 0) {
+        console.log(`\nNote: TRUST_PROXY is enabled. URLs will be auto-detected from proxy headers.`);
       }
     });
     

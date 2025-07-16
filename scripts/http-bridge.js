@@ -8,7 +8,10 @@
 const http = require('http');
 const readline = require('readline');
 
-const MCP_URL = process.env.MCP_URL || 'http://localhost:3000/mcp';
+// Use MCP_URL from environment or construct from HOST/PORT if available
+const defaultHost = process.env.HOST || 'localhost';
+const defaultPort = process.env.PORT || '3000';
+const MCP_URL = process.env.MCP_URL || `http://${defaultHost}:${defaultPort}/mcp`;
 const AUTH_TOKEN = process.env.AUTH_TOKEN || process.argv[2];
 
 if (!AUTH_TOKEN) {

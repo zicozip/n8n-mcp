@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.15] - 2025-07-15
+
+### Fixed
+- **HTTP Server URL Handling**: Fixed hardcoded localhost URLs in HTTP server output (Issue #41, #42)
+  - Added intelligent URL detection that considers BASE_URL, PUBLIC_URL, and proxy headers
+  - Server now displays correct public URLs when deployed behind reverse proxies
+  - Added support for X-Forwarded-Proto and X-Forwarded-Host headers when TRUST_PROXY is enabled
+  - Fixed port display logic to hide standard ports (80/443) in URLs
+  - Added new GET endpoints (/, /mcp) for better API discovery
+
+### Security
+- **Host Header Injection Prevention**: Added hostname validation to prevent malicious proxy headers
+  - Only accepts valid hostnames (alphanumeric, dots, hyphens, optional port)
+  - Rejects hostnames with paths, usernames, or special characters
+  - Falls back to safe defaults when invalid headers are detected
+- **URL Scheme Validation**: Restricted URL schemes to http/https only
+  - Blocks dangerous schemes like javascript:, file://, data:
+  - Validates all configured URLs (BASE_URL, PUBLIC_URL)
+- **Information Disclosure**: Removed sensitive environment data from API responses
+  - Root endpoint no longer exposes internal configuration
+  - Only shows essential API information
+
+### Added
+- **URL Detection Utility**: New `url-detector.ts` module for intelligent URL detection
+  - Prioritizes explicit configuration (BASE_URL/PUBLIC_URL)
+  - Falls back to proxy headers when TRUST_PROXY is enabled
+  - Uses host/port configuration as final fallback
+  - Includes comprehensive security validations
+- **Test Scripts**: Added test scripts for URL configuration and security validation
+  - `test-url-configuration.ts`: Tests various URL detection scenarios
+  - `test-security.ts`: Validates security fixes for malicious headers
+
+### Changed
+- **Consistent Versioning**: Fixed version inconsistency between server implementations
+  - Both http-server.ts and http-server-single-session.ts now use PROJECT_VERSION
+  - Removed hardcoded version strings
+- **HTTP Bridge**: Updated to use HOST/PORT environment variables for default URL construction
+- **Documentation**: Updated HTTP deployment guide with URL configuration section
+
+## [2.7.14] - 2025-07-15
+
+### Fixed
+- **Partial Update Tool**: Fixed validation/execution discrepancy that caused "settings must NOT have additional properties" error (Issue #45)
+  - Removed logic in `cleanWorkflowForUpdate` that was incorrectly adding default settings to workflows
+  - The function now only removes read-only fields without adding any new properties
+  - This fixes the issue where partial updates would pass validation but fail during execution
+  - Added comprehensive test coverage in `test-issue-45-fix.ts`
+
 ## [2.7.13] - 2025-07-11
 
 ### Fixed
