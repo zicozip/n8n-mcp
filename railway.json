@@ -1,0 +1,10 @@
+{
+  "name": "n8n-mcp",
+  "services": [
+    {
+      "name": "n8n-mcp",
+      "source": ".",
+      "dockerfilePath": "Dockerfile.railway"
+    }
+  ]
+}
