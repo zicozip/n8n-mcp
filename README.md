@@ -9,19 +9,72 @@
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
-## 🚀 1 Click Deploy on Railway
+## 🚀 Zero-Configuration Railway Deployment
 
-Railway is a cloud deployment platform that lets you deploy this project with one click.
+Deploy n8n-MCP to Railway with **one click** - no configuration required to start!
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/AQSZuP?referralCode=xdb4OL)
 
+### ✨ Features
+- **Works immediately** - Pre-configured with working defaults
+- **Secure by design** - Prominent warnings for default AUTH_TOKEN
+- **Production-ready** - Optimized environment variables included
+- **No setup required** - Just click deploy!
 
-### Quickstart
+### 🚀 Quick Deploy Steps
 
-1. Click the **Deploy on Railway** button above.
-2. Railway will clone this repository and set up the service.
-3. Configure required environment variables such as `AUTH_TOKEN`.
-4. Optionally connect a database if needed.
+1. **Click Deploy** - Use the button above
+2. **Wait ~2 minutes** - Railway builds and deploys automatically
+3. **Get your URL** - Railway provides a public URL instantly
+4. **Start using** - Connect to Claude Desktop immediately!
+
+### ⚠️ IMPORTANT: Post-Deployment Security
+
+**The deployment includes a default AUTH_TOKEN for instant functionality.**
+
+After deployment, you MUST:
+1. Go to Railway dashboard → Variables
+2. Find `AUTH_TOKEN` variable
+3. Replace with secure token: `openssl rand -base64 32`
+4. Railway will automatically redeploy
+
+> **Security Note**: The server will display warnings every 5 minutes until you change the default token!
+
+### 🔧 Environment Variables (Auto-Configured)
+
+| Variable | Default Value | Description |
+|----------|--------------|-------------|
+| `AUTH_TOKEN` | `REPLACE_THIS...` | **⚠️ CHANGE IMMEDIATELY** |
+| `MCP_MODE` | `http` | Required for cloud deployment |
+| `USE_FIXED_HTTP` | `true` | Stable HTTP implementation |
+| `NODE_ENV` | `production` | Production optimizations |
+| `LOG_LEVEL` | `info` | Balanced logging |
+| `TRUST_PROXY` | `1` | Railway runs behind proxy |
+| `CORS_ORIGIN` | `*` | Allow any origin (customize later) |
+| `PORT` | (Railway provides) | Don't set manually |
+
+### 📝 Optional: n8n API Integration
+
+To enable workflow management features, add these variables in Railway:
+- `N8N_API_URL` - Your n8n instance URL
+- `N8N_API_KEY` - API key from n8n settings
+
+### 🎯 Creating Your Own Railway Template
+
+Want to customize and create your own Railway deploy button?
+
+1. **Deploy this project** first using the button above
+2. **Customize** environment variables as needed
+3. **Go to Railway dashboard** → Your project → Settings
+4. **Click "Generate Template"** at the bottom
+5. **Configure template**:
+   - Set required variables (AUTH_TOKEN)
+   - Add description and icon
+   - Publish the template
+6. **Get your template URL** and button code
+7. **Update this README** with your custom button
+
+> **Note**: The current button deploys from kimbo128's fork. Create your own template to deploy from your repository!
 
 ## Overview
 
