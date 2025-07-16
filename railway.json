@@ -1,16 +1,13 @@
 {
-  "name": "n8n-mcp",
-  "services": [
-    {
-      "name": "n8n-mcp",
-      "source": ".",
-      "dockerfilePath": "Dockerfile.railway",
-      "volumes": [
-        {
-          "mount": "/app/data",
-          "name": "n8n-mcp-data"
-        }
-      ]
-    }
-  ]
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile.railway"
+  },
+  "deploy": {
+    "runtime": "V2",
+    "numReplicas": 1,
+    "sleepApplication": false,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
 }
