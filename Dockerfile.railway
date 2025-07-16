@@ -44,6 +44,10 @@ COPY data/ ./data/
 COPY src/database/schema-optimized.sql ./src/database/schema-optimized.sql
 COPY .env.example ./
 
+# Copy entrypoint script
+COPY docker/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Create data directory if it doesn't exist and set permissions
 RUN mkdir -p ./data && \
     chmod 755 ./data
@@ -74,5 +78,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://127.0.0.1:${PORT:-3000}/health || exit 1
 
-# Start the application in HTTP mode
+# Optimized entrypoint (identical to main Dockerfile)
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "dist/mcp/index.js", "--http"]
