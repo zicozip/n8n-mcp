@@ -606,6 +606,7 @@ npm run dev:http       # HTTP dev mode
 - [Validation System](./docs/validation-improvements-v2.4.2.md) - Smart validation profiles
 
 ### Development & Deployment
+- [Railway Deployment](./docs/RAILWAY_DEPLOYMENT.md) - One-click cloud deployment guide
 - [HTTP Deployment](./docs/HTTP_DEPLOYMENT.md) - Remote server setup guide
 - [Dependency Management](./docs/DEPENDENCY_UPDATES.md) - Keeping n8n packages in sync
 - [Claude's Interview](./docs/CLAUDE_INTERVIEW.md) - Real-world impact of n8n-MCP

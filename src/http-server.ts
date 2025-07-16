@@ -69,6 +69,20 @@ function validateEnvironment() {
     logger.warn('AUTH_TOKEN should be at least 32 characters for security');
     console.warn('WARNING: AUTH_TOKEN should be at least 32 characters for security');
   }
+  
+  // Check for default token and show prominent warnings
+  if (authToken === 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh') {
+    logger.warn('⚠️ SECURITY WARNING: Using default AUTH_TOKEN - CHANGE IMMEDIATELY!');
+    logger.warn('Generate secure token with: openssl rand -base64 32');
+    
+    // Only show console warnings in HTTP mode
+    if (process.env.MCP_MODE === 'http') {
+      console.warn('\n⚠️  SECURITY WARNING ⚠️');
+      console.warn('Using default AUTH_TOKEN - CHANGE IMMEDIATELY!');
+      console.warn('Generate secure token: openssl rand -base64 32');
+      console.warn('Update via Railway dashboard environment variables\n');
+    }
+  }
 }
 
 /**
@@ -485,6 +499,16 @@ export async function startFixedHTTPServer() {
     console.log(`Health check: ${endpoints.health}`);
     console.log(`MCP endpoint: ${endpoints.mcp}`);
     console.log('\nPress Ctrl+C to stop the server');
+    
+    // Start periodic warning timer if using default token
+    if (authToken === 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh') {
+      setInterval(() => {
+        logger.warn('⚠️ Still using default AUTH_TOKEN - security risk!');
+        if (process.env.MCP_MODE === 'http') {
+          console.warn('⚠️ REMINDER: Still using default AUTH_TOKEN - please change it!');
+        }
+      }, 300000); // Every 5 minutes
+    }
     
     if (process.env.BASE_URL || process.env.PUBLIC_URL) {
       console.log(`\nPublic URL configured: ${baseUrl}`);
