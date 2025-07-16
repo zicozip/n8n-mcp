@@ -1,78 +1,67 @@
 # syntax=docker/dockerfile:1.7
-# Ultra-optimized Dockerfile - minimal runtime dependencies (no n8n packages)
 
-# Stage 1: Builder (TypeScript compilation only)
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Copy tsconfig for TypeScript compilation
-COPY tsconfig.json ./
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
 
-# Create minimal package.json and install ONLY build dependencies
-RUN --mount=type=cache,target=/root/.npm \
-    echo '{}' > package.json && \
-    npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3 \
-        @modelcontextprotocol/sdk@^1.12.1 dotenv@^16.5.0 express@^5.1.0 axios@^1.10.0 \
-        n8n-workflow@^1.96.0 uuid@^11.0.5 @types/uuid@^10.0.0
+# Copy package files and tsconfig
+COPY package*.json tsconfig.json ./
 
-# Copy source and build
+# Install all dependencies for building (including devDependencies)
+RUN npm ci --no-audit --no-fund
+
+# Copy source code
 COPY src ./src
-# Note: src/n8n contains TypeScript types needed for compilation
-# These will be compiled but not included in runtime
-RUN npx tsc
 
-# Stage 2: Runtime (minimal dependencies)
+# Build the app (transpile TypeScript)
+RUN npm run build
+
+# --- Final minimal image ---
 FROM node:20-alpine AS runtime
 WORKDIR /app
 
-# Install only essential runtime tools
+# Install runtime-only OS deps
 RUN apk add --no-cache curl && \
     rm -rf /var/cache/apk/*
 
-# Copy runtime-only package.json
-COPY package.runtime.json package.json
+# Copy only the prod package.json (edit as needed for your setup)
+COPY package*.json ./
 
-# Install runtime dependencies with cache mount
-RUN --mount=type=cache,target=/root/.npm \
-    npm install --production --no-audit --no-fund
+# Install *production* node_modules only
+RUN npm ci --only=production --no-audit --no-fund
 
-# Copy built application
+# Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy pre-built database and required files
-# Cache bust: 2025-07-06-trigger-fix-v3 - includes is_trigger=true for webhook,cron,interval,emailReadImap
-COPY data/nodes.db ./data/
+# Copy assets, configs, and needed files
+COPY data/ ./data/
 COPY src/database/schema-optimized.sql ./src/database/
 COPY .env.example ./
 
-# Copy entrypoint script
-COPY docker/docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Entrypoint script if you use one:
+# COPY docker/docker-entrypoint.sh /usr/local/bin/
+# RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
-# Add container labels
+# Metadata
 LABEL org.opencontainers.image.source="https://github.com/czlonkowski/n8n-mcp"
-LABEL org.opencontainers.image.description="n8n MCP Server - Runtime Only"
+LABEL org.opencontainers.image.description="n8n MCP Server"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.title="n8n-mcp"
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
-    chown -R nodejs:nodejs /app
-
-# Switch to non-root user
+# Non-root user (optional, best practice)
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001 && chown -R nodejs:nodejs /app
 USER nodejs
 
-# Set Docker environment flag
+# Env
+ENV NODE_ENV=production
 ENV IS_DOCKER=true
 
-# Expose HTTP port
 EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://127.0.0.1:3000/health || exit 1
 
-# Optimized entrypoint
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "dist/mcp/index.js"]
