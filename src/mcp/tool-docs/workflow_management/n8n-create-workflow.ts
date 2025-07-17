@@ -24,8 +24,53 @@ export const n8nCreateWorkflowDoc: ToolDocumentation = {
     },
     returns: 'Created workflow object with id, name, nodes, connections, active status',
     examples: [
-      'n8n_create_workflow({name: "Webhook to Slack", nodes: [...], connections: {...}}) - Basic workflow',
-      'n8n_create_workflow({name: "Data ETL", nodes: [...], connections: {...], settings: {timezone: "UTC"}}) - With settings'
+      `// Basic webhook to Slack workflow
+n8n_create_workflow({
+  name: "Webhook to Slack",
+  nodes: [
+    {
+      id: "webhook_1",
+      name: "Webhook",
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 1,
+      position: [250, 300],
+      parameters: {
+        httpMethod: "POST",
+        path: "slack-notify"
+      }
+    },
+    {
+      id: "slack_1",
+      name: "Slack",
+      type: "n8n-nodes-base.slack",
+      typeVersion: 1,
+      position: [450, 300],
+      parameters: {
+        resource: "message",
+        operation: "post",
+        channel: "#general",
+        text: "={{$json.message}}"
+      }
+    }
+  ],
+  connections: {
+    "webhook_1": {
+      "main": [[{node: "slack_1", type: "main", index: 0}]]
+    }
+  }
+})`,
+      `// Workflow with settings and error handling
+n8n_create_workflow({
+  name: "Data Processing",
+  nodes: [...],
+  connections: {...},
+  settings: {
+    timezone: "America/New_York",
+    errorWorkflow: "error_handler_workflow_id",
+    saveDataSuccessExecution: "all",
+    saveDataErrorExecution: "all"
+  }
+})`
     ],
     useCases: [
       'Deploy validated workflows',
@@ -41,10 +86,11 @@ export const n8nCreateWorkflowDoc: ToolDocumentation = {
       'Test with n8n_trigger_webhook_workflow'
     ],
     pitfalls: [
-      'Requires API configuration',
-      'Created workflows are inactive',
-      'Node IDs must be unique',
-      'Credentials configured separately'
+      '**REQUIRES N8N_API_URL and N8N_API_KEY environment variables** - tool unavailable without n8n API access',
+      'Workflows created in INACTIVE state - must activate separately',
+      'Node IDs must be unique within workflow',
+      'Credentials must be configured separately in n8n',
+      'Node type names must include package prefix (e.g., "n8n-nodes-base.slack")'
     ],
     relatedTools: ['validate_workflow', 'n8n_update_partial_workflow', 'n8n_trigger_webhook_workflow']
   }

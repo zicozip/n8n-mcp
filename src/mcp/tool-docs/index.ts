@@ -31,7 +31,6 @@ import {
   n8nHealthCheckDoc,
   n8nListAvailableToolsDoc
 } from './system';
-import { codeNodeGuideDoc } from './special';
 import {
   n8nCreateWorkflowDoc,
   n8nGetWorkflowDoc,
@@ -56,9 +55,6 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
   n8n_diagnostic: n8nDiagnosticDoc,
   n8n_health_check: n8nHealthCheckDoc,
   n8n_list_available_tools: n8nListAvailableToolsDoc,
-  
-  // Special tools
-  code_node_guide: codeNodeGuideDoc,
   
   // Discovery tools
   search_nodes: searchNodesDoc,

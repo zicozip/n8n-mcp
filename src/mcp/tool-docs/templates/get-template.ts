@@ -33,7 +33,10 @@ export const getTemplateDoc: ToolDocumentation = {
   - views: Number of times viewed
   - created: Creation date
   - url: Link to template on n8n.io
-  - workflow: Complete workflow JSON ready for import
+  - workflow: Complete workflow JSON with structure:
+    - nodes: Array of node objects (id, name, type, typeVersion, position, parameters)
+    - connections: Object mapping source nodes to targets
+    - settings: Workflow configuration (timezone, error handling, etc.)
 - usage: Instructions for using the workflow`,
     examples: [
       'get_template({templateId: 1234}) - Get Slack notification workflow',
