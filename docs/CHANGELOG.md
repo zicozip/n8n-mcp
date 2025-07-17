@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.17] - 2025-07-17
+
+### Fixed
+- **Removed faulty auto-generated examples from MCP tools** (Issue #60)
+  - Removed examples from `get_node_essentials` responses that were misleading AI agents
+  - Removed examples from `validate_node_operation` when validation errors occur
+  - Examples were showing incorrect configurations (e.g., Slack showing "channel" property instead of required "select" property)
+  - Tools now focus on validation errors and fix suggestions instead of potentially incorrect examples
+  - Preserved helpful format hints in `get_node_for_task` (these show input formats like "#general" or URL examples, not node configurations)
+  - This change reduces confusion and helps AI agents build correct workflows on the first attempt
+
+### Changed
+- Updated tool documentation to reflect removal of auto-generated examples
+- `get_node_essentials` now points users to `validate_node_operation` for working configurations
+- Enhanced validation error messages to be more helpful without relying on examples
+
+## [2.7.16] - 2025-07-17
+
+### Added
+- **Comprehensive MCP tools documentation** (Issue #60)
+  - Documented 30 previously undocumented MCP tools
+  - Added complete parameter descriptions, examples, and best practices
+  - Implemented modular documentation system with per-tool files
+  - Documentation optimized for AI agent consumption (utilitarian approach)
+  - Added documentation for all n8n management tools (n8n_*)
+  - Added documentation for workflow validation tools
+  - Added documentation for template management tools
+  - Improved `tools_documentation()` to serve as central documentation hub
+
+### Enhanced
+- **Tool documentation system** completely rewritten for AI optimization
+  - Each tool now has its own documentation module
+  - Consistent structure: description, parameters, examples, tips, common errors
+  - AI-friendly formatting with clear sections and examples
+  - Reduced redundancy while maintaining completeness
+
 ## [2.7.15] - 2025-07-15
 
 ### Fixed
@@ -628,6 +664,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.17]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.16...v2.7.17
+[2.7.16]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.15...v2.7.16
+[2.7.15]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.13...v2.7.15
 [2.7.13]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.12...v2.7.13
 [2.7.12]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.11...v2.7.12
 [2.7.11]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.10...v2.7.11
