@@ -964,9 +964,9 @@ export class WorkflowValidator {
     }
 
     // Suggest proper connection structure for workflows with connection errors
-    const hasConnectionErrors = result.errors.some(e => 
-      e.message && (
-        e.message.includes('connection') || 
+    const hasConnectionErrors = result.errors.some(e =>
+      typeof e.message === 'string' && (
+        e.message.includes('connection') ||
         e.message.includes('Connection') ||
         e.message.includes('Multi-node workflow has no connections')
       )
