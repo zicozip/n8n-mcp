@@ -7,7 +7,6 @@
 
 import { ConfigValidator, ValidationResult, ValidationError, ValidationWarning } from './config-validator';
 import { NodeSpecificValidators, NodeValidationContext } from './node-specific-validators';
-import { ExampleGenerator } from './example-generator';
 
 export type ValidationMode = 'full' | 'operation' | 'minimal';
 export type ValidationProfile = 'strict' | 'runtime' | 'ai-friendly' | 'minimal';
@@ -78,10 +77,7 @@ export class EnhancedConfigValidator extends ConfigValidator {
     // Deduplicate errors
     enhancedResult.errors = this.deduplicateErrors(enhancedResult.errors);
     
-    // Add examples from ExampleGenerator if there are errors
-    if (enhancedResult.errors.length > 0) {
-      this.addExamplesFromGenerator(nodeType, enhancedResult);
-    }
+    // Examples removed - use validate_node_operation for configuration guidance
     
     // Generate next steps based on errors
     enhancedResult.nextSteps = this.generateNextSteps(enhancedResult);
@@ -253,16 +249,7 @@ export class EnhancedConfigValidator extends ConfigValidator {
     const { resource, operation } = result.operation || {};
     
     if (resource === 'message' && operation === 'send') {
-      // Add example for sending a message
-      result.examples?.push({
-        description: 'Send a simple text message to a channel',
-        config: {
-          resource: 'message',
-          operation: 'send',
-          channel: '#general',
-          text: 'Hello from n8n!'
-        }
-      });
+      // Examples removed - validation focuses on error detection
       
       // Check for common issues
       if (!config.channel && !config.channelId) {
@@ -274,15 +261,6 @@ export class EnhancedConfigValidator extends ConfigValidator {
           channelError.fix = 'Add channel: "#general" or use a channel ID like "C1234567890"';
         }
       }
-    } else if (resource === 'user' && operation === 'get') {
-      result.examples?.push({
-        description: 'Get user information by email',
-        config: {
-          resource: 'user',
-          operation: 'get',
-          user: 'user@example.com'
-        }
-      });
     }
   }
   
@@ -296,17 +274,7 @@ export class EnhancedConfigValidator extends ConfigValidator {
     const { operation } = result.operation || {};
     
     if (operation === 'append') {
-      result.examples?.push({
-        description: 'Append data to a spreadsheet',
-        config: {
-          operation: 'append',
-          sheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
-          range: 'Sheet1!A:B',
-          options: {
-            valueInputMode: 'USER_ENTERED'
-          }
-        }
-      });
+      // Examples removed - validation focuses on configuration correctness
       
       // Validate range format
       if (config.range && !config.range.includes('!')) {
@@ -327,33 +295,7 @@ export class EnhancedConfigValidator extends ConfigValidator {
     config: Record<string, any>,
     result: EnhancedValidationResult
   ): void {
-    // Add common examples based on method
-    if (config.method === 'GET') {
-      result.examples?.push({
-        description: 'GET request with query parameters',
-        config: {
-          method: 'GET',
-          url: 'https://api.example.com/users',
-          queryParameters: {
-            parameters: [
-              { name: 'page', value: '1' },
-              { name: 'limit', value: '10' }
-            ]
-          }
-        }
-      });
-    } else if (config.method === 'POST') {
-      result.examples?.push({
-        description: 'POST request with JSON body',
-        config: {
-          method: 'POST',
-          url: 'https://api.example.com/users',
-          sendBody: true,
-          bodyContentType: 'json',
-          jsonBody: JSON.stringify({ name: 'John Doe', email: 'john@example.com' })
-        }
-      });
-    }
+    // Examples removed - validation provides error messages and fixes instead
   }
   
   /**
@@ -383,56 +325,13 @@ export class EnhancedConfigValidator extends ConfigValidator {
       steps.push('Consider addressing warnings for better reliability');
     }
     
-    if (result.examples && result.examples.length > 0 && result.errors.length > 0) {
-      steps.push('See examples above for working configurations');
+    if (result.errors.length > 0) {
+      steps.push('Fix the errors above following the provided suggestions');
     }
     
     return steps;
   }
   
-  /**
-   * Add examples from ExampleGenerator to help fix validation errors
-   */
-  private static addExamplesFromGenerator(
-    nodeType: string,
-    result: EnhancedValidationResult
-  ): void {
-    const examples = ExampleGenerator.getExamples(nodeType);
-    
-    if (!examples) {
-      return;
-    }
-    
-    // Add minimal example if there are missing required fields
-    if (result.errors.some(e => e.type === 'missing_required')) {
-      result.examples?.push({
-        description: 'Minimal working configuration',
-        config: examples.minimal
-      });
-    }
-    
-    // Add common example if available
-    if (examples.common) {
-      // Check if the common example matches the operation context
-      const { operation } = result.operation || {};
-      const commonOp = examples.common.operation || examples.common.action;
-      
-      if (!operation || operation === commonOp) {
-        result.examples?.push({
-          description: 'Common configuration pattern',
-          config: examples.common
-        });
-      }
-    }
-    
-    // Add advanced example for complex validation errors
-    if (examples.advanced && result.errors.length > 2) {
-      result.examples?.push({
-        description: 'Advanced configuration with all options',
-        config: examples.advanced
-      });
-    }
-  }
   
   /**
    * Deduplicate errors based on property and type

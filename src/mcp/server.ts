@@ -13,7 +13,6 @@ import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
 import { PropertyFilter } from '../services/property-filter';
-import { ExampleGenerator } from '../services/example-generator';
 import { TaskTemplates } from '../services/task-templates';
 import { ConfigValidator } from '../services/config-validator';
 import { EnhancedConfigValidator, ValidationMode, ValidationProfile } from '../services/enhanced-config-validator';
@@ -1061,9 +1060,6 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     // Get essential properties
     const essentials = PropertyFilter.getEssentials(allProperties, node.nodeType);
     
-    // Generate examples
-    const examples = ExampleGenerator.getExamples(node.nodeType, essentials);
-    
     // Get operations (already parsed by repository)
     const operations = node.operations || [];
     
@@ -1082,7 +1078,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         action: op.action,
         resource: op.resource
       })),
-      examples,
+      // Examples removed - use validate_node_operation for working configurations
       metadata: {
         totalProperties: allProperties.length,
         isAITool: node.isAITool,
