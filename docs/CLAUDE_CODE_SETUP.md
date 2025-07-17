@@ -42,7 +42,7 @@ claude mcp add-from-claude-desktop
 For team sharing, add to `.mcp.json` in your project root:
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "n8n-mcp": {
       "command": "npx",
       "args": ["n8n-mcp"],
