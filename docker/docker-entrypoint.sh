@@ -70,22 +70,12 @@ if [ "$(id -u)" = "0" ]; then
     if [ -d "/app/data" ]; then
         chown -R nodejs:nodejs /app/data
     fi
-    # Switch to nodejs user (using Alpine's native su)
-    exec su nodejs -c "$*"
+    # Switch to nodejs user with proper exec chain for signal propagation
+    exec su -s /bin/sh nodejs -c "exec $*"
 fi
 
-# Trap signals for graceful shutdown
-# In stdio mode, don't output anything to stdout as it breaks JSON-RPC
-if [ "$MCP_MODE" = "stdio" ]; then
-    # Silent trap - no output at all
-    trap 'kill -TERM $PID 2>/dev/null || true' TERM INT EXIT
-else
-    # In HTTP mode, output to stderr
-    trap 'echo "Shutting down..." >&2; kill -TERM $PID 2>/dev/null' TERM INT EXIT
-fi
-
-# Execute the main command in background
-# In stdio mode, use the wrapper for clean output
+# Execute the main command directly with exec
+# This ensures our Node.js process becomes PID 1 and receives signals directly
 if [ "$MCP_MODE" = "stdio" ]; then
     # Debug: Log to stderr to check if wrapper exists
     if [ "$DEBUG_DOCKER" = "true" ]; then
@@ -95,6 +85,7 @@ if [ "$MCP_MODE" = "stdio" ]; then
     
     if [ -f "/app/dist/mcp/stdio-wrapper.js" ]; then
         # Use the stdio wrapper for clean JSON-RPC output
+        # exec replaces the shell with node process as PID 1
         exec node /app/dist/mcp/stdio-wrapper.js
     else
         # Fallback: run with explicit environment

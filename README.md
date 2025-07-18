@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.7.19-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.7.20-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![n8n version](https://img.shields.io/badge/n8n-v1.102.4-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
@@ -161,6 +161,7 @@ Add to Claude Desktop config:
         "run",
         "-i",
         "--rm",
+        "--init",
         "-e", "MCP_MODE=stdio",
         "-e", "LOG_LEVEL=error",
         "-e", "DISABLE_CONSOLE_OUTPUT=true",
@@ -181,6 +182,7 @@ Add to Claude Desktop config:
         "run",
         "-i",
         "--rm",
+        "--init",
         "-e", "MCP_MODE=stdio",
         "-e", "LOG_LEVEL=error",
         "-e", "DISABLE_CONSOLE_OUTPUT=true",
@@ -667,23 +669,20 @@ See [CHANGELOG.md](./docs/CHANGELOG.md) for full version history and recent chan
 
 ## ⚠️ Known Issues
 
-### Claude Desktop Container Duplication
-When using n8n-MCP with Claude Desktop in Docker mode, Claude Desktop may start the container twice during initialization. This is a known Claude Desktop bug ([modelcontextprotocol/servers#812](https://github.com/modelcontextprotocol/servers/issues/812)).
+### Claude Desktop Container Management
 
-**Symptoms:**
-- Two identical containers running for the same MCP server
-- Container name conflicts if using `--name` parameter
-- Doubled resource usage
+#### Container Accumulation (Fixed in v2.7.20+)
+Previous versions had an issue where containers would not properly clean up when Claude Desktop sessions ended. This has been fixed in v2.7.20+ with proper signal handling.
 
-**Workarounds:**
-1. **Avoid using --name parameter** - Let Docker assign random names:
+**For best container lifecycle management:**
+1. **Use the --init flag** (recommended) - Docker's init system ensures proper signal handling:
 ```json
 {
   "mcpServers": {
     "n8n-mcp": {
       "command": "docker",
       "args": [
-        "run", "-i", "--rm",
+        "run", "-i", "--rm", "--init",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
       ]
     }
@@ -691,15 +690,11 @@ When using n8n-MCP with Claude Desktop in Docker mode, Claude Desktop may start 
 }
 ```
 
-2. **Use HTTP mode instead** - Deploy n8n-mcp as a standalone HTTP server:
+2. **Ensure you're using v2.7.20 or later** - Check your version:
 ```bash
-docker compose up -d  # Start HTTP server
+docker run --rm ghcr.io/czlonkowski/n8n-mcp:latest --version
 ```
-Then connect via mcp-remote (see [HTTP Deployment Guide](./docs/HTTP_DEPLOYMENT.md))
 
-3. **Use Docker MCP Toolkit** - Better container management through Docker Desktop
-
-This issue does not affect the functionality of n8n-MCP itself, only the container management in Claude Desktop.
 
 ## 📦 License
 

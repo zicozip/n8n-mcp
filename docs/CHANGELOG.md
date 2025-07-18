@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.20] - 2025-07-18
+
+### Fixed
+- **Docker container cleanup on session end** (Issue #66)
+  - Fixed containers not responding to termination signals when Claude Desktop sessions end
+  - Added proper SIGTERM/SIGINT signal handlers to stdio-wrapper.ts
+  - Removed problematic trap commands from docker-entrypoint.sh
+  - Added STOPSIGNAL directive to Dockerfile for explicit signal handling
+  - Implemented graceful shutdown in MCP server with database cleanup
+  - Added stdin close detection for proper cleanup when Claude Desktop closes the pipe
+  - Containers now properly exit with the `--rm` flag, preventing accumulation
+  - Recommended using `--init` flag in Docker run command for best signal handling
+
+### Documentation
+- Updated README with container lifecycle management best practices
+- Added `--init` flag to all Docker configuration examples
+- Added troubleshooting section for container accumulation issues
+
 ## [2.7.19] - 2025-07-18
 
 ### Fixed

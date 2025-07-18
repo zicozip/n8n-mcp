@@ -2031,4 +2031,18 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     // Keep the process alive and listening
     process.stdin.resume();
   }
+  
+  async shutdown(): Promise<void> {
+    logger.info('Shutting down MCP server...');
+    
+    // Close database connection if it exists
+    if (this.db) {
+      try {
+        await this.db.close();
+        logger.info('Database connection closed');
+      } catch (error) {
+        logger.error('Error closing database:', error);
+      }
+    }
+  }
 }

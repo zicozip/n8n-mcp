@@ -42,9 +42,11 @@ console.countReset = () => {};
 // Import and run the server AFTER suppressing output
 import { N8NDocumentationMCPServer } from './server';
 
+let server: N8NDocumentationMCPServer | null = null;
+
 async function main() {
   try {
-    const server = new N8NDocumentationMCPServer();
+    server = new N8NDocumentationMCPServer();
     await server.run();
   } catch (error) {
     // In case of fatal error, output to stderr only
@@ -62,6 +64,49 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   originalConsoleError('Unhandled rejection:', reason);
   process.exit(1);
+});
+
+// Handle termination signals for proper cleanup
+let isShuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  
+  // Log to stderr only (not stdout which would corrupt JSON-RPC)
+  originalConsoleError(`Received ${signal}, shutting down gracefully...`);
+  
+  try {
+    // Shutdown the server if it exists
+    if (server) {
+      await server.shutdown();
+    }
+  } catch (error) {
+    originalConsoleError('Error during shutdown:', error);
+  }
+  
+  // Close stdin to signal we're done reading
+  process.stdin.pause();
+  process.stdin.destroy();
+  
+  // Exit with timeout to ensure we don't hang
+  setTimeout(() => {
+    process.exit(0);
+  }, 500).unref(); // unref() allows process to exit if this is the only thing keeping it alive
+  
+  // But also exit immediately if nothing else is pending
+  process.exit(0);
+}
+
+// Register signal handlers
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGHUP', () => void shutdown('SIGHUP'));
+
+// Also handle stdin close (when Claude Desktop closes the pipe)
+process.stdin.on('end', () => {
+  originalConsoleError('stdin closed, shutting down...');
+  void shutdown('STDIN_CLOSE');
 });
 
 main();
