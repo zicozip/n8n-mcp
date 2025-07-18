@@ -25,7 +25,7 @@ import * as n8nHandlers from './handlers-n8n-manager';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { getToolDocumentation, getToolsOverview } from './tools-documentation';
 import { PROJECT_VERSION } from '../utils/version';
-import { normalizeNodeType, getNodeTypeAlternatives } from '../utils/node-utils';
+import { normalizeNodeType, getNodeTypeAlternatives, getWorkflowNodeType } from '../utils/node-utils';
 
 interface NodeRow {
   node_type: string;
@@ -383,6 +383,7 @@ export class N8NDocumentationMCPServer {
     
     return {
       ...node,
+      workflowNodeType: getWorkflowNodeType(node.package, node.nodeType),
       aiToolCapabilities
     };
   }
@@ -517,6 +518,7 @@ export class N8NDocumentationMCPServer {
         query,
         results: scoredNodes.map(node => ({
           nodeType: node.node_type,
+          workflowNodeType: getWorkflowNodeType(node.package_name, node.node_type),
           displayName: node.display_name,
           description: node.description,
           category: node.category,
@@ -596,6 +598,7 @@ export class N8NDocumentationMCPServer {
       mode: 'FUZZY',
       results: matchingNodes.map(node => ({
         nodeType: node.node_type,
+        workflowNodeType: getWorkflowNodeType(node.package_name, node.node_type),
         displayName: node.display_name,
         description: node.description,
         category: node.category,
@@ -719,6 +722,7 @@ export class N8NDocumentationMCPServer {
         query, 
         results: rankedNodes.map(node => ({
           nodeType: node.node_type,
+          workflowNodeType: getWorkflowNodeType(node.package_name, node.node_type),
           displayName: node.display_name,
           description: node.description,
           category: node.category,
@@ -757,6 +761,7 @@ export class N8NDocumentationMCPServer {
       query,
       results: rankedNodes.map(node => ({
         nodeType: node.node_type,
+        workflowNodeType: getWorkflowNodeType(node.package_name, node.node_type),
         displayName: node.display_name,
         description: node.description,
         category: node.category,
@@ -1093,6 +1098,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     const result = {
       nodeType: node.nodeType,
+      workflowNodeType: getWorkflowNodeType(node.package, node.nodeType),
       displayName: node.displayName,
       description: node.description,
       category: node.category,
@@ -1328,6 +1334,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     // Add node context to result
     return {
       nodeType: node.nodeType,
+      workflowNodeType: getWorkflowNodeType(node.package, node.nodeType),
       displayName: node.displayName,
       ...validationResult,
       summary: {
@@ -1453,6 +1460,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     return {
       nodeType: node.nodeType,
+      workflowNodeType: getWorkflowNodeType(node.package, node.nodeType),
       displayName: node.displayName,
       description: node.description,
       package: node.package,

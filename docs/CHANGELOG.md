@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Node type utilities** in `src/utils/node-utils.ts`
   - `normalizeNodeType()` - Converts full package names to database format
   - `getNodeTypeAlternatives()` - Provides fallback options for edge cases
+  - `getWorkflowNodeType()` - Constructs proper n8n workflow format from database values
+- **workflowNodeType field** in all MCP tool responses that return node information
+  - AI agents now receive both `nodeType` (internal format) and `workflowNodeType` (n8n format)
+  - Example: `nodeType: "nodes-base.webhook"`, `workflowNodeType: "n8n-nodes-base.webhook"`
+  - Prevents confusion where AI agents would search nodes and use wrong format in workflows
+  - Added to: `search_nodes`, `get_node_info`, `get_node_essentials`, `get_node_as_tool_info`, `validate_node_operation`
 
 ## [2.7.17] - 2025-07-17
 
