@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.19] - 2025-07-18
+
+### Fixed
+- **Enhanced node type format normalization** (Issue #74)
+  - Fixed issue where `n8n-nodes-langchain.chattrigger` (incorrect format) was not being normalized
+  - Added support for `n8n-nodes-langchain.*` → `nodes-langchain.*` normalization (without @n8n/ prefix)
+  - Implemented case-insensitive node name matching (e.g., `chattrigger` → `chatTrigger`)
+  - Added smart camelCase detection for common patterns (trigger, request, sheets, etc.)
+  - Fixed `get_node_documentation` tool to use same normalization logic as other tools
+  - All MCP tools now consistently handle various format variations:
+    - `nodes-langchain.chatTrigger` (correct format)
+    - `n8n-nodes-langchain.chatTrigger` (package format)
+    - `n8n-nodes-langchain.chattrigger` (package + wrong case)
+    - `nodes-langchain.chattrigger` (wrong case only)
+    - `@n8n/n8n-nodes-langchain.chatTrigger` (full npm format)
+  - Updated all 7 node lookup locations to use normalized types for alternatives generation
+  - Enhanced `getNodeTypeAlternatives()` to normalize all generated alternatives
+
 ## [2.7.18] - 2025-07-18
 
 ### Fixed
@@ -712,6 +730,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.19]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.18...v2.7.19
 [2.7.18]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.17...v2.7.18
 [2.7.17]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.16...v2.7.17
 [2.7.16]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.15...v2.7.16

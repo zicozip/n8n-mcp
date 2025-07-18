@@ -354,7 +354,7 @@ export class N8NDocumentationMCPServer {
     
     if (!node) {
       // Fallback to other alternatives for edge cases
-      const alternatives = getNodeTypeAlternatives(nodeType);
+      const alternatives = getNodeTypeAlternatives(normalizedType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -975,6 +975,21 @@ export class N8NDocumentationMCPServer {
       `).get(nodeType) as NodeRow | undefined;
     }
     
+    // If still not found, try alternatives
+    if (!node) {
+      const alternatives = getNodeTypeAlternatives(normalizedType);
+      
+      for (const alt of alternatives) {
+        node = this.db!.prepare(`
+          SELECT node_type, display_name, documentation, description 
+          FROM nodes 
+          WHERE node_type = ?
+        `).get(alt) as NodeRow | undefined;
+        
+        if (node) break;
+      }
+    }
+    
     if (!node) {
       throw new Error(`Node ${nodeType} not found`);
     }
@@ -1072,7 +1087,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     if (!node) {
       // Fallback to other alternatives for edge cases
-      const alternatives = getNodeTypeAlternatives(nodeType);
+      const alternatives = getNodeTypeAlternatives(normalizedType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1146,7 +1161,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     if (!node) {
       // Fallback to other alternatives for edge cases
-      const alternatives = getNodeTypeAlternatives(nodeType);
+      const alternatives = getNodeTypeAlternatives(normalizedType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1304,7 +1319,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     if (!node) {
       // Fallback to other alternatives for edge cases
-      const alternatives = getNodeTypeAlternatives(nodeType);
+      const alternatives = getNodeTypeAlternatives(normalizedType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1362,7 +1377,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     if (!node) {
       // Fallback to other alternatives for edge cases
-      const alternatives = getNodeTypeAlternatives(nodeType);
+      const alternatives = getNodeTypeAlternatives(normalizedType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1416,7 +1431,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     if (!node) {
       // Fallback to other alternatives for edge cases
-      const alternatives = getNodeTypeAlternatives(nodeType);
+      const alternatives = getNodeTypeAlternatives(normalizedType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1593,7 +1608,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     if (!node) {
       // Fallback to other alternatives for edge cases
-      const alternatives = getNodeTypeAlternatives(nodeType);
+      const alternatives = getNodeTypeAlternatives(normalizedType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
