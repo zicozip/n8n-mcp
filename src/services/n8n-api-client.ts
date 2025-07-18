@@ -87,17 +87,32 @@ export class N8nApiClient {
   // Health check to verify API connectivity
   async healthCheck(): Promise<HealthCheckResponse> {
     try {
-      // First try the health endpoint
-      const response = await this.client.get('/health');
-      return response.data;
+      // Try the standard healthz endpoint (available on all n8n instances)
+      const baseUrl = this.client.defaults.baseURL || '';
+      const healthzUrl = baseUrl.replace(/\/api\/v\d+\/?$/, '') + '/healthz';
+      
+      const response = await axios.get(healthzUrl, {
+        timeout: 5000,
+        validateStatus: (status) => status < 500
+      });
+      
+      if (response.status === 200 && response.data?.status === 'ok') {
+        return { 
+          status: 'ok',
+          features: {} // Features detection would require additional endpoints
+        };
+      }
+      
+      // If healthz doesn't work, fall back to API check
+      throw new Error('healthz endpoint not available');
     } catch (error) {
-      // If health endpoint doesn't exist, try listing workflows with limit 1
+      // If healthz endpoint doesn't exist, try listing workflows with limit 1
       // This is a fallback for older n8n versions
       try {
         await this.client.get('/workflows', { params: { limit: 1 } });
         return { 
           status: 'ok',
-          features: {} // We can't determine features without proper health endpoint
+          features: {}
         };
       } catch (fallbackError) {
         throw handleN8nApiError(fallbackError);

@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `get_property_dependencies`, `search_nodes`, `get_node_documentation`
   - Maintains backward compatibility - existing short prefixes continue to work
   - Created centralized `normalizeNodeType` utility for consistent handling across all tools
+- **Health check endpoint** - Fixed incorrect `/health` endpoint usage
+  - Now correctly uses `/healthz` endpoint which is available on all n8n instances
+  - Improved error handling with proper fallback to workflow list endpoint
+  - Fixed axios import for healthz endpoint access
 
 ### Added
 - **Node type utilities** in `src/utils/node-utils.ts`
@@ -29,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example: `nodeType: "nodes-base.webhook"`, `workflowNodeType: "n8n-nodes-base.webhook"`
   - Prevents confusion where AI agents would search nodes and use wrong format in workflows
   - Added to: `search_nodes`, `get_node_info`, `get_node_essentials`, `get_node_as_tool_info`, `validate_node_operation`
+- **Version information in health check**
+  - `n8n_health_check` now returns MCP version and supported n8n version
+  - Added `mcpVersion`, `supportedN8nVersion`, and `versionNote` fields
+  - Includes instructions for AI agents to inform users about version compatibility
+  - Note: n8n API currently doesn't expose instance version, so manual verification is required
 
 ## [2.7.17] - 2025-07-17
 

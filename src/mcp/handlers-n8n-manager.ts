@@ -758,6 +758,11 @@ export async function handleHealthCheck(): Promise<McpToolResponse> {
     const client = ensureApiConfigured();
     const health = await client.healthCheck();
     
+    // Get MCP version from package.json
+    const packageJson = require('../../package.json');
+    const mcpVersion = packageJson.version;
+    const supportedN8nVersion = packageJson.dependencies?.n8n?.replace(/[^0-9.]/g, '');
+    
     return {
       success: true,
       data: {
@@ -765,7 +770,10 @@ export async function handleHealthCheck(): Promise<McpToolResponse> {
         instanceId: health.instanceId,
         n8nVersion: health.n8nVersion,
         features: health.features,
-        apiUrl: getN8nApiConfig()?.baseUrl
+        apiUrl: getN8nApiConfig()?.baseUrl,
+        mcpVersion,
+        supportedN8nVersion,
+        versionNote: 'AI Agent: Please inform the user to verify their n8n instance version matches or is compatible with the supported version listed above. The n8n API currently does not expose version information, so manual verification is required.'
       }
     };
   } catch (error) {
