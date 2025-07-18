@@ -66,8 +66,16 @@ ${full.relatedTools.map(t => `- ${t}`).join('\n')}`;
 }
 
 export function getToolsOverview(depth: 'essentials' | 'full' = 'essentials'): string {
+  // Get version info from package.json
+  const packageJson = require('../../package.json');
+  const supportedN8nVersion = packageJson.dependencies?.n8n?.replace(/[^0-9.]/g, '') || 'latest';
+  
   if (depth === 'essentials') {
     return `# n8n MCP Tools Reference
+
+## Important: Compatibility Notice
+⚠️ This MCP server is tested with n8n version ${supportedN8nVersion}. 
+Inform the user to check their n8n version matches or is compatible with the supported version listed above.
 
 ## Code Node Configuration
 When working with Code nodes, always start by calling the relevant guide:
@@ -133,6 +141,10 @@ tools_documentation({topic: "tool_name", depth: "full"})`;
 
   const categories = getAllCategories();
   return `# n8n MCP Tools - Complete Reference
+
+## Important: Compatibility Notice
+⚠️ This MCP server is tested with n8n version ${supportedN8nVersion}. 
+Run n8n_health_check() to verify your n8n instance compatibility and API connectivity.
 
 ## Code Node Guides
 For Code node configuration, use these comprehensive guides:
