@@ -201,7 +201,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_list_workflows',
-    description: `List workflows with optional filters. Supports pagination via cursor.`,
+    description: `List workflows (minimal metadata only). Returns id/name/active/dates/tags. Check hasMore/nextCursor for pagination.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -323,7 +323,7 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_list_executions',
-    description: `List workflow executions with optional filters. Supports pagination.`,
+    description: `List workflow executions (returns up to limit). Check hasMore/nextCursor for pagination.`,
     inputSchema: {
       type: 'object',
       properties: {

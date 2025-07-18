@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Now correctly uses `/healthz` endpoint which is available on all n8n instances
   - Improved error handling with proper fallback to workflow list endpoint
   - Fixed axios import for healthz endpoint access
+- **n8n_list_workflows pagination clarity** (Issue #54)
+  - Changed misleading `total` field to `returned` to clarify it's the count of items in current page
+  - Added `hasMore` boolean flag for clear pagination indication
+  - Added `_note` field with guidance when more data is available ("More workflows available. Use cursor to get next page.")
+  - Applied same improvements to `n8n_list_executions` for consistency
+  - AI agents now correctly understand they need to use pagination instead of assuming limited total workflows
 
 ### Added
 - **Node type utilities** in `src/utils/node-utils.ts`
@@ -38,6 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `mcpVersion`, `supportedN8nVersion`, and `versionNote` fields
   - Includes instructions for AI agents to inform users about version compatibility
   - Note: n8n API currently doesn't expose instance version, so manual verification is required
+
+### Performance
+- **n8n_list_workflows response size optimization**
+  - Tool now returns only minimal metadata (id, name, active, dates, tags, nodeCount) instead of full workflow structure
+  - Reduced response size by ~95% - from potentially thousands of tokens per workflow to ~10 tokens
+  - Eliminated token limit errors when listing workflows with many nodes
+  - Updated tool description to clarify it returns "minimal metadata only"
+  - Users should use `n8n_get_workflow` to fetch full workflow details when needed
 
 ## [2.7.17] - 2025-07-17
 

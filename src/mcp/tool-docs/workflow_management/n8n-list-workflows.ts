@@ -4,7 +4,7 @@ export const n8nListWorkflowsDoc: ToolDocumentation = {
   name: 'n8n_list_workflows',
   category: 'workflow_management',
   essentials: {
-    description: 'List workflows with optional filters. Supports pagination via cursor.',
+    description: 'List workflows (minimal metadata only - no nodes/connections). Supports pagination via cursor.',
     keyParameters: ['limit', 'active', 'tags'],
     example: 'n8n_list_workflows({limit: 20, active: true})',
     performance: 'Fast (100-300ms)',
@@ -15,7 +15,7 @@ export const n8nListWorkflowsDoc: ToolDocumentation = {
     ]
   },
   full: {
-    description: 'Lists workflows from n8n with powerful filtering options including active status, tags, and project assignment. Supports cursor-based pagination for large workflow collections. Returns minimal workflow information by default for performance.',
+    description: 'Lists workflows from n8n with powerful filtering options. Returns ONLY minimal metadata (id, name, active, dates, tags, nodeCount) - no workflow structure, nodes, or connections. Use n8n_get_workflow to fetch full workflow details.',
     parameters: {
       limit: { type: 'number', description: 'Number of workflows to return (1-100, default: 100)' },
       cursor: { type: 'string', description: 'Pagination cursor from previous response for next page' },
@@ -24,7 +24,7 @@ export const n8nListWorkflowsDoc: ToolDocumentation = {
       projectId: { type: 'string', description: 'Filter by project ID (enterprise feature)' },
       excludePinnedData: { type: 'boolean', description: 'Exclude pinned data from response (default: true)' }
     },
-    returns: 'Object with: data array (workflows with id, name, active, tags, dates), nextCursor (for pagination), and metadata (total count if available)',
+    returns: 'Object with: workflows array (minimal fields: id, name, active, createdAt, updatedAt, tags, nodeCount), returned (count in this response), hasMore (boolean), nextCursor (for pagination), and _note (guidance when more data exists)',
     examples: [
       'n8n_list_workflows({limit: 20}) - First 20 workflows',
       'n8n_list_workflows({active: true, tags: ["production"]}) - Active production workflows',
@@ -37,18 +37,18 @@ export const n8nListWorkflowsDoc: ToolDocumentation = {
       'Bulk workflow operations',
       'Generate workflow reports'
     ],
-    performance: 'Fast listing - typically 100-300ms for standard page sizes. Excludes workflow content for speed.',
+    performance: 'Very fast - typically 50-200ms. Returns only minimal metadata without workflow structure.',
     bestPractices: [
-      'Use pagination for large instances',
-      'Cache results for UI responsiveness',
-      'Filter to reduce result set',
-      'Combine with get_workflow_minimal for details'
+      'Always check hasMore flag to determine if pagination is needed',
+      'Use cursor from previous response to get next page',
+      'The returned count is NOT the total in the system',
+      'Iterate with cursor until hasMore is false for complete list'
     ],
     pitfalls: [
       'Requires N8N_API_URL and N8N_API_KEY configured',
       'Maximum 100 workflows per request',
-      'Tags must match exactly (case-sensitive)',
-      'No workflow content in results'
+      'Server may return fewer than requested limit',
+      'returned field is count of current page only, not system total'
     ],
     relatedTools: ['n8n_get_workflow_minimal', 'n8n_get_workflow', 'n8n_update_partial_workflow', 'n8n_list_executions']
   }

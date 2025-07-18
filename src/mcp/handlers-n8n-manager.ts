@@ -465,12 +465,27 @@ export async function handleListWorkflows(args: unknown): Promise<McpToolRespons
       excludePinnedData: input.excludePinnedData ?? true
     });
     
+    // Strip down workflows to only essential metadata
+    const minimalWorkflows = response.data.map(workflow => ({
+      id: workflow.id,
+      name: workflow.name,
+      active: workflow.active,
+      createdAt: workflow.createdAt,
+      updatedAt: workflow.updatedAt,
+      tags: workflow.tags || [],
+      nodeCount: workflow.nodes?.length || 0
+    }));
+
     return {
       success: true,
       data: {
-        workflows: response.data,
+        workflows: minimalWorkflows,
+        returned: minimalWorkflows.length,
         nextCursor: response.nextCursor,
-        total: response.data.length
+        hasMore: !!response.nextCursor,
+        ...(response.nextCursor ? { 
+          _note: "More workflows available. Use cursor to get next page." 
+        } : {})
       }
     };
   } catch (error) {
@@ -688,8 +703,12 @@ export async function handleListExecutions(args: unknown): Promise<McpToolRespon
       success: true,
       data: {
         executions: response.data,
+        returned: response.data.length,
         nextCursor: response.nextCursor,
-        total: response.data.length
+        hasMore: !!response.nextCursor,
+        ...(response.nextCursor ? { 
+          _note: "More executions available. Use cursor to get next page." 
+        } : {})
       }
     };
   } catch (error) {
