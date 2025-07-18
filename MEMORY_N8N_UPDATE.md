@@ -79,4 +79,6 @@ To see what would be updated without making changes:
 npm run update:n8n:check
 ```
 
+At the end, update version badges in README.md
+
 This shows you the available updates without modifying anything.

@@ -2,9 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.7.15-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.7.18-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
-[![n8n version](https://img.shields.io/badge/n8n-v1.101.1-orange.svg)](https://github.com/n8n-io/n8n)
+[![n8n version](https://img.shields.io/badge/n8n-v1.102.4-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/VY6UOG?referralCode=n8n-mcp)
 
@@ -651,11 +651,11 @@ npm run dev:http       # HTTP dev mode
 
 ## 📊 Metrics & Coverage
 
-Current database coverage (n8n v1.101.1):
+Current database coverage (n8n v1.102.4):
 
-- ✅ **528/528** nodes loaded (100%)
-- ✅ **520** nodes with properties (98.5%)
-- ✅ **470** nodes with documentation (90%)
+- ✅ **531/531** nodes loaded (100%)
+- ✅ **523** nodes with properties (98.5%)
+- ✅ **473** nodes with documentation (89%)
 - ✅ **263** AI-capable tools detected
 - ✅ **AI Agent & LangChain nodes** fully documented
 - ⚡ **Average response time**: ~12ms
