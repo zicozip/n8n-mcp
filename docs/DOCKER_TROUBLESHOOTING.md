@@ -129,34 +129,37 @@ networks:
     driver: bridge
 ```
 
-### Container Name Conflicts
+### Container Cleanup Issues (Fixed in v2.7.20+)
 
 **Symptoms:**
-- Error: "Container with name '/n8n-mcp-container' already exists"
-- Claude Desktop shows duplicate containers
+- Containers accumulate after Claude Desktop restarts
+- Containers show as "unhealthy" but don't clean up
+- `--rm` flag doesn't work as expected
 
-**Root Cause:** Claude Desktop bug that spawns containers twice.
+**Root Cause:** Fixed in v2.7.20 - containers weren't handling termination signals properly.
 
 **Solutions:**
 
-1. **Remove container name (Recommended):**
+1. **Update to v2.7.20+ and use --init flag (Recommended):**
 ```json
 {
   "command": "docker",
   "args": [
-    "run", "-i", "--rm",
-    // Remove: "--name", "n8n-mcp-container",
+    "run", "-i", "--rm", "--init",
     "ghcr.io/czlonkowski/n8n-mcp:latest"
   ]
 }
 ```
 
-2. **Manual cleanup when it happens:**
+2. **Manual cleanup of old containers:**
 ```bash
-docker rm -f n8n-mcp-container
+# Remove all stopped n8n-mcp containers
+docker ps -a | grep n8n-mcp | grep Exited | awk '{print $1}' | xargs -r docker rm
 ```
 
-3. **Use HTTP mode instead** (avoids the issue entirely)
+3. **For versions before 2.7.20:**
+- Manually clean up containers periodically
+- Consider using HTTP mode instead
 
 ### n8n API Connection Issues
 

@@ -136,7 +136,7 @@ For local Claude Desktop integration without HTTP:
 
 ```bash
 # Run in stdio mode (interactive)
-docker run --rm -i \
+docker run --rm -i --init \
   -e MCP_MODE=stdio \
   -v n8n-mcp-data:/app/data \
   ghcr.io/czlonkowski/n8n-mcp:latest
@@ -152,6 +152,7 @@ Configure Claude Desktop:
         "run",
         "--rm",
         "-i",
+        "--init",
         "-e", "MCP_MODE=stdio",
         "-v", "n8n-mcp-data:/app/data",
         "ghcr.io/czlonkowski/n8n-mcp:latest"
