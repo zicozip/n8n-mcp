@@ -25,6 +25,7 @@ import * as n8nHandlers from './handlers-n8n-manager';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { getToolDocumentation, getToolsOverview } from './tools-documentation';
 import { PROJECT_VERSION } from '../utils/version';
+import { normalizeNodeType, getNodeTypeAlternatives } from '../utils/node-utils';
 
 interface NodeRow {
   node_type: string;
@@ -341,16 +342,19 @@ export class N8NDocumentationMCPServer {
   private async getNodeInfo(nodeType: string): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    let node = this.repository.getNode(nodeType);
+    
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.repository.getNode(normalizedType);
+    
+    if (!node && normalizedType !== nodeType) {
+      // Try original if normalization changed it
+      node = this.repository.getNode(nodeType);
+    }
     
     if (!node) {
-      // Try alternative formats
-      const alternatives = [
-        nodeType,
-        nodeType.replace('n8n-nodes-base.', ''),
-        `n8n-nodes-base.${nodeType}`,
-        nodeType.toLowerCase()
-      ];
+      // Fallback to other alternatives for edge cases
+      const alternatives = getNodeTypeAlternatives(nodeType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -359,10 +363,10 @@ export class N8NDocumentationMCPServer {
           break;
         }
       }
-      
-      if (!node) {
-        throw new Error(`Node ${nodeType} not found`);
-      }
+    }
+    
+    if (!node) {
+      throw new Error(`Node ${nodeType} not found`);
     }
     
     // Add AI tool capabilities information
@@ -394,6 +398,16 @@ export class N8NDocumentationMCPServer {
     await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
     
+    // Normalize the query if it looks like a full node type
+    let normalizedQuery = query;
+    
+    // Check if query contains node type patterns and normalize them
+    if (query.includes('n8n-nodes-base.') || query.includes('@n8n/n8n-nodes-langchain.')) {
+      normalizedQuery = query
+        .replace(/n8n-nodes-base\./g, 'nodes-base.')
+        .replace(/@n8n\/n8n-nodes-langchain\./g, 'nodes-langchain.');
+    }
+    
     const searchMode = options?.mode || 'OR';
     
     // Check if FTS5 table exists
@@ -403,11 +417,11 @@ export class N8NDocumentationMCPServer {
     `).get();
     
     if (ftsExists) {
-      // Use FTS5 search
-      return this.searchNodesFTS(query, limit, searchMode);
+      // Use FTS5 search with normalized query
+      return this.searchNodesFTS(normalizedQuery, limit, searchMode);
     } else {
-      // Fallback to LIKE search (existing implementation)
-      return this.searchNodesLIKE(query, limit);
+      // Fallback to LIKE search with normalized query
+      return this.searchNodesLIKE(normalizedQuery, limit);
     }
   }
   
@@ -938,11 +952,23 @@ export class N8NDocumentationMCPServer {
   private async getNodeDocumentation(nodeType: string): Promise<any> {
     await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
-    const node = this.db!.prepare(`
+    
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.db!.prepare(`
       SELECT node_type, display_name, documentation, description 
       FROM nodes 
       WHERE node_type = ?
-    `).get(nodeType) as NodeRow | undefined;
+    `).get(normalizedType) as NodeRow | undefined;
+    
+    // If not found and normalization changed the type, try original
+    if (!node && normalizedType !== nodeType) {
+      node = this.db!.prepare(`
+        SELECT node_type, display_name, documentation, description 
+        FROM nodes 
+        WHERE node_type = ?
+      `).get(nodeType) as NodeRow | undefined;
+    }
     
     if (!node) {
       throw new Error(`Node ${nodeType} not found`);
@@ -1030,16 +1056,18 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     if (cached) return cached;
     
     // Get the full node information
-    let node = this.repository.getNode(nodeType);
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.repository.getNode(normalizedType);
+    
+    if (!node && normalizedType !== nodeType) {
+      // Try original if normalization changed it
+      node = this.repository.getNode(nodeType);
+    }
     
     if (!node) {
-      // Try alternative formats
-      const alternatives = [
-        nodeType,
-        nodeType.replace('n8n-nodes-base.', ''),
-        `n8n-nodes-base.${nodeType}`,
-        nodeType.toLowerCase()
-      ];
+      // Fallback to other alternatives for edge cases
+      const alternatives = getNodeTypeAlternatives(nodeType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1048,10 +1076,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           break;
         }
       }
-      
-      if (!node) {
-        throw new Error(`Node ${nodeType} not found`);
-      }
+    }
+    
+    if (!node) {
+      throw new Error(`Node ${nodeType} not found`);
     }
     
     // Get properties (already parsed by repository)
@@ -1101,16 +1129,18 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     if (!this.repository) throw new Error('Repository not initialized');
     
     // Get the node
-    let node = this.repository.getNode(nodeType);
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.repository.getNode(normalizedType);
+    
+    if (!node && normalizedType !== nodeType) {
+      // Try original if normalization changed it
+      node = this.repository.getNode(nodeType);
+    }
     
     if (!node) {
-      // Try alternative formats
-      const alternatives = [
-        nodeType,
-        nodeType.replace('n8n-nodes-base.', ''),
-        `n8n-nodes-base.${nodeType}`,
-        nodeType.toLowerCase()
-      ];
+      // Fallback to other alternatives for edge cases
+      const alternatives = getNodeTypeAlternatives(nodeType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1119,10 +1149,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           break;
         }
       }
-      
-      if (!node) {
-        throw new Error(`Node ${nodeType} not found`);
-      }
+    }
+    
+    if (!node) {
+      throw new Error(`Node ${nodeType} not found`);
     }
     
     // Get properties and search (already parsed by repository)
@@ -1257,16 +1287,18 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     if (!this.repository) throw new Error('Repository not initialized');
     
     // Get node info to access properties
-    let node = this.repository.getNode(nodeType);
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.repository.getNode(normalizedType);
+    
+    if (!node && normalizedType !== nodeType) {
+      // Try original if normalization changed it
+      node = this.repository.getNode(nodeType);
+    }
     
     if (!node) {
-      // Try alternative formats
-      const alternatives = [
-        nodeType,
-        nodeType.replace('n8n-nodes-base.', ''),
-        `n8n-nodes-base.${nodeType}`,
-        nodeType.toLowerCase()
-      ];
+      // Fallback to other alternatives for edge cases
+      const alternatives = getNodeTypeAlternatives(nodeType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1275,10 +1307,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           break;
         }
       }
-      
-      if (!node) {
-        throw new Error(`Node ${nodeType} not found`);
-      }
+    }
+    
+    if (!node) {
+      throw new Error(`Node ${nodeType} not found`);
     }
     
     // Get properties
@@ -1312,16 +1344,18 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     if (!this.repository) throw new Error('Repository not initialized');
     
     // Get node info to access properties
-    let node = this.repository.getNode(nodeType);
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.repository.getNode(normalizedType);
+    
+    if (!node && normalizedType !== nodeType) {
+      // Try original if normalization changed it
+      node = this.repository.getNode(nodeType);
+    }
     
     if (!node) {
-      // Try alternative formats
-      const alternatives = [
-        nodeType,
-        nodeType.replace('n8n-nodes-base.', ''),
-        `n8n-nodes-base.${nodeType}`,
-        nodeType.toLowerCase()
-      ];
+      // Fallback to other alternatives for edge cases
+      const alternatives = getNodeTypeAlternatives(nodeType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1330,10 +1364,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           break;
         }
       }
-      
-      if (!node) {
-        throw new Error(`Node ${nodeType} not found`);
-      }
+    }
+    
+    if (!node) {
+      throw new Error(`Node ${nodeType} not found`);
     }
     
     // Get properties
@@ -1364,16 +1398,18 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     if (!this.repository) throw new Error('Repository not initialized');
     
     // Get node info
-    let node = this.repository.getNode(nodeType);
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.repository.getNode(normalizedType);
+    
+    if (!node && normalizedType !== nodeType) {
+      // Try original if normalization changed it
+      node = this.repository.getNode(nodeType);
+    }
     
     if (!node) {
-      // Try alternative formats
-      const alternatives = [
-        nodeType,
-        nodeType.replace('n8n-nodes-base.', ''),
-        `n8n-nodes-base.${nodeType}`,
-        nodeType.toLowerCase()
-      ];
+      // Fallback to other alternatives for edge cases
+      const alternatives = getNodeTypeAlternatives(nodeType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1382,10 +1418,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           break;
         }
       }
-      
-      if (!node) {
-        throw new Error(`Node ${nodeType} not found`);
-      }
+    }
+    
+    if (!node) {
+      throw new Error(`Node ${nodeType} not found`);
     }
     
     // Determine common AI tool use cases based on node type
@@ -1538,16 +1574,18 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     if (!this.repository) throw new Error('Repository not initialized');
     
     // Get node info
-    let node = this.repository.getNode(nodeType);
+    // First try with normalized type
+    const normalizedType = normalizeNodeType(nodeType);
+    let node = this.repository.getNode(normalizedType);
+    
+    if (!node && normalizedType !== nodeType) {
+      // Try original if normalization changed it
+      node = this.repository.getNode(nodeType);
+    }
     
     if (!node) {
-      // Try alternative formats
-      const alternatives = [
-        nodeType,
-        nodeType.replace('n8n-nodes-base.', ''),
-        `n8n-nodes-base.${nodeType}`,
-        nodeType.toLowerCase()
-      ];
+      // Fallback to other alternatives for edge cases
+      const alternatives = getNodeTypeAlternatives(nodeType);
       
       for (const alt of alternatives) {
         const found = this.repository!.getNode(alt);
@@ -1556,10 +1594,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           break;
         }
       }
-      
-      if (!node) {
-        throw new Error(`Node ${nodeType} not found`);
-      }
+    }
+    
+    if (!node) {
+      throw new Error(`Node ${nodeType} not found`);
     }
     
     // Get properties  

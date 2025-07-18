@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.18] - 2025-07-18
+
+### Fixed
+- **Node type prefix normalization for AI agents** (Issue #71)
+  - AI agents can now use node types directly from n8n workflow exports without manual conversion
+  - Added automatic normalization: `n8n-nodes-base.httpRequest` → `nodes-base.httpRequest`
+  - Added automatic normalization: `@n8n/n8n-nodes-langchain.agent` → `nodes-langchain.agent`
+  - Fixed 9 MCP tools that were failing with full package names:
+    - `get_node_info`, `get_node_essentials`, `get_node_as_tool_info`
+    - `search_node_properties`, `validate_node_minimal`, `validate_node_config`
+    - `get_property_dependencies`, `search_nodes`, `get_node_documentation`
+  - Maintains backward compatibility - existing short prefixes continue to work
+  - Created centralized `normalizeNodeType` utility for consistent handling across all tools
+
+### Added
+- **Node type utilities** in `src/utils/node-utils.ts`
+  - `normalizeNodeType()` - Converts full package names to database format
+  - `getNodeTypeAlternatives()` - Provides fallback options for edge cases
+
 ## [2.7.17] - 2025-07-17
 
 ### Fixed
@@ -664,6 +683,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.18]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.17...v2.7.18
 [2.7.17]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.16...v2.7.17
 [2.7.16]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.15...v2.7.16
 [2.7.15]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.13...v2.7.15
