@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.21] - 2025-07-23
+
+### Updated
+- **n8n Dependencies**: Updated to latest versions for compatibility and new features
+  - n8n: 1.102.4 → 1.103.2
+  - n8n-core: 1.101.2 → 1.102.1
+  - n8n-workflow: 1.99.1 → 1.100.0
+  - @n8n/n8n-nodes-langchain: 1.101.2 → 1.102.1
+- **Node Database**: Rebuilt with 532 nodes from updated n8n packages
+- All validation tests passing with updated dependencies
+
 ## [2.7.20] - 2025-07-18
 
 ### Fixed
