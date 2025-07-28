@@ -56,7 +56,7 @@ interface ValidationIssue {
   details?: any;
 }
 
-interface WorkflowValidationResult {
+export interface WorkflowValidationResult {
   valid: boolean;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];

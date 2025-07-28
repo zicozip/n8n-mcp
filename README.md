@@ -4,6 +4,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
 [![Version](https://img.shields.io/badge/version-2.7.22-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
+[![codecov](https://codecov.io/gh/czlonkowski/n8n-mcp/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/czlonkowski/n8n-mcp)
 [![n8n version](https://img.shields.io/badge/n8n-v1.103.2-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/VY6UOG?referralCode=n8n-mcp)
@@ -695,6 +696,38 @@ Previous versions had an issue where containers would not properly clean up when
 docker run --rm ghcr.io/czlonkowski/n8n-mcp:latest --version
 ```
 
+
+## 🧪 Testing
+
+The project includes a comprehensive test suite with 943+ unit tests:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run specific test suites
+npm run test:unit           # Unit tests only
+npm run test:integration    # Integration tests
+npm run test:e2e           # End-to-end tests
+```
+
+### Coverage Reports
+
+- **Current Coverage**: ~80% (see badge above)
+- **Coverage Reports**: Generated in `./coverage` directory
+- **CI/CD**: Automated coverage reporting via Codecov on all PRs
+
+### Testing Strategy
+
+- **Unit Tests**: Core functionality, parsers, validators
+- **Integration Tests**: Database operations, MCP tools
+- **E2E Tests**: Full workflow validation scenarios
 
 ## 📦 License
 

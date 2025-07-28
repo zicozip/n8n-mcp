@@ -23,7 +23,7 @@ export interface EngineHealth {
 
 export interface EngineOptions {
   sessionTimeout?: number;
-  logLevel?: string;
+  logLevel?: 'error' | 'warn' | 'info' | 'debug';
 }
 
 export class N8NMCPEngine {

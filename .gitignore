@@ -39,6 +39,10 @@ logs/
 # Testing
 coverage/
 .nyc_output/
+test-results/
+tests/data/*.db
+tests/fixtures/*.tmp
+.vitest/
 
 # TypeScript
 *.tsbuildinfo

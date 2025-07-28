@@ -15,6 +15,20 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
-      - run: npm test  # Now runs Vitest with all 68 tests passing
+      - run: npm run test:coverage  # Run tests with coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
+          verbose: true
       - run: npm run lint
       - run: npm run typecheck || true  # Allow to fail initially
+      
+      # Run benchmarks as part of CI (without performance regression checks)
+      - name: Run benchmarks (smoke test)
+        run: npm run benchmark -- --run tests/benchmarks/sample.bench.ts
+        continue-on-error: true
