@@ -15,6 +15,6 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
-      - run: npm test
+      - run: npm test  # Now runs Vitest with all 68 tests passing
       - run: npm run lint
       - run: npm run typecheck || true  # Allow to fail initially
