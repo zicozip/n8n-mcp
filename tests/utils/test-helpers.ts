@@ -1,5 +1,8 @@
 import { vi } from 'vitest';
-import { INodeDefinition, INode, IWorkflow } from '@/types/n8n-api';
+import { WorkflowNode, Workflow } from '@/types/n8n-api';
+
+// Use any type for INodeDefinition since it's from n8n-workflow package
+type INodeDefinition = any;
 
 /**
  * Common test utilities and helpers
@@ -48,7 +51,7 @@ export function createMockNodeDefinition(overrides?: Partial<INodeDefinition>): 
 /**
  * Create a mock workflow node
  */
-export function createMockNode(overrides?: Partial<INode>): INode {
+export function createMockNode(overrides?: Partial<WorkflowNode>): WorkflowNode {
   return {
     id: 'mock-node-id',
     name: 'Mock Node',
@@ -63,7 +66,7 @@ export function createMockNode(overrides?: Partial<INode>): INode {
 /**
  * Create a mock workflow
  */
-export function createMockWorkflow(overrides?: Partial<IWorkflow>): IWorkflow {
+export function createMockWorkflow(overrides?: Partial<Workflow>): Workflow {
   return {
     id: 'mock-workflow-id',
     name: 'Mock Workflow',

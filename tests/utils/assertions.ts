@@ -1,5 +1,8 @@
 import { expect } from 'vitest';
-import { INodeDefinition, IWorkflow, INode } from '@/types/n8n-api';
+import { WorkflowNode, Workflow } from '@/types/n8n-api';
+
+// Use any type for INodeDefinition since it's from n8n-workflow package
+type INodeDefinition = any;
 
 /**
  * Custom assertions for n8n-mcp tests
@@ -8,7 +11,7 @@ import { INodeDefinition, IWorkflow, INode } from '@/types/n8n-api';
 /**
  * Assert that a value is a valid node definition
  */
-export function expectValidNodeDefinition(node: any): asserts node is INodeDefinition {
+export function expectValidNodeDefinition(node: any) {
   expect(node).toBeDefined();
   expect(node).toHaveProperty('name');
   expect(node).toHaveProperty('displayName');
@@ -29,7 +32,7 @@ export function expectValidNodeDefinition(node: any): asserts node is INodeDefin
 /**
  * Assert that a value is a valid workflow
  */
-export function expectValidWorkflow(workflow: any): asserts workflow is IWorkflow {
+export function expectValidWorkflow(workflow: any): asserts workflow is Workflow {
   expect(workflow).toBeDefined();
   expect(workflow).toHaveProperty('nodes');
   expect(workflow).toHaveProperty('connections');
@@ -42,7 +45,7 @@ export function expectValidWorkflow(workflow: any): asserts workflow is IWorkflo
   });
   
   // Check connections reference valid nodes
-  const nodeIds = new Set(workflow.nodes.map((n: INode) => n.id));
+  const nodeIds = new Set(workflow.nodes.map((n: WorkflowNode) => n.id));
   Object.keys(workflow.connections).forEach(sourceId => {
     expect(nodeIds.has(sourceId)).toBe(true);
     
@@ -60,7 +63,7 @@ export function expectValidWorkflow(workflow: any): asserts workflow is IWorkflo
 /**
  * Assert that a value is a valid workflow node
  */
-export function expectValidWorkflowNode(node: any): asserts node is INode {
+export function expectValidWorkflowNode(node: any): asserts node is WorkflowNode {
   expect(node).toBeDefined();
   expect(node).toHaveProperty('id');
   expect(node).toHaveProperty('name');

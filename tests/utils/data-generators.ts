@@ -1,5 +1,8 @@
 import { faker } from '@faker-js/faker';
-import { INodeDefinition, INode, IWorkflow } from '@/types/n8n-api';
+import { WorkflowNode, Workflow } from '@/types/n8n-api';
+
+// Use any type for INodeDefinition since it's from n8n-workflow package
+type INodeDefinition = any;
 
 /**
  * Data generators for creating realistic test data
@@ -117,7 +120,7 @@ function generateDisplayOptions(): any {
 /**
  * Generate a complete node definition
  */
-export function generateNodeDefinition(overrides?: Partial<INodeDefinition>): INodeDefinition {
+export function generateNodeDefinition(overrides?: Partial<INodeDefinition>): any {
   const nodeCategory = faker.helpers.arrayElement([
     'Core Nodes', 'Communication', 'Data Transformation',
     'Development', 'Files', 'Productivity', 'Analytics'
@@ -155,8 +158,8 @@ export function generateNodeDefinition(overrides?: Partial<INodeDefinition>): IN
 /**
  * Generate workflow nodes
  */
-export function generateWorkflowNodes(count = 3): INode[] {
-  const nodes: INode[] = [];
+export function generateWorkflowNodes(count = 3): WorkflowNode[] {
+  const nodes: WorkflowNode[] = [];
   
   for (let i = 0; i < count; i++) {
     nodes.push({
@@ -221,7 +224,7 @@ function generateNodeParameters(): Record<string, any> {
 /**
  * Generate workflow connections
  */
-export function generateConnections(nodes: INode[]): Record<string, any> {
+export function generateConnections(nodes: WorkflowNode[]): Record<string, any> {
   const connections: Record<string, any> = {};
   
   // Connect nodes sequentially
@@ -263,7 +266,7 @@ export function generateConnections(nodes: INode[]): Record<string, any> {
 /**
  * Generate a complete workflow
  */
-export function generateWorkflow(nodeCount = 3): IWorkflow {
+export function generateWorkflow(nodeCount = 3): Workflow {
   const nodes = generateWorkflowNodes(nodeCount);
   
   return {
@@ -281,11 +284,10 @@ export function generateWorkflow(nodeCount = 3): IWorkflow {
     settings: {
       executionOrder: 'v1',
       saveManualExecutions: true,
-      callerPolicy: 'workflowsFromSameOwner',
       timezone: faker.location.timeZone()
     },
     staticData: {},
-    tags: generateTags(),
+    tags: generateTags().map(t => t.name),
     createdAt: faker.date.past().toISOString(),
     updatedAt: faker.date.recent().toISOString()
   };
