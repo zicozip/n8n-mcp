@@ -65,7 +65,7 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git commit -m "Initial gh-pages commit"
             git push origin gh-pages
-            git checkout -
+            git checkout ${{ github.ref_name }}
           }
 
       # Store benchmark results and compare
