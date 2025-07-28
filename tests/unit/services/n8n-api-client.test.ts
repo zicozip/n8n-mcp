@@ -82,10 +82,18 @@ describe('N8nApiClient', () => {
     mockAxiosInstance.simulateError = async (method: string, errorConfig: any) => {
       const axiosError = createAxiosError(errorConfig);
       
-      mockAxiosInstance[method].mockImplementation(() => {
+      mockAxiosInstance[method].mockImplementation(async () => {
         if (mockAxiosInstance._responseInterceptor?.onRejected) {
-          // Pass error through the interceptor
-          return Promise.reject(mockAxiosInstance._responseInterceptor.onRejected(axiosError));
+          // Pass error through the interceptor and ensure it's properly handled
+          try {
+            // The interceptor returns a rejected promise with the transformed error
+            const transformedError = await mockAxiosInstance._responseInterceptor.onRejected(axiosError);
+            // This shouldn't happen as onRejected should throw
+            return Promise.reject(transformedError);
+          } catch (error) {
+            // This is the expected path - interceptor throws the transformed error
+            return Promise.reject(error);
+          }
         }
         return Promise.reject(axiosError);
       });
@@ -220,7 +228,7 @@ describe('N8nApiClient', () => {
       expect(result).toEqual(createdWorkflow);
     });
 
-    it.skip('should handle creation error', async () => {
+    it('should handle creation error', async () => {
       const workflow = { name: 'Test', nodes: [], connections: {} };
       const error = { 
         message: 'Request failed',
@@ -255,7 +263,7 @@ describe('N8nApiClient', () => {
       expect(result).toEqual(workflow);
     });
 
-    it.skip('should handle 404 error', async () => {
+    it('should handle 404 error', async () => {
       const error = { 
         message: 'Request failed',
         response: { status: 404, data: { message: 'Not found' } } 
@@ -305,7 +313,7 @@ describe('N8nApiClient', () => {
       expect(result).toEqual(updatedWorkflow);
     });
 
-    it.skip('should handle update error', async () => {
+    it('should handle update error', async () => {
       const workflow = { name: 'Updated', nodes: [], connections: {} };
       const error = { 
         message: 'Request failed',
@@ -338,7 +346,7 @@ describe('N8nApiClient', () => {
       expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/workflows/123');
     });
 
-    it.skip('should handle deletion error', async () => {
+    it('should handle deletion error', async () => {
       const error = { 
         message: 'Request failed',
         response: { status: 404, data: { message: 'Not found' } } 
@@ -537,7 +545,7 @@ describe('N8nApiClient', () => {
       client = new N8nApiClient(defaultConfig);
     });
 
-    it.skip('should handle authentication error (401)', async () => {
+    it('should handle authentication error (401)', async () => {
       const error = { 
         message: 'Request failed',
         response: { 
@@ -557,7 +565,7 @@ describe('N8nApiClient', () => {
       }
     });
 
-    it.skip('should handle rate limit error (429)', async () => {
+    it('should handle rate limit error (429)', async () => {
       const error = { 
         message: 'Request failed',
         response: { 
@@ -579,7 +587,7 @@ describe('N8nApiClient', () => {
       }
     });
 
-    it.skip('should handle server error (500)', async () => {
+    it('should handle server error (500)', async () => {
       const error = { 
         message: 'Request failed',
         response: { 
