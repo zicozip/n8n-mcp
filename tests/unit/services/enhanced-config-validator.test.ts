@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EnhancedConfigValidator, ValidationMode, ValidationProfile } from '@/services/enhanced-config-validator';
+import { ValidationError } from '@/services/config-validator';
 import { NodeSpecificValidators } from '@/services/node-specific-validators';
 import { nodeFactory } from '@tests/fixtures/factories/node.factory';
 
@@ -197,7 +198,7 @@ describe('EnhancedConfigValidator', () => {
         { type: 'invalid_type', property: 'channel', message: 'Different type error' }
       ];
 
-      const deduplicated = EnhancedConfigValidator['deduplicateErrors'](errors);
+      const deduplicated = EnhancedConfigValidator['deduplicateErrors'](errors as ValidationError[]);
 
       expect(deduplicated).toHaveLength(2);
       // Should keep the longer message
@@ -210,7 +211,7 @@ describe('EnhancedConfigValidator', () => {
         { type: 'missing_required', property: 'url', message: 'URL is required', fix: 'Add a valid URL like https://api.example.com' }
       ];
 
-      const deduplicated = EnhancedConfigValidator['deduplicateErrors'](errors);
+      const deduplicated = EnhancedConfigValidator['deduplicateErrors'](errors as ValidationError[]);
 
       expect(deduplicated).toHaveLength(1);
       expect(deduplicated[0].fix).toBeDefined();
@@ -575,7 +576,7 @@ describe('EnhancedConfigValidator', () => {
       const mockValidateMongoDB = vi.mocked(NodeSpecificValidators.validateMongoDB);
       
       const config = { collection: 'users', operation: 'insert' };
-      const properties = [];
+      const properties: any[] = [];
 
       const result = EnhancedConfigValidator.validateWithMode(
         'nodes-base.mongoDb',
@@ -593,7 +594,7 @@ describe('EnhancedConfigValidator', () => {
       const mockValidateMySQL = vi.mocked(NodeSpecificValidators.validateMySQL);
       
       const config = { table: 'users', operation: 'insert' };
-      const properties = [];
+      const properties: any[] = [];
 
       const result = EnhancedConfigValidator.validateWithMode(
         'nodes-base.mysql',
@@ -609,7 +610,7 @@ describe('EnhancedConfigValidator', () => {
       const mockValidatePostgres = vi.mocked(NodeSpecificValidators.validatePostgres);
       
       const config = { table: 'users', operation: 'select' };
-      const properties = [];
+      const properties: any[] = [];
 
       const result = EnhancedConfigValidator.validateWithMode(
         'nodes-base.postgres',
@@ -666,7 +667,7 @@ describe('EnhancedConfigValidator', () => {
 
       // Mock isPropertyVisible to return false for hidden property
       const isVisibleSpy = vi.spyOn(EnhancedConfigValidator as any, 'isPropertyVisible');
-      isVisibleSpy.mockImplementation((prop) => prop.name !== 'hidden');
+      isVisibleSpy.mockImplementation((prop: any) => prop.name !== 'hidden');
 
       const result = EnhancedConfigValidator.validateWithMode(
         'nodes-base.test',

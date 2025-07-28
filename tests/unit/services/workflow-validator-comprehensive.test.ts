@@ -4,7 +4,7 @@ import { NodeRepository } from '@/database/node-repository';
 import { EnhancedConfigValidator } from '@/services/enhanced-config-validator';
 import { ExpressionValidator } from '@/services/expression-validator';
 import { createWorkflow } from '@tests/utils/builders/workflow.builder';
-import type { WorkflowNode, WorkflowJson } from '@/services/workflow-validator';
+import type { WorkflowNode, Workflow } from '@/types/n8n-api';
 
 // Mock dependencies
 vi.mock('@/database/node-repository');
@@ -21,7 +21,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
     vi.clearAllMocks();
 
     // Create mock instances
-    mockNodeRepository = new NodeRepository() as any;
+    mockNodeRepository = new NodeRepository({} as any) as any;
     mockEnhancedConfigValidator = EnhancedConfigValidator as any;
 
     // Set up default mock behaviors
@@ -131,15 +131,19 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
     vi.mocked(mockEnhancedConfigValidator.validateWithMode).mockReturnValue({
       errors: [],
       warnings: [],
-      suggestions: []
-    });
+      suggestions: [],
+      mode: 'operation' as const,
+      valid: true,
+      visibleProperties: [],
+      hiddenProperties: []
+    } as any);
 
     vi.mocked(ExpressionValidator.validateNodeExpressions).mockReturnValue({
       valid: true,
       errors: [],
       warnings: [],
       usedVariables: new Set(),
-      referencedNodes: new Set()
+      usedNodes: new Set()
     });
 
     // Create validator instance
@@ -637,10 +641,14 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
     it('should add node validation errors and warnings', async () => {
       vi.mocked(mockEnhancedConfigValidator.validateWithMode).mockReturnValue({
-        errors: ['Missing required field: url'],
-        warnings: ['Consider using HTTPS'],
-        suggestions: []
-      });
+        errors: [{ type: 'missing_required', property: 'url', message: 'Missing required field: url' }],
+        warnings: [{ type: 'security', property: 'url', message: 'Consider using HTTPS' }],
+        suggestions: [],
+        mode: 'operation' as const,
+        valid: false,
+        visibleProperties: [],
+        hiddenProperties: []
+      } as any);
 
       const workflow = {
         nodes: [
@@ -658,8 +666,8 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const result = await validator.validateWorkflow(workflow);
 
-      expect(result.errors.some(e => e.message === 'Missing required field: url')).toBe(true);
-      expect(result.warnings.some(w => w.message === 'Consider using HTTPS')).toBe(true);
+      expect(result.errors.some(e => e.message.includes('Missing required field: url'))).toBe(true);
+      expect(result.warnings.some(w => w.message.includes('Consider using HTTPS'))).toBe(true);
     });
 
     it('should handle node validation failures gracefully', async () => {
@@ -1120,7 +1128,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         errors: ['Invalid expression syntax'],
         warnings: ['Deprecated variable usage'],
         usedVariables: new Set(['$json']),
-        referencedNodes: new Set()
+        usedNodes: new Set()
       });
 
       const workflow = {

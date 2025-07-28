@@ -401,7 +401,7 @@ export class WorkflowValidator {
             type: 'error',
             nodeId: node.id,
             nodeName: node.name,
-            message: error
+            message: typeof error === 'string' ? error : error.message || String(error)
           });
         });
 
@@ -410,7 +410,7 @@ export class WorkflowValidator {
             type: 'warning',
             nodeId: node.id,
             nodeName: node.name,
-            message: warning
+            message: typeof warning === 'string' ? warning : warning.message || String(warning)
           });
         });
 

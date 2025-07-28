@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import { N8nApiClient, N8nApiClientConfig } from '../../../src/services/n8n-api-client';
+import { ExecutionStatus } from '../../../src/types/n8n-api';
 import {
   N8nApiError,
   N8nAuthenticationError,
@@ -242,8 +243,8 @@ describe('N8nApiClient', () => {
         expect.fail('Should have thrown an error');
       } catch (err) {
         expect(err).toBeInstanceOf(N8nValidationError);
-        expect(err.message).toBe('Invalid workflow');
-        expect(err.statusCode).toBe(400);
+        expect((err as N8nValidationError).message).toBe('Invalid workflow');
+        expect((err as N8nValidationError).statusCode).toBe(400);
       }
     });
   });
@@ -275,8 +276,8 @@ describe('N8nApiClient', () => {
         expect.fail('Should have thrown an error');
       } catch (err) {
         expect(err).toBeInstanceOf(N8nNotFoundError);
-        expect(err.message).toContain('not found');
-        expect(err.statusCode).toBe(404);
+        expect((err as N8nNotFoundError).message).toContain('not found');
+        expect((err as N8nNotFoundError).statusCode).toBe(404);
       }
     });
   });
@@ -327,8 +328,8 @@ describe('N8nApiClient', () => {
         expect.fail('Should have thrown an error');
       } catch (err) {
         expect(err).toBeInstanceOf(N8nValidationError);
-        expect(err.message).toBe('Invalid update');
-        expect(err.statusCode).toBe(400);
+        expect((err as N8nValidationError).message).toBe('Invalid update');
+        expect((err as N8nValidationError).statusCode).toBe(400);
       }
     });
   });
@@ -358,8 +359,8 @@ describe('N8nApiClient', () => {
         expect.fail('Should have thrown an error');
       } catch (err) {
         expect(err).toBeInstanceOf(N8nNotFoundError);
-        expect(err.message).toContain('not found');
-        expect(err.statusCode).toBe(404);
+        expect((err as N8nNotFoundError).message).toContain('not found');
+        expect((err as N8nNotFoundError).statusCode).toBe(404);
       }
     });
   });
@@ -427,7 +428,7 @@ describe('N8nApiClient', () => {
     });
 
     it('should list executions with filters', async () => {
-      const params = { workflowId: '123', status: 'success', limit: 50 };
+      const params = { workflowId: '123', status: ExecutionStatus.SUCCESS, limit: 50 };
       const response = { data: [], nextCursor: null };
       mockAxiosInstance.get.mockResolvedValue({ data: response });
       
@@ -560,8 +561,8 @@ describe('N8nApiClient', () => {
         expect.fail('Should have thrown an error');
       } catch (err) {
         expect(err).toBeInstanceOf(N8nAuthenticationError);
-        expect(err.message).toBe('Invalid API key');
-        expect(err.statusCode).toBe(401);
+        expect((err as N8nAuthenticationError).message).toBe('Invalid API key');
+        expect((err as N8nAuthenticationError).statusCode).toBe(401);
       }
     });
 
@@ -581,9 +582,9 @@ describe('N8nApiClient', () => {
         expect.fail('Should have thrown an error');
       } catch (err) {
         expect(err).toBeInstanceOf(N8nRateLimitError);
-        expect(err.message).toContain('Rate limit exceeded');
-        expect(err.statusCode).toBe(429);
-        expect(err.details?.retryAfter).toBe(60);
+        expect((err as N8nRateLimitError).message).toContain('Rate limit exceeded');
+        expect((err as N8nRateLimitError).statusCode).toBe(429);
+        expect(((err as N8nRateLimitError).details as any)?.retryAfter).toBe(60);
       }
     });
 
@@ -602,8 +603,8 @@ describe('N8nApiClient', () => {
         expect.fail('Should have thrown an error');
       } catch (err) {
         expect(err).toBeInstanceOf(N8nServerError);
-        expect(err.message).toBe('Internal server error');
-        expect(err.statusCode).toBe(500);
+        expect((err as N8nServerError).message).toBe('Internal server error');
+        expect((err as N8nServerError).statusCode).toBe(500);
       }
     });
 
@@ -827,12 +828,12 @@ describe('N8nApiClient', () => {
 
     beforeEach(() => {
       // Capture the interceptor functions
-      vi.mocked(mockAxiosInstance.interceptors.request.use).mockImplementation((onFulfilled) => {
+      vi.mocked(mockAxiosInstance.interceptors.request.use).mockImplementation((onFulfilled: any) => {
         requestInterceptor = onFulfilled;
         return 0;
       });
       
-      vi.mocked(mockAxiosInstance.interceptors.response.use).mockImplementation((onFulfilled, onRejected) => {
+      vi.mocked(mockAxiosInstance.interceptors.response.use).mockImplementation((onFulfilled: any, onRejected: any) => {
         responseInterceptor = onFulfilled;
         responseErrorInterceptor = onRejected;
         return 0;
@@ -882,7 +883,7 @@ describe('N8nApiClient', () => {
         },
       });
       
-      const result = await responseErrorInterceptor(error).catch(e => e);
+      const result = await responseErrorInterceptor(error).catch((e: any) => e);
       expect(result).toBeInstanceOf(N8nValidationError);
       expect(result.message).toBe('Bad request');
     });

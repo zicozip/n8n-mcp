@@ -41,13 +41,13 @@ describe('WorkflowDiffEngine', () => {
     // Convert connections from ID-based to name-based (as n8n expects)
     const newConnections: any = {};
     for (const [nodeId, outputs] of Object.entries(baseWorkflow.connections)) {
-      const node = baseWorkflow.nodes.find(n => n.id === nodeId);
+      const node = baseWorkflow.nodes.find((n: any) => n.id === nodeId);
       if (node) {
         newConnections[node.name] = {};
         for (const [outputName, connections] of Object.entries(outputs)) {
-          newConnections[node.name][outputName] = (connections as any[]).map(conns =>
-            conns.map(conn => {
-              const targetNode = baseWorkflow.nodes.find(n => n.id === conn.node);
+          newConnections[node.name][outputName] = (connections as any[]).map((conns: any) =>
+            conns.map((conn: any) => {
+              const targetNode = baseWorkflow.nodes.find((n: any) => n.id === conn.node);
               return {
                 ...conn,
                 node: targetNode ? targetNode.name : conn.node
@@ -62,7 +62,7 @@ describe('WorkflowDiffEngine', () => {
 
   describe('Operation Limits', () => {
     it('should reject more than 5 operations', async () => {
-      const operations = Array(6).fill(null).map((_, i) => ({
+      const operations = Array(6).fill(null).map((_: any, i: number) => ({
         type: 'updateName',
         name: `Name ${i}`
       } as UpdateNameOperation));
@@ -213,7 +213,7 @@ describe('WorkflowDiffEngine', () => {
       
       expect(result.success).toBe(true);
       expect(result.workflow!.nodes).toHaveLength(2);
-      expect(result.workflow!.nodes.find(n => n.id === 'http-1')).toBeUndefined();
+      expect(result.workflow!.nodes.find((n: any) => n.id === 'http-1')).toBeUndefined();
     });
 
     it('should remove node by name', async () => {
@@ -231,7 +231,7 @@ describe('WorkflowDiffEngine', () => {
       
       expect(result.success).toBe(true);
       expect(result.workflow!.nodes).toHaveLength(2);
-      expect(result.workflow!.nodes.find(n => n.name === 'HTTP Request')).toBeUndefined();
+      expect(result.workflow!.nodes.find((n: any) => n.name === 'HTTP Request')).toBeUndefined();
     });
 
     it('should clean up connections when removing node', async () => {
@@ -295,7 +295,7 @@ describe('WorkflowDiffEngine', () => {
       const result = await diffEngine.applyDiff(baseWorkflow, request);
       
       expect(result.success).toBe(true);
-      const updatedNode = result.workflow!.nodes.find(n => n.id === 'http-1');
+      const updatedNode = result.workflow!.nodes.find((n: any) => n.id === 'http-1');
       expect(updatedNode!.parameters.method).toBe('POST');
       expect(updatedNode!.parameters.url).toBe('https://new-api.example.com');
     });
@@ -319,7 +319,7 @@ describe('WorkflowDiffEngine', () => {
       const result = await diffEngine.applyDiff(baseWorkflow, request);
       
       expect(result.success).toBe(true);
-      const updatedNode = result.workflow!.nodes.find(n => n.name === 'Slack');
+      const updatedNode = result.workflow!.nodes.find((n: any) => n.name === 'Slack');
       expect(updatedNode!.parameters.resource).toBe('channel');
       expect(updatedNode!.parameters.operation).toBe('create');
       expect((updatedNode!.credentials as any).slackApi.name).toBe('New Slack Account');
@@ -362,7 +362,7 @@ describe('WorkflowDiffEngine', () => {
       const result = await diffEngine.applyDiff(baseWorkflow, request);
       
       expect(result.success).toBe(true);
-      const movedNode = result.workflow!.nodes.find(n => n.id === 'http-1');
+      const movedNode = result.workflow!.nodes.find((n: any) => n.id === 'http-1');
       expect(movedNode!.position).toEqual([1000, 500]);
     });
 
@@ -381,7 +381,7 @@ describe('WorkflowDiffEngine', () => {
       const result = await diffEngine.applyDiff(baseWorkflow, request);
       
       expect(result.success).toBe(true);
-      const movedNode = result.workflow!.nodes.find(n => n.name === 'Webhook');
+      const movedNode = result.workflow!.nodes.find((n: any) => n.name === 'Webhook');
       expect(movedNode!.position).toEqual([100, 100]);
     });
   });
@@ -401,7 +401,7 @@ describe('WorkflowDiffEngine', () => {
       const result = await diffEngine.applyDiff(baseWorkflow, request);
       
       expect(result.success).toBe(true);
-      const disabledNode = result.workflow!.nodes.find(n => n.id === 'http-1');
+      const disabledNode = result.workflow!.nodes.find((n: any) => n.id === 'http-1');
       expect(disabledNode!.disabled).toBe(true);
     });
 
@@ -422,7 +422,7 @@ describe('WorkflowDiffEngine', () => {
       const result = await diffEngine.applyDiff(baseWorkflow, request);
       
       expect(result.success).toBe(true);
-      const enabledNode = result.workflow!.nodes.find(n => n.id === 'http-1');
+      const enabledNode = result.workflow!.nodes.find((n: any) => n.id === 'http-1');
       expect(enabledNode!.disabled).toBe(false);
     });
   });
@@ -1052,7 +1052,7 @@ describe('WorkflowDiffEngine', () => {
       const result = await diffEngine.applyDiff(baseWorkflow, request);
       
       expect(result.success).toBe(true);
-      const updatedNode = result.workflow!.nodes.find(n => n.name === 'Webhook');
+      const updatedNode = result.workflow!.nodes.find((n: any) => n.name === 'Webhook');
       expect(updatedNode!.parameters.path).toBe('new-webhook-path');
     });
   });

@@ -262,7 +262,7 @@ describe('n8n-validation', () => {
           tags: ['tag1'],
         };
 
-        const cleaned = cleanWorkflowForCreate(workflow);
+        const cleaned = cleanWorkflowForCreate(workflow as any);
         
         expect(cleaned).not.toHaveProperty('id');
         expect(cleaned).not.toHaveProperty('createdAt');
@@ -281,7 +281,7 @@ describe('n8n-validation', () => {
           connections: {},
         };
 
-        const cleaned = cleanWorkflowForCreate(workflow);
+        const cleaned = cleanWorkflowForCreate(workflow as Workflow);
         expect(cleaned.settings).toEqual(defaultWorkflowSettings);
       });
 
@@ -298,7 +298,7 @@ describe('n8n-validation', () => {
           settings: customSettings,
         };
 
-        const cleaned = cleanWorkflowForCreate(workflow);
+        const cleaned = cleanWorkflowForCreate(workflow as Workflow);
         expect(cleaned.settings).toEqual(customSettings);
       });
     });
@@ -370,7 +370,7 @@ describe('n8n-validation', () => {
         .connect('Webhook', 'Send Slack')
         .build();
 
-      const errors = validateWorkflowStructure(workflow);
+      const errors = validateWorkflowStructure(workflow as any);
       expect(errors).toEqual([]);
     });
 
@@ -380,7 +380,7 @@ describe('n8n-validation', () => {
         connections: {},
       };
 
-      const errors = validateWorkflowStructure(workflow);
+      const errors = validateWorkflowStructure(workflow as any);
       expect(errors).toContain('Workflow name is required');
     });
 
@@ -390,7 +390,7 @@ describe('n8n-validation', () => {
         connections: {},
       };
 
-      const errors = validateWorkflowStructure(workflow);
+      const errors = validateWorkflowStructure(workflow as any);
       expect(errors).toContain('Workflow must have at least one node');
     });
 
@@ -401,17 +401,17 @@ describe('n8n-validation', () => {
         connections: {},
       };
 
-      const errors = validateWorkflowStructure(workflow);
+      const errors = validateWorkflowStructure(workflow as any);
       expect(errors).toContain('Workflow must have at least one node');
     });
 
     it('should detect missing connections', () => {
       const workflow = {
         name: 'Test',
-        nodes: [{ id: 'node-1', name: 'Node 1', type: 'n8n-nodes-base.set', typeVersion: 1, position: [0, 0], parameters: {} }],
+        nodes: [{ id: 'node-1', name: 'Node 1', type: 'n8n-nodes-base.set', typeVersion: 1, position: [0, 0] as [number, number], parameters: {} }],
       };
 
-      const errors = validateWorkflowStructure(workflow);
+      const errors = validateWorkflowStructure(workflow as any);
       expect(errors).toContain('Workflow connections are required');
     });
 
@@ -429,7 +429,7 @@ describe('n8n-validation', () => {
         connections: {},
       };
 
-      const errors = validateWorkflowStructure(workflow);
+      const errors = validateWorkflowStructure(workflow as any);
       expect(errors).toEqual([]);
     });
 
@@ -1155,7 +1155,7 @@ describe('n8n-validation', () => {
         })
         .build();
 
-      const errors = validateWorkflowStructure(workflow);
+      const errors = validateWorkflowStructure(workflow as any);
       expect(errors).toEqual([]);
 
       // Validate individual components
