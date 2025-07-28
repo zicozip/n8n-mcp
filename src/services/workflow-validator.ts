@@ -101,8 +101,8 @@ export class WorkflowValidator {
       errors: [],
       warnings: [],
       statistics: {
-        totalNodes: workflow.nodes.length,
-        enabledNodes: workflow.nodes.filter(n => !n.disabled).length,
+        totalNodes: workflow.nodes?.length || 0,
+        enabledNodes: workflow.nodes?.filter(n => !n.disabled).length || 0,
         triggerNodes: 0,
         validConnections: 0,
         invalidConnections: 0,
@@ -783,8 +783,10 @@ export class WorkflowValidator {
       });
     }
 
-    // Check node-level error handling properties
-    this.checkNodeErrorHandling(workflow, result);
+    // Check node-level error handling properties for ALL nodes
+    for (const node of workflow.nodes) {
+      this.checkNodeErrorHandling(node, workflow, result);
+    }
 
     // Check for very long linear workflows
     const linearChainLength = this.getLongestLinearChain(workflow);
@@ -794,6 +796,9 @@ export class WorkflowValidator {
         message: `Long linear chain detected (${linearChainLength} nodes). Consider breaking into sub-workflows.`
       });
     }
+
+    // Generate error handling suggestions based on all nodes
+    this.generateErrorHandlingSuggestions(workflow, result);
 
     // Check for missing credentials
     for (const node of workflow.nodes) {
@@ -1017,17 +1022,21 @@ export class WorkflowValidator {
   }
 
   /**
-   * Check node-level error handling configuration
+   * Check node-level error handling configuration for a single node
    */
   private checkNodeErrorHandling(
+    node: WorkflowNode,
     workflow: WorkflowJson,
     result: WorkflowValidationResult
   ): void {
-    // Define node types that typically interact with external services
+    // Only skip if disabled is explicitly true (not just truthy)
+    if (node.disabled === true) return;
+
+    // Define node types that typically interact with external services (lowercase for comparison)
     const errorProneNodeTypes = [
-      'httpRequest',
+      'httprequest',
       'webhook',
-      'emailSend',
+      'emailsend',
       'slack',
       'discord',
       'telegram',
@@ -1041,8 +1050,8 @@ export class WorkflowValidator {
       'salesforce',
       'hubspot',
       'airtable',
-      'googleSheets',
-      'googleDrive',
+      'googlesheets',
+      'googledrive',
       'dropbox',
       's3',
       'ftp',
@@ -1055,30 +1064,27 @@ export class WorkflowValidator {
       'anthropic'
     ];
 
-    for (const node of workflow.nodes) {
-      if (node.disabled) continue;
+    const normalizedType = node.type.toLowerCase();
+    const isErrorProne = errorProneNodeTypes.some(type => normalizedType.includes(type));
 
-      const normalizedType = node.type.toLowerCase();
-      const isErrorProne = errorProneNodeTypes.some(type => normalizedType.includes(type));
-
-      // CRITICAL: Check for node-level properties in wrong location (inside parameters)
-      const nodeLevelProps = [
-        // Error handling properties
-        'onError', 'continueOnFail', 'retryOnFail', 'maxTries', 'waitBetweenTries', 'alwaysOutputData',
-        // Other node-level properties
-        'executeOnce', 'disabled', 'notes', 'notesInFlow', 'credentials'
-      ];
-      const misplacedProps: string[] = [];
-      
-      if (node.parameters) {
-        for (const prop of nodeLevelProps) {
-          if (node.parameters[prop] !== undefined) {
-            misplacedProps.push(prop);
-          }
+    // CRITICAL: Check for node-level properties in wrong location (inside parameters)
+    const nodeLevelProps = [
+      // Error handling properties
+      'onError', 'continueOnFail', 'retryOnFail', 'maxTries', 'waitBetweenTries', 'alwaysOutputData',
+      // Other node-level properties
+      'executeOnce', 'disabled', 'notes', 'notesInFlow', 'credentials'
+    ];
+    const misplacedProps: string[] = [];
+    
+    if (node.parameters) {
+      for (const prop of nodeLevelProps) {
+        if (node.parameters[prop] !== undefined) {
+          misplacedProps.push(prop);
         }
       }
-      
-      if (misplacedProps.length > 0) {
+    }
+    
+    if (misplacedProps.length > 0) {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
@@ -1098,12 +1104,12 @@ export class WorkflowValidator {
                  `}`
           }
         });
-      }
+    }
 
-      // Validate error handling properties
-      
-      // Check for onError property (the modern approach)
-      if (node.onError !== undefined) {
+    // Validate error handling properties
+    
+    // Check for onError property (the modern approach)
+    if (node.onError !== undefined) {
         const validOnErrorValues = ['continueRegularOutput', 'continueErrorOutput', 'stopWorkflow'];
         if (!validOnErrorValues.includes(node.onError)) {
           result.errors.push({
@@ -1113,10 +1119,10 @@ export class WorkflowValidator {
             message: `Invalid onError value: "${node.onError}". Must be one of: ${validOnErrorValues.join(', ')}`
           });
         }
-      }
+    }
 
-      // Check for deprecated continueOnFail
-      if (node.continueOnFail !== undefined) {
+    // Check for deprecated continueOnFail
+    if (node.continueOnFail !== undefined) {
         if (typeof node.continueOnFail !== 'boolean') {
           result.errors.push({
             type: 'error',
@@ -1133,19 +1139,19 @@ export class WorkflowValidator {
             message: 'Using deprecated "continueOnFail: true". Use "onError: \'continueRegularOutput\'" instead for better control and UI compatibility.'
           });
         }
-      }
+    }
 
-      // Check for conflicting error handling properties
-      if (node.continueOnFail !== undefined && node.onError !== undefined) {
+    // Check for conflicting error handling properties
+    if (node.continueOnFail !== undefined && node.onError !== undefined) {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'Cannot use both "continueOnFail" and "onError" properties. Use only "onError" for modern workflows.'
         });
-      }
+    }
 
-      if (node.retryOnFail !== undefined) {
+    if (node.retryOnFail !== undefined) {
         if (typeof node.retryOnFail !== 'boolean') {
           result.errors.push({
             type: 'error',
@@ -1201,21 +1207,21 @@ export class WorkflowValidator {
             }
           }
         }
-      }
+    }
 
-      if (node.alwaysOutputData !== undefined && typeof node.alwaysOutputData !== 'boolean') {
+    if (node.alwaysOutputData !== undefined && typeof node.alwaysOutputData !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'alwaysOutputData must be a boolean value'
         });
-      }
+    }
 
-      // Warnings for error-prone nodes without error handling
-      const hasErrorHandling = node.onError || node.continueOnFail || node.retryOnFail;
-      
-      if (isErrorProne && !hasErrorHandling) {
+    // Warnings for error-prone nodes without error handling
+    const hasErrorHandling = node.onError || node.continueOnFail || node.retryOnFail;
+    
+    if (isErrorProne && !hasErrorHandling) {
         const nodeTypeSimple = normalizedType.split('.').pop() || normalizedType;
         
         // Special handling for specific node types
@@ -1245,83 +1251,91 @@ export class WorkflowValidator {
             type: 'warning',
             nodeId: node.id,
             nodeName: node.name,
-            message: `${nodeTypeSimple} node interacts with external services but has no error handling configured. Consider using "onError" property.`
+            message: `${nodeTypeSimple} node without error handling. Consider using "onError" property for better error management.`
           });
         }
-      }
+    }
 
-      // Check for problematic combinations
-      if (node.continueOnFail && node.retryOnFail) {
+    // Check for problematic combinations
+    if (node.continueOnFail && node.retryOnFail) {
         result.warnings.push({
           type: 'warning',
           nodeId: node.id,
           nodeName: node.name,
           message: 'Both continueOnFail and retryOnFail are enabled. The node will retry first, then continue on failure.'
         });
-      }
+    }
 
-      // Validate additional node-level properties
-      
-      // Check executeOnce
-      if (node.executeOnce !== undefined && typeof node.executeOnce !== 'boolean') {
+    // Validate additional node-level properties
+    
+    // Check executeOnce
+    if (node.executeOnce !== undefined && typeof node.executeOnce !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'executeOnce must be a boolean value'
         });
-      }
+    }
 
-      // Check disabled
-      if (node.disabled !== undefined && typeof node.disabled !== 'boolean') {
+    // Check disabled
+    if (node.disabled !== undefined && typeof node.disabled !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'disabled must be a boolean value'
         });
-      }
+    }
 
-      // Check notesInFlow
-      if (node.notesInFlow !== undefined && typeof node.notesInFlow !== 'boolean') {
+    // Check notesInFlow
+    if (node.notesInFlow !== undefined && typeof node.notesInFlow !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'notesInFlow must be a boolean value'
         });
-      }
+    }
 
-      // Check notes
-      if (node.notes !== undefined && typeof node.notes !== 'string') {
+    // Check notes
+    if (node.notes !== undefined && typeof node.notes !== 'string') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'notes must be a string value'
         });
-      }
+    }
 
-      // Provide guidance for executeOnce
-      if (node.executeOnce === true) {
+    // Provide guidance for executeOnce
+    if (node.executeOnce === true) {
         result.warnings.push({
           type: 'warning',
           nodeId: node.id,
           nodeName: node.name,
           message: 'executeOnce is enabled. This node will execute only once regardless of input items.'
         });
-      }
+    }
 
-      // Suggest alwaysOutputData for debugging
-      if ((node.continueOnFail || node.retryOnFail) && !node.alwaysOutputData) {
+    // Suggest alwaysOutputData for debugging
+    if ((node.continueOnFail || node.retryOnFail) && !node.alwaysOutputData) {
         if (normalizedType.includes('httprequest') || normalizedType.includes('webhook')) {
           result.suggestions.push(
             `Consider enabling alwaysOutputData on "${node.name}" to capture error responses for debugging`
           );
         }
       }
-    }
 
+  }
+
+  /**
+   * Generate error handling suggestions based on all nodes
+   */
+  private generateErrorHandlingSuggestions(
+    workflow: WorkflowJson,
+    result: WorkflowValidationResult
+  ): void {
     // Add general suggestions based on findings
     const nodesWithoutErrorHandling = workflow.nodes.filter(n => 
       !n.disabled && !n.onError && !n.continueOnFail && !n.retryOnFail
