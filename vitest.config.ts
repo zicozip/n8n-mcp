@@ -53,9 +53,7 @@ export default defineConfig({
       }
     },
     // Test isolation
-    isolate: true,
-    // File watch settings
-    watchExclude: ['**/node_modules/**', '**/dist/**', '**/.git/**']
+    isolate: true
   },
   resolve: {
     alias: {

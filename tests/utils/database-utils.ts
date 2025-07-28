@@ -221,7 +221,7 @@ export async function seedTestTemplates(
       description: template.description,
       views: template.totalViews,
       createdAt: template.createdAt,
-      workflow: template.workflow || { 
+      workflow: { 
         nodes: template.nodes?.map((n, i) => ({
           id: `node_${i}`,
           name: n.name,
@@ -272,13 +272,7 @@ export function createTestTemplate(overrides: Partial<TemplateWorkflow> = {}): T
     id,
     name: `Test Template ${id}`,
     description: 'A test template',
-    workflow: overrides.workflow || {
-      nodes: [],
-      connections: {},
-      settings: {}
-    },
     nodes: overrides.nodes || [],
-    categories: [],
     user: overrides.user || {
       id: 1,
       name: 'Test User',
