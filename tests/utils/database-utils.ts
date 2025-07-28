@@ -414,7 +414,17 @@ export async function loadFixtures(
         description: template.description,
         views: template.views || template.totalViews || 0,
         createdAt: template.createdAt,
-        workflow: template.workflow
+        workflow: template.workflow || {
+          nodes: template.nodes?.map((n: any, i: number) => ({
+            id: `node_${i}`,
+            name: n.name,
+            type: `n8n-nodes-base.${n.name.toLowerCase()}`,
+            position: [250 + i * 200, 300],
+            parameters: {}
+          })) || [],
+          connections: {},
+          settings: {}
+        }
       };
       await templateRepo.saveTemplate(template, detail);
     }
