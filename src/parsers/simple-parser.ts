@@ -187,9 +187,28 @@ export class SimpleParser {
   }
 
   private extractVersion(nodeClass: any): string {
+    // Try to get version from instance first
+    try {
+      const instance = typeof nodeClass === 'function' ? new nodeClass() : nodeClass;
+      
+      // Check instance baseDescription
+      if (instance?.baseDescription?.defaultVersion) {
+        return instance.baseDescription.defaultVersion.toString();
+      }
+      
+      // Check instance description version
+      if (instance?.description?.version) {
+        return instance.description.version.toString();
+      }
+    } catch (e) {
+      // Ignore instantiation errors
+    }
+    
+    // Check class-level properties
     if (nodeClass.baseDescription?.defaultVersion) {
       return nodeClass.baseDescription.defaultVersion.toString();
     }
+    
     return nodeClass.description?.version || '1';
   }
 

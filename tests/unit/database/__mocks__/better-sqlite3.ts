@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 export class MockDatabase {
   private data = new Map<string, any[]>();
   private prepared = new Map<string, any>();
+  public inTransaction = false;
   
   constructor() {
     this.data.set('nodes', []);
@@ -24,7 +25,18 @@ export class MockDatabase {
         items.push(params);
         this.data.set(key, items);
         return { changes: 1, lastInsertRowid: items.length };
-      })
+      }),
+      iterate: vi.fn(function* () {
+        const items = this.data.get(key) || [];
+        for (const item of items) {
+          yield item;
+        }
+      }),
+      pluck: vi.fn(function() { return this; }),
+      expand: vi.fn(function() { return this; }),
+      raw: vi.fn(function() { return this; }),
+      columns: vi.fn(() => []),
+      bind: vi.fn(function() { return this; })
     };
   }
   
@@ -36,6 +48,26 @@ export class MockDatabase {
   close() {
     // Mock close
     return true;
+  }
+  
+  pragma(key: string, value?: any) {
+    // Mock pragma
+    if (key === 'journal_mode' && value === 'WAL') {
+      return 'wal';
+    }
+    return null;
+  }
+  
+  transaction<T>(fn: () => T): T {
+    this.inTransaction = true;
+    try {
+      const result = fn();
+      this.inTransaction = false;
+      return result;
+    } catch (error) {
+      this.inTransaction = false;
+      throw error;
+    }
   }
   
   // Helper to extract table name from SQL
