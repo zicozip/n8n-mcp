@@ -40,6 +40,14 @@ logs/
 coverage/
 .nyc_output/
 test-results/
+test-reports/
+test-summary.md
+test-metadata.json
+benchmark-results.json
+benchmark-comparison.md
+benchmark-comparison.json
+benchmark-current.json
+benchmark-baseline.json
 tests/data/*.db
 tests/fixtures/*.tmp
 .vitest/

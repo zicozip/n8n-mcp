@@ -10,8 +10,9 @@ export default defineConfig({
       // Benchmark specific options
       include: ['tests/benchmarks/**/*.bench.ts'],
       reporters: process.env.CI 
-        ? [['./scripts/vitest-benchmark-json-reporter.js', {}]] 
+        ? ['default', ['./scripts/vitest-benchmark-json-reporter.js', {}]] 
         : ['default'],
+      outputFile: './benchmark-results.json',
     },
     setupFiles: [],
     pool: 'forks',

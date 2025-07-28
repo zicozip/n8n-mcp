@@ -22,10 +22,11 @@ export default defineConfig({
     // Retry configuration
     retry: parseInt(process.env.TEST_RETRY_ATTEMPTS || '2', 10),
     // Test reporter
-    reporters: process.env.CI ? ['default', 'json', 'junit'] : ['default'],
+    reporters: process.env.CI ? ['default', 'json', 'junit', 'html'] : ['default'],
     outputFile: {
       json: './test-results/results.json',
-      junit: './test-results/junit.xml'
+      junit: './test-results/junit.xml',
+      html: './test-results/html/index.html'
     },
     coverage: {
       provider: 'v8',
