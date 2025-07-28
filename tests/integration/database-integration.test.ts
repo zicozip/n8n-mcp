@@ -54,7 +54,10 @@ describe('Database Integration Tests', () => {
         nodes: [
           { id: 1, name: 'Email Trigger', icon: 'email' },
           { id: 2, name: 'Discord', icon: 'discord' }
-        ]
+        ],
+        user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
+        createdAt: new Date().toISOString(),
+        totalViews: 0
       },
       {
         id: 101,
@@ -64,26 +67,25 @@ describe('Database Integration Tests', () => {
           { id: 1, name: 'Cron', icon: 'clock' },
           { id: 2, name: 'Postgres', icon: 'database' },
           { id: 3, name: 'MongoDB', icon: 'database' }
-        ]
+        ],
+        user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
+        createdAt: new Date().toISOString(),
+        totalViews: 0
       },
       {
         id: 102,
         name: 'AI Content Generator',
         description: 'Generate content using OpenAI',
-        workflow: {
-          nodes: [
-            { id: 'node_0', name: 'Webhook', type: 'n8n-nodes-base.webhook', position: [250, 300], parameters: {} },
-            { id: 'node_1', name: 'OpenAI', type: '@n8n/n8n-nodes-langchain.openAi', position: [450, 300], parameters: {} },
-            { id: 'node_2', name: 'Slack', type: 'n8n-nodes-base.slack', position: [650, 300], parameters: {} }
-          ],
-          connections: {},
-          settings: {}
-        },
+        // Note: TemplateWorkflow doesn't have a workflow property
+        // The workflow data would be in TemplateDetail which is fetched separately
         nodes: [
           { id: 1, name: 'Webhook', icon: 'webhook' },
           { id: 2, name: 'OpenAI', icon: 'ai' },
           { id: 3, name: 'Slack', icon: 'slack' }
-        ]
+        ],
+        user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
+        createdAt: new Date().toISOString(),
+        totalViews: 0
       }
     ]);
   });

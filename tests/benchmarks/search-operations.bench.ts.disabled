@@ -1,7 +1,7 @@
 import { bench, describe } from 'vitest';
 import { NodeRepository } from '../../src/database/node-repository';
 import { SQLiteStorageService } from '../../src/services/sqlite-storage-service';
-import { NodeLoader } from '../../src/loaders/node-loader';
+import { N8nNodeLoader } from '../../src/loaders/node-loader';
 
 describe('Search Operations Performance', () => {
   let repository: NodeRepository;
@@ -10,7 +10,7 @@ describe('Search Operations Performance', () => {
   beforeAll(async () => {
     storage = new SQLiteStorageService(':memory:');
     repository = new NodeRepository(storage);
-    const loader = new NodeLoader(repository);
+    const loader = new N8nNodeLoader(repository);
     
     // Load real nodes for realistic benchmarking
     await loader.loadPackage('n8n-nodes-base');

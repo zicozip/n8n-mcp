@@ -594,8 +594,8 @@ describe('handlers-n8n-manager', () => {
       });
 
       // Clean up env vars
-      delete process.env.N8N_API_URL;
-      delete process.env.N8N_API_KEY;
+      process.env.N8N_API_URL = undefined as any;
+      process.env.N8N_API_KEY = undefined as any;
     });
   });
 

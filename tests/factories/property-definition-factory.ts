@@ -12,7 +12,7 @@ interface PropertyDefinition {
 }
 
 export const PropertyDefinitionFactory = Factory.define<PropertyDefinition>(() => ({
-  name: faker.helpers.camelCase(faker.word.noun() + ' ' + faker.word.adjective()),
+  name: faker.word.noun() + faker.word.adjective().charAt(0).toUpperCase() + faker.word.adjective().slice(1),
   displayName: faker.helpers.arrayElement(['URL', 'Method', 'Headers', 'Body', 'Authentication']),
   type: faker.helpers.arrayElement(['string', 'number', 'boolean', 'options', 'json']),
   default: faker.datatype.boolean() ? faker.word.sample() : undefined,

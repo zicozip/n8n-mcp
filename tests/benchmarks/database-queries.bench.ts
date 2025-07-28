@@ -16,10 +16,10 @@ describe('Database Query Performance', () => {
     // Seed database with test data
     for (let i = 0; i < testNodeCount; i++) {
       const node = NodeFactory.build({
-        name: `TestNode${i}`,
-        type: `nodes-base.testNode${i}`,
+        displayName: `TestNode${i}`,
+        nodeType: `nodes-base.testNode${i}`,
         category: i % 2 === 0 ? 'transform' : 'trigger',
-        package: 'n8n-nodes-base',
+        packageName: 'n8n-nodes-base',
         documentation: `Test documentation for node ${i}`,
         properties: PropertyDefinitionFactory.buildList(5)
       });
@@ -123,8 +123,8 @@ describe('Database Query Performance', () => {
 
   bench('upsertNode - new node', async () => {
     const node = NodeFactory.build({
-      name: `BenchNode${Date.now()}`,
-      type: `nodes-base.benchNode${Date.now()}`
+      displayName: `BenchNode${Date.now()}`,
+      nodeType: `nodes-base.benchNode${Date.now()}`
     });
     await repository.upsertNode(node);
   }, {

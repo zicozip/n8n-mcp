@@ -2,7 +2,7 @@ import { bench, describe } from 'vitest';
 import { MCPEngine } from '../../src/mcp-tools-engine';
 import { NodeRepository } from '../../src/database/node-repository';
 import { SQLiteStorageService } from '../../src/services/sqlite-storage-service';
-import { NodeLoader } from '../../src/loaders/node-loader';
+import { N8nNodeLoader } from '../../src/loaders/node-loader';
 
 describe('MCP Tool Execution Performance', () => {
   let engine: MCPEngine;
@@ -11,7 +11,7 @@ describe('MCP Tool Execution Performance', () => {
   beforeAll(async () => {
     storage = new SQLiteStorageService(':memory:');
     const repository = new NodeRepository(storage);
-    const loader = new NodeLoader(repository);
+    const loader = new N8nNodeLoader(repository);
     await loader.loadPackage('n8n-nodes-base');
     
     engine = new MCPEngine(repository);

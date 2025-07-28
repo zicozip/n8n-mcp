@@ -180,7 +180,9 @@ describe('WorkflowService with n8n-nodes-base mock', () => {
       vi.mocked(getNodeTypes).mockImplementation(() => ({
         getByName: vi.fn((name: string) => {
           if (name === 'slack') return undefined;
-          return null;
+          // Return the actual mock implementation for other nodes
+          const actualRegistry = originalImplementation ? originalImplementation() : getNodeTypes();
+          return actualRegistry.getByName(name);
         }),
         getByNameAndVersion: vi.fn()
       }));

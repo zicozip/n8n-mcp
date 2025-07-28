@@ -447,7 +447,7 @@ const mockMergeNode = new BaseMockNode(
     const mode = this.getNodeParameter('mode', 0) as string;
     
     // Mock merge - just return first input
-    return [this.getInputData(0)];
+    return [this.getInputData()];
   }
 );
 
@@ -461,7 +461,7 @@ const mockIfNode = new BaseMockNode(
     defaults: { name: 'IF' },
     inputs: ['main'],
     outputs: ['main', 'main'],
-    outputNames: ['true', 'false'],
+    // outputNames: ['true', 'false'], // Not a valid property in INodeTypeDescription
     properties: [
       {
         displayName: 'Conditions',

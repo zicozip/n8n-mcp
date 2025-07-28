@@ -61,12 +61,12 @@ describe('n8n-nodes-base mock', () => {
         },
       };
 
-      const result = await webhookNode?.webhook?.call(mockContext);
+      const result = await webhookNode?.webhook?.call(mockContext as any);
       
       expect(result).toBeDefined();
-      expect(result.workflowData).toBeDefined();
-      expect(result.workflowData[0]).toHaveLength(1);
-      expect(result.workflowData[0][0].json).toMatchObject({
+      expect(result?.workflowData).toBeDefined();
+      expect(result?.workflowData[0]).toHaveLength(1);
+      expect(result?.workflowData[0][0].json).toMatchObject({
         headers: { 'content-type': 'application/json' },
         params: { query: 'param' },
         body: { test: 'data' },
@@ -84,18 +84,20 @@ describe('n8n-nodes-base mock', () => {
           if (name === 'url') return 'https://api.example.com';
           return '';
         }),
+        getCredentials: vi.fn(),
         helpers: {
           returnJsonArray: vi.fn((data) => [{ json: data }]),
           httpRequest: vi.fn(),
+          webhook: vi.fn(),
         },
       };
 
-      const result = await httpNode?.execute?.call(mockContext);
+      const result = await httpNode?.execute?.call(mockContext as any);
       
       expect(result).toBeDefined();
-      expect(result).toHaveLength(1);
-      expect(result[0]).toHaveLength(1);
-      expect(result[0][0].json).toMatchObject({
+      expect(result!).toHaveLength(1);
+      expect(result![0]).toHaveLength(1);
+      expect(result![0][0].json).toMatchObject({
         statusCode: 200,
         body: {
           success: true,
@@ -122,9 +124,15 @@ describe('n8n-nodes-base mock', () => {
       const mockContext = {
         getInputData: vi.fn(() => []),
         getNodeParameter: vi.fn(),
+        getCredentials: vi.fn(),
+        helpers: {
+          returnJsonArray: vi.fn(),
+          httpRequest: vi.fn(),
+          webhook: vi.fn(),
+        },
       };
 
-      const result = await httpNode?.execute?.call(mockContext);
+      const result = await httpNode?.execute?.call(mockContext as any);
       
       expect(customExecute).toHaveBeenCalled();
       expect(result).toEqual([[{ json: { custom: 'response' } }]]);
@@ -135,6 +143,13 @@ describe('n8n-nodes-base mock', () => {
         description: {
           displayName: 'Custom Slack',
           version: 3,
+          name: 'slack',
+          group: ['output'],
+          description: 'Send messages to Slack',
+          defaults: { name: 'Slack' },
+          inputs: ['main'],
+          outputs: ['main'],
+          properties: [],
         },
       });
 
@@ -189,13 +204,19 @@ describe('n8n-nodes-base mock', () => {
           { json: { value: 4 } },
         ]),
         getNodeParameter: vi.fn(),
+        getCredentials: vi.fn(),
+        helpers: {
+          returnJsonArray: vi.fn(),
+          httpRequest: vi.fn(),
+          webhook: vi.fn(),
+        },
       };
 
-      const result = await ifNode?.execute?.call(mockContext);
+      const result = await ifNode?.execute?.call(mockContext as any);
       
-      expect(result).toHaveLength(2); // true and false outputs
-      expect(result[0]).toHaveLength(2); // even indices
-      expect(result[1]).toHaveLength(2); // odd indices
+      expect(result!).toHaveLength(2); // true and false outputs
+      expect(result![0]).toHaveLength(2); // even indices
+      expect(result![1]).toHaveLength(2); // odd indices
     });
 
     it('should execute switch node with multiple outputs', async () => {
@@ -210,15 +231,21 @@ describe('n8n-nodes-base mock', () => {
           { json: { value: 4 } },
         ]),
         getNodeParameter: vi.fn(),
+        getCredentials: vi.fn(),
+        helpers: {
+          returnJsonArray: vi.fn(),
+          httpRequest: vi.fn(),
+          webhook: vi.fn(),
+        },
       };
 
-      const result = await switchNode?.execute?.call(mockContext);
+      const result = await switchNode?.execute?.call(mockContext as any);
       
-      expect(result).toHaveLength(4); // 4 outputs
-      expect(result[0]).toHaveLength(1); // item 0
-      expect(result[1]).toHaveLength(1); // item 1
-      expect(result[2]).toHaveLength(1); // item 2
-      expect(result[3]).toHaveLength(1); // item 3
+      expect(result!).toHaveLength(4); // 4 outputs
+      expect(result![0]).toHaveLength(1); // item 0
+      expect(result![1]).toHaveLength(1); // item 1
+      expect(result![2]).toHaveLength(1); // item 2
+      expect(result![3]).toHaveLength(1); // item 3
     });
   });
 });

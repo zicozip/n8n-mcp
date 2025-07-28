@@ -1,18 +1,18 @@
 import { bench, describe } from 'vitest';
-import { NodeLoader } from '../../src/loaders/node-loader';
+import { N8nNodeLoader } from '../../src/loaders/node-loader';
 import { NodeRepository } from '../../src/database/node-repository';
 import { SQLiteStorageService } from '../../src/services/sqlite-storage-service';
 import path from 'path';
 
 describe('Node Loading Performance', () => {
-  let loader: NodeLoader;
+  let loader: N8nNodeLoader;
   let repository: NodeRepository;
   let storage: SQLiteStorageService;
 
   beforeAll(() => {
     storage = new SQLiteStorageService(':memory:');
     repository = new NodeRepository(storage);
-    loader = new NodeLoader(repository);
+    loader = new N8nNodeLoader(repository);
   });
 
   afterAll(() => {

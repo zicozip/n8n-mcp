@@ -258,7 +258,7 @@ export function createTestNode(overrides: Partial<ParsedNode> = {}): ParsedNode 
     version: '1',
     isVersioned: false,
     packageName: 'n8n-nodes-base',
-    documentation: null,
+    documentation: undefined,
     ...overrides
   };
 }
