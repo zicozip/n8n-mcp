@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.22] - 2025-07-28
+
+### Security
+- **Docker base images**: Updated from Node.js 20 Alpine to Node.js 22 LTS Alpine
+  - Addresses known vulnerabilities in older Alpine images
+  - Provides better long-term support with Node.js 22 LTS (supported until April 2027)
+  - All Dockerfiles updated: `Dockerfile`, `Dockerfile.railway`, `Dockerfile.test`
+  - Docker Compose extractor service updated to use Node.js 22
+  - Documentation updated to reflect new base image version
+
+### Compatibility
+- Tested and verified compatibility with Node.js 22 LTS
+- All dependencies work correctly with the new Node.js version
+- Docker builds complete successfully with improved security posture
+
 ## [2.7.21] - 2025-07-23
 
 ### Updated
@@ -759,6 +774,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.7.22]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.21...v2.7.22
+[2.7.21]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.20...v2.7.21
+[2.7.20]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.19...v2.7.20
 [2.7.19]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.18...v2.7.19
 [2.7.18]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.17...v2.7.18
 [2.7.17]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.16...v2.7.17
