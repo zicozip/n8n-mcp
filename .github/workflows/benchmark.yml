@@ -52,6 +52,22 @@ jobs:
             benchmark-results-formatted.json
             benchmark-summary.json
 
+      # Ensure gh-pages branch exists
+      - name: Check and create gh-pages branch
+        run: |
+          git fetch origin gh-pages:gh-pages 2>/dev/null || {
+            echo "gh-pages branch doesn't exist. Creating it..."
+            git checkout --orphan gh-pages
+            git rm -rf .
+            echo "# Benchmark Results" > README.md
+            git add README.md
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "Initial gh-pages commit"
+            git push origin gh-pages
+            git checkout -
+          }
+
       # Store benchmark results and compare
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
@@ -132,6 +148,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: gh-pages
+        continue-on-error: true
+        
+      # If gh-pages checkout failed, create a minimal structure
+      - name: Ensure gh-pages content exists
+        run: |
+          if [ ! -f "index.html" ]; then
+            echo "Creating minimal gh-pages structure..."
+            mkdir -p benchmarks
+            echo '<!DOCTYPE html><html><head><title>n8n-mcp Benchmarks</title></head><body><h1>n8n-mcp Benchmarks</h1><p>Benchmark data will appear here after the first run.</p></body></html>' > index.html
+          fi
           
       - name: Setup Pages
         uses: actions/configure-pages@v4

@@ -41,12 +41,12 @@ class WorkflowService {
 }
 
 // Mock the module at the top level
-vi.mock('n8n-nodes-base', () => ({
-  getNodeTypes: vi.fn(() => {
-    const { getNodeTypes } = require('../__mocks__/n8n-nodes-base');
-    return getNodeTypes();
-  })
-}));
+vi.mock('n8n-nodes-base', () => {
+  const { getNodeTypes: mockGetNodeTypes } = require('../__mocks__/n8n-nodes-base');
+  return {
+    getNodeTypes: mockGetNodeTypes
+  };
+});
 
 describe('WorkflowService with n8n-nodes-base mock', () => {
   let service: WorkflowService;
@@ -173,20 +173,26 @@ describe('WorkflowService with n8n-nodes-base mock', () => {
     });
 
     it('should handle missing slack node', async () => {
+      // Save the original mock implementation
+      const originalImplementation = vi.mocked(getNodeTypes).getMockImplementation();
+      
       // Override getNodeTypes to return undefined for slack
-      const getNodeTypes = vi.fn(() => ({
+      vi.mocked(getNodeTypes).mockImplementation(() => ({
         getByName: vi.fn((name: string) => {
           if (name === 'slack') return undefined;
           return null;
         }),
         getByNameAndVersion: vi.fn()
       }));
-      
-      vi.mocked(require('n8n-nodes-base').getNodeTypes).mockImplementation(getNodeTypes);
 
       await expect(
         service.validateSlackMessage('#general', 'Hello')
       ).rejects.toThrow('Slack node not found');
+      
+      // Restore the original implementation
+      if (originalImplementation) {
+        vi.mocked(getNodeTypes).mockImplementation(originalImplementation);
+      }
     });
   });
 
