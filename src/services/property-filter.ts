@@ -280,7 +280,7 @@ export class PropertyFilter {
     const simplified: SimplifiedProperty = {
       name: prop.name,
       displayName: prop.displayName || prop.name,
-      type: prop.type,
+      type: prop.type || 'string', // Default to string if no type specified
       description: this.extractDescription(prop),
       required: prop.required || false
     };
@@ -445,13 +445,14 @@ export class PropertyFilter {
   private static inferEssentials(properties: any[]): FilteredProperties {
     // Extract explicitly required properties
     const required = properties
-      .filter(p => p.required === true)
+      .filter(p => p.name && p.required === true)
       .map(p => this.simplifyProperty(p));
     
     // Find common properties (simple, always visible, at root level)
     const common = properties
       .filter(p => {
-        return !p.required && 
+        return p.name && // Ensure property has a name
+               !p.required && 
                !p.displayOptions && 
                p.type !== 'collection' && 
                p.type !== 'fixedCollection' &&
@@ -464,7 +465,8 @@ export class PropertyFilter {
     if (required.length + common.length < 5) {
       const additional = properties
         .filter(p => {
-          return !p.required &&
+          return p.name && // Ensure property has a name
+                 !p.required &&
                  p.displayOptions &&
                  Object.keys(p.displayOptions.show || {}).length === 1;
         })
@@ -485,6 +487,11 @@ export class PropertyFilter {
     query: string,
     maxResults: number = 20
   ): SimplifiedProperty[] {
+    // Return empty array for empty query
+    if (!query || query.trim() === '') {
+      return [];
+    }
+    
     const lowerQuery = query.toLowerCase();
     const matches: Array<{ property: any; score: number; path: string }> = [];
     

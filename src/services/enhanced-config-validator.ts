@@ -65,7 +65,11 @@ export class EnhancedConfigValidator extends ConfigValidator {
       profile,
       operation: operationContext,
       examples: [],
-      nextSteps: []
+      nextSteps: [],
+      // Ensure arrays are initialized (in case baseResult doesn't have them)
+      errors: baseResult.errors || [],
+      warnings: baseResult.warnings || [],
+      suggestions: baseResult.suggestions || []
     };
     
     // Apply profile-based filtering
