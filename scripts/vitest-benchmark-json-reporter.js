@@ -1,33 +1,52 @@
-import { writeFileSync } from 'fs';
-import { resolve } from 'path';
+const { writeFileSync } = require('fs');
+const { resolve } = require('path');
 
-export default class BenchmarkJsonReporter {
+class BenchmarkJsonReporter {
   constructor() {
     this.results = [];
+    console.log('[BenchmarkJsonReporter] Initialized');
+  }
+
+  onInit(ctx) {
+    console.log('[BenchmarkJsonReporter] onInit called');
+  }
+
+  onCollected(files) {
+    console.log('[BenchmarkJsonReporter] onCollected called with', files ? files.length : 0, 'files');
   }
 
   onTaskUpdate(tasks) {
-    // Called when tasks are updated
+    console.log('[BenchmarkJsonReporter] onTaskUpdate called');
   }
 
-  onFinished(files) {
+  onBenchmarkResult(file, benchmark) {
+    console.log('[BenchmarkJsonReporter] onBenchmarkResult called for', benchmark.name);
+  }
+
+  onFinished(files, errors) {
+    console.log('[BenchmarkJsonReporter] onFinished called with', files ? files.length : 0, 'files');
+    
     const results = {
       timestamp: new Date().toISOString(),
       files: []
     };
 
-    for (const file of files || []) {
-      if (!file) continue;
-      
-      const fileResult = {
-        filepath: file.filepath || file.name,
-        groups: []
-      };
+    try {
+      for (const file of files || []) {
+        if (!file) continue;
+        
+        const fileResult = {
+          filepath: file.filepath || file.name || 'unknown',
+          groups: []
+        };
 
-      // Process benchmarks
-      if (file.tasks) {
-        for (const task of file.tasks) {
+        // Handle both file.tasks and file.benchmarks
+        const tasks = file.tasks || file.benchmarks || [];
+        
+        // Process tasks/benchmarks
+        for (const task of tasks) {
           if (task.type === 'suite' && task.tasks) {
+            // This is a suite containing benchmarks
             const group = {
               name: task.name,
               benchmarks: []
@@ -56,18 +75,47 @@ export default class BenchmarkJsonReporter {
             if (group.benchmarks.length > 0) {
               fileResult.groups.push(group);
             }
+          } else if (task.result?.benchmark) {
+            // This is a direct benchmark (not in a suite)
+            if (!fileResult.groups.length) {
+              fileResult.groups.push({
+                name: 'Default',
+                benchmarks: []
+              });
+            }
+            
+            fileResult.groups[0].benchmarks.push({
+              name: task.name,
+              result: {
+                mean: task.result.benchmark.mean,
+                min: task.result.benchmark.min,
+                max: task.result.benchmark.max,
+                hz: task.result.benchmark.hz,
+                p75: task.result.benchmark.p75,
+                p99: task.result.benchmark.p99,
+                p995: task.result.benchmark.p995,
+                p999: task.result.benchmark.p999,
+                rme: task.result.benchmark.rme,
+                samples: task.result.benchmark.samples
+              }
+            });
           }
+        }
+
+        if (fileResult.groups.length > 0) {
+          results.files.push(fileResult);
         }
       }
 
-      if (fileResult.groups.length > 0) {
-        results.files.push(fileResult);
-      }
+      // Write results
+      const outputPath = resolve(process.cwd(), 'benchmark-results.json');
+      writeFileSync(outputPath, JSON.stringify(results, null, 2));
+      console.log(`[BenchmarkJsonReporter] Benchmark results written to ${outputPath}`);
+      console.log(`[BenchmarkJsonReporter] Total files processed: ${results.files.length}`);
+    } catch (error) {
+      console.error('[BenchmarkJsonReporter] Error writing results:', error);
     }
-
-    // Write results
-    const outputPath = resolve(process.cwd(), 'benchmark-results.json');
-    writeFileSync(outputPath, JSON.stringify(results, null, 2));
-    console.log(`Benchmark results written to ${outputPath}`);
   }
 }
+
+module.exports = BenchmarkJsonReporter;

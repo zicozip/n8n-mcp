@@ -61,7 +61,7 @@
     "benchmark": "vitest bench --config vitest.config.benchmark.ts",
     "benchmark:watch": "vitest bench --watch --config vitest.config.benchmark.ts",
     "benchmark:ui": "vitest bench --ui --config vitest.config.benchmark.ts",
-    "benchmark:ci": "CI=true vitest bench --run --config vitest.config.benchmark.ts",
+    "benchmark:ci": "CI=true node scripts/run-benchmarks-ci.js",
     "db:init": "node -e \"new (require('./dist/services/sqlite-storage-service').SQLiteStorageService)(); console.log('Database initialized')\"",
     "docs:rebuild": "ts-node src/scripts/rebuild-database.ts",
     "sync:runtime-version": "node scripts/sync-runtime-version.js",

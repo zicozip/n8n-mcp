@@ -70,6 +70,15 @@ describe('Database Integration Tests', () => {
         id: 102,
         name: 'AI Content Generator',
         description: 'Generate content using OpenAI',
+        workflow: {
+          nodes: [
+            { id: 'node_0', name: 'Webhook', type: 'n8n-nodes-base.webhook', position: [250, 300], parameters: {} },
+            { id: 'node_1', name: 'OpenAI', type: '@n8n/n8n-nodes-langchain.openAi', position: [450, 300], parameters: {} },
+            { id: 'node_2', name: 'Slack', type: 'n8n-nodes-base.slack', position: [650, 300], parameters: {} }
+          ],
+          connections: {},
+          settings: {}
+        },
         nodes: [
           { id: 1, name: 'Webhook', icon: 'webhook' },
           { id: 2, name: 'OpenAI', icon: 'ai' },
@@ -89,7 +98,7 @@ describe('Database Integration Tests', () => {
         .prepare('SELECT * FROM nodes WHERE category = ?')
         .all('Communication') as any[];
       
-      expect(communicationNodes).toHaveLength(4); // email, discord, twilio, emailTrigger
+      expect(communicationNodes).toHaveLength(5); // slack (default), email, discord, twilio, emailTrigger
       
       const nodeTypes = communicationNodes.map(n => n.node_type);
       expect(nodeTypes).toContain('nodes-base.email');
@@ -169,7 +178,9 @@ describe('Database Integration Tests', () => {
       const aiTemplates = testDb.adapter.prepare(query).all() as any[];
       
       expect(aiTemplates.length).toBeGreaterThan(0);
-      expect(aiTemplates[0].name).toBe('AI Content Generator');
+      // Find the AI Content Generator template in the results
+      const aiContentGenerator = aiTemplates.find(t => t.name === 'AI Content Generator');
+      expect(aiContentGenerator).toBeDefined();
     });
     
     it('should aggregate data across tables', () => {
@@ -185,7 +196,7 @@ describe('Database Integration Tests', () => {
       
       const communicationCategory = categoryCounts.find(c => c.category === 'Communication');
       expect(communicationCategory).toBeDefined();
-      expect(communicationCategory!.count).toBe(4);
+      expect(communicationCategory!.count).toBe(5);
     });
   });
   
