@@ -46,7 +46,7 @@ function setTestDefaults(): void {
     
     // API
     N8N_API_URL: 'http://localhost:3001/mock-api',
-    N8N_API_KEY: 'test-api-key',
+    N8N_API_KEY: 'test-api-key-12345',
     
     // Server
     PORT: '3001',
