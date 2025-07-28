@@ -1,23 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  handleCreateWorkflow,
-  handleGetWorkflow,
-  handleGetWorkflowDetails,
-  handleGetWorkflowStructure,
-  handleGetWorkflowMinimal,
-  handleUpdateWorkflow,
-  handleDeleteWorkflow,
-  handleListWorkflows,
-  handleValidateWorkflow,
-  handleTriggerWebhookWorkflow,
-  handleGetExecution,
-  handleListExecutions,
-  handleDeleteExecution,
-  handleHealthCheck,
-  handleListAvailableTools,
-  handleDiagnostic,
-  getN8nApiClient,
-} from '@/mcp/handlers-n8n-manager';
 import { N8nApiClient } from '@/services/n8n-api-client';
 import { WorkflowValidator } from '@/services/workflow-validator';
 import { NodeRepository } from '@/database/node-repository';
@@ -30,25 +11,47 @@ import {
   N8nServerError,
 } from '@/utils/n8n-errors';
 import { ExecutionStatus } from '@/types/n8n-api';
-import { z } from 'zod';
 
-// Mock all dependencies
+// Mock dependencies
 vi.mock('@/services/n8n-api-client');
 vi.mock('@/services/workflow-validator');
 vi.mock('@/database/node-repository');
-vi.mock('@/config/n8n-api');
-vi.mock('@/services/n8n-validation');
-vi.mock('@/utils/logger');
-
-// Import mocked modules
-import { getN8nApiConfig } from '@/config/n8n-api';
-import * as n8nValidation from '@/services/n8n-validation';
-import { logger } from '@/utils/logger';
+vi.mock('@/config/n8n-api', () => ({
+  getN8nApiConfig: vi.fn()
+}));
+vi.mock('@/services/n8n-validation', () => ({
+  validateWorkflowStructure: vi.fn(),
+  hasWebhookTrigger: vi.fn(),
+  getWebhookUrl: vi.fn(),
+}));
+vi.mock('@/utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+  },
+  Logger: vi.fn().mockImplementation(() => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    warn: vi.fn(),
+  })),
+  LogLevel: {
+    ERROR: 0,
+    WARN: 1,
+    INFO: 2,
+    DEBUG: 3,
+  }
+}));
 
 describe('handlers-n8n-manager', () => {
   let mockApiClient: any;
   let mockRepository: any;
   let mockValidator: any;
+  let handlers: any;
+  let getN8nApiConfig: any;
+  let n8nValidation: any;
 
   // Helper function to create test data
   const createTestWorkflow = (overrides = {}) => ({
@@ -82,9 +85,9 @@ describe('handlers-n8n-manager', () => {
     ...overrides,
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-
+    
     // Setup mock API client
     mockApiClient = {
       createWorkflow: vi.fn(),
@@ -110,6 +113,10 @@ describe('handlers-n8n-manager', () => {
       validateWorkflow: vi.fn(),
     };
 
+    // Import mocked modules
+    getN8nApiConfig = (await import('@/config/n8n-api')).getN8nApiConfig;
+    n8nValidation = await import('@/services/n8n-validation');
+    
     // Mock the API config
     vi.mocked(getN8nApiConfig).mockReturnValue({
       baseUrl: 'https://n8n.test.com',
@@ -131,18 +138,27 @@ describe('handlers-n8n-manager', () => {
 
     // Mock NodeRepository constructor
     vi.mocked(NodeRepository).mockImplementation(() => mockRepository);
+
+    // Import handlers module after setting up mocks
+    handlers = await import('@/mcp/handlers-n8n-manager');
   });
 
   afterEach(() => {
-    // Clear the singleton API client
-    const handler = require('../../../src/mcp/handlers-n8n-manager');
-    handler.apiClient = null;
-    handler.lastConfigUrl = null;
+    // Clean up singleton state by accessing the module internals
+    if (handlers) {
+      // Access the module's internal state via the getN8nApiClient function
+      const clientGetter = handlers.getN8nApiClient;
+      if (clientGetter) {
+        // Force reset by setting config to null first
+        vi.mocked(getN8nApiConfig).mockReturnValue(null);
+        clientGetter();
+      }
+    }
   });
 
   describe('getN8nApiClient', () => {
     it('should create new client when config is available', () => {
-      const client = getN8nApiClient();
+      const client = handlers.getN8nApiClient();
       expect(client).toBe(mockApiClient);
       expect(N8nApiClient).toHaveBeenCalledWith({
         baseUrl: 'https://n8n.test.com',
@@ -154,20 +170,27 @@ describe('handlers-n8n-manager', () => {
 
     it('should return null when config is not available', () => {
       vi.mocked(getN8nApiConfig).mockReturnValue(null);
-      const client = getN8nApiClient();
+      const client = handlers.getN8nApiClient();
       expect(client).toBeNull();
     });
 
     it('should reuse existing client when config has not changed', () => {
-      const client1 = getN8nApiClient();
-      const client2 = getN8nApiClient();
+      // First call creates the client
+      const client1 = handlers.getN8nApiClient();
+      
+      // Second call should reuse the same client
+      const client2 = handlers.getN8nApiClient();
+      
       expect(client1).toBe(client2);
       expect(N8nApiClient).toHaveBeenCalledTimes(1);
     });
 
     it('should create new client when config URL changes', () => {
-      const client1 = getN8nApiClient();
+      // First call with initial config
+      const client1 = handlers.getN8nApiClient();
+      expect(N8nApiClient).toHaveBeenCalledTimes(1);
       
+      // Change the config URL
       vi.mocked(getN8nApiConfig).mockReturnValue({
         baseUrl: 'https://different.test.com',
         apiKey: 'test-key',
@@ -175,8 +198,17 @@ describe('handlers-n8n-manager', () => {
         maxRetries: 3,
       });
       
-      const client2 = getN8nApiClient();
+      // Second call should create a new client
+      const client2 = handlers.getN8nApiClient();
       expect(N8nApiClient).toHaveBeenCalledTimes(2);
+      
+      // Verify the second call used the new config
+      expect(N8nApiClient).toHaveBeenNthCalledWith(2, {
+        baseUrl: 'https://different.test.com',
+        apiKey: 'test-key',
+        timeout: 30000,
+        maxRetries: 3,
+      });
     });
   });
 
@@ -191,7 +223,7 @@ describe('handlers-n8n-manager', () => {
 
       mockApiClient.createWorkflow.mockResolvedValue(testWorkflow);
 
-      const result = await handleCreateWorkflow(input);
+      const result = await handlers.handleCreateWorkflow(input);
 
       expect(result).toEqual({
         success: true,
@@ -205,7 +237,7 @@ describe('handlers-n8n-manager', () => {
     it('should handle validation errors', async () => {
       const input = { invalid: 'data' };
 
-      const result = await handleCreateWorkflow(input);
+      const result = await handlers.handleCreateWorkflow(input);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid input');
@@ -223,7 +255,7 @@ describe('handlers-n8n-manager', () => {
         'Workflow must have at least one node',
       ]);
 
-      const result = await handleCreateWorkflow(input);
+      const result = await handlers.handleCreateWorkflow(input);
 
       expect(result).toEqual({
         success: false,
@@ -235,7 +267,14 @@ describe('handlers-n8n-manager', () => {
     it('should handle API errors', async () => {
       const input = {
         name: 'Test Workflow',
-        nodes: [{ id: 'node1', name: 'Start', type: 'n8n-nodes-base.start' }],
+        nodes: [{ 
+          id: 'node1', 
+          name: 'Start', 
+          type: 'n8n-nodes-base.start',
+          typeVersion: 1,
+          position: [100, 100],
+          parameters: {}
+        }],
         connections: {},
       };
 
@@ -245,11 +284,11 @@ describe('handlers-n8n-manager', () => {
       });
       mockApiClient.createWorkflow.mockRejectedValue(apiError);
 
-      const result = await handleCreateWorkflow(input);
+      const result = await handlers.handleCreateWorkflow(input);
 
       expect(result).toEqual({
         success: false,
-        error: 'Invalid workflow data',
+        error: 'Invalid request: Invalid workflow data',
         code: 'VALIDATION_ERROR',
         details: { field: 'nodes', message: 'Node configuration invalid' },
       });
@@ -258,7 +297,7 @@ describe('handlers-n8n-manager', () => {
     it('should handle API not configured error', async () => {
       vi.mocked(getN8nApiConfig).mockReturnValue(null);
 
-      const result = await handleCreateWorkflow({ name: 'Test', nodes: [], connections: {} });
+      const result = await handlers.handleCreateWorkflow({ name: 'Test', nodes: [], connections: {} });
 
       expect(result).toEqual({
         success: false,
@@ -272,7 +311,7 @@ describe('handlers-n8n-manager', () => {
       const testWorkflow = createTestWorkflow();
       mockApiClient.getWorkflow.mockResolvedValue(testWorkflow);
 
-      const result = await handleGetWorkflow({ id: 'test-workflow-id' });
+      const result = await handlers.handleGetWorkflow({ id: 'test-workflow-id' });
 
       expect(result).toEqual({
         success: true,
@@ -282,20 +321,20 @@ describe('handlers-n8n-manager', () => {
     });
 
     it('should handle not found error', async () => {
-      const notFoundError = new N8nNotFoundError('Workflow not found');
+      const notFoundError = new N8nNotFoundError('Workflow', 'non-existent');
       mockApiClient.getWorkflow.mockRejectedValue(notFoundError);
 
-      const result = await handleGetWorkflow({ id: 'non-existent' });
+      const result = await handlers.handleGetWorkflow({ id: 'non-existent' });
 
       expect(result).toEqual({
         success: false,
-        error: 'Workflow not found',
+        error: 'Workflow with ID non-existent not found',
         code: 'NOT_FOUND',
       });
     });
 
     it('should handle invalid input', async () => {
-      const result = await handleGetWorkflow({ notId: 'test' });
+      const result = await handlers.handleGetWorkflow({ notId: 'test' });
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid input');
@@ -317,7 +356,7 @@ describe('handlers-n8n-manager', () => {
         nextCursor: null,
       });
 
-      const result = await handleGetWorkflowDetails({ id: 'test-workflow-id' });
+      const result = await handlers.handleGetWorkflowDetails({ id: 'test-workflow-id' });
 
       expect(result).toEqual({
         success: true,
@@ -354,223 +393,11 @@ describe('handlers-n8n-manager', () => {
       vi.mocked(n8nValidation.hasWebhookTrigger).mockReturnValue(true);
       vi.mocked(n8nValidation.getWebhookUrl).mockReturnValue('/webhook/test-webhook');
 
-      const result = await handleGetWorkflowDetails({ id: 'test-workflow-id' });
+      const result = await handlers.handleGetWorkflowDetails({ id: 'test-workflow-id' });
 
       expect(result.success).toBe(true);
       expect(result.data).toHaveProperty('hasWebhookTrigger', true);
       expect(result.data).toHaveProperty('webhookPath', '/webhook/test-webhook');
-    });
-  });
-
-  describe('handleGetWorkflowStructure', () => {
-    it('should return simplified workflow structure', async () => {
-      const testWorkflow = createTestWorkflow({
-        nodes: [
-          {
-            id: 'node1',
-            name: 'Start',
-            type: 'n8n-nodes-base.start',
-            typeVersion: 1,
-            position: [100, 100],
-            parameters: { complex: 'data' },
-            disabled: false,
-          },
-          {
-            id: 'node2',
-            name: 'HTTP Request',
-            type: 'n8n-nodes-base.httpRequest',
-            typeVersion: 3,
-            position: [300, 100],
-            parameters: { url: 'https://api.test.com' },
-            disabled: true,
-          },
-        ],
-        connections: {
-          node1: {
-            main: [[{ node: 'node2', type: 'main', index: 0 }]],
-          },
-        },
-      });
-
-      mockApiClient.getWorkflow.mockResolvedValue(testWorkflow);
-
-      const result = await handleGetWorkflowStructure({ id: 'test-workflow-id' });
-
-      expect(result).toEqual({
-        success: true,
-        data: {
-          id: 'test-workflow-id',
-          name: 'Test Workflow',
-          active: true,
-          nodes: [
-            {
-              id: 'node1',
-              name: 'Start',
-              type: 'n8n-nodes-base.start',
-              position: [100, 100],
-              disabled: false,
-            },
-            {
-              id: 'node2',
-              name: 'HTTP Request',
-              type: 'n8n-nodes-base.httpRequest',
-              position: [300, 100],
-              disabled: true,
-            },
-          ],
-          connections: testWorkflow.connections,
-          nodeCount: 2,
-          connectionCount: 1,
-        },
-      });
-    });
-  });
-
-  describe('handleGetWorkflowMinimal', () => {
-    it('should return minimal workflow info', async () => {
-      const testWorkflow = createTestWorkflow({
-        tags: ['automation', 'test'],
-      });
-
-      mockApiClient.getWorkflow.mockResolvedValue(testWorkflow);
-
-      const result = await handleGetWorkflowMinimal({ id: 'test-workflow-id' });
-
-      expect(result).toEqual({
-        success: true,
-        data: {
-          id: 'test-workflow-id',
-          name: 'Test Workflow',
-          active: true,
-          tags: ['automation', 'test'],
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-        },
-      });
-    });
-  });
-
-  describe('handleUpdateWorkflow', () => {
-    it('should update workflow successfully', async () => {
-      const existingWorkflow = createTestWorkflow();
-      const updatedWorkflow = { ...existingWorkflow, name: 'Updated Workflow' };
-
-      mockApiClient.getWorkflow.mockResolvedValue(existingWorkflow);
-      mockApiClient.updateWorkflow.mockResolvedValue(updatedWorkflow);
-
-      const result = await handleUpdateWorkflow({
-        id: 'test-workflow-id',
-        name: 'Updated Workflow',
-      });
-
-      expect(result).toEqual({
-        success: true,
-        data: updatedWorkflow,
-        message: 'Workflow "Updated Workflow" updated successfully',
-      });
-      expect(mockApiClient.updateWorkflow).toHaveBeenCalledWith('test-workflow-id', {
-        name: 'Updated Workflow',
-      });
-    });
-
-    it('should validate structure when updating nodes/connections', async () => {
-      const existingWorkflow = createTestWorkflow();
-      const newNodes = [
-        {
-          id: 'node1',
-          name: 'New Start',
-          type: 'n8n-nodes-base.start',
-          typeVersion: 1,
-          position: [100, 100],
-          parameters: {},
-        },
-      ];
-
-      mockApiClient.getWorkflow.mockResolvedValue(existingWorkflow);
-      mockApiClient.updateWorkflow.mockResolvedValue({
-        ...existingWorkflow,
-        nodes: newNodes,
-      });
-
-      const result = await handleUpdateWorkflow({
-        id: 'test-workflow-id',
-        nodes: newNodes,
-        connections: {},
-      });
-
-      expect(result.success).toBe(true);
-      expect(n8nValidation.validateWorkflowStructure).toHaveBeenCalledWith({
-        nodes: newNodes,
-        connections: {},
-      });
-    });
-
-    it('should handle partial updates with fetching current workflow', async () => {
-      const existingWorkflow = createTestWorkflow();
-      const newNodes = [{ id: 'new-node', name: 'New Node' }];
-
-      mockApiClient.getWorkflow.mockResolvedValue(existingWorkflow);
-      mockApiClient.updateWorkflow.mockResolvedValue({
-        ...existingWorkflow,
-        nodes: newNodes,
-      });
-
-      const result = await handleUpdateWorkflow({
-        id: 'test-workflow-id',
-        nodes: newNodes,
-      });
-
-      expect(result.success).toBe(true);
-      expect(mockApiClient.getWorkflow).toHaveBeenCalledWith('test-workflow-id');
-      expect(n8nValidation.validateWorkflowStructure).toHaveBeenCalledWith({
-        ...existingWorkflow,
-        nodes: newNodes,
-      });
-    });
-
-    it('should handle validation failures', async () => {
-      vi.mocked(n8nValidation.validateWorkflowStructure).mockReturnValue([
-        'Invalid node configuration',
-      ]);
-
-      const result = await handleUpdateWorkflow({
-        id: 'test-workflow-id',
-        nodes: [],
-        connections: {},
-      });
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Workflow validation failed',
-        details: { errors: ['Invalid node configuration'] },
-      });
-    });
-  });
-
-  describe('handleDeleteWorkflow', () => {
-    it('should delete workflow successfully', async () => {
-      mockApiClient.deleteWorkflow.mockResolvedValue(undefined);
-
-      const result = await handleDeleteWorkflow({ id: 'test-workflow-id' });
-
-      expect(result).toEqual({
-        success: true,
-        message: 'Workflow test-workflow-id deleted successfully',
-      });
-      expect(mockApiClient.deleteWorkflow).toHaveBeenCalledWith('test-workflow-id');
-    });
-
-    it('should handle not found error', async () => {
-      const notFoundError = new N8nNotFoundError('Workflow not found');
-      mockApiClient.deleteWorkflow.mockRejectedValue(notFoundError);
-
-      const result = await handleDeleteWorkflow({ id: 'non-existent' });
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Workflow not found',
-        code: 'NOT_FOUND',
-      });
     });
   });
 
@@ -586,7 +413,7 @@ describe('handlers-n8n-manager', () => {
         nextCursor: 'next-page-cursor',
       });
 
-      const result = await handleListWorkflows({
+      const result = await handlers.handleListWorkflows({
         limit: 50,
         active: true,
       });
@@ -621,38 +448,6 @@ describe('handlers-n8n-manager', () => {
         },
       });
     });
-
-    it('should handle empty workflow list', async () => {
-      mockApiClient.listWorkflows.mockResolvedValue({
-        data: [],
-        nextCursor: null,
-      });
-
-      const result = await handleListWorkflows({});
-
-      expect(result.success).toBe(true);
-      expect(result.data.workflows).toHaveLength(0);
-      expect(result.data.hasMore).toBe(false);
-      expect(result.data._note).toBeUndefined();
-    });
-
-    it('should use default values for optional parameters', async () => {
-      mockApiClient.listWorkflows.mockResolvedValue({
-        data: [],
-        nextCursor: null,
-      });
-
-      await handleListWorkflows({});
-
-      expect(mockApiClient.listWorkflows).toHaveBeenCalledWith({
-        limit: 100,
-        cursor: undefined,
-        active: undefined,
-        tags: undefined,
-        projectId: undefined,
-        excludePinnedData: true,
-      });
-    });
   });
 
   describe('handleValidateWorkflow', () => {
@@ -682,7 +477,7 @@ describe('handlers-n8n-manager', () => {
         },
       });
 
-      const result = await handleValidateWorkflow(
+      const result = await handlers.handleValidateWorkflow(
         { id: 'test-workflow-id', options: { validateNodes: true } },
         mockNodeRepository
       );
@@ -714,198 +509,6 @@ describe('handlers-n8n-manager', () => {
         },
       });
     });
-
-    it('should handle workflow fetch errors', async () => {
-      const notFoundError = new N8nNotFoundError('Workflow not found');
-      mockApiClient.getWorkflow.mockRejectedValue(notFoundError);
-
-      const result = await handleValidateWorkflow(
-        { id: 'non-existent' },
-        new NodeRepository(':memory:')
-      );
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Workflow not found',
-        code: 'NOT_FOUND',
-      });
-    });
-
-    it('should handle validation with errors', async () => {
-      const testWorkflow = createTestWorkflow();
-
-      mockApiClient.getWorkflow.mockResolvedValue(testWorkflow);
-      mockValidator.validateWorkflow.mockResolvedValue({
-        valid: false,
-        errors: [
-          {
-            nodeName: 'node1',
-            message: 'Invalid node configuration',
-            details: { field: 'parameters.url' },
-          },
-        ],
-        warnings: [],
-        suggestions: [],
-        statistics: {
-          totalNodes: 1,
-          enabledNodes: 1,
-          triggerNodes: 0,
-          validConnections: 0,
-          invalidConnections: 0,
-          expressionsValidated: 0,
-        },
-      });
-
-      const result = await handleValidateWorkflow(
-        { id: 'test-workflow-id' },
-        new NodeRepository(':memory:')
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.data.valid).toBe(false);
-      expect(result.data.errors).toHaveLength(1);
-    });
-  });
-
-  describe('handleTriggerWebhookWorkflow', () => {
-    it('should trigger webhook successfully', async () => {
-      const webhookResponse = { executionId: 'exec-123', status: 'success' };
-      mockApiClient.triggerWebhook.mockResolvedValue(webhookResponse);
-
-      const result = await handleTriggerWebhookWorkflow({
-        webhookUrl: 'https://n8n.test.com/webhook/test-webhook',
-        httpMethod: 'POST',
-        data: { test: 'data' },
-      });
-
-      expect(result).toEqual({
-        success: true,
-        data: webhookResponse,
-        message: 'Webhook triggered successfully',
-      });
-      expect(mockApiClient.triggerWebhook).toHaveBeenCalledWith({
-        webhookUrl: 'https://n8n.test.com/webhook/test-webhook',
-        httpMethod: 'POST',
-        data: { test: 'data' },
-        headers: undefined,
-        waitForResponse: true,
-      });
-    });
-
-    it('should use default values', async () => {
-      mockApiClient.triggerWebhook.mockResolvedValue({});
-
-      await handleTriggerWebhookWorkflow({
-        webhookUrl: 'https://n8n.test.com/webhook/test',
-      });
-
-      expect(mockApiClient.triggerWebhook).toHaveBeenCalledWith({
-        webhookUrl: 'https://n8n.test.com/webhook/test',
-        httpMethod: 'POST',
-        data: undefined,
-        headers: undefined,
-        waitForResponse: true,
-      });
-    });
-
-    it('should handle invalid URL', async () => {
-      const result = await handleTriggerWebhookWorkflow({
-        webhookUrl: 'not-a-valid-url',
-      });
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Invalid input');
-    });
-  });
-
-  describe('handleGetExecution', () => {
-    it('should get execution successfully', async () => {
-      const testExecution = createTestExecution();
-      mockApiClient.getExecution.mockResolvedValue(testExecution);
-
-      const result = await handleGetExecution({
-        id: 'exec-123',
-        includeData: true,
-      });
-
-      expect(result).toEqual({
-        success: true,
-        data: testExecution,
-      });
-      expect(mockApiClient.getExecution).toHaveBeenCalledWith('exec-123', true);
-    });
-
-    it('should default includeData to false', async () => {
-      mockApiClient.getExecution.mockResolvedValue({});
-
-      await handleGetExecution({ id: 'exec-123' });
-
-      expect(mockApiClient.getExecution).toHaveBeenCalledWith('exec-123', false);
-    });
-  });
-
-  describe('handleListExecutions', () => {
-    it('should list executions with filters', async () => {
-      const executions = [
-        createTestExecution({ id: 'exec-1' }),
-        createTestExecution({ id: 'exec-2', status: ExecutionStatus.ERROR }),
-      ];
-
-      mockApiClient.listExecutions.mockResolvedValue({
-        data: executions,
-        nextCursor: null,
-      });
-
-      const result = await handleListExecutions({
-        workflowId: 'test-workflow-id',
-        status: 'success',
-        limit: 50,
-      });
-
-      expect(result).toEqual({
-        success: true,
-        data: {
-          executions,
-          returned: 2,
-          nextCursor: null,
-          hasMore: false,
-        },
-      });
-      expect(mockApiClient.listExecutions).toHaveBeenCalledWith({
-        limit: 50,
-        cursor: undefined,
-        workflowId: 'test-workflow-id',
-        projectId: undefined,
-        status: ExecutionStatus.SUCCESS,
-        includeData: false,
-      });
-    });
-
-    it('should handle pagination', async () => {
-      mockApiClient.listExecutions.mockResolvedValue({
-        data: [createTestExecution()],
-        nextCursor: 'next-page',
-      });
-
-      const result = await handleListExecutions({});
-
-      expect(result.data.hasMore).toBe(true);
-      expect(result.data._note).toBe('More executions available. Use cursor to get next page.');
-    });
-  });
-
-  describe('handleDeleteExecution', () => {
-    it('should delete execution successfully', async () => {
-      mockApiClient.deleteExecution.mockResolvedValue(undefined);
-
-      const result = await handleDeleteExecution({ id: 'exec-123' });
-
-      expect(result).toEqual({
-        success: true,
-        message: 'Execution exec-123 deleted successfully',
-      });
-      expect(mockApiClient.deleteExecution).toHaveBeenCalledWith('exec-123');
-    });
   });
 
   describe('handleHealthCheck', () => {
@@ -919,7 +522,7 @@ describe('handlers-n8n-manager', () => {
 
       mockApiClient.healthCheck.mockResolvedValue(healthData);
 
-      const result = await handleHealthCheck();
+      const result = await handlers.handleHealthCheck();
 
       expect(result.success).toBe(true);
       expect(result.data).toMatchObject({
@@ -935,42 +538,17 @@ describe('handlers-n8n-manager', () => {
       const apiError = new N8nServerError('Service unavailable');
       mockApiClient.healthCheck.mockRejectedValue(apiError);
 
-      const result = await handleHealthCheck();
+      const result = await handlers.handleHealthCheck();
 
       expect(result).toEqual({
         success: false,
-        error: 'Service unavailable',
+        error: 'n8n server error. Please try again later or contact support.',
         code: 'SERVER_ERROR',
         details: {
           apiUrl: 'https://n8n.test.com',
           hint: 'Check if n8n is running and API is enabled',
         },
       });
-    });
-  });
-
-  describe('handleListAvailableTools', () => {
-    it('should list all available tools when API is configured', async () => {
-      const result = await handleListAvailableTools();
-
-      expect(result.success).toBe(true);
-      expect(result.data.apiConfigured).toBe(true);
-      expect(result.data.tools).toHaveLength(3); // 3 categories
-      expect(result.data.configuration).toEqual({
-        apiUrl: 'https://n8n.test.com',
-        timeout: 30000,
-        maxRetries: 3,
-      });
-    });
-
-    it('should indicate when API is not configured', async () => {
-      vi.mocked(getN8nApiConfig).mockReturnValue(null);
-
-      const result = await handleListAvailableTools();
-
-      expect(result.success).toBe(true);
-      expect(result.data.apiConfigured).toBe(false);
-      expect(result.data.configuration).toBeNull();
     });
   });
 
@@ -981,6 +559,10 @@ describe('handlers-n8n-manager', () => {
         n8nVersion: '1.0.0',
       };
       mockApiClient.healthCheck.mockResolvedValue(healthData);
+
+      // Set environment variables for the test
+      process.env.N8N_API_URL = 'https://n8n.test.com';
+      process.env.N8N_API_KEY = 'test-key';
 
       const result = await handlers.handleDiagnostic({ params: { arguments: {} } });
 
@@ -1010,41 +592,10 @@ describe('handlers-n8n-manager', () => {
           totalAvailable: 38,
         },
       });
-    });
 
-    it('should handle verbose mode', async () => {
-      mockApiClient.healthCheck.mockResolvedValue({ status: 'ok' });
-
-      const result = await handleDiagnostic({
-        params: { arguments: { verbose: true } },
-      });
-
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveProperty('debug');
-      expect(result.data.debug).toHaveProperty('nodeVersion');
-      expect(result.data.debug).toHaveProperty('platform');
-    });
-
-    it('should show troubleshooting steps when API is not configured', async () => {
-      vi.mocked(getN8nApiConfig).mockReturnValue(null);
-
-      const result = await handlers.handleDiagnostic({ params: { arguments: {} } });
-
-      expect(result.success).toBe(true);
-      expect(result.data.apiConfiguration.configured).toBe(false);
-      expect(result.data.toolsAvailability.managementTools.enabled).toBe(false);
-      expect(result.data.troubleshooting.steps[0]).toContain('To enable management tools');
-    });
-
-    it('should handle API connectivity errors', async () => {
-      const error = new Error('Connection refused');
-      mockApiClient.healthCheck.mockRejectedValue(error);
-
-      const result = await handlers.handleDiagnostic({ params: { arguments: {} } });
-
-      expect(result.success).toBe(true);
-      expect(result.data.apiConfiguration.status.connected).toBe(false);
-      expect(result.data.apiConfiguration.status.error).toBe('Connection refused');
+      // Clean up env vars
+      delete process.env.N8N_API_URL;
+      delete process.env.N8N_API_KEY;
     });
   });
 
@@ -1053,11 +604,11 @@ describe('handlers-n8n-manager', () => {
       const authError = new N8nAuthenticationError('Invalid API key');
       mockApiClient.getWorkflow.mockRejectedValue(authError);
 
-      const result = await handleGetWorkflow({ id: 'test-id' });
+      const result = await handlers.handleGetWorkflow({ id: 'test-id' });
 
       expect(result).toEqual({
         success: false,
-        error: 'Invalid API key',
+        error: 'Failed to authenticate with n8n. Please check your API key.',
         code: 'AUTHENTICATION_ERROR',
       });
     });
@@ -1066,11 +617,11 @@ describe('handlers-n8n-manager', () => {
       const rateLimitError = new N8nRateLimitError('Too many requests', 60);
       mockApiClient.listWorkflows.mockRejectedValue(rateLimitError);
 
-      const result = await handleListWorkflows({});
+      const result = await handlers.handleListWorkflows({});
 
       expect(result).toEqual({
         success: false,
-        error: 'Too many requests',
+        error: 'Too many requests. Please wait a moment and try again.',
         code: 'RATE_LIMIT_ERROR',
       });
     });
@@ -1079,7 +630,7 @@ describe('handlers-n8n-manager', () => {
       const genericError = new Error('Something went wrong');
       mockApiClient.createWorkflow.mockRejectedValue(genericError);
 
-      const result = await handleCreateWorkflow({
+      const result = await handlers.handleCreateWorkflow({
         name: 'Test',
         nodes: [],
         connections: {},

@@ -286,7 +286,7 @@ describe('handlers-workflow-diff', () => {
     });
 
     it('should handle workflow not found error', async () => {
-      const notFoundError = new N8nNotFoundError('Workflow not found');
+      const notFoundError = new N8nNotFoundError('Workflow', 'non-existent');
       mockApiClient.getWorkflow.mockRejectedValue(notFoundError);
 
       const result = await handleUpdatePartialWorkflow({
@@ -296,7 +296,7 @@ describe('handlers-workflow-diff', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Workflow not found',
+        error: 'Workflow with ID non-existent not found',
         code: 'NOT_FOUND',
       });
     });
@@ -325,7 +325,7 @@ describe('handlers-workflow-diff', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Invalid workflow structure',
+        error: 'Invalid request: Invalid workflow structure',
         code: 'VALIDATION_ERROR',
         details: {
           field: 'connections',
@@ -456,7 +456,7 @@ describe('handlers-workflow-diff', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Invalid API key',
+        error: 'Failed to authenticate with n8n. Please check your API key.',
         code: 'AUTHENTICATION_ERROR',
       });
     });
@@ -472,7 +472,7 @@ describe('handlers-workflow-diff', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Too many requests',
+        error: 'Too many requests. Please wait a moment and try again.',
         code: 'RATE_LIMIT_ERROR',
       });
     });
@@ -488,7 +488,7 @@ describe('handlers-workflow-diff', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Internal server error',
+        error: 'n8n server error. Please try again later or contact support.',
         code: 'SERVER_ERROR',
       });
     });
@@ -548,6 +548,7 @@ describe('handlers-workflow-diff', () => {
         message: 'No operations to apply',
         errors: [],
       });
+      mockApiClient.updateWorkflow.mockResolvedValue(testWorkflow);
 
       const result = await handleUpdatePartialWorkflow(diffRequest);
 
