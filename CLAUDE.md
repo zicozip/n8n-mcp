@@ -69,3 +69,5 @@ src/
 ### Development Workflow Reminders
 - When you make changes to MCP server, you need to ask the user to reload it before you test
 - When the user asks to review issues, you should use GH CLI to get the issue and all the comments
+- When the task can be divided into separated subtasks, you should spawn separate sub-agents to handle them in paralel
+- Use the best sub-agent for the task as per their descriptions

@@ -351,7 +351,7 @@ describe('handlers-workflow-diff', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid input');
       expect(result.details).toHaveProperty('errors');
-      expect(result.details.errors).toBeInstanceOf(Array);
+      expect(result.details?.errors).toBeInstanceOf(Array);
     });
 
     it('should handle complex operation types', async () => {
@@ -462,7 +462,7 @@ describe('handlers-workflow-diff', () => {
     });
 
     it('should handle rate limit errors', async () => {
-      const rateLimitError = new N8nRateLimitError('Too many requests', 60);
+      const rateLimitError = new N8nRateLimitError(60);
       mockApiClient.getWorkflow.mockRejectedValue(rateLimitError);
 
       const result = await handleUpdatePartialWorkflow({

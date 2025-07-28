@@ -453,7 +453,7 @@ describe('handlers-n8n-manager', () => {
   describe('handleValidateWorkflow', () => {
     it('should validate workflow from n8n instance', async () => {
       const testWorkflow = createTestWorkflow();
-      const mockNodeRepository = new NodeRepository(':memory:');
+      const mockNodeRepository = {} as any; // Mock repository
 
       mockApiClient.getWorkflow.mockResolvedValue(testWorkflow);
       mockValidator.validateWorkflow.mockResolvedValue({
@@ -614,7 +614,7 @@ describe('handlers-n8n-manager', () => {
     });
 
     it('should handle rate limit errors', async () => {
-      const rateLimitError = new N8nRateLimitError('Too many requests', 60);
+      const rateLimitError = new N8nRateLimitError(60);
       mockApiClient.listWorkflows.mockRejectedValue(rateLimitError);
 
       const result = await handlers.handleListWorkflows({});
