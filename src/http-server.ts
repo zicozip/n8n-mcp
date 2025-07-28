@@ -556,7 +556,10 @@ declare module './mcp/server' {
 }
 
 // Start if called directly
-if (require.main === module) {
+// Check if this file is being run directly (not imported)
+// In ES modules, we check import.meta.url against process.argv[1]
+// But since we're transpiling to CommonJS, we use the require.main check
+if (typeof require !== 'undefined' && require.main === module) {
   startFixedHTTPServer().catch(error => {
     logger.error('Failed to start Fixed HTTP server:', error);
     console.error('Failed to start Fixed HTTP server:', error);

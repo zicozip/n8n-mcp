@@ -42,8 +42,8 @@ async function testAIAgentExtraction() {
     console.log('2. Listing available tools...');
     const toolsResponse = await client.request(
       { method: 'tools/list' },
-      {}
-    );
+      {} as any
+    ) as any;
     console.log(`✓ Found ${toolsResponse.tools.length} tools`);
     
     const hasNodeSourceTool = toolsResponse.tools.some(
@@ -63,8 +63,8 @@ async function testAIAgentExtraction() {
           },
         },
       },
-      {}
-    );
+      {} as any
+    ) as any;
     console.log(`✓ Found nodes matching 'agent':`);
     const content = JSON.parse(listNodesResponse.content[0].text);
     content.nodes.forEach((node: any) => {
@@ -85,8 +85,8 @@ async function testAIAgentExtraction() {
           },
         },
       },
-      {}
-    );
+      {} as any
+    ) as any;
 
     const result = JSON.parse(aiAgentResponse.content[0].text);
     console.log('✓ Successfully extracted AI Agent node:');
@@ -114,8 +114,8 @@ async function testAIAgentExtraction() {
           uri: 'nodes://source/@n8n/n8n-nodes-langchain.Agent',
         },
       },
-      {}
-    );
+      {} as any
+    ) as any;
     console.log('✓ Successfully read node source via resource endpoint\n');
 
     console.log('=== Test Completed Successfully ===');

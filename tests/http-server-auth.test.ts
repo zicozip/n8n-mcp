@@ -1,20 +1,25 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { MockedFunction } from 'vitest';
+
+// Import the actual functions we'll be testing
+import { loadAuthToken, startFixedHTTPServer } from '../src/http-server';
 
 // Mock dependencies
-jest.mock('../src/utils/logger', () => ({
+vi.mock('../src/utils/logger', () => ({
   logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn()
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn()
   },
-  Logger: jest.fn().mockImplementation(() => ({
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn()
+  Logger: vi.fn().mockImplementation(() => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn()
   })),
   LogLevel: {
     ERROR: 0,
@@ -24,49 +29,68 @@ jest.mock('../src/utils/logger', () => ({
   }
 }));
 
-jest.mock('dotenv');
+vi.mock('dotenv');
 
 // Mock other dependencies to prevent side effects
-jest.mock('../src/mcp/server', () => ({
-  N8NDocumentationMCPServer: jest.fn().mockImplementation(() => ({
-    executeTool: jest.fn()
+vi.mock('../src/mcp/server', () => ({
+  N8NDocumentationMCPServer: vi.fn().mockImplementation(() => ({
+    executeTool: vi.fn()
   }))
 }));
 
-jest.mock('../src/mcp/tools', () => ({
+vi.mock('../src/mcp/tools', () => ({
   n8nDocumentationToolsFinal: []
 }));
 
-jest.mock('../src/mcp/tools-n8n-manager', () => ({
+vi.mock('../src/mcp/tools-n8n-manager', () => ({
   n8nManagementTools: []
 }));
 
-jest.mock('../src/utils/version', () => ({
+vi.mock('../src/utils/version', () => ({
   PROJECT_VERSION: '2.7.4'
 }));
 
-jest.mock('../src/config/n8n-api', () => ({
-  isN8nApiConfigured: jest.fn().mockReturnValue(false)
+vi.mock('../src/config/n8n-api', () => ({
+  isN8nApiConfigured: vi.fn().mockReturnValue(false)
 }));
 
+vi.mock('../src/utils/url-detector', () => ({
+  getStartupBaseUrl: vi.fn().mockReturnValue('http://localhost:3000'),
+  formatEndpointUrls: vi.fn().mockReturnValue({
+    health: 'http://localhost:3000/health',
+    mcp: 'http://localhost:3000/mcp'
+  }),
+  detectBaseUrl: vi.fn().mockReturnValue('http://localhost:3000')
+}));
+
+// Create mock server instance
+const mockServer = {
+  on: vi.fn(),
+  close: vi.fn((callback) => callback())
+};
+
 // Mock Express to prevent server from starting
-jest.mock('express', () => {
-  const mockApp = {
-    use: jest.fn(),
-    get: jest.fn(),
-    post: jest.fn(),
-    listen: jest.fn().mockReturnValue({
-      on: jest.fn()
-    })
-  };
-  const express: any = jest.fn(() => mockApp);
-  express.json = jest.fn();
-  express.urlencoded = jest.fn();
-  express.static = jest.fn();
+const mockExpressApp = {
+  use: vi.fn(),
+  get: vi.fn(),
+  post: vi.fn(),
+  listen: vi.fn((port: any, host: any, callback: any) => {
+    // Call the callback immediately to simulate server start
+    if (callback) callback();
+    return mockServer;
+  }),
+  set: vi.fn()
+};
+
+vi.mock('express', () => {
+  const express: any = vi.fn(() => mockExpressApp);
+  express.json = vi.fn();
+  express.urlencoded = vi.fn();
+  express.static = vi.fn();
   express.Request = {};
   express.Response = {};
   express.NextFunction = {};
-  return express;
+  return { default: express };
 });
 
 describe('HTTP Server Authentication', () => {
@@ -76,8 +100,8 @@ describe('HTTP Server Authentication', () => {
 
   beforeEach(() => {
     // Reset modules and environment
-    jest.clearAllMocks();
-    jest.resetModules();
+    vi.clearAllMocks();
+    vi.resetModules();
     process.env = { ...originalEnv };
     
     // Create temporary directory for test files
@@ -99,26 +123,10 @@ describe('HTTP Server Authentication', () => {
   });
 
   describe('loadAuthToken', () => {
-    let loadAuthToken: () => string | null;
-
-    beforeEach(() => {
-      // Set a default token to prevent validateEnvironment from exiting
-      process.env.AUTH_TOKEN = 'test-token-for-module-load';
-      
-      // Import the function after environment is set up
-      const httpServerModule = require('../src/http-server');
-      // Access the loadAuthToken function (we'll need to export it)
-      loadAuthToken = httpServerModule.loadAuthToken || (() => null);
-    });
-
     it('should load token from AUTH_TOKEN environment variable', () => {
       process.env.AUTH_TOKEN = 'test-token-from-env';
       delete process.env.AUTH_TOKEN_FILE;
 
-      // Re-import to get fresh module with new env
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      
       const token = loadAuthToken();
       expect(token).toBe('test-token-from-env');
     });
@@ -130,10 +138,6 @@ describe('HTTP Server Authentication', () => {
       // Write test token to file
       writeFileSync(authTokenFile, 'test-token-from-file\n');
 
-      // Re-import to get fresh module with new env
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      
       const token = loadAuthToken();
       expect(token).toBe('test-token-from-file');
     });
@@ -145,9 +149,6 @@ describe('HTTP Server Authentication', () => {
       // Write token with whitespace
       writeFileSync(authTokenFile, '  test-token-with-spaces  \n\n');
 
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      
       const token = loadAuthToken();
       expect(token).toBe('test-token-with-spaces');
     });
@@ -157,28 +158,24 @@ describe('HTTP Server Authentication', () => {
       process.env.AUTH_TOKEN_FILE = authTokenFile;
       writeFileSync(authTokenFile, 'file-token');
 
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      
       const token = loadAuthToken();
       expect(token).toBe('env-token');
     });
 
-    it('should return null when AUTH_TOKEN_FILE points to non-existent file', () => {
+    it('should return null when AUTH_TOKEN_FILE points to non-existent file', async () => {
       delete process.env.AUTH_TOKEN;
       process.env.AUTH_TOKEN_FILE = join(tempDir, 'non-existent-file');
 
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      const { logger } = require('../src/utils/logger');
+      // Import logger to check calls
+      const { logger } = await import('../src/utils/logger');
       
       // Clear any previous mock calls
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       
       const token = loadAuthToken();
       expect(token).toBeNull();
       expect(logger.error).toHaveBeenCalled();
-      const errorCall = logger.error.mock.calls[0];
+      const errorCall = (logger.error as MockedFunction<any>).mock.calls[0];
       expect(errorCall[0]).toContain('Failed to read AUTH_TOKEN_FILE');
       // Check that the second argument exists and is truthy (the error object)
       expect(errorCall[1]).toBeTruthy();
@@ -188,9 +185,6 @@ describe('HTTP Server Authentication', () => {
       delete process.env.AUTH_TOKEN;
       delete process.env.AUTH_TOKEN_FILE;
 
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      
       const token = loadAuthToken();
       expect(token).toBeNull();
     });
@@ -201,13 +195,10 @@ describe('HTTP Server Authentication', () => {
       delete process.env.AUTH_TOKEN;
       delete process.env.AUTH_TOKEN_FILE;
 
-      const mockExit = jest.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
+      const mockExit = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
         throw new Error('Process exited');
       });
 
-      jest.resetModules();
-      const { startFixedHTTPServer } = require('../src/http-server');
-      
       // validateEnvironment is called when starting the server
       await expect(async () => {
         await startFixedHTTPServer();
@@ -220,28 +211,15 @@ describe('HTTP Server Authentication', () => {
     it('should warn when token is less than 32 characters', async () => {
       process.env.AUTH_TOKEN = 'short-token';
 
-      // Mock express to prevent actual server start
-      const mockListen = jest.fn().mockReturnValue({ on: jest.fn() });
-      jest.doMock('express', () => {
-        const mockApp = {
-          use: jest.fn(),
-          get: jest.fn(),
-          post: jest.fn(),
-          listen: mockListen,
-          set: jest.fn()
-        };
-        const express: any = jest.fn(() => mockApp);
-        express.json = jest.fn();
-        express.urlencoded = jest.fn();
-        express.static = jest.fn();
-        return express;
-      });
-
-      jest.resetModules();
-      jest.clearAllMocks();
+      // Import logger to check calls
+      const { logger } = await import('../src/utils/logger');
       
-      const { startFixedHTTPServer } = require('../src/http-server');
-      const { logger } = require('../src/utils/logger');
+      // Clear any previous mock calls
+      vi.clearAllMocks();
+      
+      // Ensure the mock server is properly configured
+      mockExpressApp.listen.mockReturnValue(mockServer);
+      mockServer.on.mockReturnValue(undefined);
       
       // Start the server which will trigger validateEnvironment
       await startFixedHTTPServer();
@@ -261,9 +239,6 @@ describe('HTTP Server Authentication', () => {
       process.env.AUTH_TOKEN_FILE = authTokenFile;
       delete process.env.AUTH_TOKEN;
 
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      
       const token = loadAuthToken();
       expect(token).toBe('very-secure-token-with-more-than-32-characters');
     });
@@ -277,9 +252,6 @@ describe('HTTP Server Authentication', () => {
       process.env.AUTH_TOKEN_FILE = dockerSecretPath;
       delete process.env.AUTH_TOKEN;
 
-      jest.resetModules();
-      const { loadAuthToken } = require('../src/http-server');
-      
       const token = loadAuthToken();
       expect(token).toBe('docker-secret-token');
     });

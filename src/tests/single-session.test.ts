@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { SingleSessionHTTPServer } from '../http-server-single-session';
 import express from 'express';
 import { ConsoleManager } from '../utils/console-manager';
