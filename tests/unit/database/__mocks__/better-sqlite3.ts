@@ -13,30 +13,31 @@ export class MockDatabase {
   
   prepare(sql: string) {
     const key = this.extractTableName(sql);
+    const self = this;
     
     return {
-      all: vi.fn(() => this.data.get(key) || []),
+      all: vi.fn(() => self.data.get(key) || []),
       get: vi.fn((id: string) => {
-        const items = this.data.get(key) || [];
+        const items = self.data.get(key) || [];
         return items.find(item => item.id === id);
       }),
       run: vi.fn((params: any) => {
-        const items = this.data.get(key) || [];
+        const items = self.data.get(key) || [];
         items.push(params);
-        this.data.set(key, items);
+        self.data.set(key, items);
         return { changes: 1, lastInsertRowid: items.length };
       }),
       iterate: vi.fn(function* () {
-        const items = this.data.get(key) || [];
+        const items = self.data.get(key) || [];
         for (const item of items) {
           yield item;
         }
       }),
-      pluck: vi.fn(function() { return this; }),
-      expand: vi.fn(function() { return this; }),
-      raw: vi.fn(function() { return this; }),
+      pluck: vi.fn(function(this: any) { return this; }),
+      expand: vi.fn(function(this: any) { return this; }),
+      raw: vi.fn(function(this: any) { return this; }),
       columns: vi.fn(() => []),
-      bind: vi.fn(function() { return this; })
+      bind: vi.fn(function(this: any) { return this; })
     };
   }
   

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, MockInstance } from 'vitest';
 
 // Mock path module
 vi.mock('path', async () => {
@@ -11,9 +11,9 @@ vi.mock('path', async () => {
 
 describe('N8nNodeLoader', () => {
   let N8nNodeLoader: any;
-  let consoleLogSpy: Mock;
-  let consoleErrorSpy: Mock;
-  let consoleWarnSpy: Mock;
+  let consoleLogSpy: MockInstance;
+  let consoleErrorSpy: MockInstance;
+  let consoleWarnSpy: MockInstance;
 
   // Create mocks for require and require.resolve
   const mockRequire = vi.fn();
@@ -31,7 +31,7 @@ describe('N8nNodeLoader', () => {
     // Reset mocks
     mockRequire.mockReset();
     mockRequireResolve.mockReset();
-    mockRequire.resolve = mockRequireResolve;
+    (mockRequire as any).resolve = mockRequireResolve;
     
     // Default implementation for require.resolve
     mockRequireResolve.mockImplementation((path: string) => path);

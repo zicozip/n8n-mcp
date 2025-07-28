@@ -105,7 +105,7 @@ describe('DocsMapper', () => {
         // Check that it eventually tried an index.md path
         expect(fs.readFile).toHaveBeenCalledTimes(6);
         const calls = vi.mocked(fs.readFile).mock.calls;
-        const indexCalls = calls.filter(call => call[0].includes('index.md'));
+        const indexCalls = calls.filter(call => (call[0] as string).includes('index.md'));
         expect(indexCalls.length).toBeGreaterThan(0);
       });
     });

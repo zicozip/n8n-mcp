@@ -136,13 +136,14 @@ describe('TemplateRepository - Core Functionality', () => {
         name: 'Test Workflow',
         description: 'A test workflow',
         user: {
+          id: 1,
           name: 'John Doe',
           username: 'johndoe',
           verified: true
         },
         nodes: [
-          { name: 'n8n-nodes-base.httpRequest', position: [0, 0] },
-          { name: 'n8n-nodes-base.slack', position: [100, 0] }
+          { id: 1, name: 'n8n-nodes-base.httpRequest', icon: 'fa:globe' },
+          { id: 2, name: 'n8n-nodes-base.slack', icon: 'fa:slack' }
         ],
         totalViews: 1000,
         createdAt: '2024-01-01T00:00:00Z'
@@ -150,6 +151,10 @@ describe('TemplateRepository - Core Functionality', () => {
       
       const detail: TemplateDetail = {
         id: 123,
+        name: 'Test Workflow',
+        description: 'A test workflow',
+        views: 1000,
+        createdAt: '2024-01-01T00:00:00Z',
         workflow: {
           nodes: [],
           connections: {},

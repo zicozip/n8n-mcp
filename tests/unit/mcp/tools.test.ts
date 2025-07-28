@@ -287,7 +287,7 @@ describe('n8nDocumentationToolsFinal', () => {
       );
 
       toolsWithRequired.forEach(tool => {
-        tool.inputSchema.required.forEach(requiredParam => {
+        tool.inputSchema.required!.forEach(requiredParam => {
           expect(tool.inputSchema.properties).toHaveProperty(requiredParam);
         });
       });

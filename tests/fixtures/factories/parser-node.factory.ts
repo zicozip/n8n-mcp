@@ -61,7 +61,7 @@ export interface PropertyDefinition {
   type: string;
   default?: any;
   description?: string;
-  options?: Array<{ name: string; value: string; description?: string }>;
+  options?: Array<{ name: string; value: string; description?: string; action?: string; displayName?: string }> | any[];
   required?: boolean;
   displayOptions?: {
     show?: Record<string, any[]>;
@@ -132,10 +132,10 @@ export const operationPropertyFactory = optionsPropertyFactory.params({
     }
   },
   options: [
-    { name: 'Create', value: 'create', action: 'Create a user' },
-    { name: 'Get', value: 'get', action: 'Get a user' },
-    { name: 'Update', value: 'update', action: 'Update a user' },
-    { name: 'Delete', value: 'delete', action: 'Delete a user' }
+    { name: 'Create', value: 'create', action: 'Create a user' } as any,
+    { name: 'Get', value: 'get', action: 'Get a user' } as any,
+    { name: 'Update', value: 'update', action: 'Update a user' } as any,
+    { name: 'Delete', value: 'delete', action: 'Delete a user' } as any
   ]
 });
 
@@ -144,8 +144,8 @@ export const collectionPropertyFactory = propertyFactory.params({
   type: 'collection',
   default: {},
   options: [
-    stringPropertyFactory.build({ name: 'field1', displayName: 'Field 1' }),
-    numberPropertyFactory.build({ name: 'field2', displayName: 'Field 2' })
+    stringPropertyFactory.build({ name: 'field1', displayName: 'Field 1' }) as any,
+    numberPropertyFactory.build({ name: 'field2', displayName: 'Field 2' }) as any
   ]
 });
 
@@ -317,7 +317,7 @@ export const nestedPropertyFactory = Factory.define<PropertyDefinition>(() => ({
           ]
         }
       ]
-    },
+    } as any,
     {
       displayName: 'Query Parameters',
       name: 'queryParams',
@@ -325,8 +325,8 @@ export const nestedPropertyFactory = Factory.define<PropertyDefinition>(() => ({
       options: [
         stringPropertyFactory.build({ name: 'key', displayName: 'Key' }),
         stringPropertyFactory.build({ name: 'value', displayName: 'Value' })
-      ]
-    }
+      ] as any[]
+    } as any
   ]
 }));
 
@@ -371,7 +371,11 @@ export const versionedNodeTypeClassFactory = Factory.define<any>(({ params }) =>
     currentVersion = baseDescription.defaultVersion;
     
     constructor() {
-      this.constructor.name = 'VersionedNodeType';
+      Object.defineProperty(this.constructor, 'name', {
+        value: 'VersionedNodeType',
+        writable: false,
+        configurable: true
+      });
     }
   };
 });

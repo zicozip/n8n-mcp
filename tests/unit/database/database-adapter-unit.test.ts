@@ -65,11 +65,11 @@ describe('Database Adapter - Unit Tests', () => {
         get: vi.fn(),
         all: vi.fn(() => []),
         iterate: vi.fn(function* () {}),
-        pluck: vi.fn(function() { return this as any; }),
-        expand: vi.fn(function() { return this as any; }),
-        raw: vi.fn(function() { return this as any; }),
+        pluck: vi.fn(function(this: any) { return this; }),
+        expand: vi.fn(function(this: any) { return this; }),
+        raw: vi.fn(function(this: any) { return this; }),
         columns: vi.fn(() => []),
-        bind: vi.fn(function() { return this as any; })
+        bind: vi.fn(function(this: any) { return this; })
       };
       
       expect(mockStmt).toBeDefined();

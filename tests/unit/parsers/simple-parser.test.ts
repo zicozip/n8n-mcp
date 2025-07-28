@@ -55,7 +55,7 @@ describe('SimpleParser', () => {
           { name: 'Create User', value: 'createUser' },
           { name: 'Get User', value: 'getUser' }
         ]
-      };
+      } as any;
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
       const result = parser.parse(NodeClass);
@@ -89,7 +89,7 @@ describe('SimpleParser', () => {
         options: [
           { name: 'Create', value: 'create' }
         ]
-      };
+      } as any;
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
       const result = parser.parse(NodeClass);
@@ -102,7 +102,7 @@ describe('SimpleParser', () => {
       const VersionedNodeClass = class VersionedNodeType {
         baseDescription = versionedDef.baseDescription;
         nodeVersions = versionedDef.nodeVersions;
-        currentVersion = versionedDef.baseDescription.defaultVersion;
+        currentVersion = versionedDef.baseDescription!.defaultVersion;
         
         constructor() {
           Object.defineProperty(this.constructor, 'name', {
@@ -115,9 +115,9 @@ describe('SimpleParser', () => {
       const result = parser.parse(VersionedNodeClass);
       
       expect(result.isVersioned).toBe(true);
-      expect(result.nodeType).toBe(versionedDef.baseDescription.name);
-      expect(result.displayName).toBe(versionedDef.baseDescription.displayName);
-      expect(result.version).toBe(versionedDef.baseDescription.defaultVersion.toString());
+      expect(result.nodeType).toBe(versionedDef.baseDescription!.name);
+      expect(result.displayName).toBe(versionedDef.baseDescription!.displayName);
+      expect(result.version).toBe(versionedDef.baseDescription!.defaultVersion.toString());
     });
 
     it('should merge baseDescription with version-specific description', () => {
@@ -305,7 +305,7 @@ describe('SimpleParser', () => {
         options: [
           { name: 'Create', value: 'create' },
           { name: 'Get', value: 'get' }
-        ]
+        ] as any
       };
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
