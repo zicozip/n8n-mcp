@@ -114,13 +114,13 @@ export class WorkflowBuilder {
     const nodeName = node.name || `${node.type} ${++this.nodeCounter}`;
     
     const fullNode: INode = {
+      ...node,  // Spread first to allow overrides
       id: nodeId,
       name: nodeName,
       type: node.type,
       typeVersion: node.typeVersion,
       position: node.position || this.getNextPosition(),
       parameters: node.parameters || {},
-      ...node,
     };
 
     this.workflow.nodes.push(fullNode);
