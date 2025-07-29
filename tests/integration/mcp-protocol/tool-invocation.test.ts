@@ -34,10 +34,10 @@ describe('MCP Tool Invocation', () => {
       it('should list nodes with default parameters', async () => {
         const response = await client.callTool({ name: 'list_nodes', arguments: {} });
         
-        expect(response.content).toHaveLength(1);
-        expect((response.content[0] as any).type).toBe('text');
+        expect((response as any).content).toHaveLength(1);
+        expect((response as any).content[0].type).toBe('text');
         
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         // The result is an object with nodes array and totalCount
         expect(result).toHaveProperty('nodes');
         expect(result).toHaveProperty('totalCount');
@@ -58,7 +58,7 @@ describe('MCP Tool Invocation', () => {
           category: 'trigger'
         }});
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         const nodes = result.nodes;
         expect(nodes.length).toBeGreaterThan(0);
         nodes.forEach((node: any) => {
@@ -71,7 +71,7 @@ describe('MCP Tool Invocation', () => {
           limit: 5
         }});
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         const nodes = result.nodes;
         expect(nodes).toHaveLength(5);
       });
@@ -81,7 +81,7 @@ describe('MCP Tool Invocation', () => {
           package: 'n8n-nodes-base'
         }});
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         const nodes = result.nodes;
         expect(nodes.length).toBeGreaterThan(0);
         nodes.forEach((node: any) => {
@@ -96,7 +96,7 @@ describe('MCP Tool Invocation', () => {
           query: 'webhook'
         }});
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         const nodes = result.results;
         expect(nodes.length).toBeGreaterThan(0);
         
@@ -111,7 +111,7 @@ describe('MCP Tool Invocation', () => {
           query: 'http request',
           mode: 'OR'
         }});
-        const orResult = JSON.parse((orResponse.content[0] as any).text);
+        const orResult = JSON.parse(((orResponse as any).content[0]).text);
         const orNodes = orResult.results;
         expect(orNodes.length).toBeGreaterThan(0);
 
@@ -120,7 +120,7 @@ describe('MCP Tool Invocation', () => {
           query: 'http request',
           mode: 'AND'
         }});
-        const andResult = JSON.parse((andResponse.content[0] as any).text);
+        const andResult = JSON.parse(((andResponse as any).content[0]).text);
         const andNodes = andResult.results;
         expect(andNodes.length).toBeLessThanOrEqual(orNodes.length);
 
@@ -129,7 +129,7 @@ describe('MCP Tool Invocation', () => {
           query: 'htpp requst', // Intentional typos
           mode: 'FUZZY'
         }});
-        const fuzzyResult = JSON.parse((fuzzyResponse.content[0] as any).text);
+        const fuzzyResult = JSON.parse(((fuzzyResponse as any).content[0]).text);
         const fuzzyNodes = fuzzyResult.results;
         expect(fuzzyNodes.length).toBeGreaterThan(0);
       });
@@ -140,7 +140,7 @@ describe('MCP Tool Invocation', () => {
           limit: 3
         }});
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         const nodes = result.results;
         expect(nodes).toHaveLength(3);
       });
@@ -152,8 +152,8 @@ describe('MCP Tool Invocation', () => {
           nodeType: 'nodes-base.httpRequest'
         }});
 
-        expect((response.content[0] as any).type).toBe('text');
-        const nodeInfo = JSON.parse((response.content[0] as any).text);
+        expect(((response as any).content[0]).type).toBe('text');
+        const nodeInfo = JSON.parse(((response as any).content[0]).text);
         
         expect(nodeInfo).toHaveProperty('nodeType', 'nodes-base.httpRequest');
         expect(nodeInfo).toHaveProperty('displayName');
@@ -190,7 +190,7 @@ describe('MCP Tool Invocation', () => {
           nodeType: 'nodes-base.httpRequest'
         }});
 
-        const essentials = JSON.parse((response.content[0] as any).text);
+        const essentials = JSON.parse(((response as any).content[0]).text);
         
         expect(essentials).toHaveProperty('nodeType');
         expect(essentials).toHaveProperty('displayName');
@@ -202,7 +202,7 @@ describe('MCP Tool Invocation', () => {
           nodeType: 'nodes-base.httpRequest'
         }});
         
-        expect((response.content[0] as any).text.length).toBeLessThan((fullResponse.content[0] as any).text.length);
+        expect(((response as any).content[0]).text.length).toBeLessThan(((fullResponse as any).content[0]).text.length);
       });
     });
   });
@@ -218,7 +218,7 @@ describe('MCP Tool Invocation', () => {
           }
         }});
 
-        const validation = JSON.parse((response.content[0] as any).text);
+        const validation = JSON.parse(((response as any).content[0]).text);
         expect(validation).toHaveProperty('valid');
         expect(validation).toHaveProperty('errors');
         expect(validation).toHaveProperty('warnings');
@@ -233,7 +233,7 @@ describe('MCP Tool Invocation', () => {
           }
         }});
 
-        const validation = JSON.parse((response.content[0] as any).text);
+        const validation = JSON.parse(((response as any).content[0]).text);
         expect(validation.valid).toBe(false);
         expect(validation.errors.length).toBeGreaterThan(0);
         expect(validation.errors[0].message.toLowerCase()).toContain('url');
@@ -249,7 +249,7 @@ describe('MCP Tool Invocation', () => {
             profile
           }});
 
-          const validation = JSON.parse((response.content[0] as any).text);
+          const validation = JSON.parse(((response as any).content[0]).text);
           expect(validation).toHaveProperty('profile', profile);
         }
       });
@@ -290,7 +290,7 @@ describe('MCP Tool Invocation', () => {
           workflow
         }});
 
-        const validation = JSON.parse((response.content[0] as any).text);
+        const validation = JSON.parse(((response as any).content[0]).text);
         expect(validation).toHaveProperty('valid');
         expect(validation).toHaveProperty('errors');
         expect(validation).toHaveProperty('warnings');
@@ -319,7 +319,7 @@ describe('MCP Tool Invocation', () => {
           workflow
         }});
 
-        const validation = JSON.parse((response.content[0] as any).text);
+        const validation = JSON.parse(((response as any).content[0]).text);
         expect(validation.valid).toBe(false);
         expect(validation.errors.length).toBeGreaterThan(0);
       });
@@ -369,7 +369,7 @@ describe('MCP Tool Invocation', () => {
           }
         }});
 
-        const validation = JSON.parse((response.content[0] as any).text);
+        const validation = JSON.parse(((response as any).content[0]).text);
         expect(validation).toHaveProperty('valid');
         
         // The workflow should have either errors or warnings about the expression
@@ -392,8 +392,8 @@ describe('MCP Tool Invocation', () => {
       it('should get quick start guide', async () => {
         const response = await client.callTool({ name: 'tools_documentation', arguments: {} });
 
-        expect((response.content[0] as any).type).toBe('text');
-        expect((response.content[0] as any).text).toContain('n8n MCP Tools');
+        expect(((response as any).content[0]).type).toBe('text');
+        expect(((response as any).content[0]).text).toContain('n8n MCP Tools');
       });
 
       it('should get specific tool documentation', async () => {
@@ -401,8 +401,8 @@ describe('MCP Tool Invocation', () => {
           topic: 'search_nodes'
         }});
 
-        expect((response.content[0] as any).text).toContain('search_nodes');
-        expect((response.content[0] as any).text).toContain('Text search');
+        expect(((response as any).content[0]).text).toContain('search_nodes');
+        expect(((response as any).content[0]).text).toContain('Text search');
       });
 
       it('should get comprehensive documentation', async () => {
@@ -410,8 +410,8 @@ describe('MCP Tool Invocation', () => {
           depth: 'full'
         }});
 
-        expect((response.content[0] as any).text.length).toBeGreaterThan(5000);
-        expect((response.content[0] as any).text).toBeDefined();
+        expect(((response as any).content[0]).text.length).toBeGreaterThan(5000);
+        expect(((response as any).content[0]).text).toBeDefined();
       });
 
       it('should handle invalid topics gracefully', async () => {
@@ -419,7 +419,7 @@ describe('MCP Tool Invocation', () => {
           topic: 'nonexistent_tool'
         }});
 
-        expect((response.content[0] as any).text).toContain('not found');
+        expect(((response as any).content[0]).text).toContain('not found');
       });
     });
   });
@@ -429,7 +429,7 @@ describe('MCP Tool Invocation', () => {
       it('should list AI-capable nodes', async () => {
         const response = await client.callTool({ name: 'list_ai_tools', arguments: {} });
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         expect(result).toHaveProperty('tools');
         const aiTools = result.tools;
         expect(Array.isArray(aiTools)).toBe(true);
@@ -449,7 +449,7 @@ describe('MCP Tool Invocation', () => {
           nodeType: 'nodes-base.slack'
         }});
 
-        const info = JSON.parse((response.content[0] as any).text);
+        const info = JSON.parse(((response as any).content[0]).text);
         expect(info).toHaveProperty('nodeType');
         expect(info).toHaveProperty('isMarkedAsAITool');
         expect(info).toHaveProperty('aiToolCapabilities');
@@ -465,7 +465,7 @@ describe('MCP Tool Invocation', () => {
           task: 'post_json_request'
         }});
 
-        const config = JSON.parse((response.content[0] as any).text);
+        const config = JSON.parse(((response as any).content[0]).text);
         expect(config).toHaveProperty('task');
         expect(config).toHaveProperty('nodeType');
         expect(config).toHaveProperty('configuration');
@@ -488,7 +488,7 @@ describe('MCP Tool Invocation', () => {
       it('should list all available tasks', async () => {
         const response = await client.callTool({ name: 'list_tasks', arguments: {} });
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         expect(result).toHaveProperty('totalTasks');
         expect(result).toHaveProperty('categories');
         expect(result.totalTasks).toBeGreaterThan(0);
@@ -509,7 +509,7 @@ describe('MCP Tool Invocation', () => {
           category: 'HTTP/API'
         }});
 
-        const result = JSON.parse((response.content[0] as any).text);
+        const result = JSON.parse(((response as any).content[0]).text);
         expect(result).toHaveProperty('category', 'HTTP/API');
         expect(result).toHaveProperty('tasks');
         
@@ -532,7 +532,7 @@ describe('MCP Tool Invocation', () => {
       const searchResponse = await client.callTool({ name: 'search_nodes', arguments: {
         query: 'slack'
       }});
-      const searchResult = JSON.parse((searchResponse.content[0] as any).text);
+      const searchResult = JSON.parse(((searchResponse as any).content[0]).text);
       const nodes = searchResult.results;
       
       // Get info for first result
@@ -541,7 +541,7 @@ describe('MCP Tool Invocation', () => {
         nodeType: firstNode.nodeType
       }});
       
-      expect((infoResponse.content[0] as any).text).toContain(firstNode.displayName);
+      expect(((infoResponse as any).content[0]).text).toContain(firstNode.displayName);
     });
 
     it('should handle parallel tool calls', async () => {
@@ -561,7 +561,7 @@ describe('MCP Tool Invocation', () => {
       expect(responses).toHaveLength(tools.length);
       responses.forEach(response => {
         expect(response.content).toHaveLength(1);
-        expect((response.content[0] as any).type).toBe('text');
+        expect(((response as any).content[0]).type).toBe('text');
       });
     });
 
@@ -575,9 +575,9 @@ describe('MCP Tool Invocation', () => {
         client.callTool({ name: 'search_nodes', arguments: { query: 'httpRequest' } })
       ]);
 
-      const full = JSON.parse((fullInfo.content[0] as any).text);
-      const essential = JSON.parse((essentials.content[0] as any).text);
-      const searchData = JSON.parse((searchResult.content[0] as any).text);
+      const full = JSON.parse(((fullInfo as any).content[0]).text);
+      const essential = JSON.parse(((essentials as any).content[0]).text);
+      const searchData = JSON.parse(((searchResult as any).content[0]).text);
       const search = searchData.results;
 
       // Should all reference the same node
