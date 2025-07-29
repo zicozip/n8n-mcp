@@ -1,10 +1,11 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { Transport } from '@modelcontextprotocol/sdk';
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { 
   CallToolRequestSchema, 
   ListToolsRequestSchema,
   InitializeRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { N8NDocumentationMCPServer } from '../../../src/mcp/server';
 
 export class TestableN8NMCPServer {
@@ -54,27 +55,29 @@ export class TestableN8NMCPServer {
         
         // Convert result to content array if needed
         if (Array.isArray(result) && result.length > 0 && result[0].content) {
-          return result;
+          return {
+            content: result[0].content
+          };
         }
         
         return {
           content: [
             {
-              type: 'text',
+              type: 'text' as const,
               text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
             }
           ]
         };
       } catch (error: any) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error: ${error.message}`
-            }
-          ],
-          isError: true
-        };
+        // If it's already an MCP error, throw it as is
+        if (error.code && error.message) {
+          throw error;
+        }
+        // Otherwise, wrap it in an MCP error
+        throw new McpError(
+          ErrorCode.InternalError,
+          error.message || 'Unknown error'
+        );
       }
     });
   }

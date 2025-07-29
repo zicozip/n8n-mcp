@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Database from 'better-sqlite3';
 import { execSync } from 'child_process';
+import type { DatabaseAdapter } from '../../../src/database/database-adapter';
 
 export interface TestDatabaseOptions {
   mode: 'memory' | 'file';
@@ -274,7 +275,7 @@ export function checkDatabaseIntegrity(db: Database.Database): {
 
   try {
     // Run integrity check
-    const result = db.prepare('PRAGMA integrity_check').all();
+    const result = db.prepare('PRAGMA integrity_check').all() as Array<{ integrity_check: string }>;
     if (result.length !== 1 || result[0].integrity_check !== 'ok') {
       errors.push('Database integrity check failed');
     }
@@ -315,10 +316,12 @@ export function createTestDatabaseAdapter(db: Database.Database): DatabaseAdapte
         get: (...params: any[]) => stmt.get(...params),
         all: (...params: any[]) => stmt.all(...params),
         iterate: (...params: any[]) => stmt.iterate(...params),
-        pluck: (enabled?: boolean) => stmt.pluck(enabled),
-        finalize: () => stmt,
-        bind: (...params: any[]) => stmt.bind(...params)
-      };
+        pluck: function(enabled?: boolean) { stmt.pluck(enabled); return this; },
+        expand: function(enabled?: boolean) { stmt.expand?.(enabled); return this; },
+        raw: function(enabled?: boolean) { stmt.raw?.(enabled); return this; },
+        columns: () => stmt.columns?.() || [],
+        bind: function(...params: any[]) { stmt.bind(...params); return this; }
+      } as any;
     },
     exec: (sql: string) => db.exec(sql),
     close: () => db.close(),

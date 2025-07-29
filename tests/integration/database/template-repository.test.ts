@@ -55,38 +55,39 @@ describe('TemplateRepository Integration Tests', () => {
 
     it('should handle templates with complex node types', () => {
       const template = createTemplateWorkflow({
-        id: 1,
-        nodes: [
-          {
-            id: 'node1',
-            name: 'Webhook',
-            type: 'n8n-nodes-base.webhook',
-            typeVersion: 1,
-            position: [100, 100],
-            parameters: {}
-          },
-          {
-            id: 'node2',
-            name: 'HTTP Request',
-            type: 'n8n-nodes-base.httpRequest',
-            typeVersion: 3,
-            position: [300, 100],
-            parameters: {
-              url: 'https://api.example.com',
-              method: 'POST'
-            }
-          }
-        ]
+        id: 1
       });
+
+      const nodes = [
+        {
+          id: 'node1',
+          name: 'Webhook',
+          type: 'n8n-nodes-base.webhook',
+          typeVersion: 1,
+          position: [100, 100],
+          parameters: {}
+        },
+        {
+          id: 'node2',
+          name: 'HTTP Request',
+          type: 'n8n-nodes-base.httpRequest',
+          typeVersion: 3,
+          position: [300, 100],
+          parameters: {
+            url: 'https://api.example.com',
+            method: 'POST'
+          }
+        }
+      ];
 
       const detail = createTemplateDetail({ 
         id: template.id, 
         workflow: {
           id: template.id.toString(),
           name: template.name,
-          nodes: template.workflow.nodes,
-          connections: template.workflow.connections,
-          settings: template.workflow.settings
+          nodes: nodes,
+          connections: {},
+          settings: {}
         }
       });
       repository.saveTemplate(template, detail);
@@ -101,13 +102,7 @@ describe('TemplateRepository Integration Tests', () => {
 
     it('should sanitize workflow data before saving', () => {
       const template = createTemplateWorkflow({
-        workflowInfo: {
-          nodeCount: 5,
-          webhookCount: 1,
-          // Add some data that should be sanitized
-          executionId: 'should-be-removed',
-          pinData: { node1: { data: 'sensitive' } }
-        }
+        id: 5
       });
 
       const detail = createTemplateDetail({ 
@@ -115,9 +110,20 @@ describe('TemplateRepository Integration Tests', () => {
         workflow: {
           id: template.id.toString(),
           name: template.name,
-          nodes: template.workflow.nodes,
-          connections: template.workflow.connections,
-          settings: template.workflow.settings
+          nodes: [
+            {
+              id: 'node1',
+              name: 'Start',
+              type: 'n8n-nodes-base.start',
+              typeVersion: 1,
+              position: [100, 100],
+              parameters: {}
+            }
+          ],
+          connections: {},
+          settings: {},
+          pinData: { node1: { data: 'sensitive' } },
+          executionId: 'should-be-removed'
         }
       });
       repository.saveTemplate(template, detail);
@@ -502,9 +508,6 @@ function createTemplateDetail(overrides: any = {}): TemplateDetail {
       connections: overrides.connections || {},
       settings: overrides.settings || {},
       pinData: overrides.pinData
-    },
-    categories: overrides.categories || [
-      { id: 1, name: 'automation' }
-    ]
+    }
   };
 }

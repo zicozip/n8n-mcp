@@ -17,7 +17,7 @@ describe('MCP Session Management', () => {
 
   describe('Session Lifecycle', () => {
     it('should establish a new session', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -30,14 +30,14 @@ describe('MCP Session Management', () => {
       await client.connect(clientTransport);
 
       // Session should be established
-      const serverInfo = await client.getServerInfo();
+      const serverInfo = await client.getServerVersion();
       expect(serverInfo).toHaveProperty('name', 'n8n-mcp');
 
       await client.close();
     });
 
     it('should handle session initialization with capabilities', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -52,14 +52,14 @@ describe('MCP Session Management', () => {
 
       await client.connect(clientTransport);
 
-      const serverInfo = await client.getServerInfo();
-      expect(serverInfo.capabilities).toHaveProperty('tools');
+      const serverInfo = await client.getServerVersion();
+      expect(serverInfo!.capabilities).toHaveProperty('tools');
 
       await client.close();
     });
 
     it('should handle clean session termination', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -70,15 +70,15 @@ describe('MCP Session Management', () => {
       await client.connect(clientTransport);
 
       // Make some requests
-      await client.callTool('get_database_statistics', {});
-      await client.callTool('list_nodes', { limit: 5 });
+      await client.callTool({ name: 'get_database_statistics', arguments: {} });
+      await client.callTool({ name: 'list_nodes', arguments: { limit: 5 } });
 
       // Clean termination
       await client.close();
 
       // Client should be closed
       try {
-        await client.callTool('get_database_statistics', {});
+        await client.callTool({ name: 'get_database_statistics', arguments: {} });
         expect.fail('Should not be able to make requests after close');
       } catch (error) {
         expect(error).toBeDefined();
@@ -86,7 +86,7 @@ describe('MCP Session Management', () => {
     });
 
     it('should handle abrupt disconnection', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -97,14 +97,14 @@ describe('MCP Session Management', () => {
       await client.connect(clientTransport);
 
       // Make a request to ensure connection is active
-      await client.callTool('get_database_statistics', {});
+      await client.callTool({ name: 'get_database_statistics', arguments: {} });
 
       // Simulate abrupt disconnection by closing transport
       await clientTransport.close();
 
       // Further operations should fail
       try {
-        await client.callTool('list_nodes', {});
+        await client.callTool({ name: 'list_nodes', arguments: {} });
         expect.fail('Should not be able to make requests after transport close');
       } catch (error) {
         expect(error).toBeDefined();
@@ -118,7 +118,7 @@ describe('MCP Session Management', () => {
 
       // Create 5 concurrent sessions
       for (let i = 0; i < 5; i++) {
-        const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+        const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
         await mcpServer.connectToTransport(serverTransport);
 
         const client = new Client({
@@ -132,7 +132,7 @@ describe('MCP Session Management', () => {
 
       // All sessions should work independently
       const promises = sessions.map((client, index) => 
-        client.callTool('get_database_statistics', {})
+        client.callTool({ name: 'get_database_statistics', arguments: {} })
           .then(response => ({ client: index, response }))
       );
 
@@ -141,7 +141,7 @@ describe('MCP Session Management', () => {
       expect(results).toHaveLength(5);
       results.forEach(result => {
         expect(result.response).toBeDefined();
-        expect(result.response[0].type).toBe('text');
+        expect((result.response[0] as any).type).toBe('text');
       });
 
       // Clean up all sessions
@@ -150,11 +150,11 @@ describe('MCP Session Management', () => {
 
     it('should isolate session state', async () => {
       // Create two sessions
-      const { serverTransport: st1, clientTransport: ct1 } = InMemoryTransport.createLinkedPair();
-      const { serverTransport: st2, clientTransport: ct2 } = InMemoryTransport.createLinkedPair();
+      const [st1, ct1] = InMemoryTransport.createLinkedPair();
+      const [st2, ct2] = InMemoryTransport.createLinkedPair();
 
-      await mcpEngine.connect(st1);
-      await mcpEngine.connect(st2);
+      await mcpServer.connectToTransport(st1);
+      await mcpServer.connectToTransport(st2);
 
       const client1 = new Client({ name: 'client1', version: '1.0.0' }, {});
       const client2 = new Client({ name: 'client2', version: '1.0.0' }, {});
@@ -164,12 +164,12 @@ describe('MCP Session Management', () => {
 
       // Both should work independently
       const [response1, response2] = await Promise.all([
-        client1.callTool('list_nodes', { limit: 3 }),
-        client2.callTool('list_nodes', { limit: 5 })
+        client1.callTool({ name: 'list_nodes', arguments: { limit: 3 } }),
+        client2.callTool({ name: 'list_nodes', arguments: { limit: 5 } })
       ]);
 
-      const nodes1 = JSON.parse(response1[0].text);
-      const nodes2 = JSON.parse(response2[0].text);
+      const nodes1 = JSON.parse((response1[0] as any).text);
+      const nodes2 = JSON.parse((response2[0] as any).text);
 
       expect(nodes1).toHaveLength(3);
       expect(nodes2).toHaveLength(5);
@@ -182,25 +182,25 @@ describe('MCP Session Management', () => {
   describe('Session Recovery', () => {
     it('should not persist state between sessions', async () => {
       // First session
-      const { serverTransport: st1, clientTransport: ct1 } = InMemoryTransport.createLinkedPair();
-      await mcpEngine.connect(st1);
+      const [st1, ct1] = InMemoryTransport.createLinkedPair();
+      await mcpServer.connectToTransport(st1);
 
       const client1 = new Client({ name: 'client1', version: '1.0.0' }, {});
       await client1.connect(ct1);
 
       // Make some requests
-      await client1.callTool('list_nodes', { limit: 10 });
+      await client1.callTool({ name: 'list_nodes', arguments: { limit: 10 } });
       await client1.close();
 
       // Second session - should be fresh
-      const { serverTransport: st2, clientTransport: ct2 } = InMemoryTransport.createLinkedPair();
-      await mcpEngine.connect(st2);
+      const [st2, ct2] = InMemoryTransport.createLinkedPair();
+      await mcpServer.connectToTransport(st2);
 
       const client2 = new Client({ name: 'client2', version: '1.0.0' }, {});
       await client2.connect(ct2);
 
       // Should work normally
-      const response = await client2.callTool('get_database_statistics', {});
+      const response = await client2.callTool({ name: 'get_database_statistics', arguments: {} });
       expect(response).toBeDefined();
 
       await client2.close();
@@ -208,7 +208,7 @@ describe('MCP Session Management', () => {
 
     it('should handle rapid session cycling', async () => {
       for (let i = 0; i < 10; i++) {
-        const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+        const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
         await mcpServer.connectToTransport(serverTransport);
 
         const client = new Client({ 
@@ -219,7 +219,7 @@ describe('MCP Session Management', () => {
         await client.connect(clientTransport);
         
         // Quick operation
-        const response = await client.callTool('get_database_statistics', {});
+        const response = await client.callTool({ name: 'get_database_statistics', arguments: {} });
         expect(response).toBeDefined();
 
         await client.close();
@@ -229,7 +229,7 @@ describe('MCP Session Management', () => {
 
   describe('Session Metadata', () => {
     it('should track client information', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -244,7 +244,7 @@ describe('MCP Session Management', () => {
       await client.connect(clientTransport);
 
       // Server should be aware of client
-      const serverInfo = await client.getServerInfo();
+      const serverInfo = await client.getServerVersion();
       expect(serverInfo).toBeDefined();
 
       await client.close();
@@ -254,7 +254,7 @@ describe('MCP Session Management', () => {
       const clients = [];
 
       for (const version of ['1.0.0', '1.1.0', '2.0.0']) {
-        const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+        const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
         await mcpServer.connectToTransport(serverTransport);
 
         const client = new Client({
@@ -268,11 +268,11 @@ describe('MCP Session Management', () => {
 
       // All versions should work
       const responses = await Promise.all(
-        clients.map(client => client.getServerInfo())
+        clients.map(client => client.getServerVersion())
       );
 
       responses.forEach(info => {
-        expect(info.name).toBe('n8n-mcp');
+        expect(info!.name).toBe('n8n-mcp');
       });
 
       // Clean up
@@ -285,7 +285,7 @@ describe('MCP Session Management', () => {
       const sessionCount = 50;
       
       for (let i = 0; i < sessionCount; i++) {
-        const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+        const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
         await mcpServer.connectToTransport(serverTransport);
 
         const client = new Client({
@@ -297,7 +297,7 @@ describe('MCP Session Management', () => {
         
         // Light operation
         if (i % 10 === 0) {
-          await client.callTool('get_database_statistics', {});
+          await client.callTool({ name: 'get_database_statistics', arguments: {} });
         }
 
         await client.close();
@@ -305,7 +305,7 @@ describe('MCP Session Management', () => {
     });
 
     it('should handle session with heavy usage', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -322,7 +322,7 @@ describe('MCP Session Management', () => {
       for (let i = 0; i < requestCount; i++) {
         const toolName = i % 2 === 0 ? 'list_nodes' : 'get_database_statistics';
         const params = toolName === 'list_nodes' ? { limit: 1 } : {};
-        promises.push(client.callTool(toolName, params));
+        promises.push(client.callTool({ name: toolName as any, arguments: params }));
       }
 
       const responses = await Promise.all(promises);
@@ -334,7 +334,7 @@ describe('MCP Session Management', () => {
 
   describe('Session Error Recovery', () => {
     it('should handle errors without breaking session', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -346,23 +346,23 @@ describe('MCP Session Management', () => {
 
       // Make an error-inducing request
       try {
-        await client.callTool('get_node_info', {
+        await client.callTool({ name: 'get_node_info', arguments: {
           nodeType: 'invalid-node-type'
-        });
+        } });
         expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error).toBeDefined();
       }
 
       // Session should still be active
-      const response = await client.callTool('get_database_statistics', {});
+      const response = await client.callTool({ name: 'get_database_statistics', arguments: {} });
       expect(response).toBeDefined();
 
       await client.close();
     });
 
     it('should handle multiple errors in sequence', async () => {
-      const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+      const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
       const client = new Client({
@@ -374,9 +374,9 @@ describe('MCP Session Management', () => {
 
       // Multiple error-inducing requests
       const errorPromises = [
-        client.callTool('get_node_info', { nodeType: 'invalid1' }).catch(e => e),
-        client.callTool('get_node_info', { nodeType: 'invalid2' }).catch(e => e),
-        client.callTool('get_node_for_task', { task: 'invalid_task' }).catch(e => e)
+        client.callTool({ name: 'get_node_info', arguments: { nodeType: 'invalid1' } }).catch(e => e),
+        client.callTool({ name: 'get_node_info', arguments: { nodeType: 'invalid2' } }).catch(e => e),
+        client.callTool({ name: 'get_node_for_task', arguments: { task: 'invalid_task' } }).catch(e => e)
       ];
 
       const errors = await Promise.all(errorPromises);
@@ -385,7 +385,7 @@ describe('MCP Session Management', () => {
       });
 
       // Session should still work
-      const response = await client.callTool('list_nodes', { limit: 1 });
+      const response = await client.callTool({ name: 'list_nodes', arguments: { limit: 1 } });
       expect(response).toBeDefined();
 
       await client.close();
@@ -395,8 +395,8 @@ describe('MCP Session Management', () => {
   describe('Session Transport Events', () => {
     it('should handle transport reconnection', async () => {
       // Initial connection
-      const { serverTransport: st1, clientTransport: ct1 } = InMemoryTransport.createLinkedPair();
-      await mcpEngine.connect(st1);
+      const [st1, ct1] = InMemoryTransport.createLinkedPair();
+      await mcpServer.connectToTransport(st1);
 
       const client = new Client({
         name: 'reconnect-client',
@@ -406,14 +406,14 @@ describe('MCP Session Management', () => {
       await client.connect(ct1);
       
       // Initial request
-      const response1 = await client.callTool('get_database_statistics', {});
+      const response1 = await client.callTool({ name: 'get_database_statistics', arguments: {} });
       expect(response1).toBeDefined();
 
       await client.close();
 
       // New connection with same client
-      const { serverTransport: st2, clientTransport: ct2 } = InMemoryTransport.createLinkedPair();
-      await mcpEngine.connect(st2);
+      const [st2, ct2] = InMemoryTransport.createLinkedPair();
+      await mcpServer.connectToTransport(st2);
 
       const newClient = new Client({
         name: 'reconnect-client',
@@ -423,7 +423,7 @@ describe('MCP Session Management', () => {
       await newClient.connect(ct2);
       
       // Should work normally
-      const response2 = await newClient.callTool('get_database_statistics', {});
+      const response2 = await newClient.callTool({ name: 'get_database_statistics', arguments: {} });
       expect(response2).toBeDefined();
 
       await newClient.close();

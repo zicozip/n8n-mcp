@@ -11,7 +11,7 @@ describe('MCP Performance Tests', () => {
     mcpServer = new TestableN8NMCPServer();
     await mcpServer.initialize();
     
-    const { serverTransport, clientTransport } = InMemoryTransport.createLinkedPair();
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
     await mcpServer.connectToTransport(serverTransport);
     
     client = new Client({
@@ -35,7 +35,7 @@ describe('MCP Performance Tests', () => {
       const start = performance.now();
 
       for (let i = 0; i < iterations; i++) {
-        await client.callTool('get_database_statistics', {});
+        await client.callTool({ name: 'get_database_statistics', arguments: {} });
       }
 
       const duration = performance.now() - start;
@@ -52,7 +52,7 @@ describe('MCP Performance Tests', () => {
       const start = performance.now();
 
       for (let i = 0; i < iterations; i++) {
-        await client.callTool('list_nodes', { limit: 10 });
+        await client.callTool({ name: 'list_nodes', arguments: { limit: 10 } });
       }
 
       const duration = performance.now() - start;
@@ -71,7 +71,7 @@ describe('MCP Performance Tests', () => {
 
       for (let i = 0; i < iterations; i++) {
         for (const query of searches) {
-          await client.callTool('search_nodes', { query });
+          await client.callTool({ name: 'search_nodes', arguments: { query } });
         }
       }
 
@@ -97,7 +97,7 @@ describe('MCP Performance Tests', () => {
       const start = performance.now();
 
       for (const nodeType of nodeTypes) {
-        await client.callTool('get_node_info', { nodeType });
+        await client.callTool({ name: 'get_node_info', arguments: { nodeType } });
       }
 
       const duration = performance.now() - start;
@@ -118,7 +118,7 @@ describe('MCP Performance Tests', () => {
       const promises = [];
       for (let i = 0; i < concurrentRequests; i++) {
         promises.push(
-          client.callTool('list_nodes', { limit: 5 })
+          client.callTool({ name: 'list_nodes', arguments: { limit: 5 } })
         );
       }
 
@@ -147,7 +147,7 @@ describe('MCP Performance Tests', () => {
 
       for (let round = 0; round < rounds; round++) {
         const promises = operations.map(op => 
-          client.callTool(op.tool, op.params)
+          client.callTool({ name: op.tool, arguments: op.params })
         );
         await Promise.all(promises);
       }
@@ -166,9 +166,9 @@ describe('MCP Performance Tests', () => {
     it('should handle large node lists efficiently', async () => {
       const start = performance.now();
 
-      const response = await client.callTool('list_nodes', {
+      const response = await client.callTool({ name: 'list_nodes', arguments: {
         limit: 200 // Get many nodes
-      });
+      } });
 
       const duration = performance.now() - start;
 
@@ -177,7 +177,7 @@ describe('MCP Performance Tests', () => {
       // Should complete within 100ms
       expect(duration).toBeLessThan(100);
 
-      const nodes = JSON.parse(response[0].text);
+      const nodes = JSON.parse((response as any)[0].text);
       expect(nodes.length).toBeGreaterThan(100);
     });
 
@@ -208,9 +208,9 @@ describe('MCP Performance Tests', () => {
 
       const start = performance.now();
 
-      const response = await client.callTool('validate_workflow', {
+      const response = await client.callTool({ name: 'validate_workflow', arguments: {
         workflow: { nodes, connections }
-      });
+      } });
 
       const duration = performance.now() - start;
 
@@ -219,7 +219,7 @@ describe('MCP Performance Tests', () => {
       // Should complete within 500ms
       expect(duration).toBeLessThan(500);
 
-      const validation = JSON.parse(response[0].text);
+      const validation = JSON.parse((response as any)[0].text);
       expect(validation).toHaveProperty('valid');
     });
   });
@@ -237,7 +237,7 @@ describe('MCP Performance Tests', () => {
         
         for (let j = 0; j < batchSize; j++) {
           promises.push(
-            client.callTool('get_database_statistics', {})
+            client.callTool({ name: 'get_database_statistics', arguments: {} })
           );
         }
 
@@ -263,10 +263,10 @@ describe('MCP Performance Tests', () => {
 
       // Perform large operations
       for (let i = 0; i < 10; i++) {
-        await client.callTool('list_nodes', { limit: 200 });
-        await client.callTool('get_node_info', { 
+        await client.callTool({ name: 'list_nodes', arguments: { limit: 200 } });
+        await client.callTool({ name: 'get_node_info', arguments: { 
           nodeType: 'nodes-base.httpRequest' 
-        });
+        } });
       }
 
       // Force garbage collection if available
@@ -296,7 +296,7 @@ describe('MCP Performance Tests', () => {
         const promises = [];
         for (let i = 0; i < load; i++) {
           promises.push(
-            client.callTool('list_nodes', { limit: 1 })
+            client.callTool({ name: 'list_nodes', arguments: { limit: 1 } })
           );
         }
 
@@ -332,16 +332,16 @@ describe('MCP Performance Tests', () => {
         const operation = i % 4;
         switch (operation) {
           case 0:
-            promises.push(client.callTool('list_nodes', { limit: 5 }));
+            promises.push(client.callTool({ name: 'list_nodes', arguments: { limit: 5 } }));
             break;
           case 1:
-            promises.push(client.callTool('search_nodes', { query: 'test' }));
+            promises.push(client.callTool({ name: 'search_nodes', arguments: { query: 'test' } }));
             break;
           case 2:
-            promises.push(client.callTool('get_database_statistics', {}));
+            promises.push(client.callTool({ name: 'get_database_statistics', arguments: {} }));
             break;
           case 3:
-            promises.push(client.callTool('list_ai_tools', {}));
+            promises.push(client.callTool({ name: 'list_ai_tools', arguments: {} }));
             break;
         }
       }
@@ -360,14 +360,14 @@ describe('MCP Performance Tests', () => {
   describe('Critical Path Optimization', () => {
     it('should optimize tool listing performance', async () => {
       // Warm up
-      await client.callTool('list_nodes', { limit: 1 });
+      await client.callTool({ name: 'list_nodes', arguments: { limit: 1 } });
 
       const iterations = 100;
       const times: number[] = [];
 
       for (let i = 0; i < iterations; i++) {
         const start = performance.now();
-        await client.callTool('list_nodes', { limit: 20 });
+        await client.callTool({ name: 'list_nodes', arguments: { limit: 20 } });
         times.push(performance.now() - start);
       }
 
@@ -386,7 +386,7 @@ describe('MCP Performance Tests', () => {
 
     it('should optimize search performance', async () => {
       // Warm up
-      await client.callTool('search_nodes', { query: 'test' });
+      await client.callTool({ name: 'search_nodes', arguments: { query: 'test' } });
 
       const queries = ['http', 'webhook', 'database', 'api', 'slack'];
       const times: number[] = [];
@@ -394,7 +394,7 @@ describe('MCP Performance Tests', () => {
       for (const query of queries) {
         for (let i = 0; i < 20; i++) {
           const start = performance.now();
-          await client.callTool('search_nodes', { query });
+          await client.callTool({ name: 'search_nodes', arguments: { query } });
           times.push(performance.now() - start);
         }
       }
@@ -412,14 +412,14 @@ describe('MCP Performance Tests', () => {
 
       // First call (cold)
       const coldStart = performance.now();
-      await client.callTool('get_node_info', { nodeType });
+      await client.callTool({ name: 'get_node_info', arguments: { nodeType } });
       const coldTime = performance.now() - coldStart;
 
       // Subsequent calls (potentially cached)
       const warmTimes: number[] = [];
       for (let i = 0; i < 10; i++) {
         const start = performance.now();
-        await client.callTool('get_node_info', { nodeType });
+        await client.callTool({ name: 'get_node_info', arguments: { nodeType } });
         warmTimes.push(performance.now() - start);
       }
 
@@ -441,7 +441,7 @@ describe('MCP Performance Tests', () => {
 
       while (performance.now() - start < duration) {
         try {
-          await client.callTool('get_database_statistics', {});
+          await client.callTool({ name: 'get_database_statistics', arguments: {} });
           requestCount++;
         } catch (error) {
           errorCount++;
@@ -465,7 +465,7 @@ describe('MCP Performance Tests', () => {
       const heavyPromises = [];
       for (let i = 0; i < 200; i++) {
         heavyPromises.push(
-          client.callTool('validate_workflow', {
+          client.callTool({ name: 'validate_workflow', arguments: {
             workflow: {
               nodes: Array(20).fill(null).map((_, idx) => ({
                 id: String(idx),
@@ -477,7 +477,7 @@ describe('MCP Performance Tests', () => {
               })),
               connections: {}
             }
-          })
+          } })
         );
       }
 
@@ -487,7 +487,7 @@ describe('MCP Performance Tests', () => {
       const recoveryTimes: number[] = [];
       for (let i = 0; i < 10; i++) {
         const start = performance.now();
-        await client.callTool('get_database_statistics', {});
+        await client.callTool({ name: 'get_database_statistics', arguments: {} });
         recoveryTimes.push(performance.now() - start);
       }
 

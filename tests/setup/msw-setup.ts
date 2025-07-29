@@ -113,7 +113,7 @@ export const n8nHandlerFactory = {
     
     create: () =>
       http.post('*/api/v1/workflows', async ({ request }) => {
-        const body = await request.json();
+        const body = await request.json() as Record<string, any>;
         return HttpResponse.json({ 
           data: { 
             id: 'mock-workflow-id', 
@@ -126,7 +126,7 @@ export const n8nHandlerFactory = {
     
     update: (id: string) =>
       http.patch(`*/api/v1/workflows/${id}`, async ({ request }) => {
-        const body = await request.json();
+        const body = await request.json() as Record<string, any>;
         return HttpResponse.json({ 
           data: { 
             id, 

@@ -11,7 +11,7 @@ export * from './data/credentials';
 export { http, HttpResponse } from 'msw';
 
 // Export factory utilities
-export { n8nHandlerFactory } from '../setup/msw-setup';
+export { n8nHandlerFactory } from '../../setup/msw-setup';
 export { 
   n8nApiMock, 
   testDataBuilders,

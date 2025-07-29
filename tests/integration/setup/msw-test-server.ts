@@ -165,7 +165,7 @@ export const n8nApiMock = {
    */
   mockWorkflowCreate: (response?: any) => {
     return http.post('*/api/v1/workflows', async ({ request }) => {
-      const body = await request.json();
+      const body = await request.json() as Record<string, any>;
       return HttpResponse.json({
         data: {
           id: 'test-workflow-id',

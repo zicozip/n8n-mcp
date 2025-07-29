@@ -5,6 +5,7 @@ import { TemplateRepository } from '../../../src/templates/template-repository';
 import { DatabaseAdapter } from '../../../src/database/database-adapter';
 import { TestDatabase, TestDataGenerator, PerformanceMonitor, createTestDatabaseAdapter } from './test-utils';
 import { ParsedNode } from '../../../src/parsers/node-parser';
+import { TemplateWorkflow, TemplateDetail } from '../../../src/templates/template-fetcher';
 
 describe('Database Performance Tests', () => {
   let testDb: TestDatabase;
@@ -152,7 +153,21 @@ describe('Database Performance Tests', () => {
 
       const stop1 = monitor.start('insert_templates_with_fts');
       const transaction = db.transaction((templates: any[]) => {
-        templates.forEach(t => templateRepo.saveTemplate(t));
+        templates.forEach(t => {
+          const detail: TemplateDetail = {
+            id: t.id,
+            name: t.name,
+            description: t.description || '',
+            views: t.totalViews,
+            createdAt: t.createdAt,
+            workflow: {
+              nodes: [],
+              connections: {},
+              settings: {}
+            }
+          };
+          templateRepo.saveTemplate(t, detail);
+        });
       });
       transaction(templates);
       stop1();
@@ -192,36 +207,53 @@ describe('Database Performance Tests', () => {
         'n8n-nodes-base.mongodb'
       ];
 
-      const templates = Array.from({ length: 5000 }, (_, i) => ({
-        id: i + 1,
-        name: `Template ${i}`,
-        workflow: {
-          nodes: Array.from({ length: 3 }, (_, j) => ({
-            id: `node${j}`,
-            name: `Node ${j}`,
-            type: nodeTypes[(i + j) % nodeTypes.length],
-            typeVersion: 1,
-            position: [100 * j, 100],
-            parameters: {}
-          })),
-          connections: {},
-          settings: {}
-        },
-        user: { username: 'user' },
-        views: 100,
-        totalViews: 100,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }));
+      const templates = Array.from({ length: 5000 }, (_, i) => {
+        const workflow: TemplateWorkflow = {
+          id: i + 1,
+          name: `Template ${i}`,
+          description: `Template description ${i}`,
+          totalViews: 100,
+          createdAt: new Date().toISOString(),
+          user: {
+            id: 1,
+            name: 'Test User',
+            username: 'user',
+            verified: false
+          },
+          nodes: []
+        };
+        
+        const detail: TemplateDetail = {
+          id: i + 1,
+          name: `Template ${i}`,
+          description: `Template description ${i}`,
+          views: 100,
+          createdAt: new Date().toISOString(),
+          workflow: {
+            nodes: Array.from({ length: 3 }, (_, j) => ({
+              id: `node${j}`,
+              name: `Node ${j}`,
+              type: nodeTypes[(i + j) % nodeTypes.length],
+              typeVersion: 1,
+              position: [100 * j, 100],
+              parameters: {}
+            })),
+            connections: {},
+            settings: {}
+          }
+        };
+        
+        return { workflow, detail };
+      });
 
-      const insertTransaction = db.transaction((templates: any[]) => {
-        templates.forEach(t => templateRepo.saveTemplate(t));
+      const insertTransaction = db.transaction((items: any[]) => {
+        items.forEach(({ workflow, detail }) => templateRepo.saveTemplate(workflow, detail));
       });
       insertTransaction(templates);
 
       // Test searching by node types
       const stop = monitor.start('search_by_node_types');
-      const results = templateRepo.getTemplatesByNodeTypes([
+      const results = templateRepo.getTemplatesByNodes([
         'n8n-nodes-base.webhook',
         'n8n-nodes-base.slack'
       ], 100);
@@ -397,7 +429,7 @@ function generateNodes(count: number, startId: number = 0): ParsedNode[] {
     isWebhook: i % 5 === 0,
     isVersioned: true,
     version: '1',
-    documentation: i % 3 === 0 ? `Documentation for node ${i}` : null,
+    documentation: i % 3 === 0 ? `Documentation for node ${i}` : undefined,
     properties: Array.from({ length: 5 }, (_, j) => ({
       displayName: `Property ${j}`,
       name: `prop${j}`,
