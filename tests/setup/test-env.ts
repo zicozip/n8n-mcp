@@ -11,10 +11,26 @@ import { existsSync } from 'fs';
 
 // Load test environment variables
 export function loadTestEnvironment(): void {
+  // CI Debug logging
+  const isCI = process.env.CI === 'true';
+  
   // Load base test environment
   const testEnvPath = path.resolve(process.cwd(), '.env.test');
+  
+  if (isCI) {
+    console.log('[CI-DEBUG] Looking for .env.test at:', testEnvPath);
+    console.log('[CI-DEBUG] File exists?', existsSync(testEnvPath));
+  }
+  
   if (existsSync(testEnvPath)) {
-    dotenv.config({ path: testEnvPath });
+    const result = dotenv.config({ path: testEnvPath });
+    if (isCI && result.error) {
+      console.error('[CI-DEBUG] Failed to load .env.test:', result.error);
+    } else if (isCI && result.parsed) {
+      console.log('[CI-DEBUG] Successfully loaded', Object.keys(result.parsed).length, 'env vars from .env.test');
+    }
+  } else if (isCI) {
+    console.warn('[CI-DEBUG] .env.test file not found, will use defaults only');
   }
 
   // Load local test overrides (for sensitive values)

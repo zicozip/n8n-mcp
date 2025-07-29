@@ -1,8 +1,17 @@
 import { beforeEach, afterEach, vi } from 'vitest';
 import { loadTestEnvironment, getTestConfig, getTestTimeout } from './test-env';
 
+// CI Debug: Log environment loading in CI only
+if (process.env.CI === 'true') {
+  console.log('[CI-DEBUG] Global setup starting, NODE_ENV:', process.env.NODE_ENV);
+}
+
 // Load test environment configuration
 loadTestEnvironment();
+
+if (process.env.CI === 'true') {
+  console.log('[CI-DEBUG] Global setup complete, N8N_API_URL:', process.env.N8N_API_URL);
+}
 
 // Get test configuration
 const testConfig = getTestConfig();
