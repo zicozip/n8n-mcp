@@ -68,6 +68,12 @@ jobs:
             git checkout ${{ github.ref_name }}
           }
 
+      # Clean up workspace before benchmark action
+      - name: Clean workspace
+        run: |
+          git add -A
+          git stash || true
+      
       # Store benchmark results and compare
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
