@@ -8,6 +8,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # Add a 10-minute timeout to prevent hanging
     steps:
       - uses: actions/checkout@v4
       

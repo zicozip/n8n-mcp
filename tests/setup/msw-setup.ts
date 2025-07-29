@@ -60,14 +60,26 @@ export function useHandlers(...handlers: RequestHandler[]) {
  * Utility to wait for a specific request to be made
  * Useful for testing async operations
  */
-export function waitForRequest(method: string, url: string | RegExp): Promise<Request> {
-  return new Promise((resolve) => {
-    server.events.on('request:match', ({ request }) => {
+export function waitForRequest(method: string, url: string | RegExp, timeout = 5000): Promise<Request> {
+  return new Promise((resolve, reject) => {
+    let timeoutId: NodeJS.Timeout;
+    
+    const handler = ({ request }: { request: Request }) => {
       if (request.method === method && 
           (typeof url === 'string' ? request.url === url : url.test(request.url))) {
+        clearTimeout(timeoutId);
+        server.events.removeListener('request:match', handler);
         resolve(request);
       }
-    });
+    };
+    
+    // Set timeout
+    timeoutId = setTimeout(() => {
+      server.events.removeListener('request:match', handler);
+      reject(new Error(`Timeout waiting for ${method} request to ${url}`));
+    }, timeout);
+    
+    server.events.on('request:match', handler);
   });
 }
 

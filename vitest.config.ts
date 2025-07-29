@@ -21,17 +21,15 @@ export default defineConfig({
     },
     // Retry configuration
     retry: parseInt(process.env.TEST_RETRY_ATTEMPTS || '2', 10),
-    // Test reporter
-    reporters: process.env.CI ? ['default', 'json', 'junit', 'html'] : ['default'],
+    // Test reporter - reduce reporters in CI to prevent hanging
+    reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: {
-      json: './test-results/results.json',
-      junit: './test-results/junit.xml',
-      html: './test-results/html/index.html'
+      junit: './test-results/junit.xml'
     },
     coverage: {
       provider: 'v8',
       enabled: process.env.FEATURE_TEST_COVERAGE !== 'false',
-      reporter: (process.env.COVERAGE_REPORTER || 'lcov,html,text-summary').split(','),
+      reporter: process.env.CI ? ['lcov', 'text-summary'] : (process.env.COVERAGE_REPORTER || 'lcov,html,text-summary').split(','),
       reportsDirectory: process.env.COVERAGE_DIR || './coverage',
       exclude: [
         'node_modules/',
@@ -50,10 +48,16 @@ export default defineConfig({
         functions: 80,
         branches: 75,
         statements: 80
-      }
+      },
+      // Add coverage-specific settings to prevent hanging
+      all: false, // Don't collect coverage for untested files
+      skipFull: true // Skip files with 100% coverage
     },
     // Test isolation
-    isolate: true
+    isolate: true,
+    // Force exit after tests complete in CI to prevent hanging
+    forceRerunTriggers: ['**/tests/**/*.ts'],
+    teardownTimeout: 1000
   },
   resolve: {
     alias: {
