@@ -112,8 +112,12 @@ describe('Database Transactions', () => {
 
       // Insert first node
       const insertStmt = db.prepare(`
-        INSERT INTO nodes (name, type, display_name, package, version, type_version, data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO nodes (
+          node_type, package_name, display_name, description,
+          category, development_style, is_ai_tool, is_trigger,
+          is_webhook, is_versioned, version, documentation,
+          properties_schema, operations, credentials_required
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       insertStmt.run(
@@ -462,8 +466,12 @@ describe('Database Transactions', () => {
       // Insert initial data
       const nodes = TestDataGenerator.generateNodes(2);
       const insertStmt = db.prepare(`
-        INSERT INTO nodes (name, type, display_name, package, version, type_version, data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO nodes (
+          node_type, package_name, display_name, description,
+          category, development_style, is_ai_tool, is_trigger,
+          is_webhook, is_versioned, version, documentation,
+          properties_schema, operations, credentials_required
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       nodes.forEach(node => {

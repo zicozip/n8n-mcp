@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import Database from 'better-sqlite3';
+import * as Database from 'better-sqlite3';
 import { execSync } from 'child_process';
 
 export interface TestDatabaseOptions {
@@ -11,7 +11,7 @@ export interface TestDatabaseOptions {
 }
 
 export class TestDatabase {
-  private db: Database.Database | null = null;
+  private db: Database | null = null;
   private dbPath?: string;
   private options: TestDatabaseOptions;
 
@@ -19,7 +19,7 @@ export class TestDatabase {
     this.options = options;
   }
 
-  async initialize(): Promise<Database.Database> {
+  async initialize(): Promise<Database> {
     if (this.db) return this.db;
 
     if (this.options.mode === 'file') {
@@ -28,9 +28,9 @@ export class TestDatabase {
         fs.mkdirSync(testDir, { recursive: true });
       }
       this.dbPath = path.join(testDir, this.options.name || `test-${Date.now()}.db`);
-      this.db = new Database(this.dbPath);
+      this.db = new (Database as any)(this.dbPath);
     } else {
-      this.db = new Database(':memory:');
+      this.db = new (Database as any)(':memory:');
     }
 
     // Enable WAL mode for file databases
@@ -72,7 +72,7 @@ export class TestDatabase {
     }
   }
 
-  getDatabase(): Database.Database {
+  getDatabase(): Database {
     if (!this.db) throw new Error('Database not initialized');
     return this.db;
   }
@@ -155,17 +155,23 @@ export class PerformanceMonitor {
 // Data generation utilities
 export class TestDataGenerator {
   static generateNode(overrides: any = {}): any {
+    const nodeName = overrides.name || `testNode${Math.random().toString(36).substr(2, 9)}`;
     return {
-      name: `testNode${Math.random().toString(36).substr(2, 9)}`,
-      displayName: 'Test Node',
-      description: 'A test node for integration testing',
-      version: 1,
-      typeVersion: 1,
-      type: 'n8n-nodes-base.testNode',
-      package: 'n8n-nodes-base',
-      category: ['automation'],
-      properties: [],
-      credentials: [],
+      nodeType: overrides.nodeType || `n8n-nodes-base.${nodeName}`,
+      packageName: overrides.packageName || overrides.package || 'n8n-nodes-base',
+      displayName: overrides.displayName || 'Test Node',
+      description: overrides.description || 'A test node for integration testing',
+      category: overrides.category || 'automation',
+      developmentStyle: overrides.developmentStyle || overrides.style || 'programmatic',
+      isAITool: overrides.isAITool || false,
+      isTrigger: overrides.isTrigger || false,
+      isWebhook: overrides.isWebhook || false,
+      isVersioned: overrides.isVersioned !== undefined ? overrides.isVersioned : true,
+      version: overrides.version || '1',
+      documentation: overrides.documentation || null,
+      properties: overrides.properties || [],
+      operations: overrides.operations || [],
+      credentials: overrides.credentials || [],
       ...overrides
     };
   }
@@ -176,7 +182,7 @@ export class TestDataGenerator {
         ...template,
         name: `testNode${i}`,
         displayName: `Test Node ${i}`,
-        type: `n8n-nodes-base.testNode${i}`
+        nodeType: `n8n-nodes-base.testNode${i}`
       })
     );
   }
@@ -204,7 +210,7 @@ export class TestDataGenerator {
 
 // Transaction test utilities
 export async function runInTransaction<T>(
-  db: Database.Database,
+  db: Database,
   fn: () => T
 ): Promise<T> {
   db.exec('BEGIN');
@@ -260,7 +266,7 @@ export async function simulateConcurrentAccess(
 }
 
 // Database integrity check
-export function checkDatabaseIntegrity(db: Database.Database): {
+export function checkDatabaseIntegrity(db: Database): {
   isValid: boolean;
   errors: string[];
 } {
@@ -279,14 +285,14 @@ export function checkDatabaseIntegrity(db: Database.Database): {
       errors.push(`Foreign key violations: ${JSON.stringify(fkResult)}`);
     }
 
-    // Check for orphaned records
-    const orphanedDocs = db.prepare(`
-      SELECT COUNT(*) as count FROM node_docs 
-      WHERE node_name NOT IN (SELECT name FROM nodes)
-    `).get() as { count: number };
+    // Check table existence
+    const tables = db.prepare(`
+      SELECT name FROM sqlite_master 
+      WHERE type = 'table' AND name = 'nodes'
+    `).all();
     
-    if (orphanedDocs.count > 0) {
-      errors.push(`Found ${orphanedDocs.count} orphaned documentation records`);
+    if (tables.length === 0) {
+      errors.push('nodes table does not exist');
     }
 
   } catch (error: any) {
@@ -302,13 +308,18 @@ export function checkDatabaseIntegrity(db: Database.Database): {
 // Mock data for testing
 export const MOCK_NODES = {
   webhook: {
-    name: 'webhook',
+    nodeType: 'n8n-nodes-base.webhook',
+    packageName: 'n8n-nodes-base',
     displayName: 'Webhook',
-    type: 'n8n-nodes-base.webhook',
-    typeVersion: 1,
     description: 'Starts the workflow when a webhook is called',
-    category: ['trigger'],
-    package: 'n8n-nodes-base',
+    category: 'trigger',
+    developmentStyle: 'programmatic',
+    isAITool: false,
+    isTrigger: true,
+    isWebhook: true,
+    isVersioned: true,
+    version: '1',
+    documentation: 'Webhook documentation',
     properties: [
       {
         displayName: 'HTTP Method',
@@ -320,16 +331,23 @@ export const MOCK_NODES = {
         ],
         default: 'GET'
       }
-    ]
+    ],
+    operations: [],
+    credentials: []
   },
   httpRequest: {
-    name: 'httpRequest',
+    nodeType: 'n8n-nodes-base.httpRequest',
+    packageName: 'n8n-nodes-base',
     displayName: 'HTTP Request',
-    type: 'n8n-nodes-base.httpRequest',
-    typeVersion: 1,
     description: 'Makes an HTTP request and returns the response',
-    category: ['automation'],
-    package: 'n8n-nodes-base',
+    category: 'automation',
+    developmentStyle: 'programmatic',
+    isAITool: false,
+    isTrigger: false,
+    isWebhook: false,
+    isVersioned: true,
+    version: '1',
+    documentation: 'HTTP Request documentation',
     properties: [
       {
         displayName: 'URL',
@@ -338,6 +356,8 @@ export const MOCK_NODES = {
         required: true,
         default: ''
       }
-    ]
+    ],
+    operations: [],
+    credentials: []
   }
 };
