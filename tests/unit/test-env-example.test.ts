@@ -54,6 +54,16 @@ describe('Test Environment Configuration Example', () => {
   
   it('should have mock API configuration', () => {
     const testConfig = getTestConfig();
+    // Add debug logging for CI
+    if (process.env.CI) {
+      console.log('CI Environment Debug:', {
+        NODE_ENV: process.env.NODE_ENV,
+        N8N_API_URL: process.env.N8N_API_URL,
+        N8N_API_KEY: process.env.N8N_API_KEY,
+        configUrl: testConfig.api.url,
+        configKey: testConfig.api.key
+      });
+    }
     expect(testConfig.api.url).toMatch(/mock-api/);
     expect(testConfig.api.key).toBe('test-api-key-12345');
   });

@@ -173,14 +173,19 @@ function validateTestEnvironment(): void {
  * Get typed test environment configuration
  */
 export function getTestConfig() {
+  // Ensure defaults are set before accessing
+  if (!process.env.N8N_API_URL) {
+    setTestDefaults();
+  }
+  
   return {
     // Environment
-    nodeEnv: process.env.NODE_ENV!,
+    nodeEnv: process.env.NODE_ENV || 'test',
     isTest: process.env.TEST_ENVIRONMENT === 'true',
     
     // Database
     database: {
-      path: process.env.NODE_DB_PATH!,
+      path: process.env.NODE_DB_PATH || ':memory:',
       rebuildOnStart: process.env.REBUILD_ON_START === 'true',
       seedData: process.env.TEST_SEED_DATABASE === 'true',
       seedTemplates: process.env.TEST_SEED_TEMPLATES === 'true'
@@ -188,8 +193,8 @@ export function getTestConfig() {
     
     // API
     api: {
-      url: process.env.N8N_API_URL!,
-      key: process.env.N8N_API_KEY!,
+      url: process.env.N8N_API_URL || 'http://localhost:3001/mock-api',
+      key: process.env.N8N_API_KEY || 'test-api-key-12345',
       webhookBaseUrl: process.env.N8N_WEBHOOK_BASE_URL,
       webhookTestUrl: process.env.N8N_WEBHOOK_TEST_URL
     },
