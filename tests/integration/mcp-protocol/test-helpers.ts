@@ -51,14 +51,8 @@ export class TestableN8NMCPServer {
     // Call tool handler
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
+        // The mcpServer.executeTool returns raw data, we need to wrap it in the MCP response format
         const result = await this.mcpServer.executeTool(request.params.name, request.params.arguments || {});
-        
-        // Convert result to content array if needed
-        if (Array.isArray(result) && result.length > 0 && result[0].content) {
-          return {
-            content: result[0].content
-          };
-        }
         
         return {
           content: [
