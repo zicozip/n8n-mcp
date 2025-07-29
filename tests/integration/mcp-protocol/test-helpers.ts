@@ -91,6 +91,20 @@ export class TestableN8NMCPServer {
 
   async connectToTransport(transport: Transport): Promise<void> {
     this.transport = transport;
+    
+    // Ensure transport has required properties before connecting
+    if (!transport || typeof transport !== 'object') {
+      throw new Error('Invalid transport provided');
+    }
+    
+    // Set up any missing transport handlers to prevent "Cannot set properties of undefined" errors
+    if (transport && typeof transport === 'object') {
+      const transportAny = transport as any;
+      if (transportAny.serverTransport && !transportAny.serverTransport.onclose) {
+        transportAny.serverTransport.onclose = () => {};
+      }
+    }
+    
     await this.server.connect(transport);
   }
 

@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { NodeRepository } from '../../../src/database/node-repository';
 import { TemplateRepository } from '../../../src/templates/template-repository';
 import { DatabaseAdapter } from '../../../src/database/database-adapter';
-import { TestDatabase, TestDataGenerator, PerformanceMonitor } from './test-utils';
+import { TestDatabase, TestDataGenerator, PerformanceMonitor, createTestDatabaseAdapter } from './test-utils';
 import { ParsedNode } from '../../../src/parsers/node-parser';
 
 describe('Database Performance Tests', () => {
   let testDb: TestDatabase;
-  let db: Database;
+  let db: Database.Database;
   let nodeRepo: NodeRepository;
   let templateRepo: TemplateRepository;
   let adapter: DatabaseAdapter;
@@ -17,7 +17,7 @@ describe('Database Performance Tests', () => {
   beforeEach(async () => {
     testDb = new TestDatabase({ mode: 'file', name: 'performance-test.db', enableFTS5: true });
     db = await testDb.initialize();
-    adapter = new DatabaseAdapter(db);
+    adapter = createTestDatabaseAdapter(db);
     nodeRepo = new NodeRepository(adapter);
     templateRepo = new TemplateRepository(adapter);
     monitor = new PerformanceMonitor();

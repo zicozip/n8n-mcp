@@ -1,20 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { NodeRepository } from '../../../src/database/node-repository';
 import { DatabaseAdapter } from '../../../src/database/database-adapter';
-import { TestDatabase, TestDataGenerator, MOCK_NODES } from './test-utils';
+import { TestDatabase, TestDataGenerator, MOCK_NODES, createTestDatabaseAdapter } from './test-utils';
 import { ParsedNode } from '../../../src/parsers/node-parser';
 
 describe('NodeRepository Integration Tests', () => {
   let testDb: TestDatabase;
-  let db: Database;
+  let db: Database.Database;
   let repository: NodeRepository;
   let adapter: DatabaseAdapter;
 
   beforeEach(async () => {
     testDb = new TestDatabase({ mode: 'memory' });
     db = await testDb.initialize();
-    adapter = new DatabaseAdapter(db);
+    adapter = createTestDatabaseAdapter(db);
     repository = new NodeRepository(adapter);
   });
 

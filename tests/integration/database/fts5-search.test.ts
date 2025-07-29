@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { TestDatabase, TestDataGenerator, PerformanceMonitor } from './test-utils';
 
 describe('FTS5 Full-Text Search', () => {
   let testDb: TestDatabase;
-  let db: Database;
+  let db: Database.Database;
 
   beforeEach(async () => {
     testDb = new TestDatabase({ mode: 'memory', enableFTS5: true });

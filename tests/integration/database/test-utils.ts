@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { execSync } from 'child_process';
 
 export interface TestDatabaseOptions {
@@ -11,7 +11,7 @@ export interface TestDatabaseOptions {
 }
 
 export class TestDatabase {
-  private db: Database | null = null;
+  private db: Database.Database | null = null;
   private dbPath?: string;
   private options: TestDatabaseOptions;
 
@@ -19,7 +19,7 @@ export class TestDatabase {
     this.options = options;
   }
 
-  async initialize(): Promise<Database> {
+  async initialize(): Promise<Database.Database> {
     if (this.db) return this.db;
 
     if (this.options.mode === 'file') {
@@ -28,9 +28,9 @@ export class TestDatabase {
         fs.mkdirSync(testDir, { recursive: true });
       }
       this.dbPath = path.join(testDir, this.options.name || `test-${Date.now()}.db`);
-      this.db = new (Database as any)(this.dbPath);
+      this.db = new Database(this.dbPath);
     } else {
-      this.db = new (Database as any)(':memory:');
+      this.db = new Database(':memory:');
     }
 
     // Enable WAL mode for file databases
@@ -72,7 +72,7 @@ export class TestDatabase {
     }
   }
 
-  getDatabase(): Database {
+  getDatabase(): Database.Database {
     if (!this.db) throw new Error('Database not initialized');
     return this.db;
   }
@@ -210,7 +210,7 @@ export class TestDataGenerator {
 
 // Transaction test utilities
 export async function runInTransaction<T>(
-  db: Database,
+  db: Database.Database,
   fn: () => T
 ): Promise<T> {
   db.exec('BEGIN');
@@ -266,7 +266,7 @@ export async function simulateConcurrentAccess(
 }
 
 // Database integrity check
-export function checkDatabaseIntegrity(db: Database): {
+export function checkDatabaseIntegrity(db: Database.Database): {
   isValid: boolean;
   errors: string[];
 } {
@@ -302,6 +302,38 @@ export function checkDatabaseIntegrity(db: Database): {
   return {
     isValid: errors.length === 0,
     errors
+  };
+}
+
+// Helper to create a proper DatabaseAdapter from better-sqlite3 instance
+export function createTestDatabaseAdapter(db: Database.Database): DatabaseAdapter {
+  return {
+    prepare: (sql: string) => {
+      const stmt = db.prepare(sql);
+      return {
+        run: (...params: any[]) => stmt.run(...params),
+        get: (...params: any[]) => stmt.get(...params),
+        all: (...params: any[]) => stmt.all(...params),
+        iterate: (...params: any[]) => stmt.iterate(...params),
+        pluck: (enabled?: boolean) => stmt.pluck(enabled),
+        finalize: () => stmt,
+        bind: (...params: any[]) => stmt.bind(...params)
+      };
+    },
+    exec: (sql: string) => db.exec(sql),
+    close: () => db.close(),
+    pragma: (key: string, value?: any) => db.pragma(key, value),
+    get inTransaction() { return db.inTransaction; },
+    transaction: <T>(fn: () => T) => db.transaction(fn)(),
+    checkFTS5Support: () => {
+      try {
+        db.exec('CREATE VIRTUAL TABLE test_fts5_check USING fts5(content)');
+        db.exec('DROP TABLE test_fts5_check');
+        return true;
+      } catch {
+        return false;
+      }
+    }
   };
 }
 
