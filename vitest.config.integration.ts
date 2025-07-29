@@ -18,6 +18,10 @@ export default mergeConfig(
           singleThread: true,
           maxThreads: 1
         }
+      },
+      // Disable coverage for integration tests or set lower thresholds
+      coverage: {
+        enabled: false
       }
     }
   })

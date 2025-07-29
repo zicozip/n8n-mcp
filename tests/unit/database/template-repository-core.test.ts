@@ -156,7 +156,10 @@ describe('TemplateRepository - Core Functionality', () => {
         views: 1000,
         createdAt: '2024-01-01T00:00:00Z',
         workflow: {
-          nodes: [],
+          nodes: [
+            { type: 'n8n-nodes-base.httpRequest', name: 'HTTP Request', id: '1', position: [0, 0], parameters: {}, typeVersion: 1 },
+            { type: 'n8n-nodes-base.slack', name: 'Slack', id: '2', position: [100, 0], parameters: {}, typeVersion: 1 }
+          ],
           connections: {},
           settings: {}
         }
@@ -179,7 +182,14 @@ describe('TemplateRepository - Core Functionality', () => {
         'johndoe',
         1, // verified
         JSON.stringify(['n8n-nodes-base.httpRequest', 'n8n-nodes-base.slack']),
-        JSON.stringify({ nodes: [], connections: {}, settings: {} }),
+        JSON.stringify({ 
+          nodes: [
+            { type: 'n8n-nodes-base.httpRequest', name: 'HTTP Request', id: '1', position: [0, 0], parameters: {}, typeVersion: 1 },
+            { type: 'n8n-nodes-base.slack', name: 'Slack', id: '2', position: [100, 0], parameters: {}, typeVersion: 1 }
+          ], 
+          connections: {}, 
+          settings: {} 
+        }),
         JSON.stringify(['automation', 'integration']),
         1000, // views
         '2024-01-01T00:00:00Z',
