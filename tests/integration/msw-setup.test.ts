@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { http, HttpResponse } from 'msw';
 import { mswTestServer, n8nApiMock, testDataBuilders } from './setup/msw-test-server';
-import { useHandlers } from '../setup/msw-setup';
+// Import MSW utilities from integration-specific setup
+import { useHandlers, http, HttpResponse } from './setup/integration-setup';
 import axios from 'axios';
 
 describe('MSW Setup Verification', () => {

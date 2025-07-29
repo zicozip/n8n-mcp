@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    setupFiles: ['./tests/setup/global-setup.ts', './tests/setup/msw-setup.ts'],
+    // Only include global-setup.ts, remove msw-setup.ts from global setup
+    setupFiles: ['./tests/setup/global-setup.ts'],
     // Load environment variables from .env.test
     env: {
       NODE_ENV: 'test'

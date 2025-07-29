@@ -1,3 +1,15 @@
+/**
+ * MSW Setup for Tests
+ * 
+ * NOTE: This file is NO LONGER loaded globally via vitest.config.ts to prevent
+ * hanging in CI. Instead:
+ * - Unit tests run without MSW
+ * - Integration tests use ./tests/integration/setup/integration-setup.ts
+ * 
+ * This file is kept for backwards compatibility and can be imported directly
+ * by specific tests that need MSW functionality.
+ */
+
 import { setupServer } from 'msw/node';
 import { HttpResponse, http, RequestHandler } from 'msw';
 import { afterAll, afterEach, beforeAll } from 'vitest';
