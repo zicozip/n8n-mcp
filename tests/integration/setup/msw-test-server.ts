@@ -66,17 +66,34 @@ export const mswTestServer = {
   waitForRequests: (count: number, timeout = 5000): Promise<Request[]> => {
     return new Promise((resolve, reject) => {
       const requests: Request[] = [];
-      const timeoutId = setTimeout(() => {
-        reject(new Error(`Timeout waiting for ${count} requests. Got ${requests.length}`));
-      }, timeout);
-
-      integrationTestServer.events.on('request:match', ({ request }) => {
+      let timeoutId: NodeJS.Timeout | null = null;
+      
+      // Event handler function to allow cleanup
+      const handleRequest = ({ request }: { request: Request }) => {
         requests.push(request);
         if (requests.length === count) {
-          clearTimeout(timeoutId);
+          cleanup();
           resolve(requests);
         }
-      });
+      };
+      
+      // Cleanup function to remove listener and clear timeout
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        integrationTestServer.events.removeListener('request:match', handleRequest);
+      };
+      
+      // Set timeout
+      timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Timeout waiting for ${count} requests. Got ${requests.length}`));
+      }, timeout);
+      
+      // Add event listener
+      integrationTestServer.events.on('request:match', handleRequest);
     });
   },
 
@@ -86,14 +103,28 @@ export const mswTestServer = {
   verifyNoUnhandledRequests: (): Promise<void> => {
     return new Promise((resolve, reject) => {
       let hasUnhandled = false;
+      let timeoutId: NodeJS.Timeout | null = null;
       
-      integrationTestServer.events.on('request:unhandled', ({ request }) => {
+      const handleUnhandled = ({ request }: { request: Request }) => {
         hasUnhandled = true;
+        cleanup();
         reject(new Error(`Unhandled request: ${request.method} ${request.url}`));
-      });
+      };
+      
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        integrationTestServer.events.removeListener('request:unhandled', handleUnhandled);
+      };
+      
+      // Add event listener
+      integrationTestServer.events.on('request:unhandled', handleUnhandled);
 
       // Give a small delay to allow any pending requests
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
+        cleanup();
         if (!hasUnhandled) {
           resolve();
         }

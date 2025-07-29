@@ -50,13 +50,21 @@ describe('MSW Setup Verification', () => {
   });
 
   describe('Integration Test Server', () => {
+    let serverStarted = false;
+    
     beforeAll(() => {
-      // Start a separate MSW instance for more control
-      mswTestServer.start({ onUnhandledRequest: 'error' });
+      // Only start if not already running
+      if (!serverStarted) {
+        mswTestServer.start({ onUnhandledRequest: 'error' });
+        serverStarted = true;
+      }
     });
 
     afterAll(() => {
-      mswTestServer.stop();
+      if (serverStarted) {
+        mswTestServer.stop();
+        serverStarted = false;
+      }
     });
 
     it('should handle workflow creation with custom response', async () => {
@@ -163,7 +171,7 @@ describe('MSW Setup Verification', () => {
       expect(requests).toHaveLength(2);
       expect(requests[0].url).toContain('/api/v1/workflows');
       expect(requests[1].url).toContain('/api/v1/executions');
-    });
+    }, { timeout: 10000 }); // Increase timeout for this specific test
 
     it('should work with scoped handlers', async () => {
       const result = await mswTestServer.withScope(

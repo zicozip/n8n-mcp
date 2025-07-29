@@ -138,9 +138,13 @@ describe('Database Connection Management', () => {
 
         // Test concurrent reads
         const promises = connections.map((conn, index) => {
-          return new Promise((resolve) => {
-            const result = conn.prepare('SELECT ? as id').get(index);
-            resolve(result);
+          return new Promise((resolve, reject) => {
+            try {
+              const result = conn.prepare('SELECT ? as id').get(index);
+              resolve(result);
+            } catch (error) {
+              reject(error);
+            }
           });
         });
 
@@ -148,12 +152,32 @@ describe('Database Connection Management', () => {
         expect(results).toHaveLength(connectionCount);
 
       } finally {
-        // Cleanup connections
-        connections.forEach(conn => conn.close());
-        if (fs.existsSync(dbPath)) {
-          fs.unlinkSync(dbPath);
-          fs.unlinkSync(`${dbPath}-wal`);
-          fs.unlinkSync(`${dbPath}-shm`);
+        // Cleanup connections - ensure all are closed even if some fail
+        await Promise.all(
+          connections.map(async (conn) => {
+            try {
+              if (conn.open) {
+                conn.close();
+              }
+            } catch (error) {
+              // Ignore close errors
+            }
+          })
+        );
+        
+        // Clean up files with error handling
+        try {
+          if (fs.existsSync(dbPath)) {
+            fs.unlinkSync(dbPath);
+          }
+          if (fs.existsSync(`${dbPath}-wal`)) {
+            fs.unlinkSync(`${dbPath}-wal`);
+          }
+          if (fs.existsSync(`${dbPath}-shm`)) {
+            fs.unlinkSync(`${dbPath}-shm`);
+          }
+        } catch (error) {
+          // Ignore cleanup errors
         }
       }
     });
@@ -285,7 +309,7 @@ describe('Database Connection Management', () => {
         db.exec('ROLLBACK');
         conn2.close();
       }
-    });
+    }, { timeout: 5000 }); // Add explicit timeout
   });
 
   describe('Database Configuration', () => {

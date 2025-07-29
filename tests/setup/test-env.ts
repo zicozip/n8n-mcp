@@ -77,7 +77,7 @@ function setTestDefaults(): void {
     TEST_TIMEOUT_UNIT: '5000',
     TEST_TIMEOUT_INTEGRATION: '15000',
     TEST_TIMEOUT_E2E: '30000',
-    TEST_TIMEOUT_GLOBAL: '60000',
+    TEST_TIMEOUT_GLOBAL: '30000', // Reduced from 60s to 30s to catch hangs faster
     
     // Test execution
     TEST_RETRY_ATTEMPTS: '2',
