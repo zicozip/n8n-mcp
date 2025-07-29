@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as Database from 'better-sqlite3';
 import { TemplateRepository } from '../../../src/templates/template-repository';
 import { DatabaseAdapter } from '../../../src/database/database-adapter';
