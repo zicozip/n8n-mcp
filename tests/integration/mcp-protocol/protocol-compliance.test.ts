@@ -136,7 +136,7 @@ describe('MCP Protocol Compliance', () => {
           nodeType: 'httpRequest' // Should be 'nodes-base.httpRequest'
         } });
         // Check if the response indicates an error
-        const text = response.content[0].text;
+        const text = (response as any).content[0].text;
         expect(text).toContain('not found');
       } catch (error: any) {
         // If it throws, that's also acceptable
@@ -149,10 +149,10 @@ describe('MCP Protocol Compliance', () => {
     it('should handle text content in tool responses', async () => {
       const response = await client.callTool({ name: 'get_database_statistics', arguments: {} });
       
-      expect(response.content).toHaveLength(1);
-      expect(response.content[0]).toHaveProperty('type', 'text');
-      expect(response.content[0]).toHaveProperty('text');
-      expect(typeof response.content[0].text).toBe('string');
+      expect((response as any).content).toHaveLength(1);
+      expect((response as any).content[0]).toHaveProperty('type', 'text');
+      expect((response as any).content[0]).toHaveProperty('text');
+      expect(typeof (response as any).content[0].text).toBe('string');
     });
 
     it('should handle large text responses', async () => {
@@ -161,9 +161,9 @@ describe('MCP Protocol Compliance', () => {
         nodeType: 'nodes-base.httpRequest'
       } });
 
-      expect(response.content).toHaveLength(1);
-      expect(response.content[0].type).toBe('text');
-      expect(response.content[0].text.length).toBeGreaterThan(1000);
+      expect((response as any).content).toHaveLength(1);
+      expect((response as any).content[0].type).toBe('text');
+      expect((response as any).content[0].text.length).toBeGreaterThan(1000);
     });
 
     it('should handle JSON content properly', async () => {
@@ -171,8 +171,8 @@ describe('MCP Protocol Compliance', () => {
         limit: 5
       } });
 
-      expect(response.content).toHaveLength(1);
-      const content = JSON.parse(response.content[0].text);
+      expect((response as any).content).toHaveLength(1);
+      const content = JSON.parse((response as any).content[0].text);
       expect(content).toHaveProperty('nodes');
       expect(Array.isArray(content.nodes)).toBe(true);
     });
@@ -188,9 +188,9 @@ describe('MCP Protocol Compliance', () => {
 
       const responses = await Promise.all(requests);
 
-      expect(responses[0].content[0].text).toContain('httpRequest');
-      expect(responses[1].content[0].text).toContain('webhook');
-      expect(responses[2].content[0].text).toContain('slack');
+      expect((responses[0] as any).content[0].text).toContain('httpRequest');
+      expect((responses[1] as any).content[0].text).toContain('webhook');
+      expect((responses[2] as any).content[0].text).toContain('slack');
     });
 
     it('should handle interleaved requests', async () => {
@@ -226,8 +226,8 @@ describe('MCP Protocol Compliance', () => {
         profile: 'runtime'
       } });
 
-      expect(response.content).toHaveLength(1);
-      expect(response.content[0].type).toBe('text');
+      expect((response as any).content).toHaveLength(1);
+      expect((response as any).content[0].type).toBe('text');
     });
 
     it('should support optional parameters', async () => {

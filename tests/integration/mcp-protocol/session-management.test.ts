@@ -171,9 +171,9 @@ describe('MCP Session Management', { timeout: 15000 }, () => {
       // First session operations
       const response1 = await client1.callTool({ name: 'list_nodes', arguments: { limit: 3 } });
       expect(response1).toBeDefined();
-      expect(response1.content).toBeDefined();
-      expect(response1.content[0]).toHaveProperty('type', 'text');
-      const data1 = JSON.parse((response1.content[0] as any).text);
+      expect((response1 as any).content).toBeDefined();
+      expect((response1 as any).content[0]).toHaveProperty('type', 'text');
+      const data1 = JSON.parse(((response1 as any).content[0] as any).text);
       // Handle both array response and object with nodes property
       const nodes1 = Array.isArray(data1) ? data1 : data1.nodes;
       expect(nodes1).toHaveLength(3);
@@ -196,9 +196,9 @@ describe('MCP Session Management', { timeout: 15000 }, () => {
       // Second session operations
       const response2 = await client2.callTool({ name: 'list_nodes', arguments: { limit: 5 } });
       expect(response2).toBeDefined();
-      expect(response2.content).toBeDefined();
-      expect(response2.content[0]).toHaveProperty('type', 'text');
-      const data2 = JSON.parse((response2.content[0] as any).text);
+      expect((response2 as any).content).toBeDefined();
+      expect((response2 as any).content[0]).toHaveProperty('type', 'text');
+      const data2 = JSON.parse(((response2 as any).content[0] as any).text);
       // Handle both array response and object with nodes property
       const nodes2 = Array.isArray(data2) ? data2 : data2.nodes;
       expect(nodes2).toHaveLength(5);

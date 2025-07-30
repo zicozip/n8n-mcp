@@ -152,12 +152,9 @@ describe('Database Performance Tests', () => {
           },
           nodes: [
             {
-              id: 'node1',
+              id: i * 10 + 1,
               name: 'Start',
-              type: ['n8n-nodes-base.webhook', 'n8n-nodes-base.httpRequest', 'n8n-nodes-base.set'][i % 3],
-              typeVersion: 1,
-              position: [100, 100],
-              parameters: {}
+              icon: 'webhook'
             }
           ]
         };

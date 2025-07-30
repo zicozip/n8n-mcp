@@ -58,11 +58,13 @@ export class N8NDocumentationMCPServer {
     const envDbPath = process.env.NODE_DB_PATH;
     let dbPath: string | null = null;
     
+    let possiblePaths: string[] = [];
+    
     if (envDbPath && (envDbPath === ':memory:' || existsSync(envDbPath))) {
       dbPath = envDbPath;
     } else {
       // Try multiple database paths
-      const possiblePaths = [
+      possiblePaths = [
         path.join(process.cwd(), 'data', 'nodes.db'),
         path.join(__dirname, '../../data', 'nodes.db'),
         './data/nodes.db'

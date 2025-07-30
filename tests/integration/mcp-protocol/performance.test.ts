@@ -25,8 +25,8 @@ describe('MCP Performance Tests', () => {
     
     // Verify database is populated by checking statistics
     const statsResponse = await client.callTool({ name: 'get_database_statistics', arguments: {} });
-    if (statsResponse.content && statsResponse.content[0]) {
-      const stats = JSON.parse(statsResponse.content[0].text);
+    if ((statsResponse as any).content && (statsResponse as any).content[0]) {
+      const stats = JSON.parse((statsResponse as any).content[0].text);
       // Ensure database has nodes for testing
       if (!stats.totalNodes || stats.totalNodes === 0) {
         console.error('Database stats:', stats);
@@ -276,15 +276,15 @@ describe('MCP Performance Tests', () => {
 
       // Check the response content - MCP callTool returns content array with text
       expect(response).toBeDefined();
-      expect(response.content).toBeDefined();
-      expect(Array.isArray(response.content)).toBe(true);
-      expect(response.content.length).toBeGreaterThan(0);
-      expect(response.content[0]).toBeDefined();
-      expect(response.content[0].type).toBe('text');
-      expect(response.content[0].text).toBeDefined();
+      expect((response as any).content).toBeDefined();
+      expect(Array.isArray((response as any).content)).toBe(true);
+      expect((response as any).content.length).toBeGreaterThan(0);
+      expect((response as any).content[0]).toBeDefined();
+      expect((response as any).content[0].type).toBe('text');
+      expect((response as any).content[0].text).toBeDefined();
       
       // Parse the JSON response
-      const validation = JSON.parse(response.content[0].text);
+      const validation = JSON.parse((response as any).content[0].text);
       
       expect(validation).toBeDefined();
       expect(validation).toHaveProperty('valid');
