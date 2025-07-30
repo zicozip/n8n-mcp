@@ -11,6 +11,15 @@ NC='\033[0m' # No Color
 
 echo "🚀 Preparing n8n-mcp for npm publish..."
 
+# Run tests first to ensure quality
+echo "🧪 Running tests..."
+npm test
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Tests failed. Aborting publish.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ All tests passed!${NC}"
+
 # Sync version to runtime package first
 echo "🔄 Syncing version to package.runtime.json..."
 npm run sync:runtime-version
