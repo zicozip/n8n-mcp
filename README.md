@@ -699,7 +699,7 @@ docker run --rm ghcr.io/czlonkowski/n8n-mcp:latest --version
 
 ## 🧪 Testing
 
-The project includes a comprehensive test suite with 943+ unit tests:
+The project includes a comprehensive test suite with **1,182 tests** ensuring code quality and reliability:
 
 ```bash
 # Run all tests
@@ -712,22 +712,47 @@ npm run test:coverage
 npm run test:watch
 
 # Run specific test suites
-npm run test:unit           # Unit tests only
-npm run test:integration    # Integration tests
-npm run test:e2e           # End-to-end tests
+npm run test:unit           # 933 unit tests
+npm run test:integration    # 249 integration tests
+npm run test:bench          # Performance benchmarks
 ```
 
-### Coverage Reports
+### Test Suite Overview
 
-- **Current Coverage**: ~80% (see badge above)
+- **Total Tests**: 1,182 (99.5% passing)
+  - **Unit Tests**: 933 tests across 30 files
+  - **Integration Tests**: 249 tests across 14 files
+- **Execution Time**: ~2.5 minutes in CI
+- **Test Framework**: Vitest (for speed and TypeScript support)
+- **Mocking**: MSW for API mocking, custom mocks for databases
+
+### Coverage & Quality
+
 - **Coverage Reports**: Generated in `./coverage` directory
-- **CI/CD**: Automated coverage reporting via Codecov on all PRs
+- **CI/CD**: Automated testing on all PRs with GitHub Actions
+- **Performance**: Environment-aware thresholds for CI vs local
+- **Parallel Execution**: Configurable thread pool for faster runs
 
-### Testing Strategy
+### Testing Architecture
 
-- **Unit Tests**: Core functionality, parsers, validators
-- **Integration Tests**: Database operations, MCP tools
-- **E2E Tests**: Full workflow validation scenarios
+- **Unit Tests**: Isolated component testing with mocks
+  - Services layer: ~450 tests
+  - Parsers: ~200 tests
+  - Database repositories: ~100 tests
+  - MCP tools: ~180 tests
+
+- **Integration Tests**: Full system behavior validation
+  - MCP Protocol compliance: 72 tests
+  - Database operations: 89 tests
+  - Error handling: 44 tests
+  - Performance: 44 tests
+
+- **Benchmarks**: Performance testing for critical paths
+  - Database queries
+  - Node loading
+  - Search operations
+
+For detailed testing documentation, see [Testing Architecture](./docs/testing-architecture.md).
 
 ## 📦 License
 
