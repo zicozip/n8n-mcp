@@ -15,11 +15,15 @@ export class TestableN8NMCPServer {
   private server: Server;
   private transports = new Set<Transport>();
   private connections = new Set<any>();
+  private static instanceCount = 0;
+  private testDbPath: string;
 
   constructor() {
-    // Use the production database for performance tests
-    // This ensures we have real data for meaningful performance testing
-    delete process.env.NODE_DB_PATH;
+    // Use a unique test database for each instance to avoid conflicts
+    // This prevents concurrent test issues with database locking
+    const instanceId = TestableN8NMCPServer.instanceCount++;
+    this.testDbPath = `/tmp/n8n-mcp-test-${process.pid}-${instanceId}.db`;
+    process.env.NODE_DB_PATH = this.testDbPath;
     
     this.server = new Server({
       name: 'n8n-documentation-mcp',
@@ -51,8 +55,18 @@ export class TestableN8NMCPServer {
 
     // List tools handler
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      const tools = await this.mcpServer.executeTool('tools/list', {});
-      return tools;
+      // Import the tools directly from the tools module
+      const { n8nDocumentationToolsFinal } = await import('../../../src/mcp/tools');
+      const { n8nManagementTools } = await import('../../../src/mcp/tools-n8n-manager');
+      const { isN8nApiConfigured } = await import('../../../src/config/n8n-api');
+      
+      // Combine documentation tools with management tools if API is configured
+      const tools = [...n8nDocumentationToolsFinal];
+      if (isN8nApiConfigured()) {
+        tools.push(...n8nManagementTools);
+      }
+      
+      return { tools };
     });
 
     // Call tool handler
@@ -84,6 +98,19 @@ export class TestableN8NMCPServer {
   }
 
   async initialize(): Promise<void> {
+    // Copy production database to test location for realistic testing
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const prodDbPath = path.join(process.cwd(), 'data', 'nodes.db');
+      
+      if (await fs.promises.access(prodDbPath).then(() => true).catch(() => false)) {
+        await fs.promises.copyFile(prodDbPath, this.testDbPath);
+      }
+    } catch (error) {
+      // Ignore copy errors, database will be created fresh
+    }
+    
     // The MCP server initializes its database lazily
     // We can trigger initialization by calling executeTool
     try {
@@ -115,48 +142,85 @@ export class TestableN8NMCPServer {
   }
 
   async close(): Promise<void> {
-    // Close all connections first
-    for (const connection of this.connections) {
-      try {
-        if (connection && typeof connection.close === 'function') {
-          await connection.close();
-        }
-      } catch (error) {
-        // Ignore errors during connection cleanup
-      }
-    }
-    this.connections.clear();
-    
-    // Close all tracked transports
-    const closePromises: Promise<void>[] = [];
-    
-    for (const transport of this.transports) {
-      try {
-        // Force close all transports
-        const transportAny = transport as any;
+    // Use a timeout to prevent hanging during cleanup
+    const closeTimeout = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        console.warn('TestableN8NMCPServer close timeout - forcing cleanup');
+        resolve();
+      }, 3000);
+    });
+
+    const performClose = async () => {
+      // Close all connections first with timeout protection
+      const connectionPromises = Array.from(this.connections).map(async (connection) => {
+        const connTimeout = new Promise<void>((resolve) => setTimeout(resolve, 500));
         
-        // Try different close methods
-        if (transportAny.close && typeof transportAny.close === 'function') {
-          closePromises.push(transportAny.close());
+        try {
+          if (connection && typeof connection.close === 'function') {
+            await Promise.race([connection.close(), connTimeout]);
+          }
+        } catch (error) {
+          // Ignore errors during connection cleanup
         }
-        if (transportAny.serverTransport?.close) {
-          closePromises.push(transportAny.serverTransport.close());
+      });
+      
+      await Promise.allSettled(connectionPromises);
+      this.connections.clear();
+      
+      // Close all tracked transports with timeout protection
+      const transportPromises: Promise<void>[] = [];
+      
+      for (const transport of this.transports) {
+        const transportTimeout = new Promise<void>((resolve) => setTimeout(resolve, 500));
+        
+        try {
+          // Force close all transports
+          const transportAny = transport as any;
+          
+          // Try different close methods
+          if (transportAny.close && typeof transportAny.close === 'function') {
+            transportPromises.push(
+              Promise.race([transportAny.close(), transportTimeout])
+            );
+          }
+          if (transportAny.serverTransport?.close) {
+            transportPromises.push(
+              Promise.race([transportAny.serverTransport.close(), transportTimeout])
+            );
+          }
+          if (transportAny.clientTransport?.close) {
+            transportPromises.push(
+              Promise.race([transportAny.clientTransport.close(), transportTimeout])
+            );
+          }
+        } catch (error) {
+          // Ignore errors during transport cleanup
         }
-        if (transportAny.clientTransport?.close) {
-          closePromises.push(transportAny.clientTransport.close());
-        }
+      }
+      
+      // Wait for all transports to close with timeout
+      await Promise.allSettled(transportPromises);
+      
+      // Clear the transports set
+      this.transports.clear();
+      
+      // Don't shut down the shared MCP server instance
+    };
+
+    // Race between actual close and timeout
+    await Promise.race([performClose(), closeTimeout]);
+    
+    // Clean up test database
+    if (this.testDbPath) {
+      try {
+        const fs = await import('fs');
+        await fs.promises.unlink(this.testDbPath).catch(() => {});
+        await fs.promises.unlink(`${this.testDbPath}-shm`).catch(() => {});
+        await fs.promises.unlink(`${this.testDbPath}-wal`).catch(() => {});
       } catch (error) {
-        // Ignore errors during transport cleanup
+        // Ignore cleanup errors
       }
     }
-    
-    // Wait for all transports to close
-    await Promise.allSettled(closePromises);
-    
-    // Clear the transports set
-    this.transports.clear();
-    
-    // Don't shut down the shared MCP server instance
   }
   
   static async shutdownShared(): Promise<void> {

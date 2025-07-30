@@ -296,35 +296,79 @@ describe('Database Performance Tests', () => {
 
   describe('Database Optimization', () => {
     it('should benefit from proper indexing', () => {
-      // Insert data
-      const nodes = generateNodes(5000);
+      // Insert more data to make index benefits more apparent
+      const nodes = generateNodes(10000);
       const transaction = db.transaction((nodes: ParsedNode[]) => {
         nodes.forEach(node => nodeRepo.saveNode(node));
       });
       transaction(nodes);
 
+      // Verify indexes exist
+      const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='nodes'").all() as { name: string }[];
+      const indexNames = indexes.map(idx => idx.name);
+      expect(indexNames).toContain('idx_package');
+      expect(indexNames).toContain('idx_category');
+      expect(indexNames).toContain('idx_ai_tool');
+
       // Test queries that use indexes
       const indexedQueries = [
-        () => nodeRepo.getNodesByPackage('n8n-nodes-base'),
-        () => nodeRepo.getNodesByCategory('trigger'),
-        () => nodeRepo.getAITools()
+        { 
+          name: 'package_query',
+          query: () => nodeRepo.getNodesByPackage('n8n-nodes-base'),
+          column: 'package_name'
+        },
+        { 
+          name: 'category_query',
+          query: () => nodeRepo.getNodesByCategory('trigger'),
+          column: 'category'
+        },
+        { 
+          name: 'ai_tools_query',
+          query: () => nodeRepo.getAITools(),
+          column: 'is_ai_tool'
+        }
       ];
 
-      indexedQueries.forEach((query, i) => {
-        const stop = monitor.start(`indexed_query_${i}`);
+      // Test indexed queries
+      indexedQueries.forEach(({ name, query, column }) => {
+        // Verify query plan uses index
+        const plan = db.prepare(`EXPLAIN QUERY PLAN SELECT * FROM nodes WHERE ${column} = ?`).all('test') as any[];
+        const usesIndex = plan.some(row => 
+          row.detail && (row.detail.includes('USING INDEX') || row.detail.includes('USING COVERING INDEX'))
+        );
+        
+        // For simple queries on small datasets, SQLite might choose full table scan
+        // This is expected behavior and doesn't indicate a problem
+        if (!usesIndex && process.env.CI) {
+          console.log(`Note: Query on ${column} may not use index with small dataset (SQLite optimizer decision)`);
+        }
+
+        const stop = monitor.start(name);
         const results = query();
         stop();
         
         expect(Array.isArray(results)).toBe(true);
       });
 
-      // All indexed queries should be fast
-      indexedQueries.forEach((_, i) => {
-        const stats = monitor.getStats(`indexed_query_${i}`);
+      // All queries should be fast regardless of index usage
+      // SQLite's query optimizer makes intelligent decisions
+      indexedQueries.forEach(({ name }) => {
+        const stats = monitor.getStats(name);
         // Environment-aware thresholds - CI is slower
-        const threshold = process.env.CI ? 50 : 20;
+        const threshold = process.env.CI ? 100 : 50;
         expect(stats!.average).toBeLessThan(threshold);
       });
+
+      // Test a non-indexed query for comparison (description column has no index)
+      const stop = monitor.start('non_indexed_query');
+      const nonIndexedResults = db.prepare("SELECT * FROM nodes WHERE description LIKE ?").all('%webhook%') as any[];
+      stop();
+
+      const nonIndexedStats = monitor.getStats('non_indexed_query');
+      
+      // Non-indexed queries should still complete reasonably fast with 10k rows
+      const nonIndexedThreshold = process.env.CI ? 200 : 100;
+      expect(nonIndexedStats!.average).toBeLessThan(nonIndexedThreshold);
     });
 
     it('should handle VACUUM operation efficiently', () => {

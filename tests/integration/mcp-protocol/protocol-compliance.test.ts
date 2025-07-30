@@ -36,10 +36,7 @@ describe('MCP Protocol Compliance', () => {
 
   describe('JSON-RPC 2.0 Compliance', () => {
     it('should return proper JSON-RPC 2.0 response format', async () => {
-      const response = await (client as any).request({
-        method: 'tools/list',
-        params: {}
-      });
+      const response = await client.listTools();
 
       // Response should have tools array
       expect(response).toHaveProperty('tools');
@@ -47,10 +44,7 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('should handle request with id correctly', async () => {
-      const response = await (client as any).request({
-        method: 'tools/list',
-        params: {}
-      });
+      const response = await client.listTools();
 
       expect(response).toBeDefined();
       expect(typeof response).toBe('object');
@@ -59,9 +53,9 @@ describe('MCP Protocol Compliance', () => {
     it('should handle batch requests', async () => {
       // Send multiple requests concurrently
       const promises = [
-        (client as any).request({ method: 'tools/list', params: {} }),
-        (client as any).request({ method: 'tools/list', params: {} }),
-        (client as any).request({ method: 'tools/list', params: {} })
+        client.listTools(),
+        client.listTools(),
+        client.listTools()
       ];
 
       const responses = await Promise.all(promises);
@@ -100,13 +94,12 @@ describe('MCP Protocol Compliance', () => {
     });
 
     it('should expose supported capabilities', async () => {
-      const serverInfo = await client.getServerVersion();
+      const serverCapabilities = client.getServerCapabilities();
       
-      expect(serverInfo).toHaveProperty('capabilities');
-      const capabilities = serverInfo!.capabilities || {};
+      expect(serverCapabilities).toBeDefined();
       
       // Should support tools
-      expect(capabilities).toHaveProperty('tools');
+      expect(serverCapabilities).toHaveProperty('tools');
     });
   });
 
@@ -139,11 +132,14 @@ describe('MCP Protocol Compliance', () => {
     it('should validate params schema', async () => {
       try {
         // Invalid nodeType format (missing prefix)
-        await client.callTool({ name: 'get_node_info', arguments: {
+        const response = await client.callTool({ name: 'get_node_info', arguments: {
           nodeType: 'httpRequest' // Should be 'nodes-base.httpRequest'
         } });
-        expect.fail('Should have thrown an error');
+        // Check if the response indicates an error
+        const text = response.content[0].text;
+        expect(text).toContain('not found');
       } catch (error: any) {
+        // If it throws, that's also acceptable
         expect(error.message).toContain('not found');
       }
     });
@@ -153,10 +149,10 @@ describe('MCP Protocol Compliance', () => {
     it('should handle text content in tool responses', async () => {
       const response = await client.callTool({ name: 'get_database_statistics', arguments: {} });
       
-      expect(response).toHaveLength(1);
-      expect(response[0]).toHaveProperty('type', 'text');
-      expect(response[0]).toHaveProperty('text');
-      expect(typeof (response[0] as any).text).toBe('string');
+      expect(response.content).toHaveLength(1);
+      expect(response.content[0]).toHaveProperty('type', 'text');
+      expect(response.content[0]).toHaveProperty('text');
+      expect(typeof response.content[0].text).toBe('string');
     });
 
     it('should handle large text responses', async () => {
@@ -165,9 +161,9 @@ describe('MCP Protocol Compliance', () => {
         nodeType: 'nodes-base.httpRequest'
       } });
 
-      expect(response).toHaveLength(1);
-      expect((response[0] as any).type).toBe('text');
-      expect((response[0] as any).text.length).toBeGreaterThan(1000);
+      expect(response.content).toHaveLength(1);
+      expect(response.content[0].type).toBe('text');
+      expect(response.content[0].text.length).toBeGreaterThan(1000);
     });
 
     it('should handle JSON content properly', async () => {
@@ -175,9 +171,10 @@ describe('MCP Protocol Compliance', () => {
         limit: 5
       } });
 
-      expect(response).toHaveLength(1);
-      const content = JSON.parse((response[0] as any).text);
-      expect(Array.isArray(content)).toBe(true);
+      expect(response.content).toHaveLength(1);
+      const content = JSON.parse(response.content[0].text);
+      expect(content).toHaveProperty('nodes');
+      expect(Array.isArray(content.nodes)).toBe(true);
     });
   });
 
@@ -191,9 +188,9 @@ describe('MCP Protocol Compliance', () => {
 
       const responses = await Promise.all(requests);
 
-      expect((responses[0][0] as any).text).toContain('httpRequest');
-      expect((responses[1][0] as any).text).toContain('webhook');
-      expect((responses[2][0] as any).text).toContain('slack');
+      expect(responses[0].content[0].text).toContain('httpRequest');
+      expect(responses[1].content[0].text).toContain('webhook');
+      expect(responses[2].content[0].text).toContain('slack');
     });
 
     it('should handle interleaved requests', async () => {
@@ -229,8 +226,8 @@ describe('MCP Protocol Compliance', () => {
         profile: 'runtime'
       } });
 
-      expect(response).toHaveLength(1);
-      expect((response[0] as any).type).toBe('text');
+      expect(response.content).toHaveLength(1);
+      expect(response.content[0].type).toBe('text');
     });
 
     it('should support optional parameters', async () => {
