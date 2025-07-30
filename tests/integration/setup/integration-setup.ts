@@ -47,13 +47,6 @@ afterAll(() => {
   
   // Close the server
   server.close();
-  
-  // In CI, force exit after a short delay to ensure cleanup
-  if (process.env.CI === 'true') {
-    setTimeout(() => {
-      process.exit(0);
-    }, 100);
-  }
 });
 
 // Export the server and utility functions for use in integration tests
