@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2025-07-30
+
+### Added
+- **Enhanced Test Suite**: Expanded test coverage from 1,182 to 1,356 tests
+  - **Unit Tests**: Increased from 933 to 1,107 tests across 44 files (was 30)
+  - Added comprehensive edge case testing for all validators
+  - Split large test files for better organization and maintainability
+  - Added test documentation for common patterns and edge cases
+  - Improved test factory patterns for better test data generation
+
+### Fixed
+- **All Test Failures**: Achieved 100% test pass rate (was 99.5%)
+  - Fixed logger tests by properly setting DEBUG environment variable
+  - Fixed MSW configuration tests with proper environment restoration
+  - Fixed workflow validator tests by adding proper connections between nodes
+  - Fixed TypeScript compilation errors with explicit type annotations
+  - Fixed ValidationResult mocks to include all required properties
+  - Fixed environment variable handling in tests for better isolation
+
+### Enhanced
+- **Test Organization**: Restructured test files for better maintainability
+  - Split config-validator tests into 4 focused files: basic, edge-cases, node-specific, security
+  - Added dedicated edge case test files for all validators
+  - Improved test naming convention to "should X when Y" pattern
+  - Better test isolation with proper setup/teardown
+
+### Documentation
+- **Test Documentation**: Added comprehensive test guides
+  - Created test documentation files for common patterns
+  - Updated test counts in README.md to reflect new test suite
+  - Added edge case testing guidelines
+
+### CI/CD
+- **GitHub Actions**: Fixed permission issues
+  - Added proper permissions for test, benchmark-pr, and publish workflows
+  - Fixed status write permissions for benchmark comparisons
+  - Note: Full permissions will take effect after merge to main branch
+
 ## [2.7.23] - 2025-07-30
 
 ### Added
