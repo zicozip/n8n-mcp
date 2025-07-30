@@ -24,7 +24,9 @@ vi.mock('@/services/enhanced-config-validator', () => ({
       valid: true,
       errors: [],
       warnings: [],
-      suggestions: []
+      suggestions: [],
+      visibleProperties: [],
+      hiddenProperties: []
     }),
     validateWithMode: vi.fn().mockReturnValue({
       valid: true,
@@ -88,7 +90,9 @@ describe('WorkflowValidator - Edge Cases', () => {
       valid: true,
       errors: [],
       warnings: [],
-      suggestions: []
+      suggestions: [],
+      visibleProperties: [],
+      hiddenProperties: []
     });
     
     // Create validator instance with mocked dependencies

@@ -14,7 +14,7 @@ describe('ConfigValidator - Edge Cases', () => {
     it('should handle null config gracefully', () => {
       const nodeType = 'nodes-base.test';
       const config = null as any;
-      const properties = [];
+      const properties: any[] = [];
 
       expect(() => {
         ConfigValidator.validate(nodeType, config, properties);
@@ -24,7 +24,7 @@ describe('ConfigValidator - Edge Cases', () => {
     it('should handle undefined config gracefully', () => {
       const nodeType = 'nodes-base.test';
       const config = undefined as any;
-      const properties = [];
+      const properties: any[] = [];
 
       expect(() => {
         ConfigValidator.validate(nodeType, config, properties);

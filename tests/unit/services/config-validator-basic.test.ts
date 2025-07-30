@@ -132,7 +132,7 @@ describe('ConfigValidator - Basic Validation', () => {
     it('should handle unknown node types gracefully', () => {
       const nodeType = 'nodes-base.unknown';
       const config = { field: 'value' };
-      const properties = [];
+      const properties: any[] = [];
 
       const result = ConfigValidator.validate(nodeType, config, properties);
 
