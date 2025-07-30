@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2025-07-30
+
+### Added
+- **Enhanced Test Suite**: Expanded test coverage from 1,182 to 1,356 tests
+  - **Unit Tests**: Increased from 933 to 1,107 tests across 44 files (was 30)
+  - Added comprehensive edge case testing for all validators
+  - Split large test files for better organization and maintainability
+  - Added test documentation for common patterns and edge cases
+  - Improved test factory patterns for better test data generation
+
+### Fixed
+- **All Test Failures**: Achieved 100% test pass rate (was 99.5%)
+  - Fixed logger tests by properly setting DEBUG environment variable
+  - Fixed MSW configuration tests with proper environment restoration
+  - Fixed workflow validator tests by adding proper connections between nodes
+  - Fixed TypeScript compilation errors with explicit type annotations
+  - Fixed ValidationResult mocks to include all required properties
+  - Fixed environment variable handling in tests for better isolation
+
+### Enhanced
+- **Test Organization**: Restructured test files for better maintainability
+  - Split config-validator tests into 4 focused files: basic, edge-cases, node-specific, security
+  - Added dedicated edge case test files for all validators
+  - Improved test naming convention to "should X when Y" pattern
+  - Better test isolation with proper setup/teardown
+
+### Documentation
+- **Test Documentation**: Added comprehensive test guides
+  - Created test documentation files for common patterns
+  - Updated test counts in README.md to reflect new test suite
+  - Added edge case testing guidelines
+
+### CI/CD
+- **GitHub Actions**: Fixed permission issues
+  - Added proper permissions for test, benchmark-pr, and publish workflows
+  - Fixed status write permissions for benchmark comparisons
+  - Note: Full permissions will take effect after merge to main branch
+
+## [2.7.23] - 2025-07-30
+
+### Added
+- **Comprehensive Testing Infrastructure**: Implemented complete test suite with 1,182 tests
+  - **933 Unit Tests** across 30 files covering all services, parsers, database, and MCP layers
+  - **249 Integration Tests** across 14 files for MCP protocol, database operations, and error handling
+  - **Test Framework**: Vitest with TypeScript, coverage reporting, parallel execution
+  - **Mock Strategy**: MSW for API mocking, database mocks, MCP SDK test utilities
+  - **CI/CD**: GitHub Actions workflow with automated testing on all PRs
+  - **Test Coverage**: Infrastructure in place with lcov, html, and Codecov integration
+  - **Performance Testing**: Environment-aware thresholds (CI vs local)
+  - **Database Isolation**: Each test gets its own database for parallel execution
+
+### Fixed
+- **CI Test Failures**: Resolved all 115 initially failing integration tests
+  - Fixed MCP response structure: `response.content[0].text` not `response[0].text`
+  - Fixed `process.exit(0)` in test setup causing Vitest failures
+  - Fixed database isolation issues for parallel test execution
+  - Fixed environment-aware performance thresholds
+  - Fixed MSW setup isolation preventing interference with unit tests
+  - Fixed empty database handling in CI environment
+  - Fixed TypeScript lint errors and strict mode compliance
+
+### Enhanced
+- **Test Architecture**: Complete rewrite for production readiness
+  - Proper test isolation with no shared state
+  - Comprehensive custom assertions for MCP responses
+  - Test data generators and builders for complex scenarios
+  - Environment configuration for test modes
+  - VSCode integration for debugging
+  - Meaningful test organization with AAA pattern
+
+### Documentation
+- **Testing Documentation**: Complete overhaul to reflect actual implementation
+  - `docs/testing-architecture.md`: Comprehensive testing guide with real examples
+  - Documented all 1,182 tests with distribution by component
+  - Added lessons learned and common issues/solutions
+  - Updated README with accurate test statistics and badges
+
+### Maintenance
+- **Cleanup**: Removed 53 development artifacts and test coordination files
+  - Deleted temporary agent briefings and coordination documents
+  - Updated .gitignore to prevent future accumulation
+  - Cleaned up all `FIX_*.md` and `AGENT_*.md` files
+
 ## [2.7.22] - 2025-07-28
 
 ### Security

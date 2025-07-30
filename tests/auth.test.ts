@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthManager } from '../src/utils/auth';
 
 describe('AuthManager', () => {
@@ -28,7 +29,7 @@ describe('AuthManager', () => {
     });
 
     it('should reject expired tokens', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
       
       const token = authManager.generateToken(1); // 1 hour expiry
       
@@ -36,12 +37,12 @@ describe('AuthManager', () => {
       expect(authManager.validateToken(token, 'expected-token')).toBe(true);
       
       // Fast forward 2 hours
-      jest.advanceTimersByTime(2 * 60 * 60 * 1000);
+      vi.advanceTimersByTime(2 * 60 * 60 * 1000);
       
       // Token should be expired
       expect(authManager.validateToken(token, 'expected-token')).toBe(false);
       
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
   });
 
@@ -55,19 +56,19 @@ describe('AuthManager', () => {
     });
 
     it('should set custom expiry time', () => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
       
       const token = authManager.generateToken(24); // 24 hours
       
       // Token should be valid after 23 hours
-      jest.advanceTimersByTime(23 * 60 * 60 * 1000);
+      vi.advanceTimersByTime(23 * 60 * 60 * 1000);
       expect(authManager.validateToken(token, 'expected')).toBe(true);
       
       // Token should expire after 25 hours
-      jest.advanceTimersByTime(2 * 60 * 60 * 1000);
+      vi.advanceTimersByTime(2 * 60 * 60 * 1000);
       expect(authManager.validateToken(token, 'expected')).toBe(false);
       
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
   });
 

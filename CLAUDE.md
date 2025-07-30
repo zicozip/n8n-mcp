@@ -62,9 +62,129 @@ src/
 └── index.ts                   # Library exports
 ```
 
-... [rest of the existing content remains unchanged]
+## Common Development Commands
+
+```bash
+# Build and Setup
+npm run build          # Build TypeScript (always run after changes)
+npm run rebuild        # Rebuild node database from n8n packages
+npm run validate       # Validate all node data in database
+
+# Testing
+npm test               # Run all tests
+npm run test:unit      # Run unit tests only
+npm run test:integration # Run integration tests
+npm run test:coverage  # Run tests with coverage report
+npm run test:watch     # Run tests in watch mode
+
+# Run a single test file
+npm test -- tests/unit/services/property-filter.test.ts
+
+# Linting and Type Checking
+npm run lint           # Check TypeScript types (alias for typecheck)
+npm run typecheck      # Check TypeScript types
+
+# Running the Server
+npm start              # Start MCP server in stdio mode
+npm run start:http     # Start MCP server in HTTP mode
+npm run dev            # Build, rebuild database, and validate
+npm run dev:http       # Run HTTP server with auto-reload
+
+# Update n8n Dependencies
+npm run update:n8n:check  # Check for n8n updates (dry run)
+npm run update:n8n        # Update n8n packages to latest
+
+# Database Management
+npm run db:rebuild     # Rebuild database from scratch
+npm run migrate:fts5   # Migrate to FTS5 search (if needed)
+
+# Template Management
+npm run fetch:templates  # Fetch latest workflow templates from n8n.io
+npm run test:templates   # Test template functionality
+```
+
+## High-Level Architecture
+
+### Core Components
+
+1. **MCP Server** (`mcp/server.ts`)
+   - Implements Model Context Protocol for AI assistants
+   - Provides tools for searching, validating, and managing n8n nodes
+   - Supports both stdio (Claude Desktop) and HTTP modes
+
+2. **Database Layer** (`database/`)
+   - SQLite database storing all n8n node information
+   - Universal adapter pattern supporting both better-sqlite3 and sql.js
+   - Full-text search capabilities with FTS5
+
+3. **Node Processing Pipeline**
+   - **Loader** (`loaders/node-loader.ts`): Loads nodes from n8n packages
+   - **Parser** (`parsers/node-parser.ts`): Extracts node metadata and structure
+   - **Property Extractor** (`parsers/property-extractor.ts`): Deep property analysis
+   - **Docs Mapper** (`mappers/docs-mapper.ts`): Maps external documentation
+
+4. **Service Layer** (`services/`)
+   - **Property Filter**: Reduces node properties to AI-friendly essentials
+   - **Config Validator**: Multi-profile validation system
+   - **Expression Validator**: Validates n8n expression syntax
+   - **Workflow Validator**: Complete workflow structure validation
+
+5. **Template System** (`templates/`)
+   - Fetches and stores workflow templates from n8n.io
+   - Provides pre-built workflow examples
+   - Supports template search and validation
+
+### Key Design Patterns
+
+1. **Repository Pattern**: All database operations go through repository classes
+2. **Service Layer**: Business logic separated from data access
+3. **Validation Profiles**: Different validation strictness levels (minimal, runtime, ai-friendly, strict)
+4. **Diff-Based Updates**: Efficient workflow updates using operation diffs
+
+### MCP Tools Architecture
+
+The MCP server exposes tools in several categories:
+
+1. **Discovery Tools**: Finding and exploring nodes
+2. **Configuration Tools**: Getting node details and examples
+3. **Validation Tools**: Validating configurations before deployment
+4. **Workflow Tools**: Complete workflow validation
+5. **Management Tools**: Creating and updating workflows (requires API config)
 
 ## Memories and Notes for Development
 
 ### Development Workflow Reminders
 - When you make changes to MCP server, you need to ask the user to reload it before you test
+- When the user asks to review issues, you should use GH CLI to get the issue and all the comments
+- When the task can be divided into separated subtasks, you should spawn separate sub-agents to handle them in parallel
+- Use the best sub-agent for the task as per their descriptions
+
+### Testing Best Practices
+- Always run `npm run build` before testing changes
+- Use `npm run dev` to rebuild database after package updates
+- Check coverage with `npm run test:coverage`
+- Integration tests require a clean database state
+
+### Common Pitfalls
+- The MCP server needs to be reloaded in Claude Desktop after changes
+- HTTP mode requires proper CORS and auth token configuration
+- Database rebuilds can take 2-3 minutes due to n8n package size
+- Always validate workflows before deployment to n8n
+
+### Performance Considerations
+- Use `get_node_essentials()` instead of `get_node_info()` for faster responses
+- Batch validation operations when possible
+- The diff-based update system saves 80-90% tokens on workflow updates
+
+### Agent Interaction Guidelines
+- Sub-agents are not allowed to spawn further sub-agents
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- When you make changes to MCP server, you need to ask the user to reload it before you test
+- When the user asks to review issues, you should use GH CLI to get the issue and all the comments
+- When the task can be divided into separated subtasks, you should spawn separate sub-agents to handle them in paralel
+- Use the best sub-agent for the task as per their descriptions

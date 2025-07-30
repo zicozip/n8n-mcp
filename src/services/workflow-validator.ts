@@ -56,7 +56,7 @@ interface ValidationIssue {
   details?: any;
 }
 
-interface WorkflowValidationResult {
+export interface WorkflowValidationResult {
   valid: boolean;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
@@ -101,8 +101,8 @@ export class WorkflowValidator {
       errors: [],
       warnings: [],
       statistics: {
-        totalNodes: workflow.nodes.length,
-        enabledNodes: workflow.nodes.filter(n => !n.disabled).length,
+        totalNodes: 0,
+        enabledNodes: 0,
         triggerNodes: 0,
         validConnections: 0,
         invalidConnections: 0,
@@ -112,29 +112,48 @@ export class WorkflowValidator {
     };
 
     try {
+      // Handle null/undefined workflow
+      if (!workflow) {
+        result.errors.push({
+          type: 'error',
+          message: 'Invalid workflow structure: workflow is null or undefined'
+        });
+        result.valid = false;
+        return result;
+      }
+
+      // Update statistics after null check
+      result.statistics.totalNodes = Array.isArray(workflow.nodes) ? workflow.nodes.length : 0;
+      result.statistics.enabledNodes = Array.isArray(workflow.nodes) ? workflow.nodes.filter(n => !n.disabled).length : 0;
+
       // Basic workflow structure validation
       this.validateWorkflowStructure(workflow, result);
 
-      // Validate each node if requested
-      if (validateNodes) {
-        await this.validateAllNodes(workflow, result, profile);
+      // Only continue if basic structure is valid
+      if (workflow.nodes && Array.isArray(workflow.nodes) && workflow.connections && typeof workflow.connections === 'object') {
+        // Validate each node if requested
+        if (validateNodes && workflow.nodes.length > 0) {
+          await this.validateAllNodes(workflow, result, profile);
+        }
+
+        // Validate connections if requested
+        if (validateConnections) {
+          this.validateConnections(workflow, result);
+        }
+
+        // Validate expressions if requested
+        if (validateExpressions && workflow.nodes.length > 0) {
+          this.validateExpressions(workflow, result);
+        }
+
+        // Check workflow patterns and best practices
+        if (workflow.nodes.length > 0) {
+          this.checkWorkflowPatterns(workflow, result);
+        }
+
+        // Add suggestions based on findings
+        this.generateSuggestions(workflow, result);
       }
-
-      // Validate connections if requested
-      if (validateConnections) {
-        this.validateConnections(workflow, result);
-      }
-
-      // Validate expressions if requested
-      if (validateExpressions) {
-        this.validateExpressions(workflow, result);
-      }
-
-      // Check workflow patterns and best practices
-      this.checkWorkflowPatterns(workflow, result);
-
-      // Add suggestions based on findings
-      this.generateSuggestions(workflow, result);
 
     } catch (error) {
       logger.error('Error validating workflow:', error);
@@ -156,27 +175,43 @@ export class WorkflowValidator {
     result: WorkflowValidationResult
   ): void {
     // Check for required fields
-    if (!workflow.nodes || !Array.isArray(workflow.nodes)) {
+    if (!workflow.nodes) {
       result.errors.push({
         type: 'error',
-        message: 'Workflow must have a nodes array'
+        message: workflow.nodes === null ? 'nodes must be an array' : 'Workflow must have a nodes array'
       });
       return;
     }
 
-    if (!workflow.connections || typeof workflow.connections !== 'object') {
+    if (!Array.isArray(workflow.nodes)) {
       result.errors.push({
         type: 'error',
-        message: 'Workflow must have a connections object'
+        message: 'nodes must be an array'
       });
       return;
     }
 
-    // Check for empty workflow
+    if (!workflow.connections) {
+      result.errors.push({
+        type: 'error',
+        message: workflow.connections === null ? 'connections must be an object' : 'Workflow must have a connections object'
+      });
+      return;
+    }
+
+    if (typeof workflow.connections !== 'object' || Array.isArray(workflow.connections)) {
+      result.errors.push({
+        type: 'error',
+        message: 'connections must be an object'
+      });
+      return;
+    }
+
+    // Check for empty workflow - this should be a warning, not an error
     if (workflow.nodes.length === 0) {
-      result.errors.push({
-        type: 'error',
-        message: 'Workflow has no nodes'
+      result.warnings.push({
+        type: 'warning',
+        message: 'Workflow is empty - no nodes defined'
       });
       return;
     }
@@ -271,6 +306,36 @@ export class WorkflowValidator {
       if (node.disabled) continue;
 
       try {
+        // Validate node name length
+        if (node.name && node.name.length > 255) {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `Node name is very long (${node.name.length} characters). Consider using a shorter name for better readability.`
+          });
+        }
+
+        // Validate node position
+        if (!Array.isArray(node.position) || node.position.length !== 2) {
+          result.errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: 'Node position must be an array with exactly 2 numbers [x, y]'
+          });
+        } else {
+          const [x, y] = node.position;
+          if (typeof x !== 'number' || typeof y !== 'number' || 
+              !isFinite(x) || !isFinite(y)) {
+            result.errors.push({
+              type: 'error',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: 'Node position values must be finite numbers'
+            });
+          }
+        }
         // FIRST: Check for common invalid patterns before database lookup
         if (node.type.startsWith('nodes-base.')) {
           // This is ALWAYS invalid in workflows - must use n8n-nodes-base prefix
@@ -401,7 +466,7 @@ export class WorkflowValidator {
             type: 'error',
             nodeId: node.id,
             nodeName: node.name,
-            message: error
+            message: typeof error === 'string' ? error : error.message || String(error)
           });
         });
 
@@ -410,7 +475,7 @@ export class WorkflowValidator {
             type: 'warning',
             nodeId: node.id,
             nodeName: node.name,
-            message: warning
+            message: typeof warning === 'string' ? warning : warning.message || String(warning)
           });
         });
 
@@ -566,6 +631,24 @@ export class WorkflowValidator {
       if (!outputConnections) return;
       
       outputConnections.forEach(connection => {
+        // Check for negative index
+        if (connection.index < 0) {
+          result.errors.push({
+            type: 'error',
+            message: `Invalid connection index ${connection.index} from "${sourceName}". Connection indices must be non-negative.`
+          });
+          result.statistics.invalidConnections++;
+          return;
+        }
+
+        // Check for self-referencing connections
+        if (connection.node === sourceName) {
+          result.warnings.push({
+            type: 'warning',
+            message: `Node "${sourceName}" has a self-referencing connection. This can cause infinite loops.`
+          });
+        }
+
         const targetNode = nodeMap.get(connection.node);
         
         if (!targetNode) {
@@ -725,7 +808,9 @@ export class WorkflowValidator {
         context
       );
 
-      result.statistics.expressionsValidated += exprValidation.usedVariables.size;
+      // Count actual expressions found, not just unique variables
+      const expressionCount = this.countExpressionsInObject(node.parameters);
+      result.statistics.expressionsValidated += expressionCount;
 
       // Add expression errors and warnings
       exprValidation.errors.forEach(error => {
@@ -746,6 +831,33 @@ export class WorkflowValidator {
         });
       });
     }
+  }
+
+  /**
+   * Count expressions in an object recursively
+   */
+  private countExpressionsInObject(obj: any): number {
+    let count = 0;
+    
+    if (typeof obj === 'string') {
+      // Count expressions in string
+      const matches = obj.match(/\{\{[\s\S]+?\}\}/g);
+      if (matches) {
+        count += matches.length;
+      }
+    } else if (Array.isArray(obj)) {
+      // Recursively count in arrays
+      for (const item of obj) {
+        count += this.countExpressionsInObject(item);
+      }
+    } else if (obj && typeof obj === 'object') {
+      // Recursively count in objects
+      for (const value of Object.values(obj)) {
+        count += this.countExpressionsInObject(value);
+      }
+    }
+    
+    return count;
   }
 
   /**
@@ -783,8 +895,10 @@ export class WorkflowValidator {
       });
     }
 
-    // Check node-level error handling properties
-    this.checkNodeErrorHandling(workflow, result);
+    // Check node-level error handling properties for ALL nodes
+    for (const node of workflow.nodes) {
+      this.checkNodeErrorHandling(node, workflow, result);
+    }
 
     // Check for very long linear workflows
     const linearChainLength = this.getLongestLinearChain(workflow);
@@ -794,6 +908,9 @@ export class WorkflowValidator {
         message: `Long linear chain detected (${linearChainLength} nodes). Consider breaking into sub-workflows.`
       });
     }
+
+    // Generate error handling suggestions based on all nodes
+    this.generateErrorHandlingSuggestions(workflow, result);
 
     // Check for missing credentials
     for (const node of workflow.nodes) {
@@ -1017,17 +1134,21 @@ export class WorkflowValidator {
   }
 
   /**
-   * Check node-level error handling configuration
+   * Check node-level error handling configuration for a single node
    */
   private checkNodeErrorHandling(
+    node: WorkflowNode,
     workflow: WorkflowJson,
     result: WorkflowValidationResult
   ): void {
-    // Define node types that typically interact with external services
+    // Only skip if disabled is explicitly true (not just truthy)
+    if (node.disabled === true) return;
+
+    // Define node types that typically interact with external services (lowercase for comparison)
     const errorProneNodeTypes = [
-      'httpRequest',
+      'httprequest',
       'webhook',
-      'emailSend',
+      'emailsend',
       'slack',
       'discord',
       'telegram',
@@ -1041,8 +1162,8 @@ export class WorkflowValidator {
       'salesforce',
       'hubspot',
       'airtable',
-      'googleSheets',
-      'googleDrive',
+      'googlesheets',
+      'googledrive',
       'dropbox',
       's3',
       'ftp',
@@ -1055,30 +1176,27 @@ export class WorkflowValidator {
       'anthropic'
     ];
 
-    for (const node of workflow.nodes) {
-      if (node.disabled) continue;
+    const normalizedType = node.type.toLowerCase();
+    const isErrorProne = errorProneNodeTypes.some(type => normalizedType.includes(type));
 
-      const normalizedType = node.type.toLowerCase();
-      const isErrorProne = errorProneNodeTypes.some(type => normalizedType.includes(type));
-
-      // CRITICAL: Check for node-level properties in wrong location (inside parameters)
-      const nodeLevelProps = [
-        // Error handling properties
-        'onError', 'continueOnFail', 'retryOnFail', 'maxTries', 'waitBetweenTries', 'alwaysOutputData',
-        // Other node-level properties
-        'executeOnce', 'disabled', 'notes', 'notesInFlow', 'credentials'
-      ];
-      const misplacedProps: string[] = [];
-      
-      if (node.parameters) {
-        for (const prop of nodeLevelProps) {
-          if (node.parameters[prop] !== undefined) {
-            misplacedProps.push(prop);
-          }
+    // CRITICAL: Check for node-level properties in wrong location (inside parameters)
+    const nodeLevelProps = [
+      // Error handling properties
+      'onError', 'continueOnFail', 'retryOnFail', 'maxTries', 'waitBetweenTries', 'alwaysOutputData',
+      // Other node-level properties
+      'executeOnce', 'disabled', 'notes', 'notesInFlow', 'credentials'
+    ];
+    const misplacedProps: string[] = [];
+    
+    if (node.parameters) {
+      for (const prop of nodeLevelProps) {
+        if (node.parameters[prop] !== undefined) {
+          misplacedProps.push(prop);
         }
       }
-      
-      if (misplacedProps.length > 0) {
+    }
+    
+    if (misplacedProps.length > 0) {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
@@ -1098,12 +1216,12 @@ export class WorkflowValidator {
                  `}`
           }
         });
-      }
+    }
 
-      // Validate error handling properties
-      
-      // Check for onError property (the modern approach)
-      if (node.onError !== undefined) {
+    // Validate error handling properties
+    
+    // Check for onError property (the modern approach)
+    if (node.onError !== undefined) {
         const validOnErrorValues = ['continueRegularOutput', 'continueErrorOutput', 'stopWorkflow'];
         if (!validOnErrorValues.includes(node.onError)) {
           result.errors.push({
@@ -1113,10 +1231,10 @@ export class WorkflowValidator {
             message: `Invalid onError value: "${node.onError}". Must be one of: ${validOnErrorValues.join(', ')}`
           });
         }
-      }
+    }
 
-      // Check for deprecated continueOnFail
-      if (node.continueOnFail !== undefined) {
+    // Check for deprecated continueOnFail
+    if (node.continueOnFail !== undefined) {
         if (typeof node.continueOnFail !== 'boolean') {
           result.errors.push({
             type: 'error',
@@ -1133,19 +1251,19 @@ export class WorkflowValidator {
             message: 'Using deprecated "continueOnFail: true". Use "onError: \'continueRegularOutput\'" instead for better control and UI compatibility.'
           });
         }
-      }
+    }
 
-      // Check for conflicting error handling properties
-      if (node.continueOnFail !== undefined && node.onError !== undefined) {
+    // Check for conflicting error handling properties
+    if (node.continueOnFail !== undefined && node.onError !== undefined) {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'Cannot use both "continueOnFail" and "onError" properties. Use only "onError" for modern workflows.'
         });
-      }
+    }
 
-      if (node.retryOnFail !== undefined) {
+    if (node.retryOnFail !== undefined) {
         if (typeof node.retryOnFail !== 'boolean') {
           result.errors.push({
             type: 'error',
@@ -1201,21 +1319,21 @@ export class WorkflowValidator {
             }
           }
         }
-      }
+    }
 
-      if (node.alwaysOutputData !== undefined && typeof node.alwaysOutputData !== 'boolean') {
+    if (node.alwaysOutputData !== undefined && typeof node.alwaysOutputData !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'alwaysOutputData must be a boolean value'
         });
-      }
+    }
 
-      // Warnings for error-prone nodes without error handling
-      const hasErrorHandling = node.onError || node.continueOnFail || node.retryOnFail;
-      
-      if (isErrorProne && !hasErrorHandling) {
+    // Warnings for error-prone nodes without error handling
+    const hasErrorHandling = node.onError || node.continueOnFail || node.retryOnFail;
+    
+    if (isErrorProne && !hasErrorHandling) {
         const nodeTypeSimple = normalizedType.split('.').pop() || normalizedType;
         
         // Special handling for specific node types
@@ -1245,83 +1363,91 @@ export class WorkflowValidator {
             type: 'warning',
             nodeId: node.id,
             nodeName: node.name,
-            message: `${nodeTypeSimple} node interacts with external services but has no error handling configured. Consider using "onError" property.`
+            message: `${nodeTypeSimple} node without error handling. Consider using "onError" property for better error management.`
           });
         }
-      }
+    }
 
-      // Check for problematic combinations
-      if (node.continueOnFail && node.retryOnFail) {
+    // Check for problematic combinations
+    if (node.continueOnFail && node.retryOnFail) {
         result.warnings.push({
           type: 'warning',
           nodeId: node.id,
           nodeName: node.name,
           message: 'Both continueOnFail and retryOnFail are enabled. The node will retry first, then continue on failure.'
         });
-      }
+    }
 
-      // Validate additional node-level properties
-      
-      // Check executeOnce
-      if (node.executeOnce !== undefined && typeof node.executeOnce !== 'boolean') {
+    // Validate additional node-level properties
+    
+    // Check executeOnce
+    if (node.executeOnce !== undefined && typeof node.executeOnce !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'executeOnce must be a boolean value'
         });
-      }
+    }
 
-      // Check disabled
-      if (node.disabled !== undefined && typeof node.disabled !== 'boolean') {
+    // Check disabled
+    if (node.disabled !== undefined && typeof node.disabled !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'disabled must be a boolean value'
         });
-      }
+    }
 
-      // Check notesInFlow
-      if (node.notesInFlow !== undefined && typeof node.notesInFlow !== 'boolean') {
+    // Check notesInFlow
+    if (node.notesInFlow !== undefined && typeof node.notesInFlow !== 'boolean') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'notesInFlow must be a boolean value'
         });
-      }
+    }
 
-      // Check notes
-      if (node.notes !== undefined && typeof node.notes !== 'string') {
+    // Check notes
+    if (node.notes !== undefined && typeof node.notes !== 'string') {
         result.errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
           message: 'notes must be a string value'
         });
-      }
+    }
 
-      // Provide guidance for executeOnce
-      if (node.executeOnce === true) {
+    // Provide guidance for executeOnce
+    if (node.executeOnce === true) {
         result.warnings.push({
           type: 'warning',
           nodeId: node.id,
           nodeName: node.name,
           message: 'executeOnce is enabled. This node will execute only once regardless of input items.'
         });
-      }
+    }
 
-      // Suggest alwaysOutputData for debugging
-      if ((node.continueOnFail || node.retryOnFail) && !node.alwaysOutputData) {
+    // Suggest alwaysOutputData for debugging
+    if ((node.continueOnFail || node.retryOnFail) && !node.alwaysOutputData) {
         if (normalizedType.includes('httprequest') || normalizedType.includes('webhook')) {
           result.suggestions.push(
             `Consider enabling alwaysOutputData on "${node.name}" to capture error responses for debugging`
           );
         }
       }
-    }
 
+  }
+
+  /**
+   * Generate error handling suggestions based on all nodes
+   */
+  private generateErrorHandlingSuggestions(
+    workflow: WorkflowJson,
+    result: WorkflowValidationResult
+  ): void {
     // Add general suggestions based on findings
     const nodesWithoutErrorHandling = workflow.nodes.filter(n => 
       !n.disabled && !n.onError && !n.continueOnFail && !n.retryOnFail

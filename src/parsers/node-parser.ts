@@ -128,20 +128,14 @@ export class NodeParser {
   }
   
   private extractVersion(nodeClass: any): string {
-    // Handle VersionedNodeType with defaultVersion
-    if (nodeClass.baseDescription?.defaultVersion) {
-      return nodeClass.baseDescription.defaultVersion.toString();
-    }
-    
-    // Handle VersionedNodeType with nodeVersions
-    if (nodeClass.nodeVersions) {
-      const versions = Object.keys(nodeClass.nodeVersions);
-      return Math.max(...versions.map(Number)).toString();
-    }
-    
-    // Check instance for nodeVersions and version arrays
+    // Check instance for baseDescription first
     try {
       const instance = typeof nodeClass === 'function' ? new nodeClass() : nodeClass;
+      
+      // Handle instance-level baseDescription
+      if (instance?.baseDescription?.defaultVersion) {
+        return instance.baseDescription.defaultVersion.toString();
+      }
       
       // Handle instance-level nodeVersions
       if (instance?.nodeVersions) {
@@ -162,7 +156,18 @@ export class NodeParser {
       }
     } catch (e) {
       // Some nodes might require parameters to instantiate
-      // Try to get version from class-level description
+      // Try class-level properties
+    }
+    
+    // Handle class-level VersionedNodeType with defaultVersion
+    if (nodeClass.baseDescription?.defaultVersion) {
+      return nodeClass.baseDescription.defaultVersion.toString();
+    }
+    
+    // Handle class-level VersionedNodeType with nodeVersions
+    if (nodeClass.nodeVersions) {
+      const versions = Object.keys(nodeClass.nodeVersions);
+      return Math.max(...versions.map(Number)).toString();
     }
     
     // Also check class-level description for version array
@@ -181,14 +186,14 @@ export class NodeParser {
   }
   
   private detectVersioned(nodeClass: any): boolean {
-    // Check class-level nodeVersions
-    if (nodeClass.nodeVersions || nodeClass.baseDescription?.defaultVersion) {
-      return true;
-    }
-    
-    // Check instance-level nodeVersions and version arrays
+    // Check instance-level properties first
     try {
       const instance = typeof nodeClass === 'function' ? new nodeClass() : nodeClass;
+      
+      // Check for instance baseDescription with defaultVersion
+      if (instance?.baseDescription?.defaultVersion) {
+        return true;
+      }
       
       // Check for nodeVersions
       if (instance?.nodeVersions) {
@@ -201,7 +206,12 @@ export class NodeParser {
       }
     } catch (e) {
       // Some nodes might require parameters to instantiate
-      // Try to check class-level description
+      // Try class-level checks
+    }
+    
+    // Check class-level nodeVersions
+    if (nodeClass.nodeVersions || nodeClass.baseDescription?.defaultVersion) {
+      return true;
     }
     
     // Also check class-level description for version array

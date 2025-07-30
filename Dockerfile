@@ -5,8 +5,8 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Copy tsconfig for TypeScript compilation
-COPY tsconfig.json ./
+# Copy tsconfig files for TypeScript compilation
+COPY tsconfig*.json ./
 
 # Create minimal package.json and install ONLY build dependencies
 RUN --mount=type=cache,target=/root/.npm \
@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY src ./src
 # Note: src/n8n contains TypeScript types needed for compilation
 # These will be compiled but not included in runtime
-RUN npx tsc
+RUN npx tsc -p tsconfig.build.json
 
 # Stage 2: Runtime (minimal dependencies)
 FROM node:22-alpine AS runtime

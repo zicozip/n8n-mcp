@@ -183,6 +183,11 @@ export class PropertyFilter {
     const seen = new Map<string, any>();
     
     return properties.filter(prop => {
+      // Skip null/undefined properties
+      if (!prop || !prop.name) {
+        return false;
+      }
+      
       // Create unique key from name + conditions
       const conditions = JSON.stringify(prop.displayOptions || {});
       const key = `${prop.name}_${conditions}`;
@@ -200,6 +205,11 @@ export class PropertyFilter {
    * Get essential properties for a node type
    */
   static getEssentials(allProperties: any[], nodeType: string): FilteredProperties {
+    // Handle null/undefined properties
+    if (!allProperties) {
+      return { required: [], common: [] };
+    }
+    
     // Deduplicate first
     const uniqueProperties = this.deduplicateProperties(allProperties);
     const config = this.ESSENTIAL_PROPERTIES[nodeType];
@@ -280,7 +290,7 @@ export class PropertyFilter {
     const simplified: SimplifiedProperty = {
       name: prop.name,
       displayName: prop.displayName || prop.name,
-      type: prop.type,
+      type: prop.type || 'string', // Default to string if no type specified
       description: this.extractDescription(prop),
       required: prop.required || false
     };
@@ -300,7 +310,9 @@ export class PropertyFilter {
     
     // Simplify options for select fields
     if (prop.options && Array.isArray(prop.options)) {
-      simplified.options = prop.options.map((opt: any) => {
+      // Limit options to first 20 for better usability
+      const limitedOptions = prop.options.slice(0, 20);
+      simplified.options = limitedOptions.map((opt: any) => {
         if (typeof opt === 'string') {
           return { value: opt, label: opt };
         }
@@ -443,35 +455,52 @@ export class PropertyFilter {
    * Infer essentials for nodes without curated lists
    */
   private static inferEssentials(properties: any[]): FilteredProperties {
-    // Extract explicitly required properties
+    // Extract explicitly required properties (limit to prevent huge results)
     const required = properties
-      .filter(p => p.required === true)
+      .filter(p => p.name && p.required === true)
+      .slice(0, 10) // Limit required properties
       .map(p => this.simplifyProperty(p));
     
     // Find common properties (simple, always visible, at root level)
     const common = properties
       .filter(p => {
-        return !p.required && 
+        return p.name && // Ensure property has a name
+               !p.required && 
                !p.displayOptions && 
-               p.type !== 'collection' && 
-               p.type !== 'fixedCollection' &&
-               !p.name.startsWith('options');
+               p.type !== 'hidden' && // Filter out hidden properties
+               p.type !== 'notice' &&  // Filter out notice properties
+               !p.name.startsWith('options') &&
+               !p.name.startsWith('_'); // Filter out internal properties
       })
-      .slice(0, 5) // Take first 5 simple properties
+      .slice(0, 10) // Take first 10 simple properties
       .map(p => this.simplifyProperty(p));
     
     // If we have very few properties, include some conditional ones
-    if (required.length + common.length < 5) {
+    if (required.length + common.length < 10) {
       const additional = properties
         .filter(p => {
-          return !p.required &&
+          return p.name && // Ensure property has a name
+                 !p.required &&
+                 p.type !== 'hidden' && // Filter out hidden properties
                  p.displayOptions &&
                  Object.keys(p.displayOptions.show || {}).length === 1;
         })
-        .slice(0, 5 - (required.length + common.length))
+        .slice(0, 10 - (required.length + common.length))
         .map(p => this.simplifyProperty(p));
       
       common.push(...additional);
+    }
+    
+    // Total should not exceed 30 properties
+    const totalLimit = 30;
+    if (required.length + common.length > totalLimit) {
+      // Prioritize required properties
+      const requiredCount = Math.min(required.length, 15);
+      const commonCount = totalLimit - requiredCount;
+      return {
+        required: required.slice(0, requiredCount),
+        common: common.slice(0, commonCount)
+      };
     }
     
     return { required, common };
@@ -485,6 +514,11 @@ export class PropertyFilter {
     query: string,
     maxResults: number = 20
   ): SimplifiedProperty[] {
+    // Return empty array for empty query
+    if (!query || query.trim() === '') {
+      return [];
+    }
+    
     const lowerQuery = query.toLowerCase();
     const matches: Array<{ property: any; score: number; path: string }> = [];
     

@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest';
 import {
   MCPError,
   N8NConnectionError,
@@ -11,9 +12,9 @@ import {
 import { logger } from '../src/utils/logger';
 
 // Mock the logger
-jest.mock('../src/utils/logger', () => ({
+vi.mock('../src/utils/logger', () => ({
   logger: {
-    error: jest.fn(),
+    error: vi.fn(),
   },
 }));
 
@@ -158,7 +159,7 @@ describe('handleError', () => {
 
 describe('withErrorHandling', () => {
   it('should execute operation successfully', async () => {
-    const operation = jest.fn().mockResolvedValue('success');
+    const operation = vi.fn().mockResolvedValue('success');
     
     const result = await withErrorHandling(operation, 'test operation');
     
@@ -168,7 +169,7 @@ describe('withErrorHandling', () => {
 
   it('should handle and log errors', async () => {
     const error = new Error('Operation failed');
-    const operation = jest.fn().mockRejectedValue(error);
+    const operation = vi.fn().mockRejectedValue(error);
     
     await expect(withErrorHandling(operation, 'test operation')).rejects.toThrow();
     
@@ -177,7 +178,7 @@ describe('withErrorHandling', () => {
 
   it('should transform errors using handleError', async () => {
     const error = { code: 'ECONNREFUSED' };
-    const operation = jest.fn().mockRejectedValue(error);
+    const operation = vi.fn().mockRejectedValue(error);
     
     try {
       await withErrorHandling(operation, 'test operation');

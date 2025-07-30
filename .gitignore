@@ -39,6 +39,26 @@ logs/
 # Testing
 coverage/
 .nyc_output/
+test-results/
+test-reports/
+test-summary.md
+test-metadata.json
+benchmark-results.json
+benchmark-results*.json
+benchmark-summary.json
+coverage-report.json
+benchmark-comparison.md
+benchmark-comparison.json
+benchmark-current.json
+benchmark-baseline.json
+tests/data/*.db
+tests/fixtures/*.tmp
+tests/test-results/
+.test-dbs/
+junit.xml
+*.test.db
+test-*.db
+.vitest/
 
 # TypeScript
 *.tsbuildinfo

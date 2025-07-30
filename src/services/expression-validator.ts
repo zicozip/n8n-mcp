@@ -20,12 +20,12 @@ interface ExpressionContext {
 
 export class ExpressionValidator {
   // Common n8n expression patterns
-  private static readonly EXPRESSION_PATTERN = /\{\{(.+?)\}\}/g;
+  private static readonly EXPRESSION_PATTERN = /\{\{([\s\S]+?)\}\}/g;
   private static readonly VARIABLE_PATTERNS = {
     json: /\$json(\.[a-zA-Z_][\w]*|\["[^"]+"\]|\['[^']+'\]|\[\d+\])*/g,
     node: /\$node\["([^"]+)"\]\.json/g,
     input: /\$input\.item(\.[a-zA-Z_][\w]*|\["[^"]+"\]|\['[^']+'\]|\[\d+\])*/g,
-    items: /\$items\("([^"]+)"(?:,\s*(\d+))?\)/g,
+    items: /\$items\("([^"]+)"(?:,\s*(-?\d+))?\)/g,
     parameter: /\$parameter\["([^"]+)"\]/g,
     env: /\$env\.([a-zA-Z_][\w]*)/g,
     workflow: /\$workflow\.(id|name|active)/g,
@@ -51,6 +51,18 @@ export class ExpressionValidator {
       usedVariables: new Set(),
       usedNodes: new Set(),
     };
+
+    // Handle null/undefined expression
+    if (!expression) {
+      return result;
+    }
+
+    // Handle null/undefined context
+    if (!context) {
+      result.valid = false;
+      result.errors.push('Validation context is required');
+      return result;
+    }
 
     // Check for basic syntax errors
     const syntaxErrors = this.checkSyntaxErrors(expression);
@@ -94,7 +106,8 @@ export class ExpressionValidator {
     }
 
     // Check for empty expressions
-    if (expression.includes('{{}}')) {
+    const emptyExpressionPattern = /\{\{\s*\}\}/;
+    if (emptyExpressionPattern.test(expression)) {
       errors.push('Empty expression found');
     }
 
@@ -125,7 +138,8 @@ export class ExpressionValidator {
   ): void {
     // Check for $json usage
     let match;
-    while ((match = this.VARIABLE_PATTERNS.json.exec(expr)) !== null) {
+    const jsonPattern = new RegExp(this.VARIABLE_PATTERNS.json.source, this.VARIABLE_PATTERNS.json.flags);
+    while ((match = jsonPattern.exec(expr)) !== null) {
       result.usedVariables.add('$json');
       
       if (!context.hasInputData && !context.isInLoop) {
@@ -136,25 +150,28 @@ export class ExpressionValidator {
     }
 
     // Check for $node references
-    while ((match = this.VARIABLE_PATTERNS.node.exec(expr)) !== null) {
+    const nodePattern = new RegExp(this.VARIABLE_PATTERNS.node.source, this.VARIABLE_PATTERNS.node.flags);
+    while ((match = nodePattern.exec(expr)) !== null) {
       const nodeName = match[1];
       result.usedNodes.add(nodeName);
       result.usedVariables.add('$node');
     }
 
     // Check for $input usage
-    while ((match = this.VARIABLE_PATTERNS.input.exec(expr)) !== null) {
+    const inputPattern = new RegExp(this.VARIABLE_PATTERNS.input.source, this.VARIABLE_PATTERNS.input.flags);
+    while ((match = inputPattern.exec(expr)) !== null) {
       result.usedVariables.add('$input');
       
       if (!context.hasInputData) {
-        result.errors.push(
+        result.warnings.push(
           '$input is only available when the node has input data'
         );
       }
     }
 
     // Check for $items usage
-    while ((match = this.VARIABLE_PATTERNS.items.exec(expr)) !== null) {
+    const itemsPattern = new RegExp(this.VARIABLE_PATTERNS.items.source, this.VARIABLE_PATTERNS.items.flags);
+    while ((match = itemsPattern.exec(expr)) !== null) {
       const nodeName = match[1];
       result.usedNodes.add(nodeName);
       result.usedVariables.add('$items');
@@ -164,7 +181,8 @@ export class ExpressionValidator {
     for (const [varName, pattern] of Object.entries(this.VARIABLE_PATTERNS)) {
       if (['json', 'node', 'input', 'items'].includes(varName)) continue;
       
-      if (pattern.test(expr)) {
+      const testPattern = new RegExp(pattern.source, pattern.flags);
+      if (testPattern.test(expr)) {
         result.usedVariables.add(`$${varName}`);
       }
     }
@@ -248,7 +266,8 @@ export class ExpressionValidator {
       usedNodes: new Set(),
     };
 
-    this.validateParametersRecursive(parameters, context, combinedResult);
+    const visited = new WeakSet();
+    this.validateParametersRecursive(parameters, context, combinedResult, '', visited);
     
     combinedResult.valid = combinedResult.errors.length === 0;
     return combinedResult;
@@ -261,19 +280,28 @@ export class ExpressionValidator {
     obj: any,
     context: ExpressionContext,
     result: ExpressionValidationResult,
-    path: string = ''
+    path: string = '',
+    visited: WeakSet<object> = new WeakSet()
   ): void {
+    // Handle circular references
+    if (obj && typeof obj === 'object') {
+      if (visited.has(obj)) {
+        return; // Skip already visited objects
+      }
+      visited.add(obj);
+    }
+    
     if (typeof obj === 'string') {
       if (obj.includes('{{')) {
         const validation = this.validateExpression(obj, context);
         
         // Add path context to errors
         validation.errors.forEach(error => {
-          result.errors.push(`${path}: ${error}`);
+          result.errors.push(path ? `${path}: ${error}` : error);
         });
         
         validation.warnings.forEach(warning => {
-          result.warnings.push(`${path}: ${warning}`);
+          result.warnings.push(path ? `${path}: ${warning}` : warning);
         });
         
         // Merge used variables and nodes
@@ -286,13 +314,14 @@ export class ExpressionValidator {
           item,
           context,
           result,
-          `${path}[${index}]`
+          `${path}[${index}]`,
+          visited
         );
       });
     } else if (obj && typeof obj === 'object') {
       Object.entries(obj).forEach(([key, value]) => {
         const newPath = path ? `${path}.${key}` : key;
-        this.validateParametersRecursive(value, context, result, newPath);
+        this.validateParametersRecursive(value, context, result, newPath, visited);
       });
     }
   }

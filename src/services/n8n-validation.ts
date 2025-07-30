@@ -10,7 +10,7 @@ export const workflowNodeSchema = z.object({
   typeVersion: z.number(),
   position: z.tuple([z.number(), z.number()]),
   parameters: z.record(z.unknown()),
-  credentials: z.record(z.string()).optional(),
+  credentials: z.record(z.unknown()).optional(),
   disabled: z.boolean().optional(),
   notes: z.string().optional(),
   notesInFlow: z.boolean().optional(),
@@ -214,20 +214,24 @@ export function validateWorkflowStructure(workflow: Partial<Workflow>): string[]
         }
       }
       
-      connection.main.forEach((outputs, outputIndex) => {
-        outputs.forEach((target, targetIndex) => {
-          // Check if target exists by name (correct)
-          if (!nodeNames.has(target.node)) {
-            // Check if they're using an ID instead of name
-            if (nodeIds.has(target.node)) {
-              const correctName = nodeIdToName.get(target.node);
-              errors.push(`Connection target uses node ID '${target.node}' but must use node name '${correctName}' (from ${sourceName}[${outputIndex}][${targetIndex}])`);
-            } else {
-              errors.push(`Connection references non-existent target node: ${target.node} (from ${sourceName}[${outputIndex}][${targetIndex}])`);
-            }
+      if (connection.main && Array.isArray(connection.main)) {
+        connection.main.forEach((outputs, outputIndex) => {
+          if (Array.isArray(outputs)) {
+            outputs.forEach((target, targetIndex) => {
+              // Check if target exists by name (correct)
+              if (!nodeNames.has(target.node)) {
+                // Check if they're using an ID instead of name
+                if (nodeIds.has(target.node)) {
+                  const correctName = nodeIdToName.get(target.node);
+                  errors.push(`Connection target uses node ID '${target.node}' but must use node name '${correctName}' (from ${sourceName}[${outputIndex}][${targetIndex}])`);
+                } else {
+                  errors.push(`Connection references non-existent target node: ${target.node} (from ${sourceName}[${outputIndex}][${targetIndex}])`);
+                }
+              }
+            });
           }
         });
-      });
+      }
     });
   }
 

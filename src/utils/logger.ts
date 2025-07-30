@@ -20,6 +20,7 @@ export class Logger {
   private readonly isStdio = process.env.MCP_MODE === 'stdio';
   private readonly isDisabled = process.env.DISABLE_CONSOLE_OUTPUT === 'true';
   private readonly isHttp = process.env.MCP_MODE === 'http';
+  private readonly isTest = process.env.NODE_ENV === 'test' || process.env.TEST_ENVIRONMENT === 'true';
 
   constructor(config?: Partial<LoggerConfig>) {
     this.config = {
@@ -57,8 +58,9 @@ export class Logger {
   private log(level: LogLevel, levelName: string, message: string, ...args: any[]): void {
     // Check environment variables FIRST, before level check
     // In stdio mode, suppress ALL console output to avoid corrupting JSON-RPC
-    if (this.isStdio || this.isDisabled) {
-      // Silently drop all logs in stdio mode
+    // Also suppress in test mode unless debug is explicitly enabled
+    if (this.isStdio || this.isDisabled || (this.isTest && process.env.DEBUG !== 'true')) {
+      // Silently drop all logs in stdio/test mode
       return;
     }
     
