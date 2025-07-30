@@ -115,14 +115,7 @@ vi.mock('@/mcp/tool-docs', () => ({
   }
 }));
 
-// Mock package.json for version info
-vi.mock('../../package.json', () => ({
-  default: {
-    dependencies: {
-      n8n: '^1.103.2'
-    }
-  }
-}));
+// No need to mock package.json - let the actual module read it
 
 describe('tools-documentation', () => {
   beforeEach(() => {
@@ -223,7 +216,11 @@ describe('tools-documentation', () => {
         
         expect(overview).toContain('# n8n MCP Tools Reference');
         expect(overview).toContain('## Important: Compatibility Notice');
-        expect(overview).toContain('n8n version 1.103.2');
+        // The tools-documentation module dynamically reads version from package.json
+        // so we need to read it the same way to match
+        const packageJson = require('../../../package.json');
+        const n8nVersion = packageJson.dependencies.n8n.replace(/[^0-9.]/g, '');
+        expect(overview).toContain(`n8n version ${n8nVersion}`);
         expect(overview).toContain('## Code Node Configuration');
         expect(overview).toContain('## Standard Workflow Pattern');
         expect(overview).toContain('**Discovery Tools**');
