@@ -6,16 +6,38 @@ describe('Logger', () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let originalDebug: string | undefined;
 
   beforeEach(() => {
-    logger = new Logger({ timestamp: false, prefix: 'test' });
+    // Save original DEBUG value and enable debug for logger tests
+    originalDebug = process.env.DEBUG;
+    process.env.DEBUG = 'true';
+    
+    // Create spies before creating logger
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    
+    // Create logger after spies and env setup
+    logger = new Logger({ timestamp: false, prefix: 'test' });
   });
 
   afterEach(() => {
+    // Restore all mocks first
     vi.restoreAllMocks();
+    
+    // Restore original DEBUG value with more robust handling
+    try {
+      if (originalDebug === undefined) {
+        // Use Reflect.deleteProperty for safer deletion
+        Reflect.deleteProperty(process.env, 'DEBUG');
+      } else {
+        process.env.DEBUG = originalDebug;
+      }
+    } catch (error) {
+      // If deletion fails, set to empty string as fallback
+      process.env.DEBUG = '';
+    }
   });
 
   describe('log levels', () => {
@@ -80,6 +102,7 @@ describe('Logger', () => {
     });
 
     it('should include timestamp when enabled', () => {
+      // Need to create a new logger instance, but ensure DEBUG is set first
       const timestampLogger = new Logger({ timestamp: true, prefix: 'test' });
       const dateSpy = vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2024-01-01T00:00:00.000Z');
       

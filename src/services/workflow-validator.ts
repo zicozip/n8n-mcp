@@ -101,8 +101,8 @@ export class WorkflowValidator {
       errors: [],
       warnings: [],
       statistics: {
-        totalNodes: workflow.nodes?.length || 0,
-        enabledNodes: workflow.nodes?.filter(n => !n.disabled).length || 0,
+        totalNodes: 0,
+        enabledNodes: 0,
         triggerNodes: 0,
         validConnections: 0,
         invalidConnections: 0,
@@ -112,29 +112,48 @@ export class WorkflowValidator {
     };
 
     try {
+      // Handle null/undefined workflow
+      if (!workflow) {
+        result.errors.push({
+          type: 'error',
+          message: 'Invalid workflow structure: workflow is null or undefined'
+        });
+        result.valid = false;
+        return result;
+      }
+
+      // Update statistics after null check
+      result.statistics.totalNodes = Array.isArray(workflow.nodes) ? workflow.nodes.length : 0;
+      result.statistics.enabledNodes = Array.isArray(workflow.nodes) ? workflow.nodes.filter(n => !n.disabled).length : 0;
+
       // Basic workflow structure validation
       this.validateWorkflowStructure(workflow, result);
 
-      // Validate each node if requested
-      if (validateNodes) {
-        await this.validateAllNodes(workflow, result, profile);
+      // Only continue if basic structure is valid
+      if (workflow.nodes && Array.isArray(workflow.nodes) && workflow.connections && typeof workflow.connections === 'object') {
+        // Validate each node if requested
+        if (validateNodes && workflow.nodes.length > 0) {
+          await this.validateAllNodes(workflow, result, profile);
+        }
+
+        // Validate connections if requested
+        if (validateConnections) {
+          this.validateConnections(workflow, result);
+        }
+
+        // Validate expressions if requested
+        if (validateExpressions && workflow.nodes.length > 0) {
+          this.validateExpressions(workflow, result);
+        }
+
+        // Check workflow patterns and best practices
+        if (workflow.nodes.length > 0) {
+          this.checkWorkflowPatterns(workflow, result);
+        }
+
+        // Add suggestions based on findings
+        this.generateSuggestions(workflow, result);
       }
-
-      // Validate connections if requested
-      if (validateConnections) {
-        this.validateConnections(workflow, result);
-      }
-
-      // Validate expressions if requested
-      if (validateExpressions) {
-        this.validateExpressions(workflow, result);
-      }
-
-      // Check workflow patterns and best practices
-      this.checkWorkflowPatterns(workflow, result);
-
-      // Add suggestions based on findings
-      this.generateSuggestions(workflow, result);
 
     } catch (error) {
       logger.error('Error validating workflow:', error);
@@ -156,27 +175,43 @@ export class WorkflowValidator {
     result: WorkflowValidationResult
   ): void {
     // Check for required fields
-    if (!workflow.nodes || !Array.isArray(workflow.nodes)) {
+    if (!workflow.nodes) {
       result.errors.push({
         type: 'error',
-        message: 'Workflow must have a nodes array'
+        message: workflow.nodes === null ? 'nodes must be an array' : 'Workflow must have a nodes array'
       });
       return;
     }
 
-    if (!workflow.connections || typeof workflow.connections !== 'object') {
+    if (!Array.isArray(workflow.nodes)) {
       result.errors.push({
         type: 'error',
-        message: 'Workflow must have a connections object'
+        message: 'nodes must be an array'
       });
       return;
     }
 
-    // Check for empty workflow
+    if (!workflow.connections) {
+      result.errors.push({
+        type: 'error',
+        message: workflow.connections === null ? 'connections must be an object' : 'Workflow must have a connections object'
+      });
+      return;
+    }
+
+    if (typeof workflow.connections !== 'object' || Array.isArray(workflow.connections)) {
+      result.errors.push({
+        type: 'error',
+        message: 'connections must be an object'
+      });
+      return;
+    }
+
+    // Check for empty workflow - this should be a warning, not an error
     if (workflow.nodes.length === 0) {
-      result.errors.push({
-        type: 'error',
-        message: 'Workflow has no nodes'
+      result.warnings.push({
+        type: 'warning',
+        message: 'Workflow is empty - no nodes defined'
       });
       return;
     }
@@ -271,6 +306,36 @@ export class WorkflowValidator {
       if (node.disabled) continue;
 
       try {
+        // Validate node name length
+        if (node.name && node.name.length > 255) {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: `Node name is very long (${node.name.length} characters). Consider using a shorter name for better readability.`
+          });
+        }
+
+        // Validate node position
+        if (!Array.isArray(node.position) || node.position.length !== 2) {
+          result.errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: 'Node position must be an array with exactly 2 numbers [x, y]'
+          });
+        } else {
+          const [x, y] = node.position;
+          if (typeof x !== 'number' || typeof y !== 'number' || 
+              !isFinite(x) || !isFinite(y)) {
+            result.errors.push({
+              type: 'error',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: 'Node position values must be finite numbers'
+            });
+          }
+        }
         // FIRST: Check for common invalid patterns before database lookup
         if (node.type.startsWith('nodes-base.')) {
           // This is ALWAYS invalid in workflows - must use n8n-nodes-base prefix
@@ -566,6 +631,24 @@ export class WorkflowValidator {
       if (!outputConnections) return;
       
       outputConnections.forEach(connection => {
+        // Check for negative index
+        if (connection.index < 0) {
+          result.errors.push({
+            type: 'error',
+            message: `Invalid connection index ${connection.index} from "${sourceName}". Connection indices must be non-negative.`
+          });
+          result.statistics.invalidConnections++;
+          return;
+        }
+
+        // Check for self-referencing connections
+        if (connection.node === sourceName) {
+          result.warnings.push({
+            type: 'warning',
+            message: `Node "${sourceName}" has a self-referencing connection. This can cause infinite loops.`
+          });
+        }
+
         const targetNode = nodeMap.get(connection.node);
         
         if (!targetNode) {
@@ -725,7 +808,9 @@ export class WorkflowValidator {
         context
       );
 
-      result.statistics.expressionsValidated += exprValidation.usedVariables.size;
+      // Count actual expressions found, not just unique variables
+      const expressionCount = this.countExpressionsInObject(node.parameters);
+      result.statistics.expressionsValidated += expressionCount;
 
       // Add expression errors and warnings
       exprValidation.errors.forEach(error => {
@@ -746,6 +831,33 @@ export class WorkflowValidator {
         });
       });
     }
+  }
+
+  /**
+   * Count expressions in an object recursively
+   */
+  private countExpressionsInObject(obj: any): number {
+    let count = 0;
+    
+    if (typeof obj === 'string') {
+      // Count expressions in string
+      const matches = obj.match(/\{\{[\s\S]+?\}\}/g);
+      if (matches) {
+        count += matches.length;
+      }
+    } else if (Array.isArray(obj)) {
+      // Recursively count in arrays
+      for (const item of obj) {
+        count += this.countExpressionsInObject(item);
+      }
+    } else if (obj && typeof obj === 'object') {
+      // Recursively count in objects
+      for (const value of Object.values(obj)) {
+        count += this.countExpressionsInObject(value);
+      }
+    }
+    
+    return count;
   }
 
   /**

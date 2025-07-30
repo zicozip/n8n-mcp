@@ -12,7 +12,7 @@ vi.mock('../../../src/utils/logger', () => ({
 
 describe('Database Adapter - Unit Tests', () => {
   describe('DatabaseAdapter Interface', () => {
-    it('should define the correct interface', () => {
+    it('should define interface when adapter is created', () => {
       // This is a type test - ensuring the interface is correctly defined
       type DatabaseAdapter = {
         prepare: (sql: string) => any;
@@ -46,7 +46,7 @@ describe('Database Adapter - Unit Tests', () => {
   });
   
   describe('PreparedStatement Interface', () => {
-    it('should define the correct interface', () => {
+    it('should define interface when statement is prepared', () => {
       // Type test for PreparedStatement
       type PreparedStatement = {
         run: (...params: any[]) => { changes: number; lastInsertRowid: number | bigint };
@@ -86,7 +86,7 @@ describe('Database Adapter - Unit Tests', () => {
   });
   
   describe('FTS5 Support Detection', () => {
-    it('should detect FTS5 support correctly', () => {
+    it('should detect support when FTS5 module is available', () => {
       const mockDb = {
         exec: vi.fn()
       };
@@ -118,7 +118,7 @@ describe('Database Adapter - Unit Tests', () => {
   });
   
   describe('Transaction Handling', () => {
-    it('should handle transactions correctly', () => {
+    it('should handle commit and rollback when transaction is executed', () => {
       // Test transaction wrapper logic
       const mockDb = {
         exec: vi.fn(),
@@ -164,7 +164,7 @@ describe('Database Adapter - Unit Tests', () => {
   });
   
   describe('Pragma Handling', () => {
-    it('should handle pragma commands', () => {
+    it('should return values when pragma commands are executed', () => {
       const mockDb = {
         pragma: vi.fn((key: string, value?: any) => {
           if (key === 'journal_mode' && value === 'WAL') {

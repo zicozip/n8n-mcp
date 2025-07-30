@@ -226,7 +226,7 @@ describe('PropertyExtractor', () => {
       });
     });
 
-    it('should extract operations from programmatic node properties', () => {
+    it('should extract operations when node has programmatic properties', () => {
       const operationProp = operationPropertyFactory.build();
       const NodeClass = nodeClassFactory.build({
         description: {
@@ -247,7 +247,7 @@ describe('PropertyExtractor', () => {
       });
     });
 
-    it('should extract operations from routing.operations structure', () => {
+    it('should extract operations when routing.operations structure exists', () => {
       const NodeClass = nodeClassFactory.build({
         description: {
           name: 'test',
@@ -268,7 +268,7 @@ describe('PropertyExtractor', () => {
       expect(operations).toHaveLength(0);
     });
 
-    it('should handle programmatic nodes with resource-based operations', () => {
+    it('should handle operations when programmatic nodes have resource-based structure', () => {
       const resourceProp = resourcePropertyFactory.build();
       const operationProp = {
         displayName: 'Operation',
@@ -309,7 +309,7 @@ describe('PropertyExtractor', () => {
       });
     });
 
-    it('should handle nodes without operations', () => {
+    it('should return empty array when node has no operations', () => {
       const NodeClass = nodeClassFactory.build({
         description: {
           name: 'test',
@@ -322,7 +322,7 @@ describe('PropertyExtractor', () => {
       expect(operations).toEqual([]);
     });
 
-    it('should extract from versioned nodes', () => {
+    it('should extract operations when node has version structure', () => {
       const NodeClass = class {
         nodeVersions = {
           1: {
@@ -364,7 +364,7 @@ describe('PropertyExtractor', () => {
       });
     });
 
-    it('should handle action property name as well as operation', () => {
+    it('should handle extraction when property is named action instead of operation', () => {
       const actionProp = {
         displayName: 'Action',
         name: 'action',
@@ -390,7 +390,7 @@ describe('PropertyExtractor', () => {
   });
 
   describe('detectAIToolCapability', () => {
-    it('should detect direct usableAsTool property', () => {
+    it('should detect AI capability when usableAsTool property is true', () => {
       const NodeClass = nodeClassFactory.build({
         description: {
           name: 'test',
@@ -403,7 +403,7 @@ describe('PropertyExtractor', () => {
       expect(isAITool).toBe(true);
     });
 
-    it('should detect usableAsTool in actions for declarative nodes', () => {
+    it('should detect AI capability when actions contain usableAsTool', () => {
       const NodeClass = nodeClassFactory.build({
         description: {
           name: 'test',
@@ -419,7 +419,7 @@ describe('PropertyExtractor', () => {
       expect(isAITool).toBe(true);
     });
 
-    it('should detect AI tools in versioned nodes', () => {
+    it('should detect AI capability when versioned node has usableAsTool', () => {
       const NodeClass = {
         nodeVersions: {
           1: {
@@ -436,7 +436,7 @@ describe('PropertyExtractor', () => {
       expect(isAITool).toBe(true);
     });
 
-    it('should detect AI tools by node name', () => {
+    it('should detect AI capability when node name contains AI-related terms', () => {
       const aiNodeNames = ['openai', 'anthropic', 'huggingface', 'cohere', 'myai'];
       
       aiNodeNames.forEach(name => {
@@ -450,7 +450,7 @@ describe('PropertyExtractor', () => {
       });
     });
 
-    it('should not detect non-AI nodes as AI tools', () => {
+    it('should return false when node is not AI-related', () => {
       const NodeClass = nodeClassFactory.build({
         description: {
           name: 'slack',
@@ -463,7 +463,7 @@ describe('PropertyExtractor', () => {
       expect(isAITool).toBe(false);
     });
 
-    it('should handle nodes without description', () => {
+    it('should return false when node has no description', () => {
       const NodeClass = class {};
       
       const isAITool = extractor.detectAIToolCapability(NodeClass);
@@ -473,7 +473,7 @@ describe('PropertyExtractor', () => {
   });
 
   describe('extractCredentials', () => {
-    it('should extract credentials from node description', () => {
+    it('should extract credentials when node description contains them', () => {
       const credentials = [
         { name: 'apiKey', required: true },
         { name: 'oauth2', required: false }
@@ -491,7 +491,7 @@ describe('PropertyExtractor', () => {
       expect(extracted).toEqual(credentials);
     });
 
-    it('should extract credentials from versioned nodes', () => {
+    it('should extract credentials when node has version structure', () => {
       const NodeClass = class {
         nodeVersions = {
           1: {
@@ -517,7 +517,7 @@ describe('PropertyExtractor', () => {
       expect(credentials[1].name).toBe('apiKey');
     });
 
-    it('should return empty array when no credentials', () => {
+    it('should return empty array when node has no credentials', () => {
       const NodeClass = nodeClassFactory.build({
         description: {
           name: 'test'
@@ -530,7 +530,7 @@ describe('PropertyExtractor', () => {
       expect(credentials).toEqual([]);
     });
 
-    it('should extract from baseDescription', () => {
+    it('should extract credentials when only baseDescription has them', () => {
       const NodeClass = class {
         baseDescription = {
           credentials: [{ name: 'token', required: true }]
@@ -543,7 +543,7 @@ describe('PropertyExtractor', () => {
       expect(credentials[0].name).toBe('token');
     });
 
-    it('should handle instance-level credentials', () => {
+    it('should extract credentials when they are defined at instance level', () => {
       const NodeClass = class {
         constructor() {
           (this as any).description = {
@@ -560,7 +560,7 @@ describe('PropertyExtractor', () => {
       expect(credentials[0].name).toBe('jwt');
     });
 
-    it('should handle failed instantiation gracefully', () => {
+    it('should return empty array when instantiation fails', () => {
       const NodeClass = class {
         constructor() {
           throw new Error('Cannot instantiate');
@@ -574,7 +574,7 @@ describe('PropertyExtractor', () => {
   });
 
   describe('edge cases', () => {
-    it('should handle deeply nested properties', () => {
+    it('should handle extraction when properties are deeply nested', () => {
       const deepProperty = {
         displayName: 'Deep Options',
         name: 'deepOptions',
@@ -612,7 +612,7 @@ describe('PropertyExtractor', () => {
       expect(properties[0].options[0].options[0].options).toBeDefined();
     });
 
-    it('should handle circular references in node structure', () => {
+    it('should not throw when node structure has circular references', () => {
       const NodeClass = class {
         description: any = { name: 'test' };
         constructor() {
@@ -632,7 +632,7 @@ describe('PropertyExtractor', () => {
       expect(properties).toBeDefined();
     });
 
-    it('should handle mixed operation extraction scenarios', () => {
+    it('should extract from all sources when multiple operation types exist', () => {
       const NodeClass = nodeClassFactory.build({
         description: {
           name: 'test',

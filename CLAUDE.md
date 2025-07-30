@@ -176,6 +176,9 @@ The MCP server exposes tools in several categories:
 - Batch validation operations when possible
 - The diff-based update system saves 80-90% tokens on workflow updates
 
+### Agent Interaction Guidelines
+- Sub-agents are not allowed to spawn further sub-agents
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.

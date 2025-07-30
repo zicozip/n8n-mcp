@@ -4,12 +4,22 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { TestableN8NMCPServer } from './test-helpers';
 
 describe('MCP Session Management', { timeout: 15000 }, () => {
+  let originalMswEnabled: string | undefined;
+  
   beforeAll(() => {
+    // Save original value
+    originalMswEnabled = process.env.MSW_ENABLED;
     // Disable MSW for these integration tests
     process.env.MSW_ENABLED = 'false';
   });
 
   afterAll(async () => {
+    // Restore original value
+    if (originalMswEnabled !== undefined) {
+      process.env.MSW_ENABLED = originalMswEnabled;
+    } else {
+      delete process.env.MSW_ENABLED;
+    }
     // Clean up any shared resources
     await TestableN8NMCPServer.shutdownShared();
   });

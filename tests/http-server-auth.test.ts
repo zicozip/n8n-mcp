@@ -123,7 +123,7 @@ describe('HTTP Server Authentication', () => {
   });
 
   describe('loadAuthToken', () => {
-    it('should load token from AUTH_TOKEN environment variable', () => {
+    it('should load token when AUTH_TOKEN environment variable is set', () => {
       process.env.AUTH_TOKEN = 'test-token-from-env';
       delete process.env.AUTH_TOKEN_FILE;
 
@@ -131,7 +131,7 @@ describe('HTTP Server Authentication', () => {
       expect(token).toBe('test-token-from-env');
     });
 
-    it('should load token from AUTH_TOKEN_FILE when AUTH_TOKEN is not set', () => {
+    it('should load token from file when only AUTH_TOKEN_FILE is set', () => {
       delete process.env.AUTH_TOKEN;
       process.env.AUTH_TOKEN_FILE = authTokenFile;
       
@@ -142,7 +142,7 @@ describe('HTTP Server Authentication', () => {
       expect(token).toBe('test-token-from-file');
     });
 
-    it('should trim whitespace from token file', () => {
+    it('should trim whitespace when reading token from file', () => {
       delete process.env.AUTH_TOKEN;
       process.env.AUTH_TOKEN_FILE = authTokenFile;
       
@@ -153,7 +153,7 @@ describe('HTTP Server Authentication', () => {
       expect(token).toBe('test-token-with-spaces');
     });
 
-    it('should prefer AUTH_TOKEN over AUTH_TOKEN_FILE', () => {
+    it('should prefer AUTH_TOKEN when both variables are set', () => {
       process.env.AUTH_TOKEN = 'env-token';
       process.env.AUTH_TOKEN_FILE = authTokenFile;
       writeFileSync(authTokenFile, 'file-token');
@@ -181,7 +181,7 @@ describe('HTTP Server Authentication', () => {
       expect(errorCall[1]).toBeTruthy();
     });
 
-    it('should return null when neither AUTH_TOKEN nor AUTH_TOKEN_FILE is set', () => {
+    it('should return null when no auth variables are set', () => {
       delete process.env.AUTH_TOKEN;
       delete process.env.AUTH_TOKEN_FILE;
 
@@ -191,7 +191,7 @@ describe('HTTP Server Authentication', () => {
   });
 
   describe('validateEnvironment', () => {
-    it('should exit when no auth token is available', async () => {
+    it('should exit process when no auth token is available', async () => {
       delete process.env.AUTH_TOKEN;
       delete process.env.AUTH_TOKEN_FILE;
 
@@ -208,7 +208,7 @@ describe('HTTP Server Authentication', () => {
       mockExit.mockRestore();
     });
 
-    it('should warn when token is less than 32 characters', async () => {
+    it('should warn when token length is less than 32 characters', async () => {
       process.env.AUTH_TOKEN = 'short-token';
 
       // Import logger to check calls
@@ -231,7 +231,7 @@ describe('HTTP Server Authentication', () => {
   });
 
   describe('Integration test scenarios', () => {
-    it('should successfully authenticate with token from file', () => {
+    it('should authenticate successfully when token is loaded from file', () => {
       // This is more of an integration test placeholder
       // In a real scenario, you'd start the server and make HTTP requests
       
@@ -243,7 +243,7 @@ describe('HTTP Server Authentication', () => {
       expect(token).toBe('very-secure-token-with-more-than-32-characters');
     });
 
-    it('should handle Docker secrets pattern', () => {
+    it('should load token when using Docker secrets pattern', () => {
       // Docker secrets are typically mounted at /run/secrets/
       const dockerSecretPath = join(tempDir, 'run', 'secrets', 'auth_token');
       mkdirSync(join(tempDir, 'run', 'secrets'), { recursive: true });

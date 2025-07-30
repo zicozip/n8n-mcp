@@ -16,11 +16,10 @@ export interface ValidationResult {
 }
 
 export interface ValidationError {
-  type: 'missing_required' | 'invalid_type' | 'invalid_value' | 'incompatible' | 'invalid_configuration';
+  type: 'missing_required' | 'invalid_type' | 'invalid_value' | 'incompatible' | 'invalid_configuration' | 'syntax_error';
   property: string;
   message: string;
-  fix?: string;
-}
+  fix?: string;}
 
 export interface ValidationWarning {
   type: 'missing_common' | 'deprecated' | 'inefficient' | 'security' | 'best_practice' | 'invalid_value';
@@ -38,6 +37,14 @@ export class ConfigValidator {
     config: Record<string, any>, 
     properties: any[]
   ): ValidationResult {
+    // Input validation
+    if (!config || typeof config !== 'object') {
+      throw new TypeError('Config must be a non-null object');
+    }
+    if (!properties || !Array.isArray(properties)) {
+      throw new TypeError('Properties must be a non-null array');
+    }
+    
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
     const suggestions: string[] = [];
@@ -75,6 +82,25 @@ export class ConfigValidator {
       autofix: Object.keys(autofix).length > 0 ? autofix : undefined
     };
   }
+
+  /**
+   * Validate multiple node configurations in batch
+   * Useful for validating entire workflows or multiple nodes at once
+   * 
+   * @param configs - Array of configurations to validate
+   * @returns Array of validation results in the same order as input
+   */
+  static validateBatch(
+    configs: Array<{
+      nodeType: string;
+      config: Record<string, any>;
+      properties: any[];
+    }>
+  ): ValidationResult[] {
+    return configs.map(({ nodeType, config, properties }) => 
+      this.validate(nodeType, config, properties)
+    );
+  }
   
   /**
    * Check for missing required properties
@@ -85,13 +111,27 @@ export class ConfigValidator {
     errors: ValidationError[]
   ): void {
     for (const prop of properties) {
-      if (prop.required && !(prop.name in config)) {
-        errors.push({
-          type: 'missing_required',
-          property: prop.name,
-          message: `Required property '${prop.displayName || prop.name}' is missing`,
-          fix: `Add ${prop.name} to your configuration`
-        });
+      if (!prop || !prop.name) continue; // Skip invalid properties
+      
+      if (prop.required) {
+        const value = config[prop.name];
+        
+        // Check if property is missing or has null/undefined value
+        if (!(prop.name in config)) {
+          errors.push({
+            type: 'missing_required',
+            property: prop.name,
+            message: `Required property '${prop.displayName || prop.name}' is missing`,
+            fix: `Add ${prop.name} to your configuration`
+          });
+        } else if (value === null || value === undefined) {
+          errors.push({
+            type: 'invalid_type',
+            property: prop.name,
+            message: `Required property '${prop.displayName || prop.name}' cannot be null or undefined`,
+            fix: `Provide a valid value for ${prop.name}`
+          });
+        }
       }
     }
   }
@@ -384,7 +424,7 @@ export class ConfigValidator {
     }
     
     // n8n-specific patterns
-    this.validateN8nCodePatterns(code, config.language || 'javascript', warnings);
+    this.validateN8nCodePatterns(code, config.language || 'javascript', errors, warnings);
   }
   
   /**
@@ -533,10 +573,34 @@ export class ConfigValidator {
     
     if (indentTypes.size > 1) {
       errors.push({
-        type: 'invalid_value',
+        type: 'syntax_error',
         property: 'pythonCode',
-        message: 'Mixed tabs and spaces in indentation',
+        message: 'Mixed indentation (tabs and spaces)',
         fix: 'Use either tabs or spaces consistently, not both'
+      });
+    }
+    
+    // Check for unmatched brackets in Python
+    const openSquare = (code.match(/\[/g) || []).length;
+    const closeSquare = (code.match(/\]/g) || []).length;
+    if (openSquare !== closeSquare) {
+      errors.push({
+        type: 'syntax_error',
+        property: 'pythonCode',
+        message: 'Unmatched bracket - missing ] or extra [',
+        fix: 'Check that all [ have matching ]'
+      });
+    }
+    
+    // Check for unmatched curly braces
+    const openCurly = (code.match(/\{/g) || []).length;
+    const closeCurly = (code.match(/\}/g) || []).length;
+    if (openCurly !== closeCurly) {
+      errors.push({
+        type: 'syntax_error',
+        property: 'pythonCode',
+        message: 'Unmatched bracket - missing } or extra {',
+        fix: 'Check that all { have matching }'
       });
     }
     
@@ -557,6 +621,7 @@ export class ConfigValidator {
   private static validateN8nCodePatterns(
     code: string,
     language: string,
+    errors: ValidationError[],
     warnings: ValidationWarning[]
   ): void {
     // Check for return statement
@@ -604,6 +669,12 @@ export class ConfigValidator {
     
     // Check return format for Python
     if (language === 'python' && hasReturn) {
+      // DEBUG: Log to see if we're entering this block
+      if (code.includes('result = {"data": "value"}')) {
+        console.log('DEBUG: Processing Python code with result variable');
+        console.log('DEBUG: Language:', language);
+        console.log('DEBUG: Has return:', hasReturn);
+      }
       // Check for common incorrect patterns
       if (/return\s+items\s*$/.test(code) && !code.includes('json') && !code.includes('dict')) {
         warnings.push({
@@ -620,6 +691,30 @@ export class ConfigValidator {
           message: 'Return value must be a list',
           suggestion: 'Wrap your return dict in a list: return [{"json": {"your": "data"}}]'
         });
+      }
+      
+      // Check for returning objects without json key
+      if (/return\s+(?!.*\[).*{(?!.*["']json["'])/.test(code)) {
+        warnings.push({
+          type: 'invalid_value',
+          message: 'Must return array of objects with json key',
+          suggestion: 'Use format: return [{"json": {"data": "value"}}]'
+        });
+      }
+      
+      // Check for returning variable that might contain invalid format
+      const returnMatch = code.match(/return\s+(\w+)\s*(?:#|$)/m);
+      if (returnMatch) {
+        const varName = returnMatch[1];
+        // Check if this variable is assigned a dict without being in a list
+        const assignmentRegex = new RegExp(`${varName}\\s*=\\s*{[^}]+}`, 'm');
+        if (assignmentRegex.test(code) && !new RegExp(`${varName}\\s*=\\s*\\[`).test(code)) {
+          warnings.push({
+            type: 'invalid_value',
+            message: 'Must return array of objects with json key',
+            suggestion: `Wrap ${varName} in a list with json key: return [{"json": ${varName}}]`
+          });
+        }
       }
     }
     
@@ -649,31 +744,39 @@ export class ConfigValidator {
       
       // Check for incorrect $helpers usage patterns
       if (code.includes('$helpers.getWorkflowStaticData')) {
-        warnings.push({
-          type: 'invalid_value',
-          message: '$helpers.getWorkflowStaticData() is incorrect - causes "$helpers is not defined" error',
-          suggestion: 'Use $getWorkflowStaticData() as a standalone function (no $helpers prefix)'
-        });
+        // Check if it's missing parentheses
+        if (/\$helpers\.getWorkflowStaticData(?!\s*\()/.test(code)) {
+          errors.push({
+            type: 'invalid_value',
+            property: 'jsCode',
+            message: 'getWorkflowStaticData requires parentheses: $helpers.getWorkflowStaticData()',
+            fix: 'Add parentheses: $helpers.getWorkflowStaticData()'
+          });
+        } else {
+          warnings.push({
+            type: 'invalid_value',
+            message: '$helpers.getWorkflowStaticData() is incorrect - causes "$helpers is not defined" error',
+            suggestion: 'Use $getWorkflowStaticData() as a standalone function (no $helpers prefix)'
+          });
+        }
       }
       
       // Check for $helpers usage without checking availability
       if (code.includes('$helpers') && !code.includes('typeof $helpers')) {
         warnings.push({
           type: 'best_practice',
-          message: '$helpers availability varies by n8n version',
+          message: '$helpers is only available in Code nodes with mode="runOnceForEachItem"',
           suggestion: 'Check availability first: if (typeof $helpers !== "undefined" && $helpers.httpRequest) { ... }'
         });
       }
       
       // Check for async without await
-      if (code.includes('async') || code.includes('.then(')) {
-        if (!code.includes('await')) {
-          warnings.push({
-            type: 'best_practice',
-            message: 'Using async operations without await',
-            suggestion: 'Use await for async operations: await $helpers.httpRequest(...)'
-          });
-        }
+      if ((code.includes('fetch(') || code.includes('Promise') || code.includes('.then(')) && !code.includes('await')) {
+        warnings.push({
+          type: 'best_practice',
+          message: 'Async operation without await - will return a Promise instead of actual data',
+          suggestion: 'Use await with async operations: const result = await fetch(...);'
+        });
       }
       
       // Check for crypto usage without require

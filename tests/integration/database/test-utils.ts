@@ -4,13 +4,39 @@ import Database from 'better-sqlite3';
 import { execSync } from 'child_process';
 import type { DatabaseAdapter } from '../../../src/database/database-adapter';
 
+/**
+ * Configuration options for creating test databases
+ */
 export interface TestDatabaseOptions {
+  /** Database mode - in-memory for fast tests, file for persistence tests */
   mode: 'memory' | 'file';
+  /** Custom database filename (only for file mode) */
   name?: string;
+  /** Enable Write-Ahead Logging for better concurrency (file mode only) */
   enableWAL?: boolean;
+  /** Enable FTS5 full-text search extension */
   enableFTS5?: boolean;
 }
 
+/**
+ * Test database utility for creating isolated database instances for testing.
+ * Provides automatic schema setup, cleanup, and various helper methods.
+ * 
+ * @example
+ * ```typescript
+ * // Create in-memory database for unit tests
+ * const testDb = await TestDatabase.createIsolated({ mode: 'memory' });
+ * const db = testDb.getDatabase();
+ * // ... run tests
+ * await testDb.cleanup();
+ * 
+ * // Create file-based database for integration tests
+ * const testDb = await TestDatabase.createIsolated({ 
+ *   mode: 'file',
+ *   enableWAL: true 
+ * });
+ * ```
+ */
 export class TestDatabase {
   private db: Database.Database | null = null;
   private dbPath?: string;
@@ -20,6 +46,13 @@ export class TestDatabase {
     this.options = options;
   }
 
+  /**
+   * Creates an isolated test database instance with automatic cleanup.
+   * Each instance gets a unique name to prevent conflicts in parallel tests.
+   * 
+   * @param options - Database configuration options
+   * @returns Promise resolving to initialized TestDatabase instance
+   */
   static async createIsolated(options: TestDatabaseOptions = { mode: 'memory' }): Promise<TestDatabase> {
     const testDb = new TestDatabase({
       ...options,
@@ -82,11 +115,20 @@ export class TestDatabase {
     }
   }
 
+  /**
+   * Gets the underlying better-sqlite3 database instance.
+   * @throws Error if database is not initialized
+   * @returns The database instance
+   */
   getDatabase(): Database.Database {
     if (!this.db) throw new Error('Database not initialized');
     return this.db;
   }
 
+  /**
+   * Cleans up the database connection and removes any created files.
+   * Should be called in afterEach/afterAll hooks to prevent resource leaks.
+   */
   async cleanup(): Promise<void> {
     if (this.db) {
       this.db.close();
@@ -103,7 +145,12 @@ export class TestDatabase {
     }
   }
 
-  // Helper method to check if database is locked
+  /**
+   * Checks if the database is currently locked by another process.
+   * Useful for testing concurrent access scenarios.
+   * 
+   * @returns true if database is locked, false otherwise
+   */
   isLocked(): boolean {
     if (!this.db) return false;
     try {
@@ -116,10 +163,34 @@ export class TestDatabase {
   }
 }
 
-// Performance measurement utilities
+/**
+ * Performance monitoring utility for measuring test execution times.
+ * Collects timing data and provides statistical analysis.
+ * 
+ * @example
+ * ```typescript
+ * const monitor = new PerformanceMonitor();
+ * 
+ * // Measure single operation
+ * const stop = monitor.start('database-query');
+ * await db.query('SELECT * FROM nodes');
+ * stop();
+ * 
+ * // Get statistics
+ * const stats = monitor.getStats('database-query');
+ * console.log(`Average: ${stats.average}ms`);
+ * ```
+ */
 export class PerformanceMonitor {
   private measurements: Map<string, number[]> = new Map();
 
+  /**
+   * Starts timing for a labeled operation.
+   * Returns a function that should be called to stop timing.
+   * 
+   * @param label - Unique label for the operation being measured
+   * @returns Stop function to call when operation completes
+   */
   start(label: string): () => void {
     const startTime = process.hrtime.bigint();
     return () => {
@@ -133,6 +204,12 @@ export class PerformanceMonitor {
     };
   }
 
+  /**
+   * Gets statistical analysis of all measurements for a given label.
+   * 
+   * @param label - The operation label to get stats for
+   * @returns Statistics object or null if no measurements exist
+   */
   getStats(label: string): {
     count: number;
     total: number;
@@ -157,13 +234,33 @@ export class PerformanceMonitor {
     };
   }
 
+  /**
+   * Clears all collected measurements.
+   */
   clear(): void {
     this.measurements.clear();
   }
 }
 
-// Data generation utilities
+/**
+ * Test data generator for creating mock nodes, templates, and other test objects.
+ * Provides consistent test data with sensible defaults and easy customization.
+ */
 export class TestDataGenerator {
+  /**
+   * Generates a mock node object with default values and custom overrides.
+   * 
+   * @param overrides - Properties to override in the generated node
+   * @returns Complete node object suitable for testing
+   * 
+   * @example
+   * ```typescript
+   * const node = TestDataGenerator.generateNode({
+   *   displayName: 'Custom Node',
+   *   isAITool: true
+   * });
+   * ```
+   */
   static generateNode(overrides: any = {}): any {
     const nodeName = overrides.name || `testNode${Math.random().toString(36).substr(2, 9)}`;
     return {
@@ -186,6 +283,13 @@ export class TestDataGenerator {
     };
   }
 
+  /**
+   * Generates multiple nodes with sequential naming.
+   * 
+   * @param count - Number of nodes to generate
+   * @param template - Common properties to apply to all nodes
+   * @returns Array of generated nodes
+   */
   static generateNodes(count: number, template: any = {}): any[] {
     return Array.from({ length: count }, (_, i) => 
       this.generateNode({
@@ -197,6 +301,12 @@ export class TestDataGenerator {
     );
   }
 
+  /**
+   * Generates a mock workflow template.
+   * 
+   * @param overrides - Properties to override in the template
+   * @returns Template object suitable for testing
+   */
   static generateTemplate(overrides: any = {}): any {
     return {
       id: Math.floor(Math.random() * 100000),
@@ -213,12 +323,35 @@ export class TestDataGenerator {
     };
   }
 
+  /**
+   * Generates multiple workflow templates.
+   * 
+   * @param count - Number of templates to generate
+   * @returns Array of template objects
+   */
   static generateTemplates(count: number): any[] {
     return Array.from({ length: count }, () => this.generateTemplate());
   }
 }
 
-// Transaction test utilities
+/**
+ * Runs a function within a database transaction with automatic rollback on error.
+ * Useful for testing transactional behavior and ensuring test isolation.
+ * 
+ * @param db - Database instance
+ * @param fn - Function to run within transaction
+ * @returns Promise resolving to function result
+ * @throws Rolls back transaction and rethrows any errors
+ * 
+ * @example
+ * ```typescript
+ * await runInTransaction(db, () => {
+ *   db.prepare('INSERT INTO nodes ...').run();
+ *   db.prepare('UPDATE nodes ...').run();
+ *   // If any operation fails, all are rolled back
+ * });
+ * ```
+ */
 export async function runInTransaction<T>(
   db: Database.Database,
   fn: () => T
@@ -234,7 +367,31 @@ export async function runInTransaction<T>(
   }
 }
 
-// Concurrent access simulation
+/**
+ * Simulates concurrent database access using worker processes.
+ * Useful for testing database locking and concurrency handling.
+ * 
+ * @param dbPath - Path to the database file
+ * @param workerCount - Number of concurrent workers to spawn
+ * @param operations - Number of operations each worker should perform
+ * @param workerScript - JavaScript code to execute in each worker
+ * @returns Results with success/failure counts and total duration
+ * 
+ * @example
+ * ```typescript
+ * const results = await simulateConcurrentAccess(
+ *   dbPath,
+ *   10, // 10 workers
+ *   100, // 100 operations each
+ *   `
+ *     const db = require('better-sqlite3')(process.env.DB_PATH);
+ *     for (let i = 0; i < process.env.OPERATIONS; i++) {
+ *       db.prepare('INSERT INTO test VALUES (?)').run(i);
+ *     }
+ *   `
+ * );
+ * ```
+ */
 export async function simulateConcurrentAccess(
   dbPath: string,
   workerCount: number,
@@ -275,7 +432,20 @@ export async function simulateConcurrentAccess(
   };
 }
 
-// Database integrity check
+/**
+ * Performs comprehensive database integrity checks including foreign keys and schema.
+ * 
+ * @param db - Database instance to check
+ * @returns Object with validation status and any error messages
+ * 
+ * @example
+ * ```typescript
+ * const integrity = checkDatabaseIntegrity(db);
+ * if (!integrity.isValid) {
+ *   console.error('Database issues:', integrity.errors);
+ * }
+ * ```
+ */
 export function checkDatabaseIntegrity(db: Database.Database): {
   isValid: boolean;
   errors: string[];
@@ -315,7 +485,21 @@ export function checkDatabaseIntegrity(db: Database.Database): {
   };
 }
 
-// Helper to create a proper DatabaseAdapter from better-sqlite3 instance
+/**
+ * Creates a DatabaseAdapter interface from a better-sqlite3 instance.
+ * This adapter provides a consistent interface for database operations across the codebase.
+ * 
+ * @param db - better-sqlite3 database instance
+ * @returns DatabaseAdapter implementation
+ * 
+ * @example
+ * ```typescript
+ * const db = new Database(':memory:');
+ * const adapter = createTestDatabaseAdapter(db);
+ * const stmt = adapter.prepare('SELECT * FROM nodes WHERE type = ?');
+ * const nodes = stmt.all('webhook');
+ * ```
+ */
 export function createTestDatabaseAdapter(db: Database.Database): DatabaseAdapter {
   return {
     prepare: (sql: string) => {
@@ -349,7 +533,10 @@ export function createTestDatabaseAdapter(db: Database.Database): DatabaseAdapte
   };
 }
 
-// Mock data for testing
+/**
+ * Pre-configured mock nodes for common testing scenarios.
+ * These represent the most commonly used n8n nodes with realistic configurations.
+ */
 export const MOCK_NODES = {
   webhook: {
     nodeType: 'n8n-nodes-base.webhook',

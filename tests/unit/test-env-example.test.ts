@@ -7,7 +7,8 @@ import {
   getTestConfig, 
   getTestTimeout, 
   isFeatureEnabled,
-  isTestMode 
+  isTestMode,
+  loadTestEnvironment 
 } from '@tests/setup/test-env';
 import {
   withEnvOverrides,
@@ -189,6 +190,11 @@ describe('Test Environment Configuration Example', () => {
   });
   
   it('should support MSW configuration', () => {
+    // Ensure test environment is loaded
+    if (!process.env.MSW_ENABLED) {
+      loadTestEnvironment();
+    }
+    
     const testConfig = getTestConfig();
     expect(testConfig.mocking.msw.enabled).toBe(true);
     expect(testConfig.mocking.msw.apiDelay).toBe(0);

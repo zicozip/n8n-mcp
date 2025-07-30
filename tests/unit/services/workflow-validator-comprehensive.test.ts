@@ -238,14 +238,14 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
       expect(result.errors.some(e => e.message === 'Workflow must have a connections object')).toBe(true);
     });
 
-    it('should error when workflow has no nodes', async () => {
+    it('should warn when workflow has no nodes', async () => {
       const workflow = { nodes: [], connections: {} } as any;
 
       const result = await validator.validateWorkflow(workflow);
 
-      expect(result.valid).toBe(false);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].message).toBe('Workflow has no nodes');
+      expect(result.valid).toBe(true); // Empty workflows are valid but get a warning
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].message).toBe('Workflow is empty - no nodes defined');
     });
 
     it('should error for single non-webhook node workflow', async () => {

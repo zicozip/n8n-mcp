@@ -2,6 +2,31 @@ import { Factory } from 'fishery';
 import { faker } from '@faker-js/faker';
 import { ParsedNode } from '../../src/parsers/node-parser';
 
+/**
+ * Factory for generating ParsedNode test data using Fishery.
+ * Creates realistic node configurations with random but valid data.
+ * 
+ * @example
+ * ```typescript
+ * // Create a single node with defaults
+ * const node = NodeFactory.build();
+ * 
+ * // Create a node with specific properties
+ * const slackNode = NodeFactory.build({
+ *   nodeType: 'nodes-base.slack',
+ *   displayName: 'Slack',
+ *   isAITool: true
+ * });
+ * 
+ * // Create multiple nodes
+ * const nodes = NodeFactory.buildList(5);
+ * 
+ * // Create with custom sequence
+ * const sequencedNodes = NodeFactory.buildList(3, {
+ *   displayName: (i) => `Node ${i}`
+ * });
+ * ```
+ */
 export const NodeFactory = Factory.define<ParsedNode>(() => ({
   nodeType: faker.helpers.arrayElement(['nodes-base.', 'nodes-langchain.']) + faker.word.noun(),
   displayName: faker.helpers.arrayElement(['HTTP', 'Slack', 'Google', 'AWS']) + ' ' + faker.word.noun(),

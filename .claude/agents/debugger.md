@@ -52,6 +52,7 @@ When invoked, you will follow this systematic debugging process:
 - Document your debugging process for future reference
 - When multiple solutions exist, choose the one with minimal side effects
 - If the issue is complex, break it down into smaller, manageable parts
+- You are not allowed to spawn sub-agents
 
 **Special Considerations:**
 - For test failures, examine both the test and the code being tested

@@ -40,7 +40,7 @@ describe('NodeParser', () => {
   });
 
   describe('parse method', () => {
-    it('should parse a basic programmatic node', () => {
+    it('should parse correctly when node is programmatic', () => {
       const nodeDefinition = programmaticNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
@@ -66,7 +66,7 @@ describe('NodeParser', () => {
       expect(mockPropertyExtractor.extractCredentials).toHaveBeenCalledWith(NodeClass);
     });
 
-    it('should parse a declarative node', () => {
+    it('should parse correctly when node is declarative', () => {
       const nodeDefinition = declarativeNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
@@ -76,7 +76,7 @@ describe('NodeParser', () => {
       expect(result.nodeType).toBe(`nodes-base.${nodeDefinition.name}`);
     });
 
-    it('should handle node type with package prefix already included', () => {
+    it('should preserve type when package prefix is already included', () => {
       const nodeDefinition = programmaticNodeFactory.build({
         name: 'nodes-base.slack'
       });
@@ -87,7 +87,7 @@ describe('NodeParser', () => {
       expect(result.nodeType).toBe('nodes-base.slack');
     });
 
-    it('should detect trigger nodes', () => {
+    it('should set isTrigger flag when node is a trigger', () => {
       const nodeDefinition = triggerNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
@@ -96,7 +96,7 @@ describe('NodeParser', () => {
       expect(result.isTrigger).toBe(true);
     });
 
-    it('should detect webhook nodes', () => {
+    it('should set isWebhook flag when node is a webhook', () => {
       const nodeDefinition = webhookNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
@@ -105,7 +105,7 @@ describe('NodeParser', () => {
       expect(result.isWebhook).toBe(true);
     });
 
-    it('should detect AI tool capability', () => {
+    it('should set isAITool flag when node has AI capability', () => {
       const nodeDefinition = aiToolNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
@@ -116,7 +116,7 @@ describe('NodeParser', () => {
       expect(result.isAITool).toBe(true);
     });
 
-    it('should parse versioned nodes with VersionedNodeType class', () => {
+    it('should parse correctly when node uses VersionedNodeType class', () => {
       // Create a simple versioned node class without modifying function properties
       const VersionedNodeClass = class VersionedNodeType {
         baseDescription = {
@@ -144,7 +144,7 @@ describe('NodeParser', () => {
       expect(result.nodeType).toBe('nodes-base.versionedNode');
     });
 
-    it('should handle versioned nodes with nodeVersions property', () => {
+    it('should parse correctly when node has nodeVersions property', () => {
       const versionedDef = versionedNodeClassFactory.build();
       const NodeClass = class {
         nodeVersions = versionedDef.nodeVersions;
@@ -157,7 +157,7 @@ describe('NodeParser', () => {
       expect(result.version).toBe('2');
     });
 
-    it('should handle nodes with version array', () => {
+    it('should use max version when version is an array', () => {
       const nodeDefinition = programmaticNodeFactory.build({
         version: [1, 1.1, 1.2, 2]
       });
@@ -169,14 +169,14 @@ describe('NodeParser', () => {
       expect(result.version).toBe('2'); // Should return max version
     });
 
-    it('should throw error for nodes without name property', () => {
+    it('should throw error when node is missing name property', () => {
       const nodeDefinition = malformedNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
       expect(() => parser.parse(NodeClass, 'n8n-nodes-base')).toThrow('Node is missing name property');
     });
 
-    it('should handle nodes that fail to instantiate', () => {
+    it('should use static description when instantiation fails', () => {
       const NodeClass = class {
         static description = programmaticNodeFactory.build();
         constructor() {
@@ -189,7 +189,7 @@ describe('NodeParser', () => {
       expect(result.displayName).toBe(NodeClass.description.displayName);
     });
 
-    it('should extract category from different property names', () => {
+    it('should extract category when using different property names', () => {
       const testCases = [
         { group: ['transform'], expected: 'transform' },
         { categories: ['output'], expected: 'output' },
@@ -211,7 +211,7 @@ describe('NodeParser', () => {
       });
     });
 
-    it('should detect polling trigger nodes', () => {
+    it('should set isTrigger flag when node has polling property', () => {
       const nodeDefinition = programmaticNodeFactory.build({
         polling: true
       });
@@ -222,7 +222,7 @@ describe('NodeParser', () => {
       expect(result.isTrigger).toBe(true);
     });
 
-    it('should detect event trigger nodes', () => {
+    it('should set isTrigger flag when node has eventTrigger property', () => {
       const nodeDefinition = programmaticNodeFactory.build({
         eventTrigger: true
       });
@@ -233,7 +233,7 @@ describe('NodeParser', () => {
       expect(result.isTrigger).toBe(true);
     });
 
-    it('should detect trigger nodes by name', () => {
+    it('should set isTrigger flag when node name contains trigger', () => {
       const nodeDefinition = programmaticNodeFactory.build({
         name: 'myTrigger'
       });
@@ -244,7 +244,7 @@ describe('NodeParser', () => {
       expect(result.isTrigger).toBe(true);
     });
 
-    it('should detect webhook nodes by name', () => {
+    it('should set isWebhook flag when node name contains webhook', () => {
       const nodeDefinition = programmaticNodeFactory.build({
         name: 'customWebhook'
       });
@@ -255,7 +255,7 @@ describe('NodeParser', () => {
       expect(result.isWebhook).toBe(true);
     });
 
-    it('should handle instance-based nodes', () => {
+    it('should parse correctly when node is an instance object', () => {
       const nodeDefinition = programmaticNodeFactory.build();
       const nodeInstance = {
         description: nodeDefinition
