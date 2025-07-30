@@ -1,5 +1,13 @@
 # n8n-MCP Testing Implementation Checklist
 
+## Test Suite Development Status
+
+### Context
+- **Situation**: Building comprehensive test suite from scratch
+- **Branch**: feat/comprehensive-testing-suite (separate from main)
+- **Main Branch Status**: Working in production without tests
+- **Goal**: Add test coverage without disrupting development
+
 ## Immediate Actions (Day 1)
 
 - [x] ~~Fix failing tests (Phase 0)~~ ✅ COMPLETED
@@ -96,12 +104,18 @@ All tests have been successfully migrated from Jest to Vitest:
 
 ## Week 5-6: Integration Tests 🚧 IN PROGRESS
 
-### MCP Protocol Tests ✅ PARTIALLY COMPLETED
+### Real Status (July 29, 2025)
+**Context**: Building test suite from scratch on testing branch. Main branch has no tests.
+
+**Overall Status**: 187/246 tests passing (76% pass rate)
+**Critical Issue**: CI shows green despite 58 failing tests due to `|| true` in workflow
+
+### MCP Protocol Tests 🔄 MIXED STATUS
 - [x] ~~Full MCP server initialization~~ ✅ COMPLETED
-- [x] ~~Tool invocation flow~~ ⚠️ FAILING (response structure issues)
-- [x] ~~Error handling and recovery~~ ✅ COMPLETED
-- [x] ~~Concurrent request handling~~ ✅ COMPLETED
-- [x] ~~Session management~~ ✅ COMPLETED
+- [x] ~~Tool invocation flow~~ ✅ FIXED (30 tests in tool-invocation.test.ts)
+- [ ] Error handling and recovery ⚠️ 16 FAILING (error-handling.test.ts)
+- [x] ~~Concurrent request handling~~ ✅ COMPLETED  
+- [ ] Session management ⚠️ 5 FAILING (timeout issues)
 
 ### n8n API Integration 🔄 PENDING
 - [ ] Workflow CRUD operations (MSW mocks ready)
@@ -110,12 +124,12 @@ All tests have been successfully migrated from Jest to Vitest:
 - [ ] Authentication handling
 - [ ] Error scenarios
 
-### Database Integration ✅ COMPLETED
-- [x] ~~SQLite operations with real DB~~ ✅ COMPLETED
-- [x] ~~FTS5 search functionality~~ ✅ COMPLETED
-- [x] ~~Transaction handling~~ ✅ COMPLETED
-- [ ] Migration testing
-- [x] ~~Performance under load~~ ✅ COMPLETED
+### Database Integration ⚠️ ISSUES FOUND
+- [x] ~~SQLite operations with real DB~~ ✅ BASIC TESTS PASS
+- [ ] FTS5 search functionality ⚠️ 7 FAILING (syntax errors)
+- [ ] Transaction handling ⚠️ 1 FAILING (isolation issues)
+- [ ] Migration testing 🔄 NOT STARTED
+- [ ] Performance under load ⚠️ 4 FAILING (slower than thresholds)
 
 ## Week 7-8: E2E & Performance
 
@@ -199,10 +213,17 @@ All tests have been successfully migrated from Jest to Vitest:
 
 ## Success Criteria
 
-### Technical Metrics
-- Coverage: 80%+ overall (62.67% - needs improvement), 90%+ critical paths ✅
-- Performance: All benchmarks within limits ✅
-- Reliability: Zero flaky tests ✅ (1 skipped)
+### Current Reality Check
+- **Unit Tests**: ✅ SOLID (932 passing, 87.8% coverage)
+- **Integration Tests**: ⚠️ NEEDS WORK (58 failing, 76% pass rate)
+- **E2E Tests**: 🔄 NOT STARTED
+- **CI/CD**: ⚠️ BROKEN (hiding failures with || true)
+
+### Revised Technical Metrics
+- Coverage: Currently 87.8% for unit tests ✅
+- Integration test pass rate: Target 100% (currently 76%)
+- Performance: Adjust thresholds based on reality
+- Reliability: Fix flaky tests during repair
 - Speed: CI pipeline < 5 minutes ✅ (~2 minutes)
 
 ### Team Metrics
@@ -220,11 +241,19 @@ All tests have been successfully migrated from Jest to Vitest:
 - **Phase 3.5**: Critical Service Testing ✅ COMPLETED
 - **Phase 3.8**: CI/CD & Infrastructure ✅ COMPLETED
 - **Phase 4**: Integration Tests 🚧 IN PROGRESS
-  - Database Integration: ✅ COMPLETED
-  - MCP Protocol Tests: ⚠️ FAILING (67/255 tests failing with response structure issues)
-  - n8n API Integration: 🔄 PENDING (MSW infrastructure ready)
-  - **Key Issues**: Integration tests failing due to response structure mismatch in callTool responses
-  - **Next Steps**: Fix response structure issues in MCP protocol tests
+  - **Status**: 58 out of 246 tests failing (23.6% failure rate)
+  - **CI Issue**: Tests appear green due to `|| true` error suppression
+  - **Categories of Failures**:
+    - Database: 9 tests (state isolation, FTS5 syntax)
+    - MCP Protocol: 16 tests (response structure in error-handling.test.ts)
+    - MSW: 6 tests (not initialized properly)
+    - FTS5 Search: 7 tests (query syntax issues)
+    - Session Management: 5 tests (async cleanup)
+    - Performance: 15 tests (threshold mismatches)
+  - **Next Steps**: 
+    1. Get team buy-in for "red" CI
+    2. Remove `|| true` from workflow
+    3. Fix tests systematically by category
 - **Phase 5**: E2E Tests 🔄 PENDING
 
 ## Resources & Tools

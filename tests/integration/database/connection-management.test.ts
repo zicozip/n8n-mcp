@@ -49,16 +49,29 @@ describe('Database Connection Management', () => {
       // Insert data in first connection
       const node = TestDataGenerator.generateNode();
       conn1.prepare(`
-        INSERT INTO nodes (name, type, display_name, package, version, type_version, data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO nodes (
+          node_type, package_name, display_name, description, category,
+          development_style, is_ai_tool, is_trigger, is_webhook,
+          is_versioned, version, documentation, properties_schema,
+          operations, credentials_required
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        node.name,
-        node.type,
+        node.nodeType,
+        node.packageName,
         node.displayName,
-        node.package,
+        node.description || '',
+        node.category || 'Core Nodes',
+        node.developmentStyle || 'programmatic',
+        node.isAITool ? 1 : 0,
+        node.isTrigger ? 1 : 0,
+        node.isWebhook ? 1 : 0,
+        node.isVersioned ? 1 : 0,
         node.version,
-        node.typeVersion,
-        JSON.stringify(node)
+        node.documentation,
+        JSON.stringify(node.properties || []),
+        JSON.stringify(node.operations || []),
+        JSON.stringify(node.credentials || [])
       );
 
       // Verify data is isolated
@@ -117,8 +130,10 @@ describe('Database Connection Management', () => {
       
       // Create initial database
       testDb = new TestDatabase({ mode: 'file', name: 'test-pool.db' });
-      await testDb.initialize();
-      await testDb.cleanup();
+      const initialDb = await testDb.initialize();
+      
+      // Close the initial connection but keep the file
+      initialDb.close();
 
       // Simulate multiple connections
       const connections: Database.Database[] = [];
@@ -179,6 +194,9 @@ describe('Database Connection Management', () => {
         } catch (error) {
           // Ignore cleanup errors
         }
+        
+        // Mark testDb as cleaned up to avoid double cleanup
+        testDb = null as any;
       }
     });
   });
@@ -205,9 +223,24 @@ describe('Database Connection Management', () => {
       fs.writeFileSync(corruptPath, 'This is not a valid SQLite database');
 
       try {
-        expect(() => {
-          new Database(corruptPath);
-        }).toThrow();
+        // SQLite may not immediately throw on construction, but on first operation
+        let db: Database.Database | null = null;
+        let errorThrown = false;
+        
+        try {
+          db = new Database(corruptPath);
+          // Try to use the database - this should fail
+          db.prepare('SELECT 1').get();
+        } catch (error) {
+          errorThrown = true;
+          expect(error).toBeDefined();
+        } finally {
+          if (db && db.open) {
+            db.close();
+          }
+        }
+        
+        expect(errorThrown).toBe(true);
       } finally {
         if (fs.existsSync(corruptPath)) {
           fs.unlinkSync(corruptPath);
@@ -220,22 +253,39 @@ describe('Database Connection Management', () => {
       testDb = new TestDatabase({ mode: 'file', name: 'test-readonly.db' });
       const db = await testDb.initialize();
 
-      // Insert test data
+      // Insert test data using correct schema
       const node = TestDataGenerator.generateNode();
       db.prepare(`
-        INSERT INTO nodes (name, type, display_name, package, version, type_version, data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO nodes (
+          node_type, package_name, display_name, description, category,
+          development_style, is_ai_tool, is_trigger, is_webhook,
+          is_versioned, version, documentation, properties_schema,
+          operations, credentials_required
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        node.name,
-        node.type,
+        node.nodeType,
+        node.packageName,
         node.displayName,
-        node.package,
+        node.description || '',
+        node.category || 'Core Nodes',
+        node.developmentStyle || 'programmatic',
+        node.isAITool ? 1 : 0,
+        node.isTrigger ? 1 : 0,
+        node.isWebhook ? 1 : 0,
+        node.isVersioned ? 1 : 0,
         node.version,
-        node.typeVersion,
-        JSON.stringify(node)
+        node.documentation,
+        JSON.stringify(node.properties || []),
+        JSON.stringify(node.operations || []),
+        JSON.stringify(node.credentials || [])
       );
 
-      const dbPath = path.join(__dirname, '../../../.test-dbs/test-readonly.db');
+      // Close the write database first
+      db.close();
+      
+      // Get the actual path from the database name
+      const dbPath = db.name;
 
       // Open as readonly
       const readonlyDb = new Database(dbPath, { readonly: true });

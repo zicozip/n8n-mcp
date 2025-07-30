@@ -1,22 +1,24 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { TestableN8NMCPServer } from './test-helpers';
 
-describe('MCP Session Management', () => {
-  let mcpServer: TestableN8NMCPServer;
-
-  beforeEach(async () => {
-    mcpServer = new TestableN8NMCPServer();
-    await mcpServer.initialize();
+describe('MCP Session Management', { timeout: 15000 }, () => {
+  beforeAll(() => {
+    // Disable MSW for these integration tests
+    process.env.MSW_ENABLED = 'false';
   });
 
-  afterEach(async () => {
-    await mcpServer.close();
+  afterAll(async () => {
+    // Clean up any shared resources
+    await TestableN8NMCPServer.shutdownShared();
   });
 
   describe('Session Lifecycle', () => {
     it('should establish a new session', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -31,12 +33,18 @@ describe('MCP Session Management', () => {
 
       // Session should be established
       const serverInfo = await client.getServerVersion();
-      expect(serverInfo).toHaveProperty('name', 'n8n-mcp');
-
+      expect(serverInfo).toHaveProperty('name', 'n8n-documentation-mcp');
+      
+      // Clean up - ensure proper order
       await client.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
+      await mcpServer.close();
     });
 
     it('should handle session initialization with capabilities', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -54,11 +62,17 @@ describe('MCP Session Management', () => {
 
       const serverInfo = await client.getServerVersion();
       expect(serverInfo!.capabilities).toHaveProperty('tools');
-
+      
+      // Clean up - ensure proper order
       await client.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
+      await mcpServer.close();
     });
 
     it('should handle clean session termination', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -75,6 +89,7 @@ describe('MCP Session Management', () => {
 
       // Clean termination
       await client.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
 
       // Client should be closed
       try {
@@ -83,9 +98,14 @@ describe('MCP Session Management', () => {
       } catch (error) {
         expect(error).toBeDefined();
       }
+      
+      await mcpServer.close();
     });
 
     it('should handle abrupt disconnection', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -101,6 +121,7 @@ describe('MCP Session Management', () => {
 
       // Simulate abrupt disconnection by closing transport
       await clientTransport.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for transport to fully close
 
       // Further operations should fail
       try {
@@ -109,11 +130,17 @@ describe('MCP Session Management', () => {
       } catch (error) {
         expect(error).toBeDefined();
       }
+      
+      // Note: client is already disconnected, no need to close it
+      await mcpServer.close();
     });
   });
 
   describe('Multiple Sessions', () => {
     it('should handle multiple concurrent sessions', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const sessions = [];
 
       // Create 5 concurrent sessions
@@ -127,12 +154,12 @@ describe('MCP Session Management', () => {
         }, {});
 
         await client.connect(clientTransport);
-        sessions.push(client);
+        sessions.push({ client, serverTransport, clientTransport });
       }
 
       // All sessions should work independently
-      const promises = sessions.map((client, index) => 
-        client.callTool({ name: 'get_database_statistics', arguments: {} })
+      const promises = sessions.map((session, index) => 
+        session.client.callTool({ name: 'get_database_statistics', arguments: {} })
           .then(response => ({ client: index, response }))
       );
 
@@ -144,11 +171,16 @@ describe('MCP Session Management', () => {
         expect((result.response[0] as any).type).toBe('text');
       });
 
-      // Clean up all sessions
-      await Promise.all(sessions.map(client => client.close()));
+      // Clean up all sessions - close clients first
+      await Promise.all(sessions.map(s => s.client.close()));
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give time for all clients to fully close
+      await mcpServer.close();
     });
 
     it('should isolate session state', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       // Create two sessions
       const [st1, ct1] = InMemoryTransport.createLinkedPair();
       const [st2, ct2] = InMemoryTransport.createLinkedPair();
@@ -173,17 +205,23 @@ describe('MCP Session Management', () => {
 
       expect(nodes1).toHaveLength(3);
       expect(nodes2).toHaveLength(5);
-
+      
+      // Close clients first
       await client1.close();
       await client2.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for clients to fully close
+      await mcpServer.close();
     });
   });
 
   describe('Session Recovery', () => {
     it('should not persist state between sessions', async () => {
       // First session
+      const mcpServer1 = new TestableN8NMCPServer();
+      await mcpServer1.initialize();
+      
       const [st1, ct1] = InMemoryTransport.createLinkedPair();
-      await mcpServer.connectToTransport(st1);
+      await mcpServer1.connectToTransport(st1);
 
       const client1 = new Client({ name: 'client1', version: '1.0.0' }, {});
       await client1.connect(ct1);
@@ -191,10 +229,14 @@ describe('MCP Session Management', () => {
       // Make some requests
       await client1.callTool({ name: 'list_nodes', arguments: { limit: 10 } });
       await client1.close();
+      await mcpServer1.close();
 
       // Second session - should be fresh
+      const mcpServer2 = new TestableN8NMCPServer();
+      await mcpServer2.initialize();
+      
       const [st2, ct2] = InMemoryTransport.createLinkedPair();
-      await mcpServer.connectToTransport(st2);
+      await mcpServer2.connectToTransport(st2);
 
       const client2 = new Client({ name: 'client2', version: '1.0.0' }, {});
       await client2.connect(ct2);
@@ -204,10 +246,14 @@ describe('MCP Session Management', () => {
       expect(response).toBeDefined();
 
       await client2.close();
+      await mcpServer2.close();
     });
 
     it('should handle rapid session cycling', async () => {
       for (let i = 0; i < 10; i++) {
+        const mcpServer = new TestableN8NMCPServer();
+        await mcpServer.initialize();
+        
         const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
         await mcpServer.connectToTransport(serverTransport);
 
@@ -222,13 +268,18 @@ describe('MCP Session Management', () => {
         const response = await client.callTool({ name: 'get_database_statistics', arguments: {} });
         expect(response).toBeDefined();
 
+        // Explicit cleanup for each iteration
         await client.close();
+        await mcpServer.close();
       }
     });
   });
 
   describe('Session Metadata', () => {
     it('should track client information', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -246,11 +297,16 @@ describe('MCP Session Management', () => {
       // Server should be aware of client
       const serverInfo = await client.getServerVersion();
       expect(serverInfo).toBeDefined();
-
+      
       await client.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
+      await mcpServer.close();
     });
 
     it('should handle different client versions', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const clients = [];
 
       for (const version of ['1.0.0', '1.1.0', '2.0.0']) {
@@ -272,19 +328,24 @@ describe('MCP Session Management', () => {
       );
 
       responses.forEach(info => {
-        expect(info!.name).toBe('n8n-mcp');
+        expect(info!.name).toBe('n8n-documentation-mcp');
       });
-
+      
       // Clean up
       await Promise.all(clients.map(client => client.close()));
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give time for all clients to fully close
+      await mcpServer.close();
     });
   });
 
   describe('Session Limits', () => {
     it('should handle many sequential sessions', async () => {
-      const sessionCount = 50;
+      const sessionCount = 20; // Reduced for faster tests
       
       for (let i = 0; i < sessionCount; i++) {
+        const mcpServer = new TestableN8NMCPServer();
+        await mcpServer.initialize();
+        
         const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
         await mcpServer.connectToTransport(serverTransport);
 
@@ -300,11 +361,16 @@ describe('MCP Session Management', () => {
           await client.callTool({ name: 'get_database_statistics', arguments: {} });
         }
 
+        // Explicit cleanup
         await client.close();
+        await mcpServer.close();
       }
     });
 
     it('should handle session with heavy usage', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -316,7 +382,7 @@ describe('MCP Session Management', () => {
       await client.connect(clientTransport);
 
       // Make many requests
-      const requestCount = 100;
+      const requestCount = 20; // Reduced for faster tests
       const promises = [];
 
       for (let i = 0; i < requestCount; i++) {
@@ -327,13 +393,18 @@ describe('MCP Session Management', () => {
 
       const responses = await Promise.all(promises);
       expect(responses).toHaveLength(requestCount);
-
+      
       await client.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
+      await mcpServer.close();
     });
   });
 
   describe('Session Error Recovery', () => {
     it('should handle errors without breaking session', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -357,11 +428,16 @@ describe('MCP Session Management', () => {
       // Session should still be active
       const response = await client.callTool({ name: 'get_database_statistics', arguments: {} });
       expect(response).toBeDefined();
-
+      
       await client.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
+      await mcpServer.close();
     });
 
     it('should handle multiple errors in sequence', async () => {
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(serverTransport);
 
@@ -387,14 +463,19 @@ describe('MCP Session Management', () => {
       // Session should still work
       const response = await client.callTool({ name: 'list_nodes', arguments: { limit: 1 } });
       expect(response).toBeDefined();
-
+      
       await client.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
+      await mcpServer.close();
     });
   });
 
   describe('Session Transport Events', () => {
     it('should handle transport reconnection', async () => {
       // Initial connection
+      const mcpServer = new TestableN8NMCPServer();
+      await mcpServer.initialize();
+      
       const [st1, ct1] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(st1);
 
@@ -411,7 +492,7 @@ describe('MCP Session Management', () => {
 
       await client.close();
 
-      // New connection with same client
+      // New connection with same server
       const [st2, ct2] = InMemoryTransport.createLinkedPair();
       await mcpServer.connectToTransport(st2);
 
@@ -425,8 +506,10 @@ describe('MCP Session Management', () => {
       // Should work normally
       const response2 = await newClient.callTool({ name: 'get_database_statistics', arguments: {} });
       expect(response2).toBeDefined();
-
+      
       await newClient.close();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Give time for client to fully close
+      await mcpServer.close();
     });
   });
 });

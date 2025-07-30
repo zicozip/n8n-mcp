@@ -521,10 +521,22 @@ describe('NodeRepository Integration Tests', () => {
 
   describe('Transaction handling', () => {
     it('should handle errors gracefully', () => {
+      // Test with a node that violates database constraints
       const invalidNode = {
-        nodeType: null, // This will cause an error
-        packageName: 'test',
-        displayName: 'Test'
+        nodeType: '', // Empty string should violate PRIMARY KEY constraint
+        packageName: null, // NULL should violate NOT NULL constraint
+        displayName: null, // NULL should violate NOT NULL constraint
+        description: '',
+        category: 'automation',
+        style: 'programmatic',
+        isAITool: false,
+        isTrigger: false,
+        isWebhook: false,
+        isVersioned: false,
+        version: '1',
+        properties: [],
+        operations: [],
+        credentials: []
       } as any;
 
       expect(() => {

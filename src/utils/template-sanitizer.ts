@@ -60,7 +60,19 @@ export class TemplateSanitizer {
    */
   sanitizeWorkflow(workflow: any): { sanitized: any; wasModified: boolean } {
     const original = JSON.stringify(workflow);
-    const sanitized = this.sanitizeObject(workflow);
+    let sanitized = this.sanitizeObject(workflow);
+    
+    // Remove sensitive workflow data
+    if (sanitized.pinData) {
+      delete sanitized.pinData;
+    }
+    if (sanitized.executionId) {
+      delete sanitized.executionId;
+    }
+    if (sanitized.staticData) {
+      delete sanitized.staticData;
+    }
+    
     const wasModified = JSON.stringify(sanitized) !== original;
     
     return { sanitized, wasModified };

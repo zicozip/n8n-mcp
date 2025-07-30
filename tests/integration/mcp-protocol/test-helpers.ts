@@ -8,12 +8,19 @@ import {
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { N8NDocumentationMCPServer } from '../../../src/mcp/server';
 
+let sharedMcpServer: N8NDocumentationMCPServer | null = null;
+
 export class TestableN8NMCPServer {
   private mcpServer: N8NDocumentationMCPServer;
   private server: Server;
-  private transport?: Transport;
+  private transports = new Set<Transport>();
+  private connections = new Set<any>();
 
   constructor() {
+    // Use the production database for performance tests
+    // This ensures we have real data for meaningful performance testing
+    delete process.env.NODE_DB_PATH;
+    
     this.server = new Server({
       name: 'n8n-documentation-mcp',
       version: '1.0.0'
@@ -87,8 +94,6 @@ export class TestableN8NMCPServer {
   }
 
   async connectToTransport(transport: Transport): Promise<void> {
-    this.transport = transport;
-    
     // Ensure transport has required properties before connecting
     if (!transport || typeof transport !== 'object') {
       throw new Error('Invalid transport provided');
@@ -102,11 +107,62 @@ export class TestableN8NMCPServer {
       }
     }
     
-    await this.server.connect(transport);
+    // Track this transport for cleanup
+    this.transports.add(transport);
+    
+    const connection = await this.server.connect(transport);
+    this.connections.add(connection);
   }
 
   async close(): Promise<void> {
-    // The server handles closing the transport
-    await this.mcpServer.shutdown();
+    // Close all connections first
+    for (const connection of this.connections) {
+      try {
+        if (connection && typeof connection.close === 'function') {
+          await connection.close();
+        }
+      } catch (error) {
+        // Ignore errors during connection cleanup
+      }
+    }
+    this.connections.clear();
+    
+    // Close all tracked transports
+    const closePromises: Promise<void>[] = [];
+    
+    for (const transport of this.transports) {
+      try {
+        // Force close all transports
+        const transportAny = transport as any;
+        
+        // Try different close methods
+        if (transportAny.close && typeof transportAny.close === 'function') {
+          closePromises.push(transportAny.close());
+        }
+        if (transportAny.serverTransport?.close) {
+          closePromises.push(transportAny.serverTransport.close());
+        }
+        if (transportAny.clientTransport?.close) {
+          closePromises.push(transportAny.clientTransport.close());
+        }
+      } catch (error) {
+        // Ignore errors during transport cleanup
+      }
+    }
+    
+    // Wait for all transports to close
+    await Promise.allSettled(closePromises);
+    
+    // Clear the transports set
+    this.transports.clear();
+    
+    // Don't shut down the shared MCP server instance
+  }
+  
+  static async shutdownShared(): Promise<void> {
+    if (sharedMcpServer) {
+      await sharedMcpServer.shutdown();
+      sharedMcpServer = null;
+    }
   }
 }

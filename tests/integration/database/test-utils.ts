@@ -20,6 +20,15 @@ export class TestDatabase {
     this.options = options;
   }
 
+  static async createIsolated(options: TestDatabaseOptions = { mode: 'memory' }): Promise<TestDatabase> {
+    const testDb = new TestDatabase({
+      ...options,
+      name: options.name || `isolated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.db`
+    });
+    await testDb.initialize();
+    return testDb;
+  }
+
   async initialize(): Promise<Database.Database> {
     if (this.db) return this.db;
 

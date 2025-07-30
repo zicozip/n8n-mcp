@@ -666,24 +666,79 @@ describe('ServiceName', () => {
 
 ## Phase 4: Integration Tests (Week 5-6) 🚧 IN PROGRESS
 
-### Summary of Phase 4 Status:
-- **Started**: July 29, 2025
-- **Database Integration**: ✅ COMPLETED (all tests passing)
-- **MCP Protocol Tests**: ⚠️ FAILING (response structure issues)
-- **n8n API Integration**: 🔄 PENDING (MSW infrastructure ready)
-- **CI/CD Status**: ✅ Tests run in ~8 minutes (fixed hanging issue)
+### Real Situation Assessment (Updated July 29, 2025)
 
-### Key Issues Resolved:
-1. **Test Hanging**: Fixed by separating MSW from global setup
-2. **TypeScript Errors**: Fixed all 56 errors (InMemoryTransport, callTool API)
-3. **Import Issues**: Fixed better-sqlite3 ES module imports
+**Context**: This is a new test suite being developed from scratch. The main branch has been working without tests.
 
-### Current Blocker:
-- **MCP Protocol Tests Failing**: 67/255 tests failing with "Cannot read properties of undefined (reading 'text')"
-- **Root Cause**: Response structure mismatch - tests expect `response[0].text` but actual structure is different
-- **Next Action**: Debug and fix response structure in tool-invocation.test.ts
+### Current Status:
+- **Total Integration Tests**: 246 tests across 14 files
+- **Failing**: 58 tests (23.6% failure rate)
+- **Passing**: 187 tests
+- **CI/CD Issue**: Tests appear green due to `|| true` in workflow file
 
-### Task 4.1: MCP Protocol Test ✅ COMPLETED (with issues)
+### Categories of Failures:
+
+#### 1. Database Issues (9 failures)
+- **Root Cause**: Tests not properly isolating database state
+- **Symptoms**: 
+  - "UNIQUE constraint failed: templates.workflow_id"
+  - "database disk image is malformed"
+  - FTS5 rebuild syntax error
+
+#### 2. MCP Protocol (30 failures)
+- **Root Cause**: Response structure mismatch
+- **Fixed**: tool-invocation.test.ts (30 tests now passing)
+- **Remaining**: error-handling.test.ts (16 failures)
+- **Issue**: Tests expect different response format than server provides
+
+#### 3. MSW Mock Server (6 failures)
+- **Root Cause**: MSW not properly initialized after removal from global setup
+- **Symptoms**: "Request failed with status code 501"
+
+#### 4. FTS5 Search (7 failures)
+- **Root Cause**: Incorrect query syntax and expectations
+- **Issues**: Empty search terms, NOT queries, result count mismatches
+
+#### 5. Session Management (5 failures)
+- **Root Cause**: Async operations not cleaned up
+- **Symptom**: Tests timing out at 360+ seconds
+
+#### 6. Performance Tests (1 failure)
+- **Root Cause**: Operations slower than expected thresholds
+
+### Task 4.1: Fix Integration Test Infrastructure
+
+**Priority Order for Fixes:**
+
+1. **Remove CI Error Suppression** (Critical)
+   ```yaml
+   # In .github/workflows/test.yml
+   - name: Run integration tests
+     run: npm run test:integration -- --reporter=default --reporter=junit
+     # Remove the || true that's hiding failures
+   ```
+
+2. **Fix Database Isolation** (High Priority)
+   - Each test needs its own database instance
+   - Proper cleanup in afterEach hooks
+   - Fix FTS5 rebuild syntax: `INSERT INTO templates_fts(templates_fts) VALUES('rebuild')`
+
+3. **Fix MSW Initialization** (High Priority)
+   - Add MSW setup to each test file that needs it
+   - Ensure proper start/stop lifecycle
+
+4. **Fix MCP Response Structure** (Medium Priority)
+   - Already fixed in tool-invocation.test.ts
+   - Apply same pattern to error-handling.test.ts
+
+5. **Fix FTS5 Search Queries** (Medium Priority)
+   - Handle empty search terms
+   - Fix NOT query syntax
+   - Adjust result count expectations
+
+6. **Fix Session Management** (Low Priority)
+   - Add proper async cleanup
+   - Fix transport initialization issues
 
 **Create file:** `tests/integration/mcp-protocol/protocol-compliance.test.ts`
 ```typescript
@@ -816,6 +871,48 @@ VALUES (
   datetime('now')
 );
 ```
+
+## Pragmatic Fix Strategy
+
+### Immediate Actions (Do First)
+
+1. **Get Stakeholder Buy-in**
+   - Explain that CI will show "red" for 1-2 weeks
+   - This is necessary to see real test status
+   - Tests have been passing falsely
+
+2. **Create Tracking Dashboard**
+   ```markdown
+   # Integration Test Fix Progress
+   - [ ] Database Isolation (9 tests)
+   - [ ] MCP Error Handling (16 tests)
+   - [ ] MSW Setup (6 tests)
+   - [ ] FTS5 Search (7 tests)
+   - [ ] Session Management (5 tests)
+   - [ ] Performance (15 tests)
+   Total: 58 failing tests to fix
+   ```
+
+3. **Remove Error Suppression**
+   - Only after team is prepared
+   - Commit with clear message about expected failures
+
+### Fix Implementation Plan
+
+#### Week 1: Critical Infrastructure
+- Fix database isolation issues
+- Fix MSW initialization
+- Target: 15-20 tests fixed
+
+#### Week 2: Protocol & Search
+- Fix remaining MCP protocol tests
+- Fix FTS5 search syntax
+- Target: 20-25 tests fixed
+
+#### Week 3: Performance & Cleanup
+- Adjust performance thresholds if needed
+- Fix session management
+- Target: All tests passing
 
 ## AI Implementation Guidelines
 

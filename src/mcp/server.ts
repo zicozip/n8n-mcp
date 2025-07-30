@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
   InitializeRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { existsSync } from 'fs';
+import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import { n8nDocumentationToolsFinal } from './tools';
 import { n8nManagementTools } from './tools-n8n-manager';
@@ -54,18 +54,25 @@ export class N8NDocumentationMCPServer {
   private cache = new SimpleCache();
 
   constructor() {
-    // Try multiple database paths
-    const possiblePaths = [
-      path.join(process.cwd(), 'data', 'nodes.db'),
-      path.join(__dirname, '../../data', 'nodes.db'),
-      './data/nodes.db'
-    ];
-    
+    // Check for test environment first
+    const envDbPath = process.env.NODE_DB_PATH;
     let dbPath: string | null = null;
-    for (const p of possiblePaths) {
-      if (existsSync(p)) {
-        dbPath = p;
-        break;
+    
+    if (envDbPath && (envDbPath === ':memory:' || existsSync(envDbPath))) {
+      dbPath = envDbPath;
+    } else {
+      // Try multiple database paths
+      const possiblePaths = [
+        path.join(process.cwd(), 'data', 'nodes.db'),
+        path.join(__dirname, '../../data', 'nodes.db'),
+        './data/nodes.db'
+      ];
+      
+      for (const p of possiblePaths) {
+        if (existsSync(p)) {
+          dbPath = p;
+          break;
+        }
       }
     }
     
@@ -105,12 +112,34 @@ export class N8NDocumentationMCPServer {
   private async initializeDatabase(dbPath: string): Promise<void> {
     try {
       this.db = await createDatabaseAdapter(dbPath);
+      
+      // If using in-memory database for tests, initialize schema
+      if (dbPath === ':memory:') {
+        await this.initializeInMemorySchema();
+      }
+      
       this.repository = new NodeRepository(this.db);
       this.templateService = new TemplateService(this.db);
       logger.info(`Initialized database from: ${dbPath}`);
     } catch (error) {
       logger.error('Failed to initialize database:', error);
       throw new Error(`Failed to open database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  private async initializeInMemorySchema(): Promise<void> {
+    if (!this.db) return;
+    
+    // Read and execute schema
+    const schemaPath = path.join(__dirname, '../../src/database/schema.sql');
+    const schema = await fs.readFile(schemaPath, 'utf-8');
+    
+    // Execute schema statements
+    const statements = schema.split(';').filter(stmt => stmt.trim());
+    for (const statement of statements) {
+      if (statement.trim()) {
+        this.db.exec(statement);
+      }
     }
   }
   
