@@ -26,7 +26,7 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 
 # Install only essential runtime tools
-RUN apk add --no-cache curl && \
+RUN apk add --no-cache curl su-exec && \
     rm -rf /var/cache/apk/*
 
 # Copy runtime-only package.json
@@ -45,10 +45,11 @@ COPY data/nodes.db ./data/
 COPY src/database/schema-optimized.sql ./src/database/
 COPY .env.example ./
 
-# Copy entrypoint script and config parser
+# Copy entrypoint script, config parser, and n8n-mcp command
 COPY docker/docker-entrypoint.sh /usr/local/bin/
 COPY docker/parse-config.js /app/docker/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY docker/n8n-mcp /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/n8n-mcp
 
 # Add container labels
 LABEL org.opencontainers.image.source="https://github.com/czlonkowski/n8n-mcp"

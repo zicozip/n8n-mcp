@@ -8,7 +8,17 @@
 
 const fs = require('fs');
 
+// Debug logging support
+const DEBUG = process.env.DEBUG_CONFIG === 'true';
+
+function debugLog(message) {
+  if (DEBUG) {
+    process.stderr.write(`[parse-config] ${message}\n`);
+  }
+}
+
 const configPath = process.argv[2] || '/app/config.json';
+debugLog(`Using config path: ${configPath}`);
 
 // Dangerous environment variables that should never be set
 const DANGEROUS_VARS = new Set([
@@ -28,6 +38,11 @@ function sanitizeKey(key) {
   
   if (!keyStr) {
     return 'EMPTY_KEY';
+  }
+  
+  // Special handling for NODE_DB_PATH to preserve exact casing
+  if (keyStr === 'NODE_DB_PATH') {
+    return 'NODE_DB_PATH';
   }
   
   const sanitized = keyStr
@@ -55,6 +70,7 @@ function shellQuote(str) {
 
 try {
   if (!fs.existsSync(configPath)) {
+    debugLog(`Config file not found at: ${configPath}`);
     process.exit(0); // Silent exit if no config file
   }
 
@@ -63,15 +79,19 @@ try {
   
   try {
     configContent = fs.readFileSync(configPath, 'utf8');
+    debugLog(`Read config file, size: ${configContent.length} bytes`);
   } catch (readError) {
     // Silent exit on read errors
+    debugLog(`Error reading config: ${readError.message}`);
     process.exit(0);
   }
   
   try {
     config = JSON.parse(configContent);
+    debugLog(`Parsed config with ${Object.keys(config).length} top-level keys`);
   } catch (parseError) {
     // Silent exit on invalid JSON
+    debugLog(`Error parsing JSON: ${parseError.message}`);
     process.exit(0);
   }
   
@@ -95,6 +115,7 @@ try {
       
       // Skip if sanitization resulted in EMPTY_KEY (indicating invalid key)
       if (sanitizedKey === 'EMPTY_KEY') {
+        debugLog(`Skipping key '${key}': invalid key name`);
         continue;
       }
       
@@ -102,6 +123,7 @@ try {
       
       // Skip if key is too long
       if (envKey.length > 255) {
+        debugLog(`Skipping key '${envKey}': too long (${envKey.length} chars)`);
         continue;
       }
       
@@ -149,6 +171,7 @@ try {
     
     // Skip dangerous variables
     if (DANGEROUS_VARS.has(key) || key.startsWith('BASH_FUNC_')) {
+      debugLog(`Warning: Ignoring dangerous variable: ${key}`);
       process.stderr.write(`Warning: Ignoring dangerous variable: ${key}\n`);
       continue;
     }

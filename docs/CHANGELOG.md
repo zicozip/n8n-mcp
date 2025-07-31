@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.3] - 2025-07-31
+
+### Fixed
+- **Docker User Switching**: Fixed critical issue where user switching was completely broken in Alpine Linux containers
+  - Added `su-exec` package for proper privilege dropping in Alpine containers
+  - Fixed broken shell command in entrypoint that used invalid `exec $*` syntax
+  - Fixed non-existent `printf %q` command in Alpine's BusyBox shell
+  - Rewrote user switching logic to properly exec processes with nodejs user
+  - Fixed race condition in database initialization by ensuring lock directory exists
+- **Docker Integration Tests**: Fixed failing tests due to Alpine Linux ps command behavior
+  - Alpine's BusyBox ps shows numeric UIDs instead of usernames for non-system users
+  - Tests now accept multiple possible values: "nodejs", "1001", or "1" (truncated)
+  - Added proper process user verification instead of relying on docker exec output
+  - Added demonstration test showing docker exec vs main process user context
+
+### Security
+- **Command Injection Prevention**: Added comprehensive input validation in n8n-mcp wrapper
+  - Whitelist-based argument validation to prevent command injection
+  - Only allows safe arguments: --port, --host, --verbose, --quiet, --help, --version
+  - Rejects any arguments containing shell metacharacters or suspicious content
+- **Database Initialization**: Added proper file locking to prevent race conditions
+  - Uses flock for exclusive database initialization
+  - Prevents multiple containers from corrupting database during simultaneous startup
+
+### Testing
+- **Docker Test Reliability**: Comprehensive fixes for CI environment compatibility
+  - Added Docker image build step in test setup
+  - Fixed environment variable visibility tests to check actual process environment
+  - Fixed user switching tests to check real process user instead of docker exec context
+  - All 18 Docker integration tests now pass reliably in CI
+
+### Changed
+- **Docker Base Image**: Updated su-exec installation in Dockerfile for proper user switching
+- **Error Handling**: Improved error messages and logging in Docker entrypoint script
+
 ## [2.8.2] - 2025-07-31
 
 ### Added

@@ -54,10 +54,27 @@ fi
 # Database initialization with file locking to prevent race conditions
 if [ ! -f "$DB_PATH" ]; then
     log_message "Database not found at $DB_PATH. Initializing..."
-    # Use a lock file to prevent multiple containers from initializing simultaneously
-    (
-        flock -x 200
-        # Double-check inside the lock
+    
+    # Ensure lock directory exists before attempting to create lock
+    mkdir -p "$DB_DIR"
+    
+    # Check if flock is available
+    if command -v flock >/dev/null 2>&1; then
+        # Use a lock file to prevent multiple containers from initializing simultaneously
+        (
+            flock -x 200
+            # Double-check inside the lock
+            if [ ! -f "$DB_PATH" ]; then
+                log_message "Initializing database at $DB_PATH..."
+                cd /app && NODE_DB_PATH="$DB_PATH" node dist/scripts/rebuild.js || {
+                    log_message "ERROR: Database initialization failed" >&2
+                    exit 1
+                }
+            fi
+        ) 200>"$DB_DIR/.db.lock"
+    else
+        # Fallback without locking (log warning)
+        log_message "WARNING: flock not available, database initialization may have race conditions"
         if [ ! -f "$DB_PATH" ]; then
             log_message "Initializing database at $DB_PATH..."
             cd /app && NODE_DB_PATH="$DB_PATH" node dist/scripts/rebuild.js || {
@@ -65,7 +82,7 @@ if [ ! -f "$DB_PATH" ]; then
                 exit 1
             }
         fi
-    ) 200>"$DB_DIR/.db.lock"
+    fi
 fi
 
 # Fix permissions if running as root (for development)
@@ -77,7 +94,34 @@ if [ "$(id -u)" = "0" ]; then
         chown -R nodejs:nodejs /app/data
     fi
     # Switch to nodejs user with proper exec chain for signal propagation
-    exec su -s /bin/sh nodejs -c "exec $*"
+    # Build the command to execute
+    if [ $# -eq 0 ]; then
+        # No arguments provided, use default CMD from Dockerfile
+        set -- node /app/dist/mcp/index.js
+    fi
+    # Export all needed environment variables
+    export MCP_MODE="$MCP_MODE"
+    export NODE_DB_PATH="$NODE_DB_PATH"
+    export AUTH_TOKEN="$AUTH_TOKEN"
+    export AUTH_TOKEN_FILE="$AUTH_TOKEN_FILE"
+    
+    # Ensure AUTH_TOKEN_FILE has restricted permissions for security
+    if [ -n "$AUTH_TOKEN_FILE" ] && [ -f "$AUTH_TOKEN_FILE" ]; then
+        chmod 600 "$AUTH_TOKEN_FILE" 2>/dev/null || true
+        chown nodejs:nodejs "$AUTH_TOKEN_FILE" 2>/dev/null || true
+    fi
+    # Use exec with su-exec for proper signal handling (Alpine Linux)
+    # su-exec advantages:
+    # - Proper signal forwarding (critical for container shutdown)
+    # - No intermediate shell process
+    # - Designed for privilege dropping in containers
+    if command -v su-exec >/dev/null 2>&1; then
+        exec su-exec nodejs "$@"
+    else
+        # Fallback to su with preserved environment
+        # Use safer approach to prevent command injection
+        exec su -p nodejs -s /bin/sh -c 'exec "$0" "$@"' -- sh -c 'exec "$@"' -- "$@"
+    fi
 fi
 
 # Handle special commands
@@ -86,6 +130,11 @@ if [ "$1" = "n8n-mcp" ] && [ "$2" = "serve" ]; then
     export MCP_MODE="http"
     shift 2  # Remove "n8n-mcp serve" from arguments
     set -- node /app/dist/mcp/index.js "$@"
+fi
+
+# Export NODE_DB_PATH so it's visible to child processes
+if [ -n "$DB_PATH" ]; then
+    export NODE_DB_PATH="$DB_PATH"
 fi
 
 # Execute the main command directly with exec
@@ -107,5 +156,10 @@ if [ "$MCP_MODE" = "stdio" ]; then
     fi
 else
     # HTTP mode or other
-    exec "$@"
+    if [ $# -eq 0 ]; then
+        # No arguments provided, use default
+        exec node /app/dist/mcp/index.js
+    else
+        exec "$@"
+    fi
 fi
