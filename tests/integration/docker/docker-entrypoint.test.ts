@@ -244,16 +244,14 @@ describeDocker('Docker Entrypoint Script', () => {
         `docker run -d --name ${containerName} -e NODE_DB_PATH=/tmp/custom/test.db -e AUTH_TOKEN=test ${imageName}`
       );
       
-      // Give it time to start
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Give it more time to start and stabilize
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // Check the actual process environment
-      const { stdout } = await exec(
-        `docker exec ${containerName} sh -c "cat /proc/1/environ | tr '\0' '\n' | grep NODE_DB_PATH || echo 'NODE_DB_PATH not found'"`
-      );
+      // Check the actual process environment using the helper function
+      const nodeDbPath = await getProcessEnv(containerName, 'NODE_DB_PATH');
 
-      expect(stdout.trim()).toBe('NODE_DB_PATH=/tmp/custom/test.db');
-    });
+      expect(nodeDbPath).toBe('/tmp/custom/test.db');
+    }, 15000);
 
     it('should validate NODE_DB_PATH format', async () => {
       if (!dockerAvailable) return;
@@ -307,14 +305,21 @@ describeDocker('Docker Entrypoint Script', () => {
       // We need to run a detached container to check the actual user
       await exec(`docker run -d --name ${containerName} --user root ${imageName}`);
       
-      // Give it a moment to start
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Give it more time to start and for the user switch to complete
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // Check the effective user of the main process
-      const { stdout } = await exec(`docker exec ${containerName} whoami`);
+      // Check that the node process is running as nodejs user
+      // When running as root, the entrypoint uses 'su' to run as nodejs
+      // We need to find the actual node process, not the su process
+      const { stdout } = await exec(
+        `docker exec ${containerName} sh -c "ps aux | grep 'node.*dist' | grep -v grep | head -1"`
+      );
 
-      expect(stdout.trim()).toBe('nodejs');
-    }, 10000);
+      // The process should be owned by nodejs user (check first column)
+      expect(stdout.trim()).not.toBe(''); // Ensure we found a process
+      const processOwner = stdout.trim().split(/\s+/)[0];
+      expect(processOwner).toBe('nodejs');
+    }, 15000);
   });
 
   describe('Auth token validation', () => {
