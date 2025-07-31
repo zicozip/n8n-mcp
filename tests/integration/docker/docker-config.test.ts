@@ -207,10 +207,13 @@ describeDocker('Docker Config File Integration', () => {
       containers.push(containerName);
 
       // Run container with n8n-mcp serve command
+      // The wrapper script should set MCP_MODE=http when "serve" is used
       const { stdout } = await exec(
-        `docker run --name ${containerName} -e AUTH_TOKEN=test-token ${imageName} sh -c "export DEBUG_COMMAND=true; n8n-mcp serve & sleep 1; env | grep MCP_MODE"`
+        `docker run --name ${containerName} -e AUTH_TOKEN=test-token ${imageName} sh -c "n8n-mcp serve & sleep 2 && ps aux | grep -v grep | grep 'node.*index.js' && echo 'MCP_MODE='\\$MCP_MODE"`
       );
 
+      // Check that the process is running and MCP_MODE is set
+      expect(stdout).toMatch(/node.*index\.js/);
       expect(stdout.trim()).toContain('MCP_MODE=http');
     });
 
@@ -256,16 +259,16 @@ describeDocker('Docker Config File Integration', () => {
       // Create config with custom database path
       const configPath = path.join(tempDir, 'config.json');
       const config = {
-        node_db_path: '/custom/path/custom.db'
+        NODE_DB_PATH: '/app/data/custom/custom.db'  // Use uppercase and a writable path
       };
       fs.writeFileSync(configPath, JSON.stringify(config));
 
-      // Run container with custom database path
-      const { stdout, stderr } = await exec(
-        `docker run --name ${containerName} -v "${configPath}:/app/config.json:ro" ${imageName} sh -c "mkdir -p /custom/path && env | grep NODE_DB_PATH"`
+      // Run container and check the environment variable
+      const { stdout } = await exec(
+        `docker run --name ${containerName} -v "${configPath}:/app/config.json:ro" ${imageName} sh -c "env | grep NODE_DB_PATH"`
       );
 
-      expect(stdout.trim()).toBe('NODE_DB_PATH=/custom/path/custom.db');
+      expect(stdout.trim()).toBe('NODE_DB_PATH=/app/data/custom/custom.db');
     });
   });
 

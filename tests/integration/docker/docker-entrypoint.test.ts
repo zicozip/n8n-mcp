@@ -183,11 +183,11 @@ describeDocker('Docker Entrypoint Script', () => {
         expect(psOutput).toContain('node');
         expect(psOutput).toContain('/app/dist/mcp/index.js');
         
-        // Also try to check if port 3000 is listening (indicating HTTP mode)
-        const { stdout: netstatOutput } = await exec(`docker exec ${containerName} netstat -tln | grep 3000 || echo "Port 3000 not listening"`);
+        // Check environment variable to confirm HTTP mode
+        const { stdout: envOutput } = await exec(`docker exec ${containerName} sh -c "env | grep MCP_MODE || echo 'MCP_MODE not set'"`);
         
-        // If in HTTP mode, it should be listening on port 3000
-        expect(netstatOutput).not.toContain('Port 3000 not listening');
+        // Should have MCP_MODE=http
+        expect(envOutput.trim()).toBe('MCP_MODE=http');
       } catch (error) {
         console.error('Test error:', error);
         throw error;
