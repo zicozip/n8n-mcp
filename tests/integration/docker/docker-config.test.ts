@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { execSync, spawn } from 'child_process';
+import { execSync, spawn, exec as execCallback } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { promisify } from 'util';
 
-const exec = promisify(require('child_process').exec);
+const exec = promisify(execCallback);
 
 // Skip tests if not in CI or if Docker is not available
 const SKIP_DOCKER_TESTS = process.env.CI !== 'true' && !process.env.RUN_DOCKER_TESTS;
@@ -49,13 +49,32 @@ describeDocker('Docker Config File Integration', () => {
       return;
     }
 
-    // Build test image
-    const projectRoot = path.resolve(__dirname, '../../../');
-    console.log('Building Docker image for tests...');
-    execSync(`docker build -t ${imageName} .`, {
-      cwd: projectRoot,
-      stdio: 'inherit'
-    });
+    // Check if image exists
+    let imageExists = false;
+    try {
+      await exec(`docker image inspect ${imageName}`);
+      imageExists = true;
+    } catch {
+      imageExists = false;
+    }
+
+    // Build test image if in CI or if explicitly requested or if image doesn't exist
+    if (!imageExists || process.env.CI === 'true' || process.env.BUILD_DOCKER_TEST_IMAGE === 'true') {
+      const projectRoot = path.resolve(__dirname, '../../../');
+      console.log('Building Docker image for tests...');
+      try {
+        execSync(`docker build -t ${imageName} .`, {
+          cwd: projectRoot,
+          stdio: 'inherit'
+        });
+        console.log('Docker image built successfully');
+      } catch (error) {
+        console.error('Failed to build Docker image:', error);
+        throw new Error('Docker image build failed - tests cannot continue');
+      }
+    } else {
+      console.log(`Using existing Docker image: ${imageName}`);
+    }
   }, 60000); // Increase timeout to 60s for Docker build
 
   beforeEach(() => {
