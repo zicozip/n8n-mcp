@@ -307,26 +307,56 @@ describeDocker('Docker Entrypoint Script', () => {
       // Give it time to start and for the user switch to complete
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      // Method 1: Check what user docker exec runs as
-      // When the entrypoint switches to nodejs user, docker exec should also run as that user
-      const { stdout: idOutput } = await exec(
+      // IMPORTANT: We cannot check the user with `docker exec id -u` because
+      // docker exec creates a new process with the container's original user context (root).
+      // Instead, we must check the user of the actual n8n-mcp process that was
+      // started by the entrypoint script and switched to the nodejs user.
+      const { stdout: processInfo } = await exec(
+        `docker exec ${containerName} ps aux | grep -E 'node.*mcp.*index\\.js' | grep -v grep | head -1`
+      );
+      
+      // Parse the user from the ps output (first column)
+      const processUser = processInfo.trim().split(/\s+/)[0];
+      
+      // The process should be running as nodejs user
+      expect(processUser).toBe('nodejs');
+      
+      // Also verify the process exists and is running
+      expect(processInfo).toContain('node');
+      expect(processInfo).toContain('index.js');
+    }, 15000);
+
+    it('should demonstrate docker exec runs as root while main process runs as nodejs', async () => {
+      if (!dockerAvailable) return;
+
+      const containerName = generateContainerName('exec-vs-process');
+      containers.push(containerName);
+
+      // Run as root
+      await exec(`docker run -d --name ${containerName} --user root ${imageName}`);
+      
+      // Give it time to start
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Check docker exec user (will be root)
+      const { stdout: execUser } = await exec(
         `docker exec ${containerName} id -u`
       );
       
-      // The nodejs user has UID 1001
-      expect(idOutput.trim()).toBe('1001');
-      
-      // Method 2: Verify the effective user can write to nodejs-owned directories
-      // This proves we're actually running as nodejs, not just reporting it
-      const { stdout: writeTest } = await exec(
-        `docker exec ${containerName} sh -c "touch /app/test-write && echo success || echo failed"`
+      // Check main process user (will be nodejs)
+      const { stdout: processInfo } = await exec(
+        `docker exec ${containerName} ps aux | grep -E 'node.*mcp.*index\\.js' | grep -v grep | head -1`
       );
+      const processUser = processInfo.trim().split(/\s+/)[0];
       
-      expect(writeTest.trim()).toBe('success');
+      // Docker exec runs as root (UID 0)
+      expect(execUser.trim()).toBe('0');
       
-      // Clean up test file
-      await exec(`docker exec ${containerName} rm -f /app/test-write`);
-    }, 15000);
+      // But the main process runs as nodejs
+      expect(processUser).toBe('nodejs');
+      
+      // This demonstrates why we need to check the process, not docker exec
+    });
   });
 
   describe('Auth token validation', () => {
