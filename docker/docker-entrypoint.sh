@@ -94,8 +94,34 @@ if [ "$(id -u)" = "0" ]; then
         chown -R nodejs:nodejs /app/data
     fi
     # Switch to nodejs user with proper exec chain for signal propagation
-    # Preserve environment variables when switching user
-    exec su -s /bin/sh nodejs -c "export MCP_MODE='$MCP_MODE'; export NODE_DB_PATH='$NODE_DB_PATH'; export AUTH_TOKEN='$AUTH_TOKEN'; export AUTH_TOKEN_FILE='$AUTH_TOKEN_FILE'; exec $*"
+    # Build the command to execute
+    if [ $# -eq 0 ]; then
+        # No arguments provided, use default CMD from Dockerfile
+        set -- node /app/dist/mcp/index.js
+    fi
+    # Export all needed environment variables
+    export MCP_MODE="$MCP_MODE"
+    export NODE_DB_PATH="$NODE_DB_PATH"
+    export AUTH_TOKEN="$AUTH_TOKEN"
+    export AUTH_TOKEN_FILE="$AUTH_TOKEN_FILE"
+    
+    # Ensure AUTH_TOKEN_FILE has restricted permissions for security
+    if [ -n "$AUTH_TOKEN_FILE" ] && [ -f "$AUTH_TOKEN_FILE" ]; then
+        chmod 600 "$AUTH_TOKEN_FILE" 2>/dev/null || true
+        chown nodejs:nodejs "$AUTH_TOKEN_FILE" 2>/dev/null || true
+    fi
+    # Use exec with su-exec for proper signal handling (Alpine Linux)
+    # su-exec advantages:
+    # - Proper signal forwarding (critical for container shutdown)
+    # - No intermediate shell process
+    # - Designed for privilege dropping in containers
+    if command -v su-exec >/dev/null 2>&1; then
+        exec su-exec nodejs "$@"
+    else
+        # Fallback to su with preserved environment
+        # Use safer approach to prevent command injection
+        exec su -p nodejs -s /bin/sh -c 'exec "$0" "$@"' -- sh -c 'exec "$@"' -- "$@"
+    fi
 fi
 
 # Handle special commands
@@ -130,5 +156,10 @@ if [ "$MCP_MODE" = "stdio" ]; then
     fi
 else
     # HTTP mode or other
-    exec "$@"
+    if [ $# -eq 0 ]; then
+        # No arguments provided, use default
+        exec node /app/dist/mcp/index.js
+    else
+        exec "$@"
+    fi
 fi

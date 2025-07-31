@@ -26,7 +26,7 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 
 # Install only essential runtime tools
-RUN apk add --no-cache curl && \
+RUN apk add --no-cache curl su-exec && \
     rm -rf /var/cache/apk/*
 
 # Copy runtime-only package.json
