@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { exec as execCallback, execSync } from 'child_process';
-import { promisify } from 'util';
+import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-
-const exec = promisify(execCallback);
+import { exec, waitForHealthy, isRunningInHttpMode, getProcessEnv } from './test-helpers';
 
 // Skip tests if not in CI or if Docker is not available
 const SKIP_DOCKER_TESTS = process.env.CI !== 'true' && !process.env.RUN_DOCKER_TESTS;
@@ -183,11 +181,14 @@ describeDocker('Docker Entrypoint Script', () => {
         expect(psOutput).toContain('node');
         expect(psOutput).toContain('/app/dist/mcp/index.js');
         
-        // Check environment variable to confirm HTTP mode
-        const { stdout: envOutput } = await exec(`docker exec ${containerName} sh -c "env | grep MCP_MODE || echo 'MCP_MODE not set'"`);
+        // Check that the server is actually running in HTTP mode
+        // We can verify this by checking if the HTTP server is listening
+        const { stdout: curlOutput } = await exec(
+          `docker exec ${containerName} sh -c "curl -s http://localhost:3000/health || echo 'Server not responding'"`
+        );
         
-        // Should have MCP_MODE=http
-        expect(envOutput.trim()).toBe('MCP_MODE=http');
+        // If running in HTTP mode, the health endpoint should respond
+        expect(curlOutput).toContain('ok');
       } catch (error) {
         console.error('Test error:', error);
         throw error;
@@ -238,12 +239,19 @@ describeDocker('Docker Entrypoint Script', () => {
       containers.push(containerName);
 
       // Use a path that the nodejs user can create
-      const { stdout, stderr } = await exec(
-        `docker run --name ${containerName} -e NODE_DB_PATH=/tmp/custom/test.db ${imageName} sh -c "env | grep NODE_DB_PATH"`
+      // We need to check the environment inside the running process, not the initial shell
+      await exec(
+        `docker run -d --name ${containerName} -e NODE_DB_PATH=/tmp/custom/test.db -e AUTH_TOKEN=test ${imageName}`
+      );
+      
+      // Give it time to start
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Check the actual process environment
+      const { stdout } = await exec(
+        `docker exec ${containerName} sh -c "cat /proc/1/environ | tr '\0' '\n' | grep NODE_DB_PATH || echo 'NODE_DB_PATH not found'"`
       );
 
-      // The script validates that NODE_DB_PATH ends with .db and should not error
-      expect(stderr).not.toContain('ERROR: NODE_DB_PATH must end with .db');
       expect(stdout.trim()).toBe('NODE_DB_PATH=/tmp/custom/test.db');
     });
 
@@ -272,13 +280,21 @@ describeDocker('Docker Entrypoint Script', () => {
       const containerName = generateContainerName('root-permissions');
       containers.push(containerName);
 
-      // Run as root and check that database directory permissions are fixed
+      // Run as root and let the container initialize
+      await exec(
+        `docker run -d --name ${containerName} --user root ${imageName}`
+      );
+      
+      // Give entrypoint time to fix permissions
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Check directory ownership
       const { stdout } = await exec(
-        `docker run --name ${containerName} --user root ${imageName} sh -c "sleep 1 && ls -ld /app/data 2>/dev/null | awk '{print \\$3}' || echo 'ownership-check-failed'"`
+        `docker exec ${containerName} ls -ld /app/data | awk '{print $3}'`
       );
 
       // Directory should be owned by nodejs user after entrypoint runs
-      expect(stdout.trim()).toMatch(/nodejs|ownership-check-failed/);
+      expect(stdout.trim()).toBe('nodejs');
     });
 
     it('should switch to nodejs user when running as root', async () => {

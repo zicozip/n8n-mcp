@@ -40,6 +40,11 @@ function sanitizeKey(key) {
     return 'EMPTY_KEY';
   }
   
+  // Special handling for NODE_DB_PATH to preserve exact casing
+  if (keyStr === 'NODE_DB_PATH') {
+    return 'NODE_DB_PATH';
+  }
+  
   const sanitized = keyStr
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, '_')

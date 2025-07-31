@@ -94,7 +94,8 @@ if [ "$(id -u)" = "0" ]; then
         chown -R nodejs:nodejs /app/data
     fi
     # Switch to nodejs user with proper exec chain for signal propagation
-    exec su -s /bin/sh nodejs -c "exec $*"
+    # Preserve environment variables when switching user
+    exec su -s /bin/sh nodejs -c "export MCP_MODE='$MCP_MODE'; export NODE_DB_PATH='$NODE_DB_PATH'; export AUTH_TOKEN='$AUTH_TOKEN'; export AUTH_TOKEN_FILE='$AUTH_TOKEN_FILE'; exec $*"
 fi
 
 # Handle special commands
@@ -103,6 +104,11 @@ if [ "$1" = "n8n-mcp" ] && [ "$2" = "serve" ]; then
     export MCP_MODE="http"
     shift 2  # Remove "n8n-mcp serve" from arguments
     set -- node /app/dist/mcp/index.js "$@"
+fi
+
+# Export NODE_DB_PATH so it's visible to child processes
+if [ -n "$DB_PATH" ]; then
+    export NODE_DB_PATH="$DB_PATH"
 fi
 
 # Execute the main command directly with exec

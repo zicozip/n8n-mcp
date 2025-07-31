@@ -32,6 +32,11 @@ if [ "$1" = "serve" ]; then
     # Validate remaining arguments
     validate_args "$@"
     
+    # For testing purposes, output the environment variable if requested
+    if [ "$DEBUG_ENV" = "true" ]; then
+        echo "MCP_MODE=$MCP_MODE" >&2
+    fi
+    
     exec node /app/dist/mcp/index.js "$@"
 else
     # For non-serve commands, pass through without validation

@@ -1,11 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { execSync, spawn, exec as execCallback } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { promisify } from 'util';
-
-const exec = promisify(execCallback);
+import { exec, waitForHealthy, isRunningInHttpMode, getProcessEnv } from './test-helpers';
 
 // Skip tests if not in CI or if Docker is not available
 const SKIP_DOCKER_TESTS = process.env.CI !== 'true' && !process.env.RUN_DOCKER_TESTS;
@@ -207,14 +205,21 @@ describeDocker('Docker Config File Integration', () => {
       containers.push(containerName);
 
       // Run container with n8n-mcp serve command
-      // The wrapper script should set MCP_MODE=http when "serve" is used
+      // Start the container in detached mode
+      await exec(
+        `docker run -d --name ${containerName} -e AUTH_TOKEN=test-token -p 13001:3000 ${imageName} n8n-mcp serve`
+      );
+      
+      // Give it time to start
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Verify it's running in HTTP mode by checking the health endpoint
       const { stdout } = await exec(
-        `docker run --name ${containerName} -e AUTH_TOKEN=test-token ${imageName} sh -c "n8n-mcp serve & sleep 2 && ps aux | grep -v grep | grep 'node.*index.js' && echo 'MCP_MODE='\\$MCP_MODE"`
+        `docker exec ${containerName} curl -s http://localhost:3000/health || echo 'Server not responding'`
       );
 
-      // Check that the process is running and MCP_MODE is set
-      expect(stdout).toMatch(/node.*index\.js/);
-      expect(stdout.trim()).toContain('MCP_MODE=http');
+      // If HTTP mode is active, health endpoint should respond
+      expect(stdout).toContain('ok');
     });
 
     it('should preserve additional arguments when using "n8n-mcp serve"', async () => {
@@ -263,9 +268,17 @@ describeDocker('Docker Config File Integration', () => {
       };
       fs.writeFileSync(configPath, JSON.stringify(config));
 
-      // Run container and check the environment variable
+      // Run container in detached mode to check environment after initialization
+      await exec(
+        `docker run -d --name ${containerName} -v "${configPath}:/app/config.json:ro" ${imageName}`
+      );
+      
+      // Give it time to load config and start
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Check the actual process environment
       const { stdout } = await exec(
-        `docker run --name ${containerName} -v "${configPath}:/app/config.json:ro" ${imageName} sh -c "env | grep NODE_DB_PATH"`
+        `docker exec ${containerName} sh -c "cat /proc/1/environ | tr '\\0' '\\n' | grep NODE_DB_PATH || echo 'NODE_DB_PATH not found'"`
       );
 
       expect(stdout.trim()).toBe('NODE_DB_PATH=/app/data/custom/custom.db');
