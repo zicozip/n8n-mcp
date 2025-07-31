@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# Load configuration from JSON file if it exists
+if [ -f "/app/config.json" ] && [ -f "/app/docker/parse-config.js" ]; then
+    # Use Node.js to generate shell-safe export commands
+    eval $(node /app/docker/parse-config.js /app/config.json)
+fi
+
 # Helper function for safe logging (prevents stdio mode corruption)
 log_message() {
     [ "$MCP_MODE" != "stdio" ] && echo "$@"
@@ -72,6 +78,14 @@ if [ "$(id -u)" = "0" ]; then
     fi
     # Switch to nodejs user with proper exec chain for signal propagation
     exec su -s /bin/sh nodejs -c "exec $*"
+fi
+
+# Handle special commands
+if [ "$1" = "n8n-mcp" ] && [ "$2" = "serve" ]; then
+    # Set HTTP mode for "n8n-mcp serve" command
+    export MCP_MODE="http"
+    shift 2  # Remove "n8n-mcp serve" from arguments
+    set -- node /app/dist/mcp/index.js "$@"
 fi
 
 # Execute the main command directly with exec

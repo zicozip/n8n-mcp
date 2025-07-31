@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.2] - 2025-07-31
+
+### Added
+- **Docker Configuration File Support**: Full support for JSON config files in Docker containers (fixes #105)
+  - Parse JSON configuration files and safely export as environment variables
+  - Support for `/app/config.json` mounting in Docker containers
+  - Secure shell quoting to prevent command injection vulnerabilities
+  - Dangerous environment variable blocking (PATH, LD_PRELOAD, etc.)
+  - Key sanitization for invalid environment variable names
+  - Support for all JSON data types with proper edge case handling
+
+### Fixed
+- **Docker Server Mode**: Fixed Docker image failing to start in server mode
+  - Added `n8n-mcp serve` command support in Docker entrypoint
+  - Properly set HTTP mode when `serve` command is used
+  - Fixed missing n8n-mcp binary in Docker image
+
+### Security
+- **Command Injection Prevention**: Comprehensive security hardening for config parsing
+  - Implemented POSIX-compliant shell quoting without using eval
+  - Blocked dangerous environment variables that could affect system security
+  - Added protection against shell metacharacters in configuration values
+  - Sanitized configuration keys to prevent invalid shell variable names
+
+### Testing
+- **Docker Configuration Tests**: Added 53 comprehensive tests for Docker config support
+  - Unit tests for config parsing, security, and edge cases
+  - Integration tests for Docker entrypoint behavior
+  - Tests for serve command transformation
+  - Security-focused tests for injection prevention
+
+### Documentation
+- Updated Docker documentation with config file mounting examples
+- Added troubleshooting guide for Docker configuration issues
+
 ## [2.8.0] - 2025-07-30
 
 ### Added

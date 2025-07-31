@@ -68,6 +68,37 @@ docker run -d \
 
 *Either `AUTH_TOKEN` or `AUTH_TOKEN_FILE` must be set for HTTP mode. If both are set, `AUTH_TOKEN` takes precedence.
 
+### Configuration File Support (v2.8.2+)
+
+You can mount a JSON configuration file to set environment variables:
+
+```bash
+# Create config file
+cat > config.json << EOF
+{
+  "MCP_MODE": "http",
+  "AUTH_TOKEN": "your-secure-token",
+  "LOG_LEVEL": "info",
+  "N8N_API_URL": "https://your-n8n-instance.com",
+  "N8N_API_KEY": "your-api-key"
+}
+EOF
+
+# Run with config file
+docker run -d \
+  --name n8n-mcp \
+  -v $(pwd)/config.json:/app/config.json:ro \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+The config file supports:
+- All standard environment variables
+- Nested objects (flattened with underscore separators)
+- Arrays, booleans, numbers, and strings
+- Secure handling with command injection prevention
+- Dangerous variable blocking for security
+
 ### Docker Compose Configuration
 
 The default `docker-compose.yml` provides:
@@ -140,6 +171,19 @@ docker run --rm -i --init \
   -e MCP_MODE=stdio \
   -v n8n-mcp-data:/app/data \
   ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+### Server Mode (Command Line)
+
+You can also use the `serve` command to start in HTTP mode:
+
+```bash
+# Using the serve command (v2.8.2+)
+docker run -d \
+  --name n8n-mcp \
+  -e AUTH_TOKEN=your-secure-token \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest serve
 ```
 
 Configure Claude Desktop:

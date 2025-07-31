@@ -14,6 +14,41 @@ This guide helps resolve common issues when running n8n-mcp with Docker, especia
 
 ## Common Issues
 
+### Docker Configuration File Not Working (v2.8.2+)
+
+**Symptoms:**
+- Config file mounted but environment variables not set
+- Container starts but ignores configuration
+- Getting "permission denied" errors
+
+**Solutions:**
+
+1. **Ensure file is mounted correctly:**
+```bash
+# Correct - mount as read-only
+docker run -v $(pwd)/config.json:/app/config.json:ro ...
+
+# Check if file is accessible
+docker exec n8n-mcp cat /app/config.json
+```
+
+2. **Verify JSON syntax:**
+```bash
+# Validate JSON file
+cat config.json | jq .
+```
+
+3. **Check Docker logs for parsing errors:**
+```bash
+docker logs n8n-mcp | grep -i config
+```
+
+4. **Common issues:**
+- Invalid JSON syntax (use a JSON validator)
+- File permissions (should be readable)
+- Wrong mount path (must be `/app/config.json`)
+- Dangerous variables blocked (PATH, LD_PRELOAD, etc.)
+
 ### Custom Database Path Not Working (v2.7.16+)
 
 **Symptoms:**

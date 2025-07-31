@@ -45,8 +45,9 @@ COPY data/nodes.db ./data/
 COPY src/database/schema-optimized.sql ./src/database/
 COPY .env.example ./
 
-# Copy entrypoint script
+# Copy entrypoint script and config parser
 COPY docker/docker-entrypoint.sh /usr/local/bin/
+COPY docker/parse-config.js /app/docker/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Add container labels
