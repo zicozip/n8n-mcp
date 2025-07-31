@@ -178,6 +178,7 @@ The MCP server exposes tools in several categories:
 
 ### Agent Interaction Guidelines
 - Sub-agents are not allowed to spawn further sub-agents
+- When you use sub-agents, do not allow them to commit and push. That should be done by you
 
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.

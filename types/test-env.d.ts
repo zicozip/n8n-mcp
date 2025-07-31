@@ -11,14 +11,14 @@ declare global {
       TEST_ENVIRONMENT?: string;
 
       // Database Configuration
-      NODE_DB_PATH: string;
+      NODE_DB_PATH?: string;
       REBUILD_ON_START?: string;
       TEST_SEED_DATABASE?: string;
       TEST_SEED_TEMPLATES?: string;
 
       // API Configuration
-      N8N_API_URL: string;
-      N8N_API_KEY: string;
+      N8N_API_URL?: string;
+      N8N_API_KEY?: string;
       N8N_WEBHOOK_BASE_URL?: string;
       N8N_WEBHOOK_TEST_URL?: string;
 

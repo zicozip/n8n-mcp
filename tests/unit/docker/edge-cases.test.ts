@@ -422,7 +422,7 @@ describe('Docker Config Edge Cases', () => {
       // We need to preserve PATH so node can be found
       const output = execSync(`node "${parseConfigPath}" "${configPath}"`, { 
         encoding: 'utf8',
-        env: { PATH: process.env.PATH } // Only include PATH
+        env: { PATH: process.env.PATH, NODE_ENV: 'test' } // Only include PATH and NODE_ENV
       });
       
       // Verify all configuration is properly exported with export prefix
