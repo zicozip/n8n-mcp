@@ -288,7 +288,7 @@ export async function startFixedHTTPServer() {
         ip: req.ip,
         userAgent: req.get('user-agent'),
         reason: 'invalid_auth_format',
-        headerPrefix: authHeader.substring(0, 10) + '...'  // Log first 10 chars for debugging
+        headerPrefix: authHeader.substring(0, Math.min(authHeader.length, 10)) + '...'  // Log first 10 chars for debugging
       });
       res.status(401).json({ 
         jsonrpc: '2.0',

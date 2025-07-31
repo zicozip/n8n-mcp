@@ -6,6 +6,7 @@
  */
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { N8NDocumentationMCPServer } from './mcp/server';
 import { ConsoleManager } from './utils/console-manager';
 import { logger } from './utils/logger';
@@ -13,18 +14,28 @@ import { readFileSync } from 'fs';
 import dotenv from 'dotenv';
 import { getStartupBaseUrl, formatEndpointUrls, detectBaseUrl } from './utils/url-detector';
 import { PROJECT_VERSION } from './utils/version';
+import { v4 as uuidv4 } from 'uuid';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 
 dotenv.config();
 
+// Protocol version constant
+const PROTOCOL_VERSION = '2024-11-05';
+
 interface Session {
   server: N8NDocumentationMCPServer;
-  transport: StreamableHTTPServerTransport;
+  transport: StreamableHTTPServerTransport | SSEServerTransport;
   lastAccess: Date;
   sessionId: string;
+  initialized: boolean;
+  isSSE: boolean;
 }
 
 export class SingleSessionHTTPServer {
-  private session: Session | null = null;
+  // Map to store transports by session ID (following SDK pattern)
+  private transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
+  private servers: { [sessionId: string]: N8NDocumentationMCPServer } = {};
+  private session: Session | null = null;  // Keep for SSE compatibility
   private consoleManager = new ConsoleManager();
   private expressServer: any;
   private sessionTimeout = 30 * 60 * 1000; // 30 minutes
@@ -33,7 +44,9 @@ export class SingleSessionHTTPServer {
   constructor() {
     // Validate environment on construction
     this.validateEnvironment();
+    // No longer pre-create session - will be created per initialize request following SDK pattern
   }
+  
   
   /**
    * Load auth token from environment variable or file
@@ -97,8 +110,9 @@ export class SingleSessionHTTPServer {
     }
   }
   
+
   /**
-   * Handle incoming MCP request
+   * Handle incoming MCP request using proper SDK pattern
    */
   async handleRequest(req: express.Request, res: express.Response): Promise<void> {
     const startTime = Date.now();
@@ -106,56 +120,128 @@ export class SingleSessionHTTPServer {
     // Wrap all operations to prevent console interference
     return this.consoleManager.wrapOperation(async () => {
       try {
-        // Ensure we have a valid session
-        if (!this.session || this.isExpired()) {
-          await this.resetSession();
-        }
+        const sessionId = req.headers['mcp-session-id'] as string | undefined;
+        const isInitialize = req.body ? isInitializeRequest(req.body) : false;
         
-        // Update last access time
-        this.session!.lastAccess = new Date();
-        
-        // Handle request with existing transport
-        logger.debug('Calling transport.handleRequest...');
-        await this.session!.transport.handleRequest(req, res);
-        logger.debug('transport.handleRequest completed');
-        
-        // Log request duration
-        const duration = Date.now() - startTime;
-        logger.info('MCP request completed', { 
-          duration,
-          sessionId: this.session!.sessionId
+        // Log comprehensive incoming request details for debugging
+        logger.info('handleRequest: Processing MCP request - SDK PATTERN', {
+          requestId: req.get('x-request-id') || 'unknown',
+          sessionId: sessionId,
+          method: req.method,
+          url: req.url,
+          bodyType: typeof req.body,
+          bodyContent: req.body ? JSON.stringify(req.body, null, 2) : 'undefined',
+          existingTransports: Object.keys(this.transports),
+          isInitializeRequest: isInitialize
         });
         
+        let transport: StreamableHTTPServerTransport;
+        
+        if (isInitialize) {
+          // For initialize requests: always create new transport and server
+          logger.info('handleRequest: Creating new transport for initialize request');
+          
+          const newSessionId = uuidv4();
+          const server = new N8NDocumentationMCPServer();
+          
+          transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => newSessionId,
+            onsessioninitialized: (initializedSessionId: string) => {
+              // Store both transport and server by session ID when session is initialized
+              logger.info('handleRequest: Session initialized, storing transport and server', { 
+                sessionId: initializedSessionId 
+              });
+              this.transports[initializedSessionId] = transport;
+              this.servers[initializedSessionId] = server;
+            }
+          });
+          
+          // Set up cleanup handler
+          transport.onclose = () => {
+            const sid = transport.sessionId;
+            if (sid) {
+              logger.info('handleRequest: Transport closed, cleaning up', { sessionId: sid });
+              delete this.transports[sid];
+              delete this.servers[sid];
+            }
+          };
+          
+          // Connect the server to the transport BEFORE handling the request
+          logger.info('handleRequest: Connecting server to new transport');
+          await server.connect(transport);
+          
+        } else if (sessionId && this.transports[sessionId]) {
+          // For non-initialize requests: reuse existing transport for this session
+          logger.info('handleRequest: Reusing existing transport for session', { sessionId });
+          transport = this.transports[sessionId];
+          
+        } else {
+          // Invalid request - no session ID and not an initialize request
+          logger.warn('handleRequest: Invalid request - no session ID and not initialize', {
+            hasSessionId: !!sessionId,
+            isInitialize: isInitialize
+          });
+          
+          res.status(400).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32000,
+              message: 'Bad Request: No valid session ID provided and not an initialize request'
+            },
+            id: req.body?.id || null
+          });
+          return;
+        }
+        
+        // Handle request with the transport
+        logger.info('handleRequest: Handling request with transport', { 
+          sessionId: isInitialize ? 'new' : sessionId,
+          isInitialize 
+        });
+        await transport.handleRequest(req, res, req.body);
+        
+        const duration = Date.now() - startTime;
+        logger.info('MCP request completed', { duration, sessionId: transport.sessionId });
+        
       } catch (error) {
-        logger.error('MCP request error:', error);
+        logger.error('handleRequest: MCP request error:', {
+          error: error instanceof Error ? error.message : error,
+          errorName: error instanceof Error ? error.name : 'Unknown',
+          stack: error instanceof Error ? error.stack : undefined,
+          activeTransports: Object.keys(this.transports),
+          requestDetails: {
+            method: req.method,
+            url: req.url,
+            hasBody: !!req.body,
+            sessionId: req.headers['mcp-session-id']
+          },
+          duration: Date.now() - startTime
+        });
         
         if (!res.headersSent) {
           res.status(500).json({ 
             jsonrpc: '2.0',
             error: {
               code: -32603,
-              message: 'Internal server error',
-              data: process.env.NODE_ENV === 'development' 
-                ? (error as Error).message 
-                : undefined
+              message: error instanceof Error ? error.message : 'Internal server error'
             },
-            id: null
+            id: req.body?.id || null
           });
         }
       }
     });
   }
   
+
   /**
-   * Reset the session - clean up old and create new
+   * Reset the session for SSE - clean up old and create new SSE transport
    */
-  private async resetSession(): Promise<void> {
+  private async resetSessionSSE(res: express.Response): Promise<void> {
     // Clean up old session if exists
     if (this.session) {
       try {
-        logger.info('Closing previous session', { sessionId: this.session.sessionId });
+        logger.info('Closing previous session for SSE', { sessionId: this.session.sessionId });
         await this.session.transport.close();
-        // Note: Don't close the server as it handles its own lifecycle
       } catch (error) {
         logger.warn('Error closing previous session:', error);
       }
@@ -163,27 +249,32 @@ export class SingleSessionHTTPServer {
     
     try {
       // Create new session
-      logger.info('Creating new N8NDocumentationMCPServer...');
+      logger.info('Creating new N8NDocumentationMCPServer for SSE...');
       const server = new N8NDocumentationMCPServer();
       
-      logger.info('Creating StreamableHTTPServerTransport...');
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => 'single-session', // Always same ID for single-session
-      });
+      // Generate cryptographically secure session ID
+      const sessionId = uuidv4();
       
-      logger.info('Connecting server to transport...');
+      logger.info('Creating SSEServerTransport...');
+      const transport = new SSEServerTransport('/mcp', res);
+      
+      logger.info('Connecting server to SSE transport...');
       await server.connect(transport);
+      
+      // Note: server.connect() automatically calls transport.start(), so we don't need to call it again
       
       this.session = {
         server,
         transport,
         lastAccess: new Date(),
-        sessionId: 'single-session'
+        sessionId,
+        initialized: false,
+        isSSE: true
       };
       
-      logger.info('Created new single session successfully', { sessionId: this.session.sessionId });
+      logger.info('Created new SSE session successfully', { sessionId: this.session.sessionId });
     } catch (error) {
-      logger.error('Failed to create session:', error);
+      logger.error('Failed to create SSE session:', error);
       throw error;
     }
   }
@@ -225,8 +316,9 @@ export class SingleSessionHTTPServer {
     app.use((req, res, next) => {
       const allowedOrigin = process.env.CORS_ORIGIN || '*';
       res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Mcp-Session-Id');
+      res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
       res.setHeader('Access-Control-Max-Age', '86400');
       
       if (req.method === 'OPTIONS') {
@@ -280,15 +372,17 @@ export class SingleSessionHTTPServer {
 
     // Health check endpoint (no body parsing needed for GET)
     app.get('/health', (req, res) => {
+      const activeTransports = Object.keys(this.transports);
+      const activeServers = Object.keys(this.servers);
       res.json({ 
         status: 'ok', 
-        mode: 'single-session',
+        mode: 'sdk-pattern-transports',
         version: PROJECT_VERSION,
         uptime: Math.floor(process.uptime()),
-        sessionActive: !!this.session,
-        sessionAge: this.session 
-          ? Math.floor((Date.now() - this.session.lastAccess.getTime()) / 1000)
-          : null,
+        activeTransports: activeTransports.length,
+        activeServers: activeServers.length,
+        sessionIds: activeTransports,
+        legacySessionActive: !!this.session, // For SSE compatibility
         memory: {
           used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
           total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
@@ -298,8 +392,93 @@ export class SingleSessionHTTPServer {
       });
     });
     
-    // MCP information endpoint (no auth required for discovery)
-    app.get('/mcp', (req, res) => {
+    // Test endpoint for manual testing without auth
+    app.post('/mcp/test', express.json({ limit: '10mb' }), async (req: express.Request, res: express.Response): Promise<void> => {
+      logger.info('TEST ENDPOINT: Manual test request received', {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        bodyType: typeof req.body,
+        bodyContent: req.body ? JSON.stringify(req.body, null, 2) : 'undefined'
+      });
+      
+      // Test what a basic MCP initialize request should look like
+      const testResponse = {
+        jsonrpc: '2.0',
+        id: req.body?.id || 1,
+        result: {
+          protocolVersion: PROTOCOL_VERSION,
+          capabilities: {
+            tools: {}
+          },
+          serverInfo: {
+            name: 'n8n-mcp',
+            version: PROJECT_VERSION
+          }
+        }
+      };
+      
+      logger.info('TEST ENDPOINT: Sending test response', {
+        response: testResponse
+      });
+      
+      res.json(testResponse);
+    });
+
+    // MCP information endpoint (no auth required for discovery) and SSE support
+    app.get('/mcp', async (req, res) => {
+      // Handle StreamableHTTP transport requests with new pattern
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      if (sessionId && this.transports[sessionId]) {
+        // Let the StreamableHTTPServerTransport handle the GET request
+        try {
+          await this.transports[sessionId].handleRequest(req, res, undefined);
+          return;
+        } catch (error) {
+          logger.error('StreamableHTTP GET request failed:', error);
+          // Fall through to standard response
+        }
+      }
+      
+      // Check Accept header for text/event-stream (SSE support)
+      const accept = req.headers.accept;
+      if (accept && accept.includes('text/event-stream')) {
+        logger.info('SSE stream request received - establishing SSE connection');
+        
+        try {
+          // Create or reset session for SSE
+          await this.resetSessionSSE(res);
+          logger.info('SSE connection established successfully');
+        } catch (error) {
+          logger.error('Failed to establish SSE connection:', error);
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32603,
+              message: 'Failed to establish SSE connection'
+            },
+            id: null
+          });
+        }
+        return;
+      }
+
+      // In n8n mode, return protocol version and server info
+      if (process.env.N8N_MODE === 'true') {
+        res.json({
+          protocolVersion: PROTOCOL_VERSION,
+          serverInfo: {
+            name: 'n8n-mcp',
+            version: PROJECT_VERSION,
+            capabilities: {
+              tools: {}
+            }
+          }
+        });
+        return;
+      }
+      
+      // Standard response for non-n8n mode
       res.json({
         description: 'n8n Documentation MCP Server',
         version: PROJECT_VERSION,
@@ -327,8 +506,73 @@ export class SingleSessionHTTPServer {
       });
     });
 
+    // Session termination endpoint
+    app.delete('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
+      const mcpSessionId = req.headers['mcp-session-id'] as string;
+      
+      if (!mcpSessionId) {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32602,
+            message: 'Mcp-Session-Id header is required'
+          },
+          id: null
+        });
+        return;
+      }
+      
+      // Check if session exists in new transport map
+      if (this.transports[mcpSessionId]) {
+        logger.info('Terminating session via DELETE request', { sessionId: mcpSessionId });
+        try {
+          await this.transports[mcpSessionId].close();
+          delete this.transports[mcpSessionId];
+          delete this.servers[mcpSessionId];
+          res.status(204).send(); // No content
+        } catch (error) {
+          logger.error('Error terminating session:', error);
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32603,
+              message: 'Error terminating session'
+            },
+            id: null
+          });
+        }
+      } else {
+        res.status(404).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Session not found'
+          },
+          id: null
+        });
+      }
+    });
+
+
     // Main MCP endpoint with authentication
-    app.post('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
+    app.post('/mcp', express.json({ limit: '10mb' }), async (req: express.Request, res: express.Response): Promise<void> => {
+      // Log comprehensive debug info about the request
+      logger.info('POST /mcp request received - DETAILED DEBUG', {
+        headers: req.headers,
+        readable: req.readable,
+        readableEnded: req.readableEnded,
+        complete: req.complete,
+        bodyType: typeof req.body,
+        bodyContent: req.body ? JSON.stringify(req.body, null, 2) : 'undefined',
+        contentLength: req.get('content-length'),
+        contentType: req.get('content-type'),
+        userAgent: req.get('user-agent'),
+        ip: req.ip,
+        method: req.method,
+        url: req.url,
+        originalUrl: req.originalUrl
+      });
+      
       // Enhanced authentication check with specific logging
       const authHeader = req.headers.authorization;
       
@@ -356,7 +600,7 @@ export class SingleSessionHTTPServer {
           ip: req.ip,
           userAgent: req.get('user-agent'),
           reason: 'invalid_auth_format',
-          headerPrefix: authHeader.substring(0, 10) + '...'  // Log first 10 chars for debugging
+          headerPrefix: authHeader.substring(0, Math.min(authHeader.length, 10)) + '...'  // Log first 10 chars for debugging
         });
         res.status(401).json({ 
           jsonrpc: '2.0',
@@ -391,7 +635,19 @@ export class SingleSessionHTTPServer {
       }
       
       // Handle request with single session
+      logger.info('Authentication successful - proceeding to handleRequest', {
+        hasSession: !!this.session,
+        sessionType: this.session?.isSSE ? 'SSE' : 'StreamableHTTP',
+        sessionInitialized: this.session?.initialized
+      });
+      
       await this.handleRequest(req, res);
+      
+      logger.info('POST /mcp request completed - checking response status', {
+        responseHeadersSent: res.headersSent,
+        responseStatusCode: res.statusCode,
+        responseFinished: res.finished
+      });
     });
     
     // 404 handler
@@ -471,13 +727,25 @@ export class SingleSessionHTTPServer {
   async shutdown(): Promise<void> {
     logger.info('Shutting down Single-Session HTTP server...');
     
-    // Clean up session
+    // Close all active transports (SDK pattern)
+    for (const sessionId in this.transports) {
+      try {
+        logger.info(`Closing transport for session ${sessionId}`);
+        await this.transports[sessionId].close();
+        delete this.transports[sessionId];
+        delete this.servers[sessionId];
+      } catch (error) {
+        logger.warn(`Error closing transport for session ${sessionId}:`, error);
+      }
+    }
+    
+    // Clean up legacy session (for SSE compatibility)
     if (this.session) {
       try {
         await this.session.transport.close();
-        logger.info('Session closed');
+        logger.info('Legacy session closed');
       } catch (error) {
-        logger.warn('Error closing session:', error);
+        logger.warn('Error closing legacy session:', error);
       }
       this.session = null;
     }
