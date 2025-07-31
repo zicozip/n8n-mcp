@@ -54,10 +54,27 @@ fi
 # Database initialization with file locking to prevent race conditions
 if [ ! -f "$DB_PATH" ]; then
     log_message "Database not found at $DB_PATH. Initializing..."
-    # Use a lock file to prevent multiple containers from initializing simultaneously
-    (
-        flock -x 200
-        # Double-check inside the lock
+    
+    # Ensure lock directory exists before attempting to create lock
+    mkdir -p "$DB_DIR"
+    
+    # Check if flock is available
+    if command -v flock >/dev/null 2>&1; then
+        # Use a lock file to prevent multiple containers from initializing simultaneously
+        (
+            flock -x 200
+            # Double-check inside the lock
+            if [ ! -f "$DB_PATH" ]; then
+                log_message "Initializing database at $DB_PATH..."
+                cd /app && NODE_DB_PATH="$DB_PATH" node dist/scripts/rebuild.js || {
+                    log_message "ERROR: Database initialization failed" >&2
+                    exit 1
+                }
+            fi
+        ) 200>"$DB_DIR/.db.lock"
+    else
+        # Fallback without locking (log warning)
+        log_message "WARNING: flock not available, database initialization may have race conditions"
         if [ ! -f "$DB_PATH" ]; then
             log_message "Initializing database at $DB_PATH..."
             cd /app && NODE_DB_PATH="$DB_PATH" node dist/scripts/rebuild.js || {
@@ -65,7 +82,7 @@ if [ ! -f "$DB_PATH" ]; then
                 exit 1
             }
         fi
-    ) 200>"$DB_DIR/.db.lock"
+    fi
 fi
 
 # Fix permissions if running as root (for development)

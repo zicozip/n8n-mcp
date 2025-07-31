@@ -56,7 +56,7 @@ describeDocker('Docker Config File Integration', () => {
       cwd: projectRoot,
       stdio: 'inherit'
     });
-  });
+  }, 60000); // Increase timeout to 60s for Docker build
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docker-config-test-'));
