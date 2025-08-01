@@ -582,7 +582,7 @@ describeDocker('Docker Entrypoint Script', () => {
           console.log(`Container ${i}:`, { 
             stdout: result.stdout, 
             stderr: result.stderr,
-            failed: result.failed 
+            failed: 'failed' in result ? result.failed : false
           });
         });
       }
