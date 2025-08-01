@@ -518,12 +518,18 @@ describe('HTTP Server Session Management', () => {
       });
 
       it('should allow default token when NODE_ENV is not set', () => {
-        delete process.env.NODE_ENV;
+        const originalNodeEnv = process.env.NODE_ENV;
+        delete (process.env as any).NODE_ENV;
         process.env.AUTH_TOKEN = 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh';
 
         expect(() => {
           new SingleSessionHTTPServer();
         }).not.toThrow();
+        
+        // Restore original value
+        if (originalNodeEnv !== undefined) {
+          process.env.NODE_ENV = originalNodeEnv;
+        }
       });
     });
 
@@ -1037,11 +1043,12 @@ describe('HTTP Server Session Management', () => {
       expect(sessionInfo.sessions).toHaveProperty('sessionIds');
       
       expect(typeof sessionInfo.active).toBe('boolean');
-      expect(typeof sessionInfo.sessions.total).toBe('number');
-      expect(typeof sessionInfo.sessions.active).toBe('number');
-      expect(typeof sessionInfo.sessions.expired).toBe('number');
-      expect(sessionInfo.sessions.max).toBe(100);
-      expect(Array.isArray(sessionInfo.sessions.sessionIds)).toBe(true);
+      expect(sessionInfo.sessions).toBeDefined();
+      expect(typeof sessionInfo.sessions!.total).toBe('number');
+      expect(typeof sessionInfo.sessions!.active).toBe('number');
+      expect(typeof sessionInfo.sessions!.expired).toBe('number');
+      expect(sessionInfo.sessions!.max).toBe(100);
+      expect(Array.isArray(sessionInfo.sessions!.sessionIds)).toBe(true);
     });
 
     it('should show legacy SSE session when present', async () => {
