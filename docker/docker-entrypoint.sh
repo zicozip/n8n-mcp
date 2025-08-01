@@ -61,9 +61,31 @@ if [ ! -f "$DB_PATH" ]; then
     # Check if flock is available
     if command -v flock >/dev/null 2>&1; then
         # Use a lock file to prevent multiple containers from initializing simultaneously
-        (
-            flock -x 200
-            # Double-check inside the lock
+        # Try to create lock file, handle permission errors gracefully
+        LOCK_FILE="$DB_DIR/.db.lock"
+        
+        # Ensure we can create the lock file - fix permissions if running as root
+        if [ "$(id -u)" = "0" ] && [ ! -w "$DB_DIR" ]; then
+            chown nodejs:nodejs "$DB_DIR" 2>/dev/null || true
+            chmod 755 "$DB_DIR" 2>/dev/null || true
+        fi
+        
+        # Try to create lock file with proper error handling
+        if touch "$LOCK_FILE" 2>/dev/null; then
+            (
+                flock -x 200
+                # Double-check inside the lock
+                if [ ! -f "$DB_PATH" ]; then
+                    log_message "Initializing database at $DB_PATH..."
+                    cd /app && NODE_DB_PATH="$DB_PATH" node dist/scripts/rebuild.js || {
+                        log_message "ERROR: Database initialization failed" >&2
+                        exit 1
+                    }
+                fi
+            ) 200>"$LOCK_FILE"
+        else
+            log_message "WARNING: Cannot create lock file at $LOCK_FILE, proceeding without file locking"
+            # Fallback without locking if we can't create the lock file
             if [ ! -f "$DB_PATH" ]; then
                 log_message "Initializing database at $DB_PATH..."
                 cd /app && NODE_DB_PATH="$DB_PATH" node dist/scripts/rebuild.js || {
@@ -71,7 +93,7 @@ if [ ! -f "$DB_PATH" ]; then
                     exit 1
                 }
             fi
-        ) 200>"$DB_DIR/.db.lock"
+        fi
     else
         # Fallback without locking (log warning)
         log_message "WARNING: flock not available, database initialization may have race conditions"
