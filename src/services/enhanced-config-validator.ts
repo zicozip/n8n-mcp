@@ -86,6 +86,9 @@ export class EnhancedConfigValidator extends ConfigValidator {
     // Generate next steps based on errors
     enhancedResult.nextSteps = this.generateNextSteps(enhancedResult);
     
+    // Recalculate validity after all enhancements (crucial for fixedCollection validation)
+    enhancedResult.valid = enhancedResult.errors.length === 0;
+    
     return enhancedResult;
   }
   
@@ -186,6 +189,9 @@ export class EnhancedConfigValidator extends ConfigValidator {
     config: Record<string, any>,
     result: EnhancedValidationResult
   ): void {
+    // First, validate fixedCollection properties for known problematic nodes
+    this.validateFixedCollectionStructures(nodeType, config, result);
+    
     // Create context for node-specific validators
     const context: NodeValidationContext = {
       config,
@@ -195,8 +201,11 @@ export class EnhancedConfigValidator extends ConfigValidator {
       autofix: result.autofix || {}
     };
     
+    // Normalize node type (handle both 'n8n-nodes-base.x' and 'nodes-base.x' formats)
+    const normalizedNodeType = nodeType.replace('n8n-nodes-base.', 'nodes-base.');
+    
     // Use node-specific validators
-    switch (nodeType) {
+    switch (normalizedNodeType) {
       case 'nodes-base.slack':
         NodeSpecificValidators.validateSlack(context);
         this.enhanceSlackValidation(config, result);
@@ -234,6 +243,18 @@ export class EnhancedConfigValidator extends ConfigValidator {
         
       case 'nodes-base.mysql':
         NodeSpecificValidators.validateMySQL(context);
+        break;
+        
+      case 'nodes-base.switch':
+        this.validateSwitchNodeStructure(config, result);
+        break;
+        
+      case 'nodes-base.if':
+        this.validateIfNodeStructure(config, result);
+        break;
+        
+      case 'nodes-base.filter':
+        this.validateFilterNodeStructure(config, result);
         break;
     }
     
@@ -466,6 +487,251 @@ export class EnhancedConfigValidator extends ConfigValidator {
       result.suggestions.push(
         'Webhooks should use onError: "continueRegularOutput" to ensure responses are always sent'
       );
+    }
+  }
+  
+  /**
+   * Validate fixedCollection structures for known problematic nodes
+   * This prevents the "propertyValues[itemName] is not iterable" error
+   */
+  private static validateFixedCollectionStructures(
+    nodeType: string,
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    // Normalize node type (handle both 'n8n-nodes-base.x' and 'nodes-base.x' formats)
+    const normalizedNodeType = nodeType.replace('n8n-nodes-base.', 'nodes-base.');
+    
+    // Define nodes and their problematic patterns
+    const problematicNodes = {
+      'nodes-base.switch': {
+        property: 'rules',
+        expectedStructure: 'rules.values array',
+        invalidPatterns: ['rules.conditions', 'rules.conditions.values']
+      },
+      'nodes-base.if': {
+        property: 'conditions',
+        expectedStructure: 'conditions array/object',
+        invalidPatterns: ['conditions.values']
+      },
+      'nodes-base.filter': {
+        property: 'conditions',
+        expectedStructure: 'conditions array/object',
+        invalidPatterns: ['conditions.values']
+      }
+    };
+    
+    const nodeConfig = problematicNodes[normalizedNodeType as keyof typeof problematicNodes];
+    if (!nodeConfig) return;
+    
+    const propertyValue = config[nodeConfig.property];
+    if (!propertyValue || typeof propertyValue !== 'object') return;
+    
+    // Check for incorrect nesting patterns
+    for (const pattern of nodeConfig.invalidPatterns) {
+      const parts = pattern.split('.');
+      let current = config;
+      let isInvalid = true;
+      
+      for (const part of parts) {
+        if (!current || typeof current !== 'object' || !current[part]) {
+          isInvalid = false;
+          break;
+        }
+        current = current[part];
+      }
+      
+      if (isInvalid) {
+        result.errors.push({
+          type: 'invalid_value',
+          property: nodeConfig.property,
+          message: `Invalid structure for ${normalizedNodeType} node: found nested "${pattern}" but expected "${nodeConfig.expectedStructure}". This causes "propertyValues[itemName] is not iterable" error in n8n.`,
+          fix: this.generateFixedCollectionFix(normalizedNodeType, pattern, nodeConfig.expectedStructure)
+        });
+        
+        // Provide auto-fix suggestion
+        if (!result.autofix) result.autofix = {};
+        result.autofix[nodeConfig.property] = this.generateFixedCollectionAutofix(normalizedNodeType, config[nodeConfig.property]);
+      }
+    }
+  }
+  
+  /**
+   * Generate fix message for fixedCollection errors
+   */
+  private static generateFixedCollectionFix(nodeType: string, invalidPattern: string, expectedStructure: string): string {
+    switch (nodeType) {
+      case 'nodes-base.switch':
+        return 'Use: { "rules": { "values": [{ "conditions": {...}, "outputKey": "output1" }] } }';
+      case 'nodes-base.if':
+      case 'nodes-base.filter':
+        return 'Use: { "conditions": {...} } or { "conditions": [...] } directly, not nested under "values"';
+      default:
+        return `Use ${expectedStructure} instead of ${invalidPattern}`;
+    }
+  }
+  
+  /**
+   * Generate auto-fix for fixedCollection structures
+   */
+  private static generateFixedCollectionAutofix(nodeType: string, invalidValue: any): any {
+    switch (nodeType) {
+      case 'nodes-base.switch':
+        // If it has rules.conditions.values, convert to rules.values
+        if (invalidValue.conditions?.values) {
+          return {
+            values: Array.isArray(invalidValue.conditions.values) 
+              ? invalidValue.conditions.values.map((condition: any) => ({
+                  conditions: condition,
+                  outputKey: `output${Math.random().toString(36).substring(2, 7)}`
+                }))
+              : [{ 
+                  conditions: invalidValue.conditions.values,
+                  outputKey: `output${Math.random().toString(36).substring(2, 7)}`
+                }]
+          };
+        }
+        break;
+      case 'nodes-base.if':
+      case 'nodes-base.filter':
+        // If it has conditions.values, extract the values
+        if (invalidValue.values) {
+          return invalidValue.values;
+        }
+        break;
+    }
+    return invalidValue;
+  }
+  
+  /**
+   * Validate Switch node structure specifically
+   */
+  private static validateSwitchNodeStructure(
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    if (!config.rules) return;
+    
+    // Check for common AI mistakes in Switch node
+    if (config.rules.conditions) {
+      // Check if it's the nested invalid pattern rules.conditions.values
+      if (config.rules.conditions.values) {
+        result.errors.push({
+          type: 'invalid_value',
+          property: 'rules',
+          message: 'Invalid structure for nodes-base.switch node: found nested "rules.conditions.values" but expected "rules.values array". This causes "propertyValues[itemName] is not iterable" error in n8n.',
+          fix: '{ "rules": { "values": [{ "conditions": {...}, "outputKey": "output1" }] } }'
+        });
+        
+        // Auto-fix: transform the nested structure
+        if (Array.isArray(config.rules.conditions.values)) {
+          result.autofix = {
+            ...result.autofix,
+            rules: {
+              values: config.rules.conditions.values.map((condition: any, index: number) => ({
+                conditions: condition,
+                outputKey: `output${index + 1}`
+              }))
+            }
+          };
+        }
+      } else {
+        // Direct conditions under rules
+        result.errors.push({
+          type: 'invalid_value',
+          property: 'rules',
+          message: 'Switch node "rules" should contain "values" array, not "conditions". This structure causes n8n UI loading errors.',
+          fix: 'Change { "rules": { "conditions": {...} } } to { "rules": { "values": [{ "conditions": {...}, "outputKey": "output1" }] } }'
+        });
+      }
+    }
+    
+    // Validate rules.values structure if present
+    if (config.rules.values && Array.isArray(config.rules.values)) {
+      config.rules.values.forEach((rule: any, index: number) => {
+        if (!rule.conditions) {
+          result.warnings.push({
+            type: 'missing_common',
+            property: 'rules',
+            message: `Switch rule ${index + 1} is missing "conditions" property`,
+            suggestion: 'Each rule in the values array should have a "conditions" property'
+          });
+        }
+        if (!rule.outputKey && rule.renameOutput !== false) {
+          result.warnings.push({
+            type: 'missing_common',
+            property: 'rules',
+            message: `Switch rule ${index + 1} is missing "outputKey" property`,
+            suggestion: 'Add "outputKey" to specify which output to use when this rule matches'
+          });
+        }
+      });
+    }
+  }
+  
+  /**
+   * Validate If node structure specifically
+   */
+  private static validateIfNodeStructure(
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    if (!config.conditions) return;
+    
+    // Check for incorrect nesting
+    if (config.conditions.values) {
+      result.errors.push({
+        type: 'invalid_value',
+        property: 'conditions',
+        message: 'Invalid structure for nodes-base.if node: found nested "conditions.values" but expected "conditions array/object". If node "conditions" should be a filter object/array directly.',
+        fix: 'Use: { "conditions": {...} } or { "conditions": [...] } directly, not nested under "values"'
+      });
+      
+      // Auto-fix: unwrap the values
+      if (Array.isArray(config.conditions.values)) {
+        result.autofix = {
+          ...result.autofix,
+          conditions: config.conditions.values
+        };
+      } else if (typeof config.conditions.values === 'object') {
+        result.autofix = {
+          ...result.autofix,
+          conditions: config.conditions.values
+        };
+      }
+    }
+  }
+  
+  /**
+   * Validate Filter node structure specifically
+   */
+  private static validateFilterNodeStructure(
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    if (!config.conditions) return;
+    
+    // Check for incorrect nesting
+    if (config.conditions.values) {
+      result.errors.push({
+        type: 'invalid_value',
+        property: 'conditions',
+        message: 'Invalid structure for nodes-base.filter node: found nested "conditions.values" but expected "conditions array/object". Filter node "conditions" should be a filter object/array directly.',
+        fix: 'Use: { "conditions": {...} } or { "conditions": [...] } directly, not nested under "values"'
+      });
+      
+      // Auto-fix: unwrap the values
+      if (Array.isArray(config.conditions.values)) {
+        result.autofix = {
+          ...result.autofix,
+          conditions: config.conditions.values
+        };
+      } else if (typeof config.conditions.values === 'object') {
+        result.autofix = {
+          ...result.autofix,
+          conditions: config.conditions.values
+        };
+      }
     }
   }
 }
