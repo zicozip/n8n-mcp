@@ -221,89 +221,154 @@ export class N8NDocumentationMCPServer {
     });
   }
 
+  /**
+   * Validate required parameters for tool execution
+   */
+  private validateToolParams(toolName: string, args: any, requiredParams: string[]): void {
+    const missing: string[] = [];
+    
+    for (const param of requiredParams) {
+      if (!(param in args) || args[param] === undefined || args[param] === null) {
+        missing.push(param);
+      }
+    }
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing required parameters for ${toolName}: ${missing.join(', ')}. Please provide the required parameters to use this tool.`);
+    }
+  }
+
   async executeTool(name: string, args: any): Promise<any> {
+    // Ensure args is an object
+    args = args || {};
+    
     switch (name) {
       case 'tools_documentation':
+        // No required parameters
         return this.getToolsDocumentation(args.topic, args.depth);
       case 'list_nodes':
+        // No required parameters
         return this.listNodes(args);
       case 'get_node_info':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeInfo(args.nodeType);
       case 'search_nodes':
-        return this.searchNodes(args.query, args.limit, { mode: args.mode });
+        this.validateToolParams(name, args, ['query']);
+        // Convert limit to number if provided, otherwise use default
+        const limit = args.limit !== undefined ? Number(args.limit) || 20 : 20;
+        return this.searchNodes(args.query, limit, { mode: args.mode });
       case 'list_ai_tools':
+        // No required parameters
         return this.listAITools();
       case 'get_node_documentation':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeDocumentation(args.nodeType);
       case 'get_database_statistics':
+        // No required parameters
         return this.getDatabaseStatistics();
       case 'get_node_essentials':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeEssentials(args.nodeType);
       case 'search_node_properties':
-        return this.searchNodeProperties(args.nodeType, args.query, args.maxResults);
+        this.validateToolParams(name, args, ['nodeType', 'query']);
+        const maxResults = args.maxResults !== undefined ? Number(args.maxResults) || 20 : 20;
+        return this.searchNodeProperties(args.nodeType, args.query, maxResults);
       case 'get_node_for_task':
+        this.validateToolParams(name, args, ['task']);
         return this.getNodeForTask(args.task);
       case 'list_tasks':
+        // No required parameters
         return this.listTasks(args.category);
       case 'validate_node_operation':
+        this.validateToolParams(name, args, ['nodeType', 'config']);
         return this.validateNodeConfig(args.nodeType, args.config, 'operation', args.profile);
       case 'validate_node_minimal':
+        this.validateToolParams(name, args, ['nodeType', 'config']);
         return this.validateNodeMinimal(args.nodeType, args.config);
       case 'get_property_dependencies':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getPropertyDependencies(args.nodeType, args.config);
       case 'get_node_as_tool_info':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeAsToolInfo(args.nodeType);
       case 'list_node_templates':
-        return this.listNodeTemplates(args.nodeTypes, args.limit);
+        this.validateToolParams(name, args, ['nodeTypes']);
+        const templateLimit = args.limit !== undefined ? Number(args.limit) || 10 : 10;
+        return this.listNodeTemplates(args.nodeTypes, templateLimit);
       case 'get_template':
-        return this.getTemplate(args.templateId);
+        this.validateToolParams(name, args, ['templateId']);
+        const templateId = Number(args.templateId);
+        return this.getTemplate(templateId);
       case 'search_templates':
-        return this.searchTemplates(args.query, args.limit);
+        this.validateToolParams(name, args, ['query']);
+        const searchLimit = args.limit !== undefined ? Number(args.limit) || 20 : 20;
+        return this.searchTemplates(args.query, searchLimit);
       case 'get_templates_for_task':
+        this.validateToolParams(name, args, ['task']);
         return this.getTemplatesForTask(args.task);
       case 'validate_workflow':
+        this.validateToolParams(name, args, ['workflow']);
         return this.validateWorkflow(args.workflow, args.options);
       case 'validate_workflow_connections':
+        this.validateToolParams(name, args, ['workflow']);
         return this.validateWorkflowConnections(args.workflow);
       case 'validate_workflow_expressions':
+        this.validateToolParams(name, args, ['workflow']);
         return this.validateWorkflowExpressions(args.workflow);
       
       // n8n Management Tools (if API is configured)
       case 'n8n_create_workflow':
+        this.validateToolParams(name, args, ['name', 'nodes', 'connections']);
         return n8nHandlers.handleCreateWorkflow(args);
       case 'n8n_get_workflow':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflow(args);
       case 'n8n_get_workflow_details':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflowDetails(args);
       case 'n8n_get_workflow_structure':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflowStructure(args);
       case 'n8n_get_workflow_minimal':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflowMinimal(args);
       case 'n8n_update_full_workflow':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleUpdateWorkflow(args);
       case 'n8n_update_partial_workflow':
+        this.validateToolParams(name, args, ['id', 'operations']);
         return handleUpdatePartialWorkflow(args);
       case 'n8n_delete_workflow':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleDeleteWorkflow(args);
       case 'n8n_list_workflows':
+        // No required parameters
         return n8nHandlers.handleListWorkflows(args);
       case 'n8n_validate_workflow':
+        this.validateToolParams(name, args, ['id']);
         await this.ensureInitialized();
         if (!this.repository) throw new Error('Repository not initialized');
         return n8nHandlers.handleValidateWorkflow(args, this.repository);
       case 'n8n_trigger_webhook_workflow':
+        this.validateToolParams(name, args, ['webhookUrl']);
         return n8nHandlers.handleTriggerWebhookWorkflow(args);
       case 'n8n_get_execution':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetExecution(args);
       case 'n8n_list_executions':
+        // No required parameters
         return n8nHandlers.handleListExecutions(args);
       case 'n8n_delete_execution':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleDeleteExecution(args);
       case 'n8n_health_check':
+        // No required parameters
         return n8nHandlers.handleHealthCheck();
       case 'n8n_list_available_tools':
+        // No required parameters
         return n8nHandlers.handleListAvailableTools();
       case 'n8n_diagnostic':
+        // No required parameters
         return n8nHandlers.handleDiagnostic({ params: { arguments: args } });
         
       default:

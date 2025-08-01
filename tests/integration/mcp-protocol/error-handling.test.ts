@@ -63,8 +63,8 @@ describe('MCP Error Handling', () => {
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error).toBeDefined();
-        // The error occurs when trying to call startsWith on undefined nodeType
-        expect(error.message).toContain("Cannot read properties of undefined");
+        // The error now properly validates required parameters
+        expect(error.message).toContain("Missing required parameters");
       }
     });
 
@@ -500,8 +500,8 @@ describe('MCP Error Handling', () => {
         expect.fail('Should have thrown an error');
       } catch (error: any) {
         expect(error).toBeDefined();
-        // The error occurs when trying to access properties of undefined query
-        expect(error.message).toContain("Cannot read properties of undefined");
+        // The error now properly validates required parameters
+        expect(error.message).toContain("Missing required parameters");
       }
     });
 
