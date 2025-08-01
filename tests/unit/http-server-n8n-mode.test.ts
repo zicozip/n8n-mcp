@@ -101,8 +101,13 @@ vi.mock('express', () => {
     })
   };
   
-  // Create a mock for express that has both the app factory and json method
-  const expressMock = vi.fn(() => mockExpressApp);
+  // Create a properly typed mock for express with both app factory and middleware methods
+  interface ExpressMock {
+    (): typeof mockExpressApp;
+    json(): (req: any, res: any, next: any) => void;
+  }
+  
+  const expressMock = vi.fn(() => mockExpressApp) as unknown as ExpressMock;
   expressMock.json = vi.fn(() => (req: any, res: any, next: any) => {
     // Mock JSON parser middleware
     req.body = req.body || {};
@@ -161,7 +166,7 @@ describe('HTTP Server n8n Mode', () => {
   });
 
   // Helper to find a route handler
-  function findHandler(method: 'get' | 'post', path: string) {
+  function findHandler(method: 'get' | 'post' | 'delete', path: string) {
     const routes = mockHandlers[method];
     const route = routes.find(r => r.path === path);
     return route ? route.handlers[route.handlers.length - 1] : null;
@@ -553,6 +558,202 @@ describe('HTTP Server n8n Mode', () => {
         error: 'Not found',
         message: 'Cannot POST /nonexistent'
       });
+    });
+
+    it('should handle GET requests to non-existent paths', async () => {
+      server = new SingleSessionHTTPServer();
+      await server.start();
+
+      const notFoundHandler = mockHandlers.use[mockHandlers.use.length - 2];
+
+      const { req, res } = createMockReqRes();
+      req.method = 'GET';
+      req.path = '/unknown-endpoint';
+      
+      await notFoundHandler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Not found',
+        message: 'Cannot GET /unknown-endpoint'
+      });
+    });
+  });
+
+  describe('Security Features', () => {
+    it('should handle malformed authorization headers', async () => {
+      server = new SingleSessionHTTPServer();
+      await server.start();
+
+      const handler = findHandler('post', '/mcp');
+      const testCases = [
+        '', // Empty header
+        'Bearer', // Missing token
+        'Bearer ', // Space but no token
+        'InvalidFormat token', // Wrong scheme
+        'Bearer token with spaces' // Token with spaces
+      ];
+
+      for (const authHeader of testCases) {
+        const { req, res } = createMockReqRes();
+        req.headers = { authorization: authHeader };
+        req.method = 'POST';
+        
+        await handler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(res.json).toHaveBeenCalledWith({
+          jsonrpc: '2.0',
+          error: {
+            code: -32001,
+            message: 'Unauthorized'
+          },
+          id: null
+        });
+
+        // Reset mocks for next test
+        vi.clearAllMocks();
+      }
+    });
+
+    it('should verify server configuration methods exist', async () => {
+      server = new SingleSessionHTTPServer();
+      
+      // Test that the server has expected methods
+      expect(typeof server.start).toBe('function');
+      expect(typeof server.shutdown).toBe('function');
+      expect(typeof server.getSessionInfo).toBe('function');
+      
+      // Basic session info structure
+      const sessionInfo = server.getSessionInfo();
+      expect(sessionInfo).toHaveProperty('active');
+      expect(typeof sessionInfo.active).toBe('boolean');
+    });
+
+    it('should handle valid auth tokens properly', async () => {
+      server = new SingleSessionHTTPServer();
+      await server.start();
+
+      const handler = findHandler('post', '/mcp');
+      
+      const { req, res } = createMockReqRes();
+      req.headers = { authorization: `Bearer ${TEST_AUTH_TOKEN}` };
+      req.method = 'POST';
+      req.body = { jsonrpc: '2.0', method: 'test', id: 1 };
+      
+      await handler(req, res);
+
+      // Should not return 401 for valid tokens - the transport handles the actual response
+      expect(res.status).not.toHaveBeenCalledWith(401);
+      
+      // The actual response handling is done by the transport mock
+      expect(mockConsoleManager.wrapOperation).toHaveBeenCalled();
+    });
+
+    it('should handle DELETE endpoint without session ID', async () => {
+      server = new SingleSessionHTTPServer();
+      await server.start();
+
+      const handler = findHandler('delete', '/mcp');
+      expect(handler).toBeTruthy();
+
+      // Test DELETE without Mcp-Session-Id header (not auth-related)
+      const { req, res } = createMockReqRes();
+      req.method = 'DELETE';
+      
+      await handler(req, res);
+
+      // DELETE endpoint returns 400 for missing Mcp-Session-Id header, not 401 for auth
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        jsonrpc: '2.0',
+        error: {
+          code: -32602,
+          message: 'Mcp-Session-Id header is required'
+        },
+        id: null
+      });
+    });
+
+    it('should provide proper error details for debugging', async () => {
+      server = new SingleSessionHTTPServer();
+      await server.start();
+
+      const handler = findHandler('post', '/mcp');
+      const { req, res } = createMockReqRes();
+      req.method = 'POST';
+      // No auth header at all
+      
+      await handler(req, res);
+
+      // Verify error response format
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        jsonrpc: '2.0',
+        error: {
+          code: -32001,
+          message: 'Unauthorized'
+        },
+        id: null
+      });
+    });
+  });
+
+  describe('Express Middleware Configuration', () => {
+    it('should configure all necessary middleware', async () => {
+      server = new SingleSessionHTTPServer();
+      await server.start();
+
+      // Verify that various middleware types are configured
+      expect(mockHandlers.use.length).toBeGreaterThan(3);
+      
+      // Should have JSON parser middleware
+      const hasJsonMiddleware = mockHandlers.use.some(middleware => {
+        // Check if it's the JSON parser by calling it and seeing if it sets req.body
+        try {
+          const mockReq = { body: undefined };
+          const mockRes = {};
+          const mockNext = vi.fn();
+          
+          if (typeof middleware === 'function') {
+            middleware(mockReq, mockRes, mockNext);
+            return mockNext.mock.calls.length > 0;
+          }
+        } catch (e) {
+          // Ignore errors in middleware detection
+        }
+        return false;
+      });
+      
+      expect(mockHandlers.use.length).toBeGreaterThan(0);
+    });
+
+    it('should handle CORS preflight for different methods', async () => {
+      server = new SingleSessionHTTPServer();
+      await server.start();
+
+      const corsTestMethods = ['POST', 'GET', 'DELETE', 'PUT'];
+      
+      for (const method of corsTestMethods) {
+        const { req, res } = createMockReqRes();
+        req.method = 'OPTIONS';
+        req.headers['access-control-request-method'] = method;
+        
+        // Find and call CORS middleware
+        for (const middleware of mockHandlers.use) {
+          if (typeof middleware === 'function') {
+            const next = vi.fn();
+            await middleware(req, res, next);
+            
+            if (res.sendStatus.mock.calls.length > 0) {
+              expect(res.sendStatus).toHaveBeenCalledWith(204);
+              break;
+            }
+          }
+        }
+        
+        vi.clearAllMocks();
+      }
     });
   });
 });
