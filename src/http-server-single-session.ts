@@ -22,6 +22,10 @@ dotenv.config();
 // Protocol version constant
 const PROTOCOL_VERSION = '2024-11-05';
 
+// Session management constants
+const MAX_SESSIONS = 100;
+const SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
 interface Session {
   server: N8NDocumentationMCPServer;
   transport: StreamableHTTPServerTransport | SSEServerTransport;
@@ -31,22 +35,151 @@ interface Session {
   isSSE: boolean;
 }
 
+interface SessionMetrics {
+  totalSessions: number;
+  activeSessions: number;
+  expiredSessions: number;
+  lastCleanup: Date;
+}
+
 export class SingleSessionHTTPServer {
   // Map to store transports by session ID (following SDK pattern)
   private transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
   private servers: { [sessionId: string]: N8NDocumentationMCPServer } = {};
+  private sessionMetadata: { [sessionId: string]: { lastAccess: Date; createdAt: Date } } = {};
   private session: Session | null = null;  // Keep for SSE compatibility
   private consoleManager = new ConsoleManager();
   private expressServer: any;
   private sessionTimeout = 30 * 60 * 1000; // 30 minutes
   private authToken: string | null = null;
+  private cleanupTimer: NodeJS.Timeout | null = null;
   
   constructor() {
     // Validate environment on construction
     this.validateEnvironment();
     // No longer pre-create session - will be created per initialize request following SDK pattern
+    
+    // Start periodic session cleanup
+    this.startSessionCleanup();
   }
   
+  /**
+   * Start periodic session cleanup
+   */
+  private startSessionCleanup(): void {
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupExpiredSessions();
+    }, SESSION_CLEANUP_INTERVAL);
+    
+    logger.info('Session cleanup started', { 
+      interval: SESSION_CLEANUP_INTERVAL / 1000 / 60,
+      maxSessions: MAX_SESSIONS,
+      sessionTimeout: this.sessionTimeout / 1000 / 60
+    });
+  }
+  
+  /**
+   * Clean up expired sessions based on last access time
+   */
+  private cleanupExpiredSessions(): void {
+    const now = Date.now();
+    const expiredSessions: string[] = [];
+    
+    // Check for expired sessions
+    for (const sessionId in this.sessionMetadata) {
+      const metadata = this.sessionMetadata[sessionId];
+      if (now - metadata.lastAccess.getTime() > this.sessionTimeout) {
+        expiredSessions.push(sessionId);
+      }
+    }
+    
+    // Remove expired sessions
+    for (const sessionId of expiredSessions) {
+      this.removeSession(sessionId, 'expired');
+    }
+    
+    if (expiredSessions.length > 0) {
+      logger.info('Cleaned up expired sessions', { 
+        removed: expiredSessions.length,
+        remaining: this.getActiveSessionCount()
+      });
+    }
+  }
+  
+  /**
+   * Remove a session and clean up resources
+   */
+  private async removeSession(sessionId: string, reason: string): Promise<void> {
+    try {
+      // Close transport if exists
+      if (this.transports[sessionId]) {
+        await this.transports[sessionId].close();
+        delete this.transports[sessionId];
+      }
+      
+      // Remove server and metadata
+      delete this.servers[sessionId];
+      delete this.sessionMetadata[sessionId];
+      
+      logger.info('Session removed', { sessionId, reason });
+    } catch (error) {
+      logger.warn('Error removing session', { sessionId, reason, error });
+    }
+  }
+  
+  /**
+   * Get current active session count
+   */
+  private getActiveSessionCount(): number {
+    return Object.keys(this.transports).length;
+  }
+  
+  /**
+   * Check if we can create a new session
+   */
+  private canCreateSession(): boolean {
+    return this.getActiveSessionCount() < MAX_SESSIONS;
+  }
+  
+  /**
+   * Validate session ID format
+   */
+  private isValidSessionId(sessionId: string): boolean {
+    // UUID v4 format validation
+    const uuidv4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidv4Regex.test(sessionId);
+  }
+  
+  /**
+   * Update session last access time
+   */
+  private updateSessionAccess(sessionId: string): void {
+    if (this.sessionMetadata[sessionId]) {
+      this.sessionMetadata[sessionId].lastAccess = new Date();
+    }
+  }
+  
+  /**
+   * Get session metrics for monitoring
+   */
+  private getSessionMetrics(): SessionMetrics {
+    const now = Date.now();
+    let expiredCount = 0;
+    
+    for (const sessionId in this.sessionMetadata) {
+      const metadata = this.sessionMetadata[sessionId];
+      if (now - metadata.lastAccess.getTime() > this.sessionTimeout) {
+        expiredCount++;
+      }
+    }
+    
+    return {
+      totalSessions: Object.keys(this.sessionMetadata).length,
+      activeSessions: this.getActiveSessionCount(),
+      expiredSessions: expiredCount,
+      lastCleanup: new Date()
+    };
+  }
   
   /**
    * Load auth token from environment variable or file
@@ -96,7 +229,19 @@ export class SingleSessionHTTPServer {
     }
     
     // Check for default token and show prominent warnings
-    if (this.authToken === 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh') {
+    const isDefaultToken = this.authToken === 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh';
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isDefaultToken) {
+      if (isProduction) {
+        const message = 'CRITICAL SECURITY ERROR: Cannot start in production with default AUTH_TOKEN. Generate secure token: openssl rand -base64 32';
+        logger.error(message);
+        console.error('\n🚨 CRITICAL SECURITY ERROR 🚨');
+        console.error(message);
+        console.error('Set NODE_ENV to development for testing, or update AUTH_TOKEN for production\n');
+        throw new Error(message);
+      }
+      
       logger.warn('⚠️ SECURITY WARNING: Using default AUTH_TOKEN - CHANGE IMMEDIATELY!');
       logger.warn('Generate secure token with: openssl rand -base64 32');
       
@@ -138,6 +283,24 @@ export class SingleSessionHTTPServer {
         let transport: StreamableHTTPServerTransport;
         
         if (isInitialize) {
+          // Check session limits before creating new session
+          if (!this.canCreateSession()) {
+            logger.warn('handleRequest: Session limit reached', {
+              currentSessions: this.getActiveSessionCount(),
+              maxSessions: MAX_SESSIONS
+            });
+            
+            res.status(429).json({
+              jsonrpc: '2.0',
+              error: {
+                code: -32000,
+                message: `Session limit reached (${MAX_SESSIONS}). Please wait for existing sessions to expire.`
+              },
+              id: req.body?.id || null
+            });
+            return;
+          }
+          
           // For initialize requests: always create new transport and server
           logger.info('handleRequest: Creating new transport for initialize request');
           
@@ -153,6 +316,12 @@ export class SingleSessionHTTPServer {
               });
               this.transports[initializedSessionId] = transport;
               this.servers[initializedSessionId] = server;
+              
+              // Store session metadata
+              this.sessionMetadata[initializedSessionId] = {
+                lastAccess: new Date(),
+                createdAt: new Date()
+              };
             }
           });
           
@@ -161,8 +330,7 @@ export class SingleSessionHTTPServer {
             const sid = transport.sessionId;
             if (sid) {
               logger.info('handleRequest: Transport closed, cleaning up', { sessionId: sid });
-              delete this.transports[sid];
-              delete this.servers[sid];
+              this.removeSession(sid, 'transport_closed');
             }
           };
           
@@ -171,22 +339,50 @@ export class SingleSessionHTTPServer {
           await server.connect(transport);
           
         } else if (sessionId && this.transports[sessionId]) {
+          // Validate session ID format
+          if (!this.isValidSessionId(sessionId)) {
+            logger.warn('handleRequest: Invalid session ID format', { sessionId });
+            res.status(400).json({
+              jsonrpc: '2.0',
+              error: {
+                code: -32602,
+                message: 'Invalid session ID format'
+              },
+              id: req.body?.id || null
+            });
+            return;
+          }
+          
           // For non-initialize requests: reuse existing transport for this session
           logger.info('handleRequest: Reusing existing transport for session', { sessionId });
           transport = this.transports[sessionId];
           
+          // Update session access time
+          this.updateSessionAccess(sessionId);
+          
         } else {
           // Invalid request - no session ID and not an initialize request
-          logger.warn('handleRequest: Invalid request - no session ID and not initialize', {
+          const errorDetails = {
             hasSessionId: !!sessionId,
-            isInitialize: isInitialize
-          });
+            isInitialize: isInitialize,
+            sessionIdValid: sessionId ? this.isValidSessionId(sessionId) : false,
+            sessionExists: sessionId ? !!this.transports[sessionId] : false
+          };
+          
+          logger.warn('handleRequest: Invalid request - no session ID and not initialize', errorDetails);
+          
+          let errorMessage = 'Bad Request: No valid session ID provided and not an initialize request';
+          if (sessionId && !this.isValidSessionId(sessionId)) {
+            errorMessage = 'Bad Request: Invalid session ID format';
+          } else if (sessionId && !this.transports[sessionId]) {
+            errorMessage = 'Bad Request: Session not found or expired';
+          }
           
           res.status(400).json({
             jsonrpc: '2.0',
             error: {
               code: -32000,
-              message: 'Bad Request: No valid session ID provided and not an initialize request'
+              message: errorMessage
             },
             id: req.body?.id || null
           });
@@ -293,6 +489,9 @@ export class SingleSessionHTTPServer {
   async start(): Promise<void> {
     const app = express();
     
+    // Create JSON parser middleware for endpoints that need it
+    const jsonParser = express.json({ limit: '10mb' });
+    
     // Configure trust proxy for correct IP logging behind reverse proxies
     const trustProxy = process.env.TRUST_PROXY ? Number(process.env.TRUST_PROXY) : 0;
     if (trustProxy > 0) {
@@ -374,14 +573,31 @@ export class SingleSessionHTTPServer {
     app.get('/health', (req, res) => {
       const activeTransports = Object.keys(this.transports);
       const activeServers = Object.keys(this.servers);
+      const sessionMetrics = this.getSessionMetrics();
+      const isProduction = process.env.NODE_ENV === 'production';
+      const isDefaultToken = this.authToken === 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh';
+      
       res.json({ 
         status: 'ok', 
         mode: 'sdk-pattern-transports',
         version: PROJECT_VERSION,
+        environment: process.env.NODE_ENV || 'development',
         uptime: Math.floor(process.uptime()),
-        activeTransports: activeTransports.length,
-        activeServers: activeServers.length,
-        sessionIds: activeTransports,
+        sessions: {
+          active: sessionMetrics.activeSessions,
+          total: sessionMetrics.totalSessions,
+          expired: sessionMetrics.expiredSessions,
+          max: MAX_SESSIONS,
+          usage: `${sessionMetrics.activeSessions}/${MAX_SESSIONS}`,
+          sessionIds: activeTransports
+        },
+        security: {
+          production: isProduction,
+          defaultToken: isDefaultToken,
+          tokenLength: this.authToken?.length || 0
+        },
+        activeTransports: activeTransports.length, // Legacy field
+        activeServers: activeServers.length, // Legacy field
         legacySessionActive: !!this.session, // For SSE compatibility
         memory: {
           used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
@@ -393,7 +609,7 @@ export class SingleSessionHTTPServer {
     });
     
     // Test endpoint for manual testing without auth
-    app.post('/mcp/test', express.json({ limit: '10mb' }), async (req: express.Request, res: express.Response): Promise<void> => {
+    app.post('/mcp/test', jsonParser, async (req: express.Request, res: express.Response): Promise<void> => {
       logger.info('TEST ENDPOINT: Manual test request received', {
         method: req.method,
         headers: req.headers,
@@ -522,13 +738,24 @@ export class SingleSessionHTTPServer {
         return;
       }
       
+      // Validate session ID format
+      if (!this.isValidSessionId(mcpSessionId)) {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32602,
+            message: 'Invalid session ID format'
+          },
+          id: null
+        });
+        return;
+      }
+      
       // Check if session exists in new transport map
       if (this.transports[mcpSessionId]) {
         logger.info('Terminating session via DELETE request', { sessionId: mcpSessionId });
         try {
-          await this.transports[mcpSessionId].close();
-          delete this.transports[mcpSessionId];
-          delete this.servers[mcpSessionId];
+          await this.removeSession(mcpSessionId, 'manual_termination');
           res.status(204).send(); // No content
         } catch (error) {
           logger.error('Error terminating session:', error);
@@ -555,7 +782,7 @@ export class SingleSessionHTTPServer {
 
 
     // Main MCP endpoint with authentication
-    app.post('/mcp', express.json({ limit: '10mb' }), async (req: express.Request, res: express.Response): Promise<void> => {
+    app.post('/mcp', jsonParser, async (req: express.Request, res: express.Response): Promise<void> => {
       // Log comprehensive debug info about the request
       logger.info('POST /mcp request received - DETAILED DEBUG', {
         headers: req.headers,
@@ -679,19 +906,39 @@ export class SingleSessionHTTPServer {
     const host = process.env.HOST || '0.0.0.0';
     
     this.expressServer = app.listen(port, host, () => {
-      logger.info(`n8n MCP Single-Session HTTP Server started`, { port, host });
+      const isProduction = process.env.NODE_ENV === 'production';
+      const isDefaultToken = this.authToken === 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh';
+      
+      logger.info(`n8n MCP Single-Session HTTP Server started`, { 
+        port, 
+        host, 
+        environment: process.env.NODE_ENV || 'development',
+        maxSessions: MAX_SESSIONS,
+        sessionTimeout: this.sessionTimeout / 1000 / 60,
+        production: isProduction,
+        defaultToken: isDefaultToken
+      });
       
       // Detect the base URL using our utility
       const baseUrl = getStartupBaseUrl(host, port);
       const endpoints = formatEndpointUrls(baseUrl);
       
       console.log(`n8n MCP Single-Session HTTP Server running on ${host}:${port}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Session Limits: ${MAX_SESSIONS} max sessions, ${this.sessionTimeout / 1000 / 60}min timeout`);
       console.log(`Health check: ${endpoints.health}`);
       console.log(`MCP endpoint: ${endpoints.mcp}`);
+      
+      if (isProduction) {
+        console.log('🔒 Running in PRODUCTION mode - enhanced security enabled');
+      } else {
+        console.log('🛠️ Running in DEVELOPMENT mode');
+      }
+      
       console.log('\nPress Ctrl+C to stop the server');
       
       // Start periodic warning timer if using default token
-      if (this.authToken === 'REPLACE_THIS_AUTH_TOKEN_32_CHARS_MIN_abcdefgh') {
+      if (isDefaultToken && !isProduction) {
         setInterval(() => {
           logger.warn('⚠️ Still using default AUTH_TOKEN - security risk!');
           if (process.env.MCP_MODE === 'http') {
@@ -727,13 +974,21 @@ export class SingleSessionHTTPServer {
   async shutdown(): Promise<void> {
     logger.info('Shutting down Single-Session HTTP server...');
     
+    // Stop session cleanup timer
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+      logger.info('Session cleanup timer stopped');
+    }
+    
     // Close all active transports (SDK pattern)
-    for (const sessionId in this.transports) {
+    const sessionIds = Object.keys(this.transports);
+    logger.info(`Closing ${sessionIds.length} active sessions`);
+    
+    for (const sessionId of sessionIds) {
       try {
         logger.info(`Closing transport for session ${sessionId}`);
-        await this.transports[sessionId].close();
-        delete this.transports[sessionId];
-        delete this.servers[sessionId];
+        await this.removeSession(sessionId, 'server_shutdown');
       } catch (error) {
         logger.warn(`Error closing transport for session ${sessionId}:`, error);
       }
@@ -759,20 +1014,52 @@ export class SingleSessionHTTPServer {
         });
       });
     }
+    
+    logger.info('Single-Session HTTP server shutdown completed');
   }
   
   /**
    * Get current session info (for testing/debugging)
    */
-  getSessionInfo(): { active: boolean; sessionId?: string; age?: number } {
+  getSessionInfo(): { 
+    active: boolean; 
+    sessionId?: string; 
+    age?: number;
+    sessions?: {
+      total: number;
+      active: number;
+      expired: number;
+      max: number;
+      sessionIds: string[];
+    };
+  } {
+    const metrics = this.getSessionMetrics();
+    
+    // Legacy SSE session info
     if (!this.session) {
-      return { active: false };
+      return { 
+        active: false,
+        sessions: {
+          total: metrics.totalSessions,
+          active: metrics.activeSessions,
+          expired: metrics.expiredSessions,
+          max: MAX_SESSIONS,
+          sessionIds: Object.keys(this.transports)
+        }
+      };
     }
     
     return {
       active: true,
       sessionId: this.session.sessionId,
-      age: Date.now() - this.session.lastAccess.getTime()
+      age: Date.now() - this.session.lastAccess.getTime(),
+      sessions: {
+        total: metrics.totalSessions,
+        active: metrics.activeSessions,
+        expired: metrics.expiredSessions,
+        max: MAX_SESSIONS,
+        sessionIds: Object.keys(this.transports)
+      }
     };
   }
 }

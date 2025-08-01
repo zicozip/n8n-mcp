@@ -61,43 +61,61 @@ vi.mock('../../src/utils/version', () => ({
   PROJECT_VERSION: '2.8.1'
 }));
 
-// Create Express app mock
+// Create handlers storage outside of mocks
 const mockHandlers: { [key: string]: any[] } = {
   get: [],
   post: [],
+  delete: [],
   use: []
 };
 
-const mockExpressApp = {
-  get: vi.fn((path: string, ...handlers: any[]) => {
-    mockHandlers.get.push({ path, handlers });
-    return mockExpressApp;
-  }),
-  post: vi.fn((path: string, ...handlers: any[]) => {
-    mockHandlers.post.push({ path, handlers });
-    return mockExpressApp;
-  }),
-  use: vi.fn((handler: any) => {
-    mockHandlers.use.push(handler);
-    return mockExpressApp;
-  }),
-  set: vi.fn(),
-  listen: vi.fn((port: number, host: string, callback?: () => void) => {
-    if (callback) callback();
-    return {
-      on: vi.fn(),
-      close: vi.fn((cb: () => void) => cb()),
-      address: () => ({ port: 3000 })
-    };
-  })
-};
-
-vi.mock('express', () => ({
-  default: vi.fn(() => mockExpressApp),
-  Request: {},
-  Response: {},
-  NextFunction: {}
-}));
+vi.mock('express', () => {
+  // Create Express app mock inside the factory
+  const mockExpressApp = {
+    get: vi.fn((path: string, ...handlers: any[]) => {
+      mockHandlers.get.push({ path, handlers });
+      return mockExpressApp;
+    }),
+    post: vi.fn((path: string, ...handlers: any[]) => {
+      mockHandlers.post.push({ path, handlers });
+      return mockExpressApp;
+    }),
+    delete: vi.fn((path: string, ...handlers: any[]) => {
+      // Store delete handlers in the same way as other methods
+      if (!mockHandlers.delete) mockHandlers.delete = [];
+      mockHandlers.delete.push({ path, handlers });
+      return mockExpressApp;
+    }),
+    use: vi.fn((handler: any) => {
+      mockHandlers.use.push(handler);
+      return mockExpressApp;
+    }),
+    set: vi.fn(),
+    listen: vi.fn((port: number, host: string, callback?: () => void) => {
+      if (callback) callback();
+      return {
+        on: vi.fn(),
+        close: vi.fn((cb: () => void) => cb()),
+        address: () => ({ port: 3000 })
+      };
+    })
+  };
+  
+  // Create a mock for express that has both the app factory and json method
+  const expressMock = vi.fn(() => mockExpressApp);
+  expressMock.json = vi.fn(() => (req: any, res: any, next: any) => {
+    // Mock JSON parser middleware
+    req.body = req.body || {};
+    next();
+  });
+  
+  return {
+    default: expressMock,
+    Request: {},
+    Response: {},
+    NextFunction: {}
+  };
+});
 
 describe('HTTP Server n8n Mode', () => {
   const originalEnv = process.env;
@@ -122,6 +140,7 @@ describe('HTTP Server n8n Mode', () => {
     vi.clearAllMocks();
     mockHandlers.get = [];
     mockHandlers.post = [];
+    mockHandlers.delete = [];
     mockHandlers.use = [];
   });
 
@@ -390,9 +409,8 @@ describe('HTTP Server n8n Mode', () => {
 
         expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
           status: 'ok',
-          mode: 'single-session',
-          version: '2.8.1',
-          sessionActive: expect.any(Boolean)
+          mode: 'sdk-pattern-transports', // Updated mode name after refactoring
+          version: '2.8.1'
         }));
         
         await server.shutdown();
@@ -490,7 +508,7 @@ describe('HTTP Server n8n Mode', () => {
             expect(headerMap.has('Access-Control-Allow-Origin')).toBe(true);
             expect(headerMap.has('Access-Control-Allow-Methods')).toBe(true);
             expect(headerMap.has('Access-Control-Allow-Headers')).toBe(true);
-            expect(headerMap.get('Access-Control-Allow-Methods')).toBe('POST, GET, OPTIONS');
+            expect(headerMap.get('Access-Control-Allow-Methods')).toBe('POST, GET, DELETE, OPTIONS');
             break;
           }
         }
