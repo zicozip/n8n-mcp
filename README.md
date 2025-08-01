@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.8.3-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![codecov](https://codecov.io/gh/czlonkowski/n8n-mcp/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/czlonkowski/n8n-mcp)
 [![Tests](https://img.shields.io/badge/tests-1356%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
@@ -321,6 +321,14 @@ Deploy n8n-MCP to Railway's cloud platform with zero configuration:
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 **Restart Claude Desktop after updating configuration** - That's it! 🎉
+
+## 🔧 n8n Integration
+
+Want to use n8n-MCP with your n8n instance? Check out our comprehensive [n8n Deployment Guide](./docs/N8N_DEPLOYMENT.md) for:
+- Local testing with the MCP Client Tool node
+- Production deployment with Docker Compose
+- Cloud deployment on Hetzner, AWS, and other providers
+- Troubleshooting and security best practices
 
 ## 💻 Connect your IDE
 

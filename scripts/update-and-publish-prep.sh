@@ -90,15 +90,14 @@ npm version patch --no-git-tag-version
 # Get new project version
 NEW_PROJECT=$(node -e "console.log(require('./package.json').version)")
 
-# 10. Update version badge in README
+# 10. Update n8n version badge in README
 echo ""
-echo -e "${BLUE}📝 Updating README badges...${NC}"
-sed -i.bak "s/version-[0-9.]*/version-$NEW_PROJECT/" README.md && rm README.md.bak
+echo -e "${BLUE}📝 Updating n8n version badge...${NC}"
 sed -i.bak "s/n8n-v[0-9.]*/n8n-$NEW_N8N/" README.md && rm README.md.bak
 
-# 11. Sync runtime version
+# 11. Sync runtime version (this also updates the version badge in README)
 echo ""
-echo -e "${BLUE}🔄 Syncing runtime version...${NC}"
+echo -e "${BLUE}🔄 Syncing runtime version and updating version badge...${NC}"
 npm run sync:runtime-version
 
 # 12. Get update details for commit message
