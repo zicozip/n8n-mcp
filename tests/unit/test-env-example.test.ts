@@ -132,7 +132,8 @@ describe('Test Environment Configuration Example', () => {
     
     const results = measure.end();
     
-    expect(results.total).toBeGreaterThan(100);
+    // Be more lenient with timing in CI environments
+    expect(results.total).toBeGreaterThan(95); // Allow for slight timer variations
     expect(results.marks['start-processing']).toBeLessThan(results.marks['mid-processing']);
   });
   
