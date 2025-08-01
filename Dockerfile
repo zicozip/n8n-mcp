@@ -57,9 +57,13 @@ LABEL org.opencontainers.image.description="n8n MCP Server - Runtime Only"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.title="n8n-mcp"
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
+# Create non-root user with unpredictable UID/GID
+# Using a hash of the build time to generate unpredictable IDs
+RUN BUILD_HASH=$(date +%s | sha256sum | head -c 8) && \
+    UID=$((10000 + 0x${BUILD_HASH} % 50000)) && \
+    GID=$((10000 + 0x${BUILD_HASH} % 50000)) && \
+    addgroup -g ${GID} -S nodejs && \
+    adduser -S nodejs -u ${UID} -G nodejs && \
     chown -R nodejs:nodejs /app
 
 # Switch to non-root user

@@ -29,9 +29,13 @@ RUN apk add --no-cache \
     tini \
     && rm -rf /var/cache/apk/*
 
-# Create non-root user with less common UID/GID
-RUN addgroup -g 1001 n8n-mcp && \
-    adduser -u 1001 -G n8n-mcp -s /bin/sh -D n8n-mcp
+# Create non-root user with unpredictable UID/GID
+# Using a hash of the build time to generate unpredictable IDs
+RUN BUILD_HASH=$(date +%s | sha256sum | head -c 8) && \
+    UID=$((10000 + 0x${BUILD_HASH} % 50000)) && \
+    GID=$((10000 + 0x${BUILD_HASH} % 50000)) && \
+    addgroup -g ${GID} n8n-mcp && \
+    adduser -u ${UID} -G n8n-mcp -s /bin/sh -D n8n-mcp
 
 # Set working directory
 WORKDIR /app

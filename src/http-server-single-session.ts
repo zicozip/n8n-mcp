@@ -16,11 +16,16 @@ import { getStartupBaseUrl, formatEndpointUrls, detectBaseUrl } from './utils/ur
 import { PROJECT_VERSION } from './utils/version';
 import { v4 as uuidv4 } from 'uuid';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { 
+  negotiateProtocolVersion, 
+  logProtocolNegotiation,
+  STANDARD_PROTOCOL_VERSION 
+} from './utils/protocol-version';
 
 dotenv.config();
 
-// Protocol version constant
-const PROTOCOL_VERSION = '2024-11-05';
+// Protocol version constant - will be negotiated per client
+const DEFAULT_PROTOCOL_VERSION = STANDARD_PROTOCOL_VERSION;
 
 // Session management constants
 const MAX_SESSIONS = 100;
@@ -67,8 +72,12 @@ export class SingleSessionHTTPServer {
    * Start periodic session cleanup
    */
   private startSessionCleanup(): void {
-    this.cleanupTimer = setInterval(() => {
-      this.cleanupExpiredSessions();
+    this.cleanupTimer = setInterval(async () => {
+      try {
+        await this.cleanupExpiredSessions();
+      } catch (error) {
+        logger.error('Error during session cleanup', error);
+      }
     }, SESSION_CLEANUP_INTERVAL);
     
     logger.info('Session cleanup started', { 
@@ -148,6 +157,40 @@ export class SingleSessionHTTPServer {
     // UUID v4 format validation
     const uuidv4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidv4Regex.test(sessionId);
+  }
+  
+  /**
+   * Sanitize error information for client responses
+   */
+  private sanitizeErrorForClient(error: unknown): { message: string; code: string } {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (error instanceof Error) {
+      // In production, only return generic messages
+      if (isProduction) {
+        // Map known error types to safe messages
+        if (error.message.includes('Unauthorized') || error.message.includes('authentication')) {
+          return { message: 'Authentication failed', code: 'AUTH_ERROR' };
+        }
+        if (error.message.includes('Session') || error.message.includes('session')) {
+          return { message: 'Session error', code: 'SESSION_ERROR' };
+        }
+        if (error.message.includes('Invalid') || error.message.includes('validation')) {
+          return { message: 'Validation error', code: 'VALIDATION_ERROR' };
+        }
+        // Default generic error
+        return { message: 'Internal server error', code: 'INTERNAL_ERROR' };
+      }
+      
+      // In development, return more details but no stack traces
+      return {
+        message: error.message.substring(0, 200), // Limit message length
+        code: error.name || 'ERROR'
+      };
+    }
+    
+    // For non-Error objects
+    return { message: 'An error occurred', code: 'UNKNOWN_ERROR' };
   }
   
   /**
@@ -304,11 +347,12 @@ export class SingleSessionHTTPServer {
           // For initialize requests: always create new transport and server
           logger.info('handleRequest: Creating new transport for initialize request');
           
-          const newSessionId = uuidv4();
+          // Use client-provided session ID or generate one if not provided
+          const sessionIdToUse = sessionId || uuidv4();
           const server = new N8NDocumentationMCPServer();
           
           transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => newSessionId,
+            sessionIdGenerator: () => sessionIdToUse,
             onsessioninitialized: (initializedSessionId: string) => {
               // Store both transport and server by session ID when session is initialized
               logger.info('handleRequest: Session initialized, storing transport and server', { 
@@ -415,11 +459,16 @@ export class SingleSessionHTTPServer {
         });
         
         if (!res.headersSent) {
+          // Send sanitized error to client
+          const sanitizedError = this.sanitizeErrorForClient(error);
           res.status(500).json({ 
             jsonrpc: '2.0',
             error: {
               code: -32603,
-              message: error instanceof Error ? error.message : 'Internal server error'
+              message: sanitizedError.message,
+              data: {
+                code: sanitizedError.code
+              }
             },
             id: req.body?.id || null
           });
@@ -618,12 +667,22 @@ export class SingleSessionHTTPServer {
         bodyContent: req.body ? JSON.stringify(req.body, null, 2) : 'undefined'
       });
       
+      // Negotiate protocol version for test endpoint
+      const negotiationResult = negotiateProtocolVersion(
+        undefined, // no client version in test
+        undefined, // no client info
+        req.get('user-agent'),
+        req.headers
+      );
+      
+      logProtocolNegotiation(negotiationResult, logger, 'TEST_ENDPOINT');
+      
       // Test what a basic MCP initialize request should look like
       const testResponse = {
         jsonrpc: '2.0',
         id: req.body?.id || 1,
         result: {
-          protocolVersion: PROTOCOL_VERSION,
+          protocolVersion: negotiationResult.version,
           capabilities: {
             tools: {}
           },
@@ -681,8 +740,18 @@ export class SingleSessionHTTPServer {
 
       // In n8n mode, return protocol version and server info
       if (process.env.N8N_MODE === 'true') {
+        // Negotiate protocol version for n8n mode
+        const negotiationResult = negotiateProtocolVersion(
+          undefined, // no client version in GET request
+          undefined, // no client info
+          req.get('user-agent'),
+          req.headers
+        );
+        
+        logProtocolNegotiation(negotiationResult, logger, 'N8N_MODE_GET');
+        
         res.json({
-          protocolVersion: PROTOCOL_VERSION,
+          protocolVersion: negotiationResult.version,
           serverInfo: {
             name: 'n8n-mcp',
             version: PROJECT_VERSION,
@@ -799,6 +868,28 @@ export class SingleSessionHTTPServer {
         url: req.url,
         originalUrl: req.originalUrl
       });
+      
+      // Handle connection close to immediately clean up sessions
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      // Only add event listener if the request object supports it (not in test mocks)
+      if (typeof req.on === 'function') {
+        req.on('close', () => {
+          if (!res.headersSent && sessionId) {
+            logger.info('Connection closed before response sent', { sessionId });
+            // Schedule immediate cleanup if connection closes unexpectedly
+            setImmediate(() => {
+              if (this.sessionMetadata[sessionId]) {
+                const metadata = this.sessionMetadata[sessionId];
+                const timeSinceAccess = Date.now() - metadata.lastAccess.getTime();
+                // Only remove if it's been inactive for a bit to avoid race conditions
+                if (timeSinceAccess > 60000) { // 1 minute
+                  this.removeSession(sessionId, 'connection_closed');
+                }
+              }
+            });
+          }
+        });
+      }
       
       // Enhanced authentication check with specific logging
       const authHeader = req.headers.authorization;

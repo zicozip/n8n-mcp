@@ -40,6 +40,7 @@
     "fetch:templates:robust": "node dist/scripts/fetch-templates-robust.js",
     "prebuild:fts5": "npx tsx scripts/prebuild-fts5.ts",
     "test:templates": "node dist/scripts/test-templates.js",
+    "test:protocol-negotiation": "npx tsx src/scripts/test-protocol-negotiation.ts",
     "test:workflow-validation": "node dist/scripts/test-workflow-validation.js",
     "test:template-validation": "node dist/scripts/test-template-validation.js",
     "test:essentials": "node dist/scripts/test-essentials.js",

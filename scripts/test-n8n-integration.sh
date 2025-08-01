@@ -3,6 +3,27 @@
 # Script to test n8n integration with n8n-mcp server
 set -e
 
+# Check for command line arguments
+if [ "$1" == "--clear-api-key" ] || [ "$1" == "-c" ]; then
+    echo "🗑️  Clearing saved n8n API key..."
+    rm -f "$HOME/.n8n-mcp-test/.n8n-api-key"
+    echo "✅ API key cleared. You'll be prompted for a new key on next run."
+    exit 0
+fi
+
+if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help           Show this help message"
+    echo "  -c, --clear-api-key  Clear the saved n8n API key"
+    echo ""
+    echo "The script will save your n8n API key on first use and reuse it on"
+    echo "subsequent runs. You can override the saved key at runtime or clear"
+    echo "it with the --clear-api-key option."
+    exit 0
+fi
+
 echo "🚀 Starting n8n integration test environment..."
 
 # Colors for output
@@ -19,6 +40,8 @@ AUTH_TOKEN="test-token-for-n8n-testing-minimum-32-chars"
 
 # n8n data directory for persistence
 N8N_DATA_DIR="$HOME/.n8n-mcp-test"
+# API key storage file
+API_KEY_FILE="$N8N_DATA_DIR/.n8n-api-key"
 
 # Function to detect OS
 detect_os() {
@@ -199,25 +222,61 @@ for i in {1..30}; do
     sleep 1
 done
 
-# Guide user to get API key
-echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}🔑 n8n API Key Setup${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "\nTo enable n8n management tools, you need to create an API key:"
-echo -e "\n${GREEN}Steps:${NC}"
-echo -e "  1. Open n8n in your browser: ${BLUE}http://localhost:${N8N_PORT}${NC}"
-echo -e "  2. Click on your user menu (top right)"
-echo -e "  3. Go to 'Settings'"
-echo -e "  4. Navigate to 'API'"
-echo -e "  5. Click 'Create API Key'"
-echo -e "  6. Give it a name (e.g., 'n8n-mcp')"
-echo -e "  7. Copy the generated API key"
-echo -e "\n${YELLOW}Note: If this is your first time, you'll need to create an account first.${NC}"
-echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+# Check for saved API key
+if [ -f "$API_KEY_FILE" ]; then
+    # Read saved API key
+    N8N_API_KEY=$(cat "$API_KEY_FILE" 2>/dev/null || echo "")
+    
+    if [ -n "$N8N_API_KEY" ]; then
+        echo -e "\n${GREEN}✅ Using saved n8n API key${NC}"
+        echo -e "${YELLOW}   To use a different key, delete: ${API_KEY_FILE}${NC}"
+        
+        # Give user a chance to override
+        echo -e "\n${YELLOW}Press Enter to continue with saved key, or paste a new API key:${NC}"
+        read -r NEW_API_KEY
+        
+        if [ -n "$NEW_API_KEY" ]; then
+            N8N_API_KEY="$NEW_API_KEY"
+            # Save the new key
+            echo "$N8N_API_KEY" > "$API_KEY_FILE"
+            chmod 600 "$API_KEY_FILE"
+            echo -e "${GREEN}✅ New API key saved${NC}"
+        fi
+    else
+        # File exists but is empty, remove it
+        rm -f "$API_KEY_FILE"
+    fi
+fi
 
-# Wait for API key input
-echo -e "\n${YELLOW}Please paste your n8n API key here (or press Enter to skip):${NC}"
-read -r N8N_API_KEY
+# If no saved key, prompt for one
+if [ -z "$N8N_API_KEY" ]; then
+    # Guide user to get API key
+    echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}🔑 n8n API Key Setup${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "\nTo enable n8n management tools, you need to create an API key:"
+    echo -e "\n${GREEN}Steps:${NC}"
+    echo -e "  1. Open n8n in your browser: ${BLUE}http://localhost:${N8N_PORT}${NC}"
+    echo -e "  2. Click on your user menu (top right)"
+    echo -e "  3. Go to 'Settings'"
+    echo -e "  4. Navigate to 'API'"
+    echo -e "  5. Click 'Create API Key'"
+    echo -e "  6. Give it a name (e.g., 'n8n-mcp')"
+    echo -e "  7. Copy the generated API key"
+    echo -e "\n${YELLOW}Note: If this is your first time, you'll need to create an account first.${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    
+    # Wait for API key input
+    echo -e "\n${YELLOW}Please paste your n8n API key here (or press Enter to skip):${NC}"
+    read -r N8N_API_KEY
+    
+    # Save the API key if provided
+    if [ -n "$N8N_API_KEY" ]; then
+        echo "$N8N_API_KEY" > "$API_KEY_FILE"
+        chmod 600 "$API_KEY_FILE"
+        echo -e "${GREEN}✅ API key saved for future use${NC}"
+    fi
+fi
 
 # Check if API key was provided
 if [ -z "$N8N_API_KEY" ]; then
