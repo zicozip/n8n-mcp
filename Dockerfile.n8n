@@ -40,11 +40,11 @@ RUN BUILD_HASH=$(date +%s | sha256sum | head -c 8) && \
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files (use runtime-only dependencies)
+COPY package.runtime.json package.json
 
 # Install production dependencies only
-RUN npm ci --only=production && \
+RUN npm install --production --no-audit --no-fund && \
     npm cache clean --force
 
 # Copy built application from builder stage
