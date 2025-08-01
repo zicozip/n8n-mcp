@@ -59,7 +59,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_info',
-    description: `Get FULL node schema (100KB+). TIP: Use get_node_essentials first! Returns all properties/operations/credentials. Prefix required: "nodes-base.httpRequest" not "httpRequest".`,
+    description: `Get full node documentation. Pass nodeType as string with prefix. Example: nodeType="nodes-base.webhook"`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -73,7 +73,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'search_nodes',
-    description: `Search nodes by keywords. Modes: OR (any word), AND (all words), FUZZY (typos OK). Primary nodes ranked first. Examples: "webhook"→Webhook, "http call"→HTTP Request.`,
+    description: `Search n8n nodes by keyword. Pass query as string. Example: query="webhook" or query="database". Returns max 20 results.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -128,7 +128,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_essentials',
-    description: `Get 10-20 key properties only (<5KB vs 100KB+). USE THIS FIRST! Includes examples. Format: "nodes-base.httpRequest"`,
+    description: `Get node essential info. Pass nodeType as string with prefix. Example: nodeType="nodes-base.slack"`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -192,44 +192,103 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'validate_node_operation',
-    description: `Validate node config. Checks required fields, types, operation rules. Returns errors with fixes. Essential for Slack/Sheets/DB nodes.`,
+    description: `Validate n8n node configuration. Pass nodeType as string and config as object. Example: nodeType="nodes-base.slack", config={resource:"channel",operation:"create"}`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
-          description: 'The node type to validate (e.g., "nodes-base.slack")',
+          description: 'Node type as string. Example: "nodes-base.slack"',
         },
         config: {
           type: 'object',
-          description: 'Your node configuration. Must include operation fields (resource/operation/action) if the node has multiple operations.',
+          description: 'Configuration as object. For simple nodes use {}. For complex nodes include fields like {resource:"channel",operation:"create"}',
         },
         profile: {
           type: 'string',
           enum: ['strict', 'runtime', 'ai-friendly', 'minimal'],
-          description: 'Validation profile: minimal (only required fields), runtime (critical errors only), ai-friendly (balanced - default), strict (all checks including best practices)',
+          description: 'Profile string: "minimal", "runtime", "ai-friendly", or "strict". Default is "ai-friendly"',
           default: 'ai-friendly',
         },
       },
       required: ['nodeType', 'config'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        nodeType: { type: 'string' },
+        workflowNodeType: { type: 'string' },
+        displayName: { type: 'string' },
+        valid: { type: 'boolean' },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              property: { type: 'string' },
+              message: { type: 'string' },
+              fix: { type: 'string' }
+            }
+          }
+        },
+        warnings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              property: { type: 'string' },
+              message: { type: 'string' },
+              suggestion: { type: 'string' }
+            }
+          }
+        },
+        suggestions: { type: 'array', items: { type: 'string' } },
+        summary: {
+          type: 'object',
+          properties: {
+            hasErrors: { type: 'boolean' },
+            errorCount: { type: 'number' },
+            warningCount: { type: 'number' },
+            suggestionCount: { type: 'number' }
+          }
+        }
+      },
+      required: ['nodeType', 'displayName', 'valid', 'errors', 'warnings', 'suggestions', 'summary']
     },
   },
   {
     name: 'validate_node_minimal',
-    description: `Fast check for missing required fields only. No warnings/suggestions. Returns: list of missing fields.`,
+    description: `Check n8n node required fields. Pass nodeType as string and config as empty object {}. Example: nodeType="nodes-base.webhook", config={}`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
-          description: 'The node type to validate (e.g., "nodes-base.slack")',
+          description: 'Node type as string. Example: "nodes-base.slack"',
         },
         config: {
           type: 'object',
-          description: 'The node configuration to check',
+          description: 'Configuration object. Always pass {} for empty config',
         },
       },
       required: ['nodeType', 'config'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        nodeType: { type: 'string' },
+        displayName: { type: 'string' },
+        valid: { type: 'boolean' },
+        missingRequiredFields: {
+          type: 'array',
+          items: { type: 'string' }
+        }
+      },
+      required: ['nodeType', 'displayName', 'valid', 'missingRequiredFields']
     },
   },
   {
@@ -306,7 +365,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
       properties: {
         query: {
           type: 'string',
-          description: 'Search query for template names/descriptions. NOT for node types! Examples: "chatbot", "automation", "social media", "webhook". For node-based search use list_node_templates instead.',
+          description: 'Search keyword as string. Example: "chatbot"',
         },
         limit: {
           type: 'number',
@@ -382,6 +441,50 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
         },
       },
       required: ['workflow'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        valid: { type: 'boolean' },
+        summary: {
+          type: 'object',
+          properties: {
+            totalNodes: { type: 'number' },
+            enabledNodes: { type: 'number' },
+            triggerNodes: { type: 'number' },
+            validConnections: { type: 'number' },
+            invalidConnections: { type: 'number' },
+            expressionsValidated: { type: 'number' },
+            errorCount: { type: 'number' },
+            warningCount: { type: 'number' }
+          }
+        },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              node: { type: 'string' },
+              message: { type: 'string' },
+              details: { type: 'string' }
+            }
+          }
+        },
+        warnings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              node: { type: 'string' },
+              message: { type: 'string' },
+              details: { type: 'string' }
+            }
+          }
+        },
+        suggestions: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['valid', 'summary']
     },
   },
   {
@@ -396,6 +499,43 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
         },
       },
       required: ['workflow'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        valid: { type: 'boolean' },
+        statistics: {
+          type: 'object',
+          properties: {
+            totalNodes: { type: 'number' },
+            triggerNodes: { type: 'number' },
+            validConnections: { type: 'number' },
+            invalidConnections: { type: 'number' }
+          }
+        },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              node: { type: 'string' },
+              message: { type: 'string' }
+            }
+          }
+        },
+        warnings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              node: { type: 'string' },
+              message: { type: 'string' }
+            }
+          }
+        }
+      },
+      required: ['valid', 'statistics']
     },
   },
   {
@@ -410,6 +550,42 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
         },
       },
       required: ['workflow'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        valid: { type: 'boolean' },
+        statistics: {
+          type: 'object',
+          properties: {
+            totalNodes: { type: 'number' },
+            expressionsValidated: { type: 'number' }
+          }
+        },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              node: { type: 'string' },
+              message: { type: 'string' }
+            }
+          }
+        },
+        warnings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              node: { type: 'string' },
+              message: { type: 'string' }
+            }
+          }
+        },
+        tips: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['valid', 'statistics']
     },
   },
 ];

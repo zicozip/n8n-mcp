@@ -9,6 +9,8 @@ import { existsSync, promises as fs } from 'fs';
 import path from 'path';
 import { n8nDocumentationToolsFinal } from './tools';
 import { n8nManagementTools } from './tools-n8n-manager';
+import { makeToolsN8nFriendly } from './tools-n8n-friendly';
+import { getWorkflowExampleString } from './workflow-examples';
 import { logger } from '../utils/logger';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter, createDatabaseAdapter } from '../database/database-adapter';
@@ -26,6 +28,11 @@ import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { getToolDocumentation, getToolsOverview } from './tools-documentation';
 import { PROJECT_VERSION } from '../utils/version';
 import { normalizeNodeType, getNodeTypeAlternatives, getWorkflowNodeType } from '../utils/node-utils';
+import { 
+  negotiateProtocolVersion, 
+  logProtocolNegotiation,
+  STANDARD_PROTOCOL_VERSION 
+} from '../utils/protocol-version';
 
 interface NodeRow {
   node_type: string;
@@ -52,6 +59,7 @@ export class N8NDocumentationMCPServer {
   private templateService: TemplateService | null = null;
   private initialized: Promise<void>;
   private cache = new SimpleCache();
+  private clientInfo: any = null;
 
   constructor() {
     // Check for test environment first
@@ -154,9 +162,39 @@ export class N8NDocumentationMCPServer {
 
   private setupHandlers(): void {
     // Handle initialization
-    this.server.setRequestHandler(InitializeRequestSchema, async () => {
+    this.server.setRequestHandler(InitializeRequestSchema, async (request) => {
+      const clientVersion = request.params.protocolVersion;
+      const clientCapabilities = request.params.capabilities;
+      const clientInfo = request.params.clientInfo;
+      
+      logger.info('MCP Initialize request received', {
+        clientVersion,
+        clientCapabilities,
+        clientInfo
+      });
+      
+      // Store client info for later use
+      this.clientInfo = clientInfo;
+      
+      // Negotiate protocol version based on client information
+      const negotiationResult = negotiateProtocolVersion(
+        clientVersion,
+        clientInfo,
+        undefined, // no user agent in MCP protocol
+        undefined  // no headers in MCP protocol
+      );
+      
+      logProtocolNegotiation(negotiationResult, logger, 'MCP_INITIALIZE');
+      
+      // Warn if there's a version mismatch (for debugging)
+      if (clientVersion && clientVersion !== negotiationResult.version) {
+        logger.warn(`Protocol version negotiated: client requested ${clientVersion}, server will use ${negotiationResult.version}`, {
+          reasoning: negotiationResult.reasoning
+        });
+      }
+      
       const response = {
-        protocolVersion: '2024-11-05',
+        protocolVersion: negotiationResult.version,
         capabilities: {
           tools: {},
         },
@@ -166,18 +204,14 @@ export class N8NDocumentationMCPServer {
         },
       };
       
-      // Debug logging
-      if (process.env.DEBUG_MCP === 'true') {
-        logger.debug('Initialize handler called', { response });
-      }
-      
+      logger.info('MCP Initialize response', { response });
       return response;
     });
 
     // Handle tool listing
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler(ListToolsRequestSchema, async (request) => {
       // Combine documentation tools with management tools if API is configured
-      const tools = [...n8nDocumentationToolsFinal];
+      let tools = [...n8nDocumentationToolsFinal];
       const isConfigured = isN8nApiConfigured();
       
       if (isConfigured) {
@@ -187,6 +221,27 @@ export class N8NDocumentationMCPServer {
         logger.debug(`Tool listing: ${tools.length} tools available (documentation only)`);
       }
       
+      // Check if client is n8n (from initialization)
+      const clientInfo = this.clientInfo;
+      const isN8nClient = clientInfo?.name?.includes('n8n') || 
+                         clientInfo?.name?.includes('langchain');
+      
+      if (isN8nClient) {
+        logger.info('Detected n8n client, using n8n-friendly tool descriptions');
+        tools = makeToolsN8nFriendly(tools);
+      }
+      
+      // Log validation tools' input schemas for debugging
+      const validationTools = tools.filter(t => t.name.startsWith('validate_'));
+      validationTools.forEach(tool => {
+        logger.info('Validation tool schema', {
+          toolName: tool.name,
+          inputSchema: JSON.stringify(tool.inputSchema, null, 2),
+          hasOutputSchema: !!tool.outputSchema,
+          description: tool.description
+        });
+      });
+      
       return { tools };
     });
 
@@ -194,25 +249,124 @@ export class N8NDocumentationMCPServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
       
+      // Enhanced logging for debugging tool calls
+      logger.info('Tool call received - DETAILED DEBUG', {
+        toolName: name,
+        arguments: JSON.stringify(args, null, 2),
+        argumentsType: typeof args,
+        argumentsKeys: args ? Object.keys(args) : [],
+        hasNodeType: args && 'nodeType' in args,
+        hasConfig: args && 'config' in args,
+        configType: args && args.config ? typeof args.config : 'N/A',
+        rawRequest: JSON.stringify(request.params)
+      });
+      
+      // Workaround for n8n's nested output bug
+      // Check if args contains nested 'output' structure from n8n's memory corruption
+      let processedArgs = args;
+      if (args && typeof args === 'object' && 'output' in args) {
+        try {
+          const possibleNestedData = args.output;
+          // If output is a string that looks like JSON, try to parse it
+          if (typeof possibleNestedData === 'string' && possibleNestedData.trim().startsWith('{')) {
+            const parsed = JSON.parse(possibleNestedData);
+            if (parsed && typeof parsed === 'object') {
+              logger.warn('Detected n8n nested output bug, attempting to extract actual arguments', {
+                originalArgs: args,
+                extractedArgs: parsed
+              });
+              
+              // Validate the extracted arguments match expected tool schema
+              if (this.validateExtractedArgs(name, parsed)) {
+                // Use the extracted data as args
+                processedArgs = parsed;
+              } else {
+                logger.warn('Extracted arguments failed validation, using original args', {
+                  toolName: name,
+                  extractedArgs: parsed
+                });
+              }
+            }
+          }
+        } catch (parseError) {
+          logger.debug('Failed to parse nested output, continuing with original args', { 
+            error: parseError instanceof Error ? parseError.message : String(parseError) 
+          });
+        }
+      }
+      
       try {
-        logger.debug(`Executing tool: ${name}`, { args });
-        const result = await this.executeTool(name, args);
+        logger.debug(`Executing tool: ${name}`, { args: processedArgs });
+        const result = await this.executeTool(name, processedArgs);
         logger.debug(`Tool ${name} executed successfully`);
-        return {
+        
+        // Ensure the result is properly formatted for MCP
+        let responseText: string;
+        let structuredContent: any = null;
+        
+        try {
+          // For validation tools, check if we should use structured content
+          if (name.startsWith('validate_') && typeof result === 'object' && result !== null) {
+            // Clean up the result to ensure it matches the outputSchema
+            const cleanResult = this.sanitizeValidationResult(result, name);
+            structuredContent = cleanResult;
+            responseText = JSON.stringify(cleanResult, null, 2);
+          } else {
+            responseText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+          }
+        } catch (jsonError) {
+          logger.warn(`Failed to stringify tool result for ${name}:`, jsonError);
+          responseText = String(result);
+        }
+        
+        // Validate response size (n8n might have limits)
+        if (responseText.length > 1000000) { // 1MB limit
+          logger.warn(`Tool ${name} response is very large (${responseText.length} chars), truncating`);
+          responseText = responseText.substring(0, 999000) + '\n\n[Response truncated due to size limits]';
+          structuredContent = null; // Don't use structured content for truncated responses
+        }
+        
+        // Build MCP response with strict schema compliance
+        const mcpResponse: any = {
           content: [
             {
-              type: 'text',
-              text: JSON.stringify(result, null, 2),
+              type: 'text' as const,
+              text: responseText,
             },
           ],
         };
+        
+        // For tools with outputSchema, structuredContent is REQUIRED by MCP spec
+        if (name.startsWith('validate_') && structuredContent !== null) {
+          mcpResponse.structuredContent = structuredContent;
+        }
+        
+        return mcpResponse;
       } catch (error) {
         logger.error(`Error executing tool ${name}`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        // Provide more helpful error messages for common n8n issues
+        let helpfulMessage = `Error executing tool ${name}: ${errorMessage}`;
+        
+        if (errorMessage.includes('required') || errorMessage.includes('missing')) {
+          helpfulMessage += '\n\nNote: This error often occurs when the AI agent sends incomplete or incorrectly formatted parameters. Please ensure all required fields are provided with the correct types.';
+        } else if (errorMessage.includes('type') || errorMessage.includes('expected')) {
+          helpfulMessage += '\n\nNote: This error indicates a type mismatch. The AI agent may be sending data in the wrong format (e.g., string instead of object).';
+        } else if (errorMessage.includes('Unknown category') || errorMessage.includes('not found')) {
+          helpfulMessage += '\n\nNote: The requested resource or category was not found. Please check the available options.';
+        }
+        
+        // For n8n schema errors, add specific guidance
+        if (name.startsWith('validate_') && (errorMessage.includes('config') || errorMessage.includes('nodeType'))) {
+          helpfulMessage += '\n\nFor validation tools:\n- nodeType should be a string (e.g., "nodes-base.webhook")\n- config should be an object (e.g., {})';
+        }
+        
         return {
           content: [
             {
               type: 'text',
-              text: `Error executing tool ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              text: helpfulMessage,
             },
           ],
           isError: true,
@@ -221,89 +375,357 @@ export class N8NDocumentationMCPServer {
     });
   }
 
+  /**
+   * Sanitize validation result to match outputSchema
+   */
+  private sanitizeValidationResult(result: any, toolName: string): any {
+    if (!result || typeof result !== 'object') {
+      return result;
+    }
+
+    const sanitized = { ...result };
+
+    // Ensure required fields exist with proper types and filter to schema-defined fields only
+    if (toolName === 'validate_node_minimal') {
+      // Filter to only schema-defined fields
+      const filtered = {
+        nodeType: String(sanitized.nodeType || ''),
+        displayName: String(sanitized.displayName || ''),
+        valid: Boolean(sanitized.valid),
+        missingRequiredFields: Array.isArray(sanitized.missingRequiredFields) 
+          ? sanitized.missingRequiredFields.map(String) 
+          : []
+      };
+      return filtered;
+    } else if (toolName === 'validate_node_operation') {
+      // Ensure summary exists
+      let summary = sanitized.summary;
+      if (!summary || typeof summary !== 'object') {
+        summary = {
+          hasErrors: Array.isArray(sanitized.errors) ? sanitized.errors.length > 0 : false,
+          errorCount: Array.isArray(sanitized.errors) ? sanitized.errors.length : 0,
+          warningCount: Array.isArray(sanitized.warnings) ? sanitized.warnings.length : 0,
+          suggestionCount: Array.isArray(sanitized.suggestions) ? sanitized.suggestions.length : 0
+        };
+      }
+      
+      // Filter to only schema-defined fields
+      const filtered = {
+        nodeType: String(sanitized.nodeType || ''),
+        workflowNodeType: String(sanitized.workflowNodeType || sanitized.nodeType || ''),
+        displayName: String(sanitized.displayName || ''),
+        valid: Boolean(sanitized.valid),
+        errors: Array.isArray(sanitized.errors) ? sanitized.errors : [],
+        warnings: Array.isArray(sanitized.warnings) ? sanitized.warnings : [],
+        suggestions: Array.isArray(sanitized.suggestions) ? sanitized.suggestions : [],
+        summary: summary
+      };
+      return filtered;
+    } else if (toolName.startsWith('validate_workflow')) {
+      sanitized.valid = Boolean(sanitized.valid);
+      
+      // Ensure arrays exist
+      sanitized.errors = Array.isArray(sanitized.errors) ? sanitized.errors : [];
+      sanitized.warnings = Array.isArray(sanitized.warnings) ? sanitized.warnings : [];
+      
+      // Ensure statistics/summary exists
+      if (toolName === 'validate_workflow') {
+        if (!sanitized.summary || typeof sanitized.summary !== 'object') {
+          sanitized.summary = {
+            totalNodes: 0,
+            enabledNodes: 0,
+            triggerNodes: 0,
+            validConnections: 0,
+            invalidConnections: 0,
+            expressionsValidated: 0,
+            errorCount: sanitized.errors.length,
+            warningCount: sanitized.warnings.length
+          };
+        }
+      } else {
+        if (!sanitized.statistics || typeof sanitized.statistics !== 'object') {
+          sanitized.statistics = {
+            totalNodes: 0,
+            triggerNodes: 0,
+            validConnections: 0,
+            invalidConnections: 0,
+            expressionsValidated: 0
+          };
+        }
+      }
+    }
+
+    // Remove undefined values to ensure clean JSON
+    return JSON.parse(JSON.stringify(sanitized));
+  }
+
+  /**
+   * Validate required parameters for tool execution
+   */
+  private validateToolParams(toolName: string, args: any, requiredParams: string[]): void {
+    const missing: string[] = [];
+    
+    for (const param of requiredParams) {
+      if (!(param in args) || args[param] === undefined || args[param] === null) {
+        missing.push(param);
+      }
+    }
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing required parameters for ${toolName}: ${missing.join(', ')}. Please provide the required parameters to use this tool.`);
+    }
+  }
+
+  /**
+   * Validate extracted arguments match expected tool schema
+   */
+  private validateExtractedArgs(toolName: string, args: any): boolean {
+    if (!args || typeof args !== 'object') {
+      return false;
+    }
+
+    // Get all available tools
+    const allTools = [...n8nDocumentationToolsFinal, ...n8nManagementTools];
+    const tool = allTools.find(t => t.name === toolName);
+    if (!tool || !tool.inputSchema) {
+      return true; // If no schema, assume valid
+    }
+
+    const schema = tool.inputSchema;
+    const required = schema.required || [];
+    const properties = schema.properties || {};
+
+    // Check all required fields are present
+    for (const requiredField of required) {
+      if (!(requiredField in args)) {
+        logger.debug(`Extracted args missing required field: ${requiredField}`, {
+          toolName,
+          extractedArgs: args,
+          required
+        });
+        return false;
+      }
+    }
+
+    // Check field types match schema
+    for (const [fieldName, fieldValue] of Object.entries(args)) {
+      if (properties[fieldName]) {
+        const expectedType = properties[fieldName].type;
+        const actualType = Array.isArray(fieldValue) ? 'array' : typeof fieldValue;
+
+        // Basic type validation
+        if (expectedType && expectedType !== actualType) {
+          // Special case: number can be coerced from string
+          if (expectedType === 'number' && actualType === 'string' && !isNaN(Number(fieldValue))) {
+            continue;
+          }
+          
+          logger.debug(`Extracted args field type mismatch: ${fieldName}`, {
+            toolName,
+            expectedType,
+            actualType,
+            fieldValue
+          });
+          return false;
+        }
+      }
+    }
+
+    // Check for extraneous fields if additionalProperties is false
+    if (schema.additionalProperties === false) {
+      const allowedFields = Object.keys(properties);
+      const extraFields = Object.keys(args).filter(field => !allowedFields.includes(field));
+      
+      if (extraFields.length > 0) {
+        logger.debug(`Extracted args have extra fields`, {
+          toolName,
+          extraFields,
+          allowedFields
+        });
+        // For n8n compatibility, we'll still consider this valid but log it
+      }
+    }
+
+    return true;
+  }
+
   async executeTool(name: string, args: any): Promise<any> {
+    // Ensure args is an object and validate it
+    args = args || {};
+    
+    // Log the tool call for debugging n8n issues
+    logger.info(`Tool execution: ${name}`, { 
+      args: typeof args === 'object' ? JSON.stringify(args) : args,
+      argsType: typeof args,
+      argsKeys: typeof args === 'object' ? Object.keys(args) : 'not-object'
+    });
+    
+    // Validate that args is actually an object
+    if (typeof args !== 'object' || args === null) {
+      throw new Error(`Invalid arguments for tool ${name}: expected object, got ${typeof args}`);
+    }
+    
     switch (name) {
       case 'tools_documentation':
+        // No required parameters
         return this.getToolsDocumentation(args.topic, args.depth);
       case 'list_nodes':
+        // No required parameters
         return this.listNodes(args);
       case 'get_node_info':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeInfo(args.nodeType);
       case 'search_nodes':
-        return this.searchNodes(args.query, args.limit, { mode: args.mode });
+        this.validateToolParams(name, args, ['query']);
+        // Convert limit to number if provided, otherwise use default
+        const limit = args.limit !== undefined ? Number(args.limit) || 20 : 20;
+        return this.searchNodes(args.query, limit, { mode: args.mode });
       case 'list_ai_tools':
+        // No required parameters
         return this.listAITools();
       case 'get_node_documentation':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeDocumentation(args.nodeType);
       case 'get_database_statistics':
+        // No required parameters
         return this.getDatabaseStatistics();
       case 'get_node_essentials':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeEssentials(args.nodeType);
       case 'search_node_properties':
-        return this.searchNodeProperties(args.nodeType, args.query, args.maxResults);
+        this.validateToolParams(name, args, ['nodeType', 'query']);
+        const maxResults = args.maxResults !== undefined ? Number(args.maxResults) || 20 : 20;
+        return this.searchNodeProperties(args.nodeType, args.query, maxResults);
       case 'get_node_for_task':
+        this.validateToolParams(name, args, ['task']);
         return this.getNodeForTask(args.task);
       case 'list_tasks':
+        // No required parameters
         return this.listTasks(args.category);
       case 'validate_node_operation':
+        this.validateToolParams(name, args, ['nodeType', 'config']);
+        // Ensure config is an object
+        if (typeof args.config !== 'object' || args.config === null) {
+          logger.warn(`validate_node_operation called with invalid config type: ${typeof args.config}`);
+          return {
+            nodeType: args.nodeType || 'unknown',
+            workflowNodeType: args.nodeType || 'unknown',
+            displayName: 'Unknown Node',
+            valid: false,
+            errors: [{
+              type: 'config',
+              property: 'config',
+              message: 'Invalid config format - expected object',
+              fix: 'Provide config as an object with node properties'
+            }],
+            warnings: [],
+            suggestions: [],
+            summary: {
+              hasErrors: true,
+              errorCount: 1,
+              warningCount: 0,
+              suggestionCount: 0
+            }
+          };
+        }
         return this.validateNodeConfig(args.nodeType, args.config, 'operation', args.profile);
       case 'validate_node_minimal':
+        this.validateToolParams(name, args, ['nodeType', 'config']);
+        // Ensure config is an object
+        if (typeof args.config !== 'object' || args.config === null) {
+          logger.warn(`validate_node_minimal called with invalid config type: ${typeof args.config}`);
+          return {
+            nodeType: args.nodeType || 'unknown',
+            displayName: 'Unknown Node',
+            valid: false,
+            missingRequiredFields: ['Invalid config format - expected object']
+          };
+        }
         return this.validateNodeMinimal(args.nodeType, args.config);
       case 'get_property_dependencies':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getPropertyDependencies(args.nodeType, args.config);
       case 'get_node_as_tool_info':
+        this.validateToolParams(name, args, ['nodeType']);
         return this.getNodeAsToolInfo(args.nodeType);
       case 'list_node_templates':
-        return this.listNodeTemplates(args.nodeTypes, args.limit);
+        this.validateToolParams(name, args, ['nodeTypes']);
+        const templateLimit = args.limit !== undefined ? Number(args.limit) || 10 : 10;
+        return this.listNodeTemplates(args.nodeTypes, templateLimit);
       case 'get_template':
-        return this.getTemplate(args.templateId);
+        this.validateToolParams(name, args, ['templateId']);
+        const templateId = Number(args.templateId);
+        return this.getTemplate(templateId);
       case 'search_templates':
-        return this.searchTemplates(args.query, args.limit);
+        this.validateToolParams(name, args, ['query']);
+        const searchLimit = args.limit !== undefined ? Number(args.limit) || 20 : 20;
+        return this.searchTemplates(args.query, searchLimit);
       case 'get_templates_for_task':
+        this.validateToolParams(name, args, ['task']);
         return this.getTemplatesForTask(args.task);
       case 'validate_workflow':
+        this.validateToolParams(name, args, ['workflow']);
         return this.validateWorkflow(args.workflow, args.options);
       case 'validate_workflow_connections':
+        this.validateToolParams(name, args, ['workflow']);
         return this.validateWorkflowConnections(args.workflow);
       case 'validate_workflow_expressions':
+        this.validateToolParams(name, args, ['workflow']);
         return this.validateWorkflowExpressions(args.workflow);
       
       // n8n Management Tools (if API is configured)
       case 'n8n_create_workflow':
+        this.validateToolParams(name, args, ['name', 'nodes', 'connections']);
         return n8nHandlers.handleCreateWorkflow(args);
       case 'n8n_get_workflow':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflow(args);
       case 'n8n_get_workflow_details':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflowDetails(args);
       case 'n8n_get_workflow_structure':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflowStructure(args);
       case 'n8n_get_workflow_minimal':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetWorkflowMinimal(args);
       case 'n8n_update_full_workflow':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleUpdateWorkflow(args);
       case 'n8n_update_partial_workflow':
+        this.validateToolParams(name, args, ['id', 'operations']);
         return handleUpdatePartialWorkflow(args);
       case 'n8n_delete_workflow':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleDeleteWorkflow(args);
       case 'n8n_list_workflows':
+        // No required parameters
         return n8nHandlers.handleListWorkflows(args);
       case 'n8n_validate_workflow':
+        this.validateToolParams(name, args, ['id']);
         await this.ensureInitialized();
         if (!this.repository) throw new Error('Repository not initialized');
         return n8nHandlers.handleValidateWorkflow(args, this.repository);
       case 'n8n_trigger_webhook_workflow':
+        this.validateToolParams(name, args, ['webhookUrl']);
         return n8nHandlers.handleTriggerWebhookWorkflow(args);
       case 'n8n_get_execution':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleGetExecution(args);
       case 'n8n_list_executions':
+        // No required parameters
         return n8nHandlers.handleListExecutions(args);
       case 'n8n_delete_execution':
+        this.validateToolParams(name, args, ['id']);
         return n8nHandlers.handleDeleteExecution(args);
       case 'n8n_health_check':
+        // No required parameters
         return n8nHandlers.handleHealthCheck();
       case 'n8n_list_available_tools':
+        // No required parameters
         return n8nHandlers.handleListAvailableTools();
       case 'n8n_diagnostic':
+        // No required parameters
         return n8nHandlers.handleDiagnostic({ params: { arguments: args } });
         
       default:
@@ -1843,6 +2265,56 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   private async validateWorkflow(workflow: any, options?: any): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
+    
+    // Enhanced logging for workflow validation
+    logger.info('Workflow validation requested', {
+      hasWorkflow: !!workflow,
+      workflowType: typeof workflow,
+      hasNodes: workflow?.nodes !== undefined,
+      nodesType: workflow?.nodes ? typeof workflow.nodes : 'undefined',
+      nodesIsArray: Array.isArray(workflow?.nodes),
+      nodesCount: Array.isArray(workflow?.nodes) ? workflow.nodes.length : 0,
+      hasConnections: workflow?.connections !== undefined,
+      connectionsType: workflow?.connections ? typeof workflow.connections : 'undefined',
+      options: options
+    });
+    
+    // Help n8n AI agents with common mistakes
+    if (!workflow || typeof workflow !== 'object') {
+      return {
+        valid: false,
+        errors: [{
+          node: 'workflow',
+          message: 'Workflow must be an object with nodes and connections',
+          details: 'Expected format: ' + getWorkflowExampleString()
+        }],
+        summary: { errorCount: 1 }
+      };
+    }
+    
+    if (!workflow.nodes || !Array.isArray(workflow.nodes)) {
+      return {
+        valid: false,
+        errors: [{
+          node: 'workflow',
+          message: 'Workflow must have a nodes array',
+          details: 'Expected: workflow.nodes = [array of node objects]. ' + getWorkflowExampleString()
+        }],
+        summary: { errorCount: 1 }
+      };
+    }
+    
+    if (!workflow.connections || typeof workflow.connections !== 'object') {
+      return {
+        valid: false,
+        errors: [{
+          node: 'workflow',
+          message: 'Workflow must have a connections object',
+          details: 'Expected: workflow.connections = {} (can be empty object). ' + getWorkflowExampleString()
+        }],
+        summary: { errorCount: 1 }
+      };
+    }
     
     // Create workflow validator instance
     const validator = new WorkflowValidator(

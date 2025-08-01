@@ -14,6 +14,11 @@ import { isN8nApiConfigured } from './config/n8n-api';
 import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
 import { getStartupBaseUrl, formatEndpointUrls, detectBaseUrl } from './utils/url-detector';
+import { 
+  negotiateProtocolVersion, 
+  logProtocolNegotiation,
+  N8N_PROTOCOL_VERSION 
+} from './utils/protocol-version';
 
 dotenv.config();
 
@@ -288,7 +293,7 @@ export async function startFixedHTTPServer() {
         ip: req.ip,
         userAgent: req.get('user-agent'),
         reason: 'invalid_auth_format',
-        headerPrefix: authHeader.substring(0, 10) + '...'  // Log first 10 chars for debugging
+        headerPrefix: authHeader.substring(0, Math.min(authHeader.length, 10)) + '...'  // Log first 10 chars for debugging
       });
       res.status(401).json({ 
         jsonrpc: '2.0',
@@ -342,10 +347,20 @@ export async function startFixedHTTPServer() {
           
           switch (jsonRpcRequest.method) {
             case 'initialize':
+              // Negotiate protocol version for this client/request
+              const negotiationResult = negotiateProtocolVersion(
+                jsonRpcRequest.params?.protocolVersion,
+                jsonRpcRequest.params?.clientInfo,
+                req.get('user-agent'),
+                req.headers
+              );
+              
+              logProtocolNegotiation(negotiationResult, logger, 'HTTP_SERVER_INITIALIZE');
+              
               response = {
                 jsonrpc: '2.0',
                 result: {
-                  protocolVersion: '2024-11-05',
+                  protocolVersion: negotiationResult.version,
                   capabilities: {
                     tools: {},
                     resources: {}

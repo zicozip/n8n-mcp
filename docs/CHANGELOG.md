@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2025-08-01
+
+### Added
+- **n8n Integration with MCP Client Tool Support**: Complete n8n integration enabling n8n-mcp to run as MCP server within n8n workflows
+  - Full compatibility with n8n's MCP Client Tool node
+  - Dedicated n8n mode (`N8N_MODE=true`) for optimized operation
+  - Workflow examples and n8n-friendly tool descriptions
+  - Quick deployment script (`deploy/quick-deploy-n8n.sh`) for easy setup
+  - Docker configuration specifically for n8n deployment (`Dockerfile.n8n`, `docker-compose.n8n.yml`)
+  - Test scripts for n8n integration (`test-n8n-integration.sh`, `test-n8n-mode.sh`)
+- **n8n Deployment Documentation**: Comprehensive guide for deploying n8n-MCP with n8n (`docs/N8N_DEPLOYMENT.md`)
+  - Local testing instructions using `/scripts/test-n8n-mode.sh`
+  - Production deployment with Docker Compose
+  - Cloud deployment guide for Hetzner, AWS, and other providers
+  - n8n MCP Client Tool setup and configuration
+  - Troubleshooting section with common issues and solutions
+- **Protocol Version Negotiation**: Intelligent client detection for n8n compatibility
+  - Automatically detects n8n clients and uses protocol version 2024-11-05
+  - Standard MCP clients get the latest version (2025-03-26)
+  - Improves compatibility with n8n's MCP Client Tool node
+  - Comprehensive protocol negotiation test suite
+- **Comprehensive Parameter Validation**: Enhanced validation for all MCP tools
+  - Clear, user-friendly error messages for invalid parameters
+  - Numeric parameter conversion and edge case handling
+  - 52 new parameter validation tests
+  - Consistent error format across all tools
+- **Session Management**: Improved session handling with comprehensive test coverage
+  - Fixed memory leak potential with async cleanup
+  - Better connection close handling
+  - Enhanced session management tests
+- **Dynamic README Version Badge**: Made version badge update automatically from package.json
+  - Added `update-readme-version.js` script
+  - Enhanced `sync-runtime-version.js` to update README badges
+  - Version badge now stays in sync during publish workflow
+
+### Fixed
+- **Docker Build Optimization**: Fixed Dockerfile.n8n using wrong dependencies
+  - Now uses `package.runtime.json` instead of full `package.json`
+  - Reduces build time from 13+ minutes to 1-2 minutes
+  - Fixes ARM64 build failures due to network timeouts
+  - Reduces image size from ~1.5GB to ~280MB
+- **CI Test Failures**: Resolved Docker entrypoint permission issues
+  - Updated tests to accept dynamic UID range (10000-59999)
+  - Enhanced lock file creation with better error recovery
+  - Fixed TypeScript lint errors in test files
+  - Fixed flaky performance tests with deterministic versions
+- **Schema Validation Issues**: Fixed n8n nested output format compatibility
+  - Added validation for n8n's nested output workaround
+  - Fixed schema validation errors with n8n MCP Client Tool
+  - Enhanced error sanitization for production environments
+
+### Changed
+- **Memory Management**: Improved session cleanup to prevent memory leaks
+- **Error Handling**: Enhanced error sanitization for production environments
+- **Docker Security**: Using unpredictable UIDs/GIDs (10000-59999 range) for better security
+- **CI/CD Configuration**: Made codecov patch coverage informational to prevent CI failures on infrastructure code
+- **Test Scripts**: Enhanced with Docker auto-installation and better user experience
+  - Added colored output and progress indicators
+  - Automatic Docker installation for multiple operating systems
+  - n8n API key flow for management tools
+
+### Security
+- **Enhanced Docker Security**: Dynamic UID/GID generation for containers
+- **Error Sanitization**: Improved error messages to prevent information leakage
+- **Permission Handling**: Better permission management for mounted volumes
+- **Input Validation**: Comprehensive parameter validation prevents injection attacks
+
 ## [2.8.3] - 2025-07-31
 
 ### Fixed
