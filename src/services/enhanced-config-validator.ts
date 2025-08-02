@@ -7,6 +7,7 @@
 
 import { ConfigValidator, ValidationResult, ValidationError, ValidationWarning } from './config-validator';
 import { NodeSpecificValidators, NodeValidationContext } from './node-specific-validators';
+import { FixedCollectionValidator } from '../utils/fixed-collection-validator';
 
 export type ValidationMode = 'full' | 'operation' | 'minimal';
 export type ValidationProfile = 'strict' | 'runtime' | 'ai-friendly' | 'minimal';
@@ -256,6 +257,9 @@ export class EnhancedConfigValidator extends ConfigValidator {
       case 'nodes-base.filter':
         this.validateFilterNodeStructure(config, result);
         break;
+        
+      // Additional nodes handled by FixedCollectionValidator
+      // No need for specific validators as the generic utility handles them
     }
     
     // Update autofix if changes were made
@@ -499,109 +503,44 @@ export class EnhancedConfigValidator extends ConfigValidator {
     config: Record<string, any>,
     result: EnhancedValidationResult
   ): void {
-    // Normalize node type (handle both 'n8n-nodes-base.x' and 'nodes-base.x' formats)
-    const normalizedNodeType = nodeType.replace('n8n-nodes-base.', 'nodes-base.');
+    // Use the generic FixedCollectionValidator
+    const validationResult = FixedCollectionValidator.validate(nodeType, config);
     
-    // Define nodes and their problematic patterns
-    const problematicNodes = {
-      'nodes-base.switch': {
-        property: 'rules',
-        expectedStructure: 'rules.values array',
-        invalidPatterns: ['rules.conditions', 'rules.conditions.values']
-      },
-      'nodes-base.if': {
-        property: 'conditions',
-        expectedStructure: 'conditions array/object',
-        invalidPatterns: ['conditions.values']
-      },
-      'nodes-base.filter': {
-        property: 'conditions',
-        expectedStructure: 'conditions array/object',
-        invalidPatterns: ['conditions.values']
-      }
-    };
-    
-    const nodeConfig = problematicNodes[normalizedNodeType as keyof typeof problematicNodes];
-    if (!nodeConfig) return;
-    
-    const propertyValue = config[nodeConfig.property];
-    if (!propertyValue || typeof propertyValue !== 'object') return;
-    
-    // Check for incorrect nesting patterns
-    for (const pattern of nodeConfig.invalidPatterns) {
-      const parts = pattern.split('.');
-      let current = config;
-      let isInvalid = true;
-      
-      for (const part of parts) {
-        if (!current || typeof current !== 'object' || !current[part]) {
-          isInvalid = false;
-          break;
-        }
-        current = current[part];
-      }
-      
-      if (isInvalid) {
+    if (!validationResult.isValid) {
+      // Add errors to the result
+      for (const error of validationResult.errors) {
         result.errors.push({
           type: 'invalid_value',
-          property: nodeConfig.property,
-          message: `Invalid structure for ${normalizedNodeType} node: found nested "${pattern}" but expected "${nodeConfig.expectedStructure}". This causes "propertyValues[itemName] is not iterable" error in n8n.`,
-          fix: this.generateFixedCollectionFix(normalizedNodeType, pattern, nodeConfig.expectedStructure)
+          property: error.pattern.split('.')[0], // Get the root property
+          message: error.message,
+          fix: error.fix
         });
-        
-        // Provide auto-fix suggestion
-        if (!result.autofix) result.autofix = {};
-        result.autofix[nodeConfig.property] = this.generateFixedCollectionAutofix(normalizedNodeType, config[nodeConfig.property]);
+      }
+      
+      // Apply autofix if available
+      if (validationResult.autofix) {
+        // For nodes like If/Filter where the entire config might be replaced,
+        // we need to handle it specially
+        if (typeof validationResult.autofix === 'object' && !Array.isArray(validationResult.autofix)) {
+          result.autofix = {
+            ...result.autofix,
+            ...validationResult.autofix
+          };
+        } else {
+          // If the autofix is an array (like for If/Filter nodes), wrap it properly
+          const firstError = validationResult.errors[0];
+          if (firstError) {
+            const rootProperty = firstError.pattern.split('.')[0];
+            result.autofix = {
+              ...result.autofix,
+              [rootProperty]: validationResult.autofix
+            };
+          }
+        }
       }
     }
   }
   
-  /**
-   * Generate fix message for fixedCollection errors
-   */
-  private static generateFixedCollectionFix(nodeType: string, invalidPattern: string, expectedStructure: string): string {
-    switch (nodeType) {
-      case 'nodes-base.switch':
-        return 'Use: { "rules": { "values": [{ "conditions": {...}, "outputKey": "output1" }] } }';
-      case 'nodes-base.if':
-      case 'nodes-base.filter':
-        return 'Use: { "conditions": {...} } or { "conditions": [...] } directly, not nested under "values"';
-      default:
-        return `Use ${expectedStructure} instead of ${invalidPattern}`;
-    }
-  }
-  
-  /**
-   * Generate auto-fix for fixedCollection structures
-   */
-  private static generateFixedCollectionAutofix(nodeType: string, invalidValue: any): any {
-    switch (nodeType) {
-      case 'nodes-base.switch':
-        // If it has rules.conditions.values, convert to rules.values
-        if (invalidValue.conditions?.values) {
-          return {
-            values: Array.isArray(invalidValue.conditions.values) 
-              ? invalidValue.conditions.values.map((condition: any, index: number) => ({
-                  conditions: condition,
-                  outputKey: `output${index + 1}`
-                }))
-              : [{ 
-                  conditions: invalidValue.conditions.values,
-                  outputKey: 'output1'
-                }]
-          };
-        }
-        break;
-      case 'nodes-base.if':
-      case 'nodes-base.filter':
-        // If it has conditions.values, extract the values
-        if (invalidValue.values) {
-          return invalidValue.values;
-        }
-        break;
-    }
-    return invalidValue;
-  }
   
   /**
    * Validate Switch node structure specifically
