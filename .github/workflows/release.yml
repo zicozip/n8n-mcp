@@ -441,6 +441,8 @@ jobs:
           fi
       
       - name: Commit documentation updates
+        env:
+          VERSION: ${{ needs.detect-version-change.outputs.new-version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -449,7 +451,7 @@ jobs:
             echo "No documentation changes to commit"
           else
             git add README.md
-            git commit -m "docs: update version badges to v${{ needs.detect-version-change.outputs.new-version }}"
+            git commit -m "docs: update version badges to v${VERSION}"
             git push
             echo "✅ Committed documentation updates"
           fi
