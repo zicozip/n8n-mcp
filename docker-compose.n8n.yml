@@ -32,7 +32,7 @@ services:
   n8n-mcp:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile  # Uses standard Dockerfile with N8N_MODE=true env var
     image: ghcr.io/${GITHUB_REPOSITORY:-czlonkowski/n8n-mcp}/n8n-mcp:${VERSION:-latest}
     container_name: n8n-mcp
     restart: unless-stopped

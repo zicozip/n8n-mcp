@@ -93,6 +93,14 @@ curl http://localhost:3001/mcp
 
 *Required only for workflow management features. Documentation tools work without these.
 
+## Docker Build Changes (v2.9.2+)
+
+Starting with version 2.9.2, we use a single optimized Dockerfile for all deployments:
+- The previous `Dockerfile.n8n` has been removed as redundant
+- N8N_MODE functionality is enabled via the `N8N_MODE=true` environment variable
+- This reduces image size by 500MB+ and improves build times from 8+ minutes to 1-2 minutes
+- All examples now use the standard `Dockerfile`
+
 ## Production Deployment
 
 ### Same Server as n8n
