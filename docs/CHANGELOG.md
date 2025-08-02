@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.1] - 2025-08-02
+
+### Fixed
+- **Fixed Collection Validation**: Fixed critical issue where AI agents created invalid fixedCollection structures causing "propertyValues[itemName] is not iterable" error (fixes #90)
+  - Created generic `FixedCollectionValidator` utility class that handles 12 different node types
+  - Validates and auto-fixes common AI-generated patterns for Switch, If, Filter nodes
+  - Extended support to Summarize, Compare Datasets, Sort, Aggregate, Set, HTML, HTTP Request, and Airtable nodes
+  - Added comprehensive test coverage with 19 tests for all affected node types
+  - Provides clear error messages and automatic structure corrections
+- **TypeScript Type Safety**: Improved type safety in fixed collection validator
+  - Replaced all `any` types with proper TypeScript types (`NodeConfig`, `NodeConfigValue`)
+  - Added type guards for safe property access
+  - Fixed potential memory leak in `getAllPatterns` by creating deep copies
+  - Added circular reference protection using `WeakSet` in structure traversal
+- **Node Type Normalization**: Fixed inconsistent node type casing
+  - Normalized `compareDatasets` to `comparedatasets` and `httpRequest` to `httprequest`
+  - Ensures consistent node type handling across all validation tools
+  - Maintains backward compatibility with existing workflows
+
+### Enhanced
+- **Code Review Improvements**: Addressed all code review feedback
+  - Made output keys deterministic by removing `Math.random()` usage
+  - Improved error handling with comprehensive null/undefined/array checks
+  - Enhanced memory safety with proper object cloning
+  - Added protection against circular references in configuration objects
+
+### Testing
+- **Comprehensive Test Coverage**: Added extensive tests for fixedCollection validation
+  - 19 tests covering all 12 affected node types
+  - Tests for edge cases including empty configs, non-object values, and circular references
+  - Real-world AI agent pattern tests based on actual ChatGPT/Claude generated configs
+  - Version compatibility tests across all validation profiles
+  - TypeScript compilation tests ensuring type safety
+
 ## [2.9.0] - 2025-08-01
 
 ### Added
@@ -994,6 +1028,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.9.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.9.0...v2.9.1
+[2.9.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.8.3...v2.9.0
+[2.8.3]: https://github.com/czlonkowski/n8n-mcp/compare/v2.8.2...v2.8.3
+[2.8.2]: https://github.com/czlonkowski/n8n-mcp/compare/v2.8.0...v2.8.2
+[2.8.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.23...v2.8.0
+[2.7.23]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.22...v2.7.23
 [2.7.22]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.21...v2.7.22
 [2.7.21]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.20...v2.7.21
 [2.7.20]: https://github.com/czlonkowski/n8n-mcp/compare/v2.7.19...v2.7.20
