@@ -529,14 +529,14 @@ describe('FixedCollectionValidator', () => {
       };
       
       // Add prototype property (should be ignored by hasOwnProperty check)
-      Object.prototype.maliciousProperty = 'evil';
+      (Object.prototype as any).maliciousProperty = 'evil';
       
       try {
         const result = FixedCollectionValidator.validate('switch', config);
         expect(result.isValid).toBe(false);
         expect(result.errors).toHaveLength(2);
       } finally {
-        delete Object.prototype.maliciousProperty;
+        delete (Object.prototype as any).maliciousProperty;
       }
     });
 

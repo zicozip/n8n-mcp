@@ -16,7 +16,7 @@ describe('ConsoleManager', () => {
     // Clean up after each test
     manager.restore();
     if (originalEnv !== undefined) {
-      process.env.MCP_MODE = originalEnv;
+      process.env.MCP_MODE = originalEnv as "test" | "http" | "stdio" | undefined;
     } else {
       delete process.env.MCP_MODE;
     }
@@ -250,7 +250,7 @@ describe('ConsoleManager', () => {
     });
 
     test('should handle empty MCP_MODE', () => {
-      process.env.MCP_MODE = '';
+      process.env.MCP_MODE = '' as any;
       
       const originalLog = console.log;
       
