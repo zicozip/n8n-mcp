@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.1] - 2025-08-02
+
 ### Fixed
 - **Memory Leak in SimpleCache**: Fixed critical memory leak causing MCP server connection loss after several hours (fixes #118)
   - Added proper timer cleanup in `SimpleCache.destroy()` method
@@ -1082,6 +1084,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.10.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.8.3...v2.9.0
