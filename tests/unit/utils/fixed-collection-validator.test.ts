@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'vitest';
-import { FixedCollectionValidator } from '../../../src/utils/fixed-collection-validator';
+import { FixedCollectionValidator, NodeConfig, NodeConfigValue } from '../../../src/utils/fixed-collection-validator';
+
+// Type guard helper for tests
+function isNodeConfig(value: NodeConfig | NodeConfigValue[] | undefined): value is NodeConfig {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 describe('FixedCollectionValidator', () => {
   describe('Core Functionality', () => {
@@ -58,8 +63,12 @@ describe('FixedCollectionValidator', () => {
       expect(conditionsValuesError).toBeDefined();
       expect(conditionsValuesError!.message).toContain('propertyValues[itemName] is not iterable');
       expect(result.autofix).toBeDefined();
-      expect(result.autofix.rules.values).toBeDefined();
-      expect(result.autofix.rules.values[0].outputKey).toBe('output1');
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect(result.autofix.rules).toBeDefined();
+        expect((result.autofix.rules as any).values).toBeDefined();
+        expect((result.autofix.rules as any).values[0].outputKey).toBe('output1');
+      }
     });
 
     test('should provide correct autofix for switch node', () => {
@@ -76,9 +85,12 @@ describe('FixedCollectionValidator', () => {
 
       const result = FixedCollectionValidator.validate('switch', invalidConfig);
       
-      expect(result.autofix.rules.values).toHaveLength(2);
-      expect(result.autofix.rules.values[0].outputKey).toBe('output1');
-      expect(result.autofix.rules.values[1].outputKey).toBe('output2');
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.rules as any).values).toHaveLength(2);
+        expect((result.autofix.rules as any).values[0].outputKey).toBe('output1');
+        expect((result.autofix.rules as any).values[1].outputKey).toBe('output2');
+      }
     });
   });
 
@@ -132,7 +144,10 @@ describe('FixedCollectionValidator', () => {
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('fieldsToSummarize.values.values');
       expect(result.errors[0].fix).toContain('not nested values.values');
-      expect(result.autofix.fieldsToSummarize.values).toHaveLength(2);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.fieldsToSummarize as any).values).toHaveLength(2);
+      }
     });
 
     test('should validate Compare Datasets node', () => {
@@ -150,7 +165,10 @@ describe('FixedCollectionValidator', () => {
       
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('mergeByFields.values.values');
-      expect(result.autofix.mergeByFields.values).toHaveLength(1);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.mergeByFields as any).values).toHaveLength(1);
+      }
     });
 
     test('should validate Sort node', () => {
@@ -169,7 +187,10 @@ describe('FixedCollectionValidator', () => {
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('sortFieldsUi.sortField.values');
       expect(result.errors[0].fix).toContain('not sortField.values');
-      expect(result.autofix.sortFieldsUi.sortField).toHaveLength(1);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.sortFieldsUi as any).sortField).toHaveLength(1);
+      }
     });
 
     test('should validate Aggregate node', () => {
@@ -187,7 +208,10 @@ describe('FixedCollectionValidator', () => {
       
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('fieldsToAggregate.fieldToAggregate.values');
-      expect(result.autofix.fieldsToAggregate.fieldToAggregate).toHaveLength(1);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.fieldsToAggregate as any).fieldToAggregate).toHaveLength(1);
+      }
     });
 
     test('should validate Set node', () => {
@@ -205,7 +229,10 @@ describe('FixedCollectionValidator', () => {
       
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('fields.values.values');
-      expect(result.autofix.fields.values).toHaveLength(1);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.fields as any).values).toHaveLength(1);
+      }
     });
 
     test('should validate HTML node', () => {
@@ -223,7 +250,10 @@ describe('FixedCollectionValidator', () => {
       
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('extractionValues.values.values');
-      expect(result.autofix.extractionValues.values).toHaveLength(1);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.extractionValues as any).values).toHaveLength(1);
+      }
     });
 
     test('should validate HTTP Request node', () => {
@@ -242,7 +272,10 @@ describe('FixedCollectionValidator', () => {
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('body.parameters.values');
       expect(result.errors[0].fix).toContain('not parameters.values');
-      expect(result.autofix.body.parameters).toHaveLength(1);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.body as any).parameters).toHaveLength(1);
+      }
     });
 
     test('should validate Airtable node', () => {
@@ -260,7 +293,10 @@ describe('FixedCollectionValidator', () => {
       
       expect(result.isValid).toBe(false);
       expect(result.errors[0].pattern).toBe('sort.sortField.values');
-      expect(result.autofix.sort.sortField).toHaveLength(1);
+      expect(isNodeConfig(result.autofix)).toBe(true);
+      if (isNodeConfig(result.autofix)) {
+        expect((result.autofix.sort as any).sortField).toHaveLength(1);
+      }
     });
   });
 
