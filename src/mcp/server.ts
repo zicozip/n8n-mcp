@@ -2538,6 +2538,16 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   async shutdown(): Promise<void> {
     logger.info('Shutting down MCP server...');
     
+    // Clean up cache timers to prevent memory leaks
+    if (this.cache) {
+      try {
+        this.cache.destroy();
+        logger.info('Cache timers cleaned up');
+      } catch (error) {
+        logger.error('Error cleaning up cache:', error);
+      }
+    }
+    
     // Close database connection if it exists
     if (this.db) {
       try {

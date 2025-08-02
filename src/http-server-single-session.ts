@@ -369,12 +369,23 @@ export class SingleSessionHTTPServer {
             }
           });
           
-          // Set up cleanup handler
+          // Set up cleanup handlers
           transport.onclose = () => {
             const sid = transport.sessionId;
             if (sid) {
               logger.info('handleRequest: Transport closed, cleaning up', { sessionId: sid });
               this.removeSession(sid, 'transport_closed');
+            }
+          };
+          
+          // Handle transport errors to prevent connection drops
+          transport.onerror = (error: Error) => {
+            const sid = transport.sessionId;
+            logger.error('Transport error', { sessionId: sid, error: error.message });
+            if (sid) {
+              this.removeSession(sid, 'transport_error').catch(err => {
+                logger.error('Error during transport error cleanup', { error: err });
+              });
             }
           };
           
@@ -873,7 +884,7 @@ export class SingleSessionHTTPServer {
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
       // Only add event listener if the request object supports it (not in test mocks)
       if (typeof req.on === 'function') {
-        req.on('close', () => {
+        const closeHandler = () => {
           if (!res.headersSent && sessionId) {
             logger.info('Connection closed before response sent', { sessionId });
             // Schedule immediate cleanup if connection closes unexpectedly
@@ -883,11 +894,20 @@ export class SingleSessionHTTPServer {
                 const timeSinceAccess = Date.now() - metadata.lastAccess.getTime();
                 // Only remove if it's been inactive for a bit to avoid race conditions
                 if (timeSinceAccess > 60000) { // 1 minute
-                  this.removeSession(sessionId, 'connection_closed');
+                  this.removeSession(sessionId, 'connection_closed').catch(err => {
+                    logger.error('Error during connection close cleanup', { error: err });
+                  });
                 }
               }
             });
           }
+        };
+        
+        req.on('close', closeHandler);
+        
+        // Clean up event listener when response ends to prevent memory leaks
+        res.on('finish', () => {
+          req.removeListener('close', closeHandler);
         });
       }
       

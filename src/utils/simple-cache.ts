@@ -4,10 +4,11 @@
  */
 export class SimpleCache {
   private cache = new Map<string, { data: any; expires: number }>();
+  private cleanupTimer: NodeJS.Timeout | null = null;
   
   constructor() {
     // Clean up expired entries every minute
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       const now = Date.now();
       for (const [key, item] of this.cache.entries()) {
         if (item.expires < now) this.cache.delete(key);
@@ -32,6 +33,18 @@ export class SimpleCache {
   }
   
   clear(): void {
+    this.cache.clear();
+  }
+  
+  /**
+   * Clean up the cache and stop the cleanup timer
+   * Essential for preventing memory leaks in long-running servers
+   */
+  destroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
     this.cache.clear();
   }
 }
