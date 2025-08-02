@@ -7,6 +7,7 @@
 
 import { ConfigValidator, ValidationResult, ValidationError, ValidationWarning } from './config-validator';
 import { NodeSpecificValidators, NodeValidationContext } from './node-specific-validators';
+import { FixedCollectionValidator } from '../utils/fixed-collection-validator';
 
 export type ValidationMode = 'full' | 'operation' | 'minimal';
 export type ValidationProfile = 'strict' | 'runtime' | 'ai-friendly' | 'minimal';
@@ -85,6 +86,9 @@ export class EnhancedConfigValidator extends ConfigValidator {
     
     // Generate next steps based on errors
     enhancedResult.nextSteps = this.generateNextSteps(enhancedResult);
+    
+    // Recalculate validity after all enhancements (crucial for fixedCollection validation)
+    enhancedResult.valid = enhancedResult.errors.length === 0;
     
     return enhancedResult;
   }
@@ -186,6 +190,9 @@ export class EnhancedConfigValidator extends ConfigValidator {
     config: Record<string, any>,
     result: EnhancedValidationResult
   ): void {
+    // First, validate fixedCollection properties for known problematic nodes
+    this.validateFixedCollectionStructures(nodeType, config, result);
+    
     // Create context for node-specific validators
     const context: NodeValidationContext = {
       config,
@@ -195,8 +202,11 @@ export class EnhancedConfigValidator extends ConfigValidator {
       autofix: result.autofix || {}
     };
     
+    // Normalize node type (handle both 'n8n-nodes-base.x' and 'nodes-base.x' formats)
+    const normalizedNodeType = nodeType.replace('n8n-nodes-base.', 'nodes-base.');
+    
     // Use node-specific validators
-    switch (nodeType) {
+    switch (normalizedNodeType) {
       case 'nodes-base.slack':
         NodeSpecificValidators.validateSlack(context);
         this.enhanceSlackValidation(config, result);
@@ -235,6 +245,21 @@ export class EnhancedConfigValidator extends ConfigValidator {
       case 'nodes-base.mysql':
         NodeSpecificValidators.validateMySQL(context);
         break;
+        
+      case 'nodes-base.switch':
+        this.validateSwitchNodeStructure(config, result);
+        break;
+        
+      case 'nodes-base.if':
+        this.validateIfNodeStructure(config, result);
+        break;
+        
+      case 'nodes-base.filter':
+        this.validateFilterNodeStructure(config, result);
+        break;
+        
+      // Additional nodes handled by FixedCollectionValidator
+      // No need for specific validators as the generic utility handles them
     }
     
     // Update autofix if changes were made
@@ -467,5 +492,130 @@ export class EnhancedConfigValidator extends ConfigValidator {
         'Webhooks should use onError: "continueRegularOutput" to ensure responses are always sent'
       );
     }
+  }
+  
+  /**
+   * Validate fixedCollection structures for known problematic nodes
+   * This prevents the "propertyValues[itemName] is not iterable" error
+   */
+  private static validateFixedCollectionStructures(
+    nodeType: string,
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    // Use the generic FixedCollectionValidator
+    const validationResult = FixedCollectionValidator.validate(nodeType, config);
+    
+    if (!validationResult.isValid) {
+      // Add errors to the result
+      for (const error of validationResult.errors) {
+        result.errors.push({
+          type: 'invalid_value',
+          property: error.pattern.split('.')[0], // Get the root property
+          message: error.message,
+          fix: error.fix
+        });
+      }
+      
+      // Apply autofix if available
+      if (validationResult.autofix) {
+        // For nodes like If/Filter where the entire config might be replaced,
+        // we need to handle it specially
+        if (typeof validationResult.autofix === 'object' && !Array.isArray(validationResult.autofix)) {
+          result.autofix = {
+            ...result.autofix,
+            ...validationResult.autofix
+          };
+        } else {
+          // If the autofix is an array (like for If/Filter nodes), wrap it properly
+          const firstError = validationResult.errors[0];
+          if (firstError) {
+            const rootProperty = firstError.pattern.split('.')[0];
+            result.autofix = {
+              ...result.autofix,
+              [rootProperty]: validationResult.autofix
+            };
+          }
+        }
+      }
+    }
+  }
+  
+  
+  /**
+   * Validate Switch node structure specifically
+   */
+  private static validateSwitchNodeStructure(
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    if (!config.rules) return;
+    
+    // Skip if already caught by validateFixedCollectionStructures
+    const hasFixedCollectionError = result.errors.some(e => 
+      e.property === 'rules' && e.message.includes('propertyValues[itemName] is not iterable')
+    );
+    
+    if (hasFixedCollectionError) return;
+    
+    // Validate rules.values structure if present
+    if (config.rules.values && Array.isArray(config.rules.values)) {
+      config.rules.values.forEach((rule: any, index: number) => {
+        if (!rule.conditions) {
+          result.warnings.push({
+            type: 'missing_common',
+            property: 'rules',
+            message: `Switch rule ${index + 1} is missing "conditions" property`,
+            suggestion: 'Each rule in the values array should have a "conditions" property'
+          });
+        }
+        if (!rule.outputKey && rule.renameOutput !== false) {
+          result.warnings.push({
+            type: 'missing_common',
+            property: 'rules',
+            message: `Switch rule ${index + 1} is missing "outputKey" property`,
+            suggestion: 'Add "outputKey" to specify which output to use when this rule matches'
+          });
+        }
+      });
+    }
+  }
+  
+  /**
+   * Validate If node structure specifically
+   */
+  private static validateIfNodeStructure(
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    if (!config.conditions) return;
+    
+    // Skip if already caught by validateFixedCollectionStructures
+    const hasFixedCollectionError = result.errors.some(e => 
+      e.property === 'conditions' && e.message.includes('propertyValues[itemName] is not iterable')
+    );
+    
+    if (hasFixedCollectionError) return;
+    
+    // Add any If-node-specific validation here in the future
+  }
+  
+  /**
+   * Validate Filter node structure specifically
+   */
+  private static validateFilterNodeStructure(
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    if (!config.conditions) return;
+    
+    // Skip if already caught by validateFixedCollectionStructures
+    const hasFixedCollectionError = result.errors.some(e => 
+      e.property === 'conditions' && e.message.includes('propertyValues[itemName] is not iterable')
+    );
+    
+    if (hasFixedCollectionError) return;
+    
+    // Add any Filter-node-specific validation here in the future
   }
 }
