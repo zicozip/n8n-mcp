@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Memory Leak in SimpleCache**: Fixed critical memory leak causing MCP server connection loss after several hours (fixes #118)
+  - Added proper timer cleanup in `SimpleCache.destroy()` method
+  - Updated MCP server shutdown to clean up cache timers
+  - Enhanced HTTP server error handling with transport error handlers
+  - Fixed event listener cleanup to prevent accumulation
+  - Added comprehensive test coverage for memory leak prevention
+
 ## [2.10.0] - 2025-08-02
 
 ### Added
