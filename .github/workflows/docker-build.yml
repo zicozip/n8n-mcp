@@ -9,23 +9,33 @@ on:
       - 'v*'
     paths-ignore:
       - '**.md'
+      - '**.txt'
+      - 'docs/**'
+      - 'examples/**'
       - '.github/FUNDING.yml'
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/pull_request_template.md'
-      - 'LICENSE'
+      - '.gitignore'
+      - 'LICENSE*'
       - 'ATTRIBUTION.md'
-      - 'docs/**'
+      - 'SECURITY.md'
+      - 'CODE_OF_CONDUCT.md'
   pull_request:
     branches:
       - main
     paths-ignore:
       - '**.md'
+      - '**.txt'
+      - 'docs/**'
+      - 'examples/**'
       - '.github/FUNDING.yml'
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/pull_request_template.md'
-      - 'LICENSE'
+      - '.gitignore'
+      - 'LICENSE*'
       - 'ATTRIBUTION.md'
-      - 'docs/**'
+      - 'SECURITY.md'
+      - 'CODE_OF_CONDUCT.md'
   workflow_dispatch:
 
 env:

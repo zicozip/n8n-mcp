@@ -2,11 +2,19 @@ name: Benchmark PR Comparison
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'tests/benchmarks/**'
-      - 'package.json'
-      - 'vitest.config.benchmark.ts'
+    paths-ignore:
+      - '**.md'
+      - '**.txt'
+      - 'docs/**'
+      - 'examples/**'
+      - '.github/FUNDING.yml'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - '.gitignore'
+      - 'LICENSE*'
+      - 'ATTRIBUTION.md'
+      - 'SECURITY.md'
+      - 'CODE_OF_CONDUCT.md'
 
 permissions:
   pull-requests: write
