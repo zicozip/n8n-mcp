@@ -109,7 +109,7 @@ git clone https://github.com/czlonkowski/n8n-mcp.git
 cd n8n-mcp
 
 # Build Docker image
-docker build -f Dockerfile.n8n -t n8n-mcp:latest .
+docker build -t n8n-mcp:latest .
 
 # Create a Docker network if n8n uses one
 docker network create n8n-net
@@ -197,7 +197,7 @@ Deploy n8n-MCP on a separate server from your n8n instance:
 # First, clone and build
 git clone https://github.com/czlonkowski/n8n-mcp.git
 cd n8n-mcp
-docker build -f Dockerfile.n8n -t n8n-mcp:latest .
+docker build -t n8n-mcp:latest .
 
 # Generate auth tokens
 AUTH_TOKEN=$(openssl rand -hex 32)
@@ -268,7 +268,7 @@ git clone https://github.com/czlonkowski/n8n-mcp.git
 cd n8n-mcp
 
 # Build local image
-docker build -f Dockerfile.n8n -t n8n-mcp:latest .
+docker build -t n8n-mcp:latest .
 
 # Create docker-compose.yml
 cat > docker-compose.yml << 'EOF'
@@ -599,7 +599,7 @@ export LOG_LEVEL=info                                  # Logging level
 ```bash
 # Clear Docker cache and rebuild
 docker system prune -f
-docker build --no-cache -f Dockerfile.n8n -t n8n-mcp:latest .
+docker build --no-cache -t n8n-mcp:latest .
 ```
 
 **Container Runtime Issues**

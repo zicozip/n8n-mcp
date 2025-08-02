@@ -32,7 +32,7 @@ services:
   n8n-mcp:
     build:
       context: .
-      dockerfile: Dockerfile.n8n
+      dockerfile: Dockerfile
     image: ghcr.io/${GITHUB_REPOSITORY:-czlonkowski/n8n-mcp}/n8n-mcp:${VERSION:-latest}
     container_name: n8n-mcp
     restart: unless-stopped
@@ -41,9 +41,11 @@ services:
     environment:
       - NODE_ENV=production
       - N8N_MODE=true
+      - MCP_MODE=http
       - N8N_API_URL=http://n8n:5678
       - N8N_API_KEY=${N8N_API_KEY}
       - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - AUTH_TOKEN=${MCP_AUTH_TOKEN}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - ./data:/app/data:ro
