@@ -1,6 +1,6 @@
 # n8n-MCP Deployment Guide
 
-This guide covers how to deploy n8n-MCP and connect it to your n8n instance. Whether you're testing locally or deploying to production, we'll show you how to set up n8n-MCP for use with n8n's MCP Client Tool node.
+This guide covers how to deploy n8n-MCP and connect it to AI Agent nodes with the standard MCP Client Tool. Whether you're testing locally or deploying to production, we'll show you how to set it up.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -742,6 +742,48 @@ curl http://localhost:3001/mcp
 - **Database**: Pre-built SQLite database (~15MB) loads quickly
 - **Response time**: Average 12ms for queries
 - **Caching**: Built-in 15-minute cache for repeated queries
+
+## Railway Deployment for n8n Integration
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/n8n-mcp?referralCode=n8n-mcp)
+
+If you're using the **Deploy to Railway** button, you'll need to modify some environment variables since Railway uses a different Docker image (`Dockerfile.railway`).
+
+### Required Environment Variable Changes
+
+When deploying with Railway for n8n integration, add these variables in your Railway dashboard:
+
+1. **Go to Railway dashboard** → Your service → **Variables tab**
+2. **Add the following variables**:
+
+```bash
+# Required for n8n integration mode
+N8N_MODE=true
+
+# Already set by Railway template, but verify:
+MCP_MODE=http                    # Required for HTTP mode
+MCP_AUTH_TOKEN=<your-token>      # Must match AUTH_TOKEN
+AUTH_TOKEN=<your-token>          # Same value as MCP_AUTH_TOKEN
+
+# Optional: For workflow management features
+N8N_API_URL=https://your-n8n-instance.com
+N8N_API_KEY=your-n8n-api-key
+```
+
+3. **Save changes** - Railway will automatically redeploy
+
+### Connecting n8n to Railway-deployed n8n-MCP
+
+In your n8n workflow, configure the MCP Client Tool with:
+
+```
+Server URL: https://your-app.up.railway.app/mcp
+Auth Token: [Your AUTH_TOKEN value]
+Transport: HTTP Streamable (SSE)
+```
+
+> **Note**: The Railway deployment automatically includes all required dependencies and uses the optimized `Dockerfile.railway` which is compatible with both Claude Desktop and n8n integrations.
+
+For more details on Railway deployment, see our [Railway Deployment Guide](./RAILWAY_DEPLOYMENT.md).
 
 ## Next Steps
 

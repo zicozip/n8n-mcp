@@ -106,7 +106,26 @@ These are automatically set by the Railway template:
 | `HOST` | `0.0.0.0` | Listen on all interfaces |
 | `PORT` | (Railway provides) | Don't set manually |
 
-### Optional: n8n API Integration
+### Optional Variables
+
+| Variable | Default Value | Description |
+|----------|--------------|-------------|
+| `N8N_MODE` | `false` | Enable n8n integration mode for MCP Client Tool |
+| `N8N_API_URL` | - | URL of your n8n instance (for workflow management) |
+| `N8N_API_KEY` | - | API key from n8n Settings → API |
+
+### Optional: n8n Integration
+
+#### For n8n MCP Client Tool Integration
+
+To use n8n-MCP with n8n's MCP Client Tool node:
+
+1. **Go to Railway dashboard** → Your service → **Variables**
+2. **Add this variable**:
+   - `N8N_MODE`: Set to `true` to enable n8n integration mode
+3. **Save changes** - Railway will redeploy automatically
+
+#### For n8n API Integration (Workflow Management)
 
 To enable workflow management features:
 
