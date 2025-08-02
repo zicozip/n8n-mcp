@@ -3,6 +3,13 @@
  * Prevents the "propertyValues[itemName] is not iterable" error
  */
 
+// Type definitions for node configurations
+export type NodeConfigValue = string | number | boolean | null | undefined | NodeConfig | NodeConfigValue[];
+
+export interface NodeConfig {
+  [key: string]: NodeConfigValue;
+}
+
 export interface FixedCollectionPattern {
   nodeType: string;
   property: string;
@@ -18,10 +25,33 @@ export interface FixedCollectionValidationResult {
     message: string;
     fix: string;
   }>;
-  autofix?: any;
+  autofix?: NodeConfig | NodeConfigValue[];
 }
 
 export class FixedCollectionValidator {
+  /**
+   * Type guard to check if value is a NodeConfig
+   */
+  private static isNodeConfig(value: NodeConfigValue): value is NodeConfig {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  /**
+   * Safely get nested property value
+   */
+  private static getNestedValue(obj: NodeConfig, path: string): NodeConfigValue | undefined {
+    const parts = path.split('.');
+    let current: NodeConfigValue = obj;
+
+    for (const part of parts) {
+      if (!this.isNodeConfig(current)) {
+        return undefined;
+      }
+      current = current[part];
+    }
+
+    return current;
+  }
   /**
    * Known problematic patterns for various n8n nodes
    */
@@ -106,11 +136,17 @@ export class FixedCollectionValidator {
 
   /**
    * Validate a node configuration for fixedCollection issues
+   * Includes protection against circular references
    */
   static validate(
     nodeType: string,
-    config: Record<string, any>
+    config: NodeConfig
   ): FixedCollectionValidationResult {
+    // Early return for non-object configs
+    if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+      return { isValid: true, errors: [] };
+    }
+    
     const normalizedNodeType = this.normalizeNodeType(nodeType);
     const pattern = this.getPatternForNode(normalizedNodeType);
     
@@ -147,14 +183,19 @@ export class FixedCollectionValidator {
    * Apply autofix to a configuration
    */
   static applyAutofix(
-    config: Record<string, any>,
+    config: NodeConfig,
     pattern: FixedCollectionPattern
-  ): Record<string, any> {
+  ): NodeConfig | NodeConfigValue[] {
     const fixedConfig = this.generateAutofix(config, pattern);
     // For If/Filter nodes, the autofix might return just the values array
     if (pattern.nodeType === 'if' || pattern.nodeType === 'filter') {
-      if (config.conditions?.values) {
-        return config.conditions.values;
+      const conditions = config.conditions;
+      if (conditions && typeof conditions === 'object' && !Array.isArray(conditions) && 'values' in conditions) {
+        const values = conditions.values;
+        if (values !== undefined && values !== null && 
+            (Array.isArray(values) || typeof values === 'object')) {
+          return values as NodeConfig | NodeConfigValue[];
+        }
       }
     }
     return fixedConfig;
@@ -180,19 +221,46 @@ export class FixedCollectionValidator {
 
   /**
    * Check if configuration has an invalid structure
+   * Includes circular reference protection
    */
   private static hasInvalidStructure(
-    config: Record<string, any>,
+    config: NodeConfig,
     pattern: string
   ): boolean {
     const parts = pattern.split('.');
-    let current = config;
+    let current: NodeConfigValue = config;
+    const visited = new WeakSet<object>();
 
     for (const part of parts) {
-      if (!current || typeof current !== 'object' || !current[part]) {
+      // Check for null/undefined
+      if (current === null || current === undefined) {
         return false;
       }
-      current = current[part];
+      
+      // Check if it's an object (but not an array for property access)
+      if (typeof current !== 'object' || Array.isArray(current)) {
+        return false;
+      }
+      
+      // Check for circular reference
+      if (visited.has(current)) {
+        return false; // Circular reference detected, invalid structure
+      }
+      visited.add(current);
+      
+      // Check if property exists (using hasOwnProperty to avoid prototype pollution)
+      if (!Object.prototype.hasOwnProperty.call(current, part)) {
+        return false;
+      }
+      
+      const nextValue = (current as NodeConfig)[part];
+      if (typeof nextValue !== 'object' || nextValue === null) {
+        // If we have more parts to traverse but current value is not an object, invalid structure
+        if (parts.indexOf(part) < parts.length - 1) {
+          return false;
+        }
+      }
+      current = nextValue as NodeConfig;
     }
 
     return true;
@@ -233,106 +301,158 @@ export class FixedCollectionValidator {
    * Generate autofix for invalid structures
    */
   private static generateAutofix(
-    config: Record<string, any>,
+    config: NodeConfig,
     pattern: FixedCollectionPattern
-  ): any {
+  ): NodeConfig | NodeConfigValue[] {
     const fixedConfig = { ...config };
 
     switch (pattern.nodeType) {
-      case 'switch':
-        if (config.rules?.conditions?.values) {
-          fixedConfig.rules = {
-            values: Array.isArray(config.rules.conditions.values)
-              ? config.rules.conditions.values.map((condition: any, index: number) => ({
-                  conditions: condition,
-                  outputKey: `output${index + 1}`
-                }))
-              : [{
-                  conditions: config.rules.conditions.values,
-                  outputKey: 'output1'
-                }]
-          };
-        } else if (config.rules?.conditions) {
-          fixedConfig.rules = {
-            values: [{
-              conditions: config.rules.conditions,
-              outputKey: 'output1'
-            }]
-          };
+      case 'switch': {
+        const rules = config.rules;
+        if (this.isNodeConfig(rules)) {
+          const conditions = rules.conditions;
+          if (this.isNodeConfig(conditions) && 'values' in conditions) {
+            const values = conditions.values;
+            fixedConfig.rules = {
+              values: Array.isArray(values)
+                ? values.map((condition, index) => ({
+                    conditions: condition,
+                    outputKey: `output${index + 1}`
+                  }))
+                : [{
+                    conditions: values,
+                    outputKey: 'output1'
+                  }]
+            };
+          } else if (conditions) {
+            fixedConfig.rules = {
+              values: [{
+                conditions: conditions,
+                outputKey: 'output1'
+              }]
+            };
+          }
         }
         break;
+      }
 
       case 'if':
-      case 'filter':
-        if (config.conditions?.values) {
-          return config.conditions.values;
+      case 'filter': {
+        const conditions = config.conditions;
+        if (this.isNodeConfig(conditions) && 'values' in conditions) {
+          const values = conditions.values;
+          if (values !== undefined && values !== null && 
+              (Array.isArray(values) || typeof values === 'object')) {
+            return values as NodeConfig | NodeConfigValue[];
+          }
         }
         break;
+      }
 
-      case 'summarize':
-        if (config.fieldsToSummarize?.values?.values) {
-          fixedConfig.fieldsToSummarize = {
-            values: config.fieldsToSummarize.values.values
-          };
+      case 'summarize': {
+        const fieldsToSummarize = config.fieldsToSummarize;
+        if (this.isNodeConfig(fieldsToSummarize)) {
+          const values = fieldsToSummarize.values;
+          if (this.isNodeConfig(values) && 'values' in values) {
+            fixedConfig.fieldsToSummarize = {
+              values: values.values
+            };
+          }
         }
         break;
+      }
 
-      case 'comparedatasets':
-        if (config.mergeByFields?.values?.values) {
-          fixedConfig.mergeByFields = {
-            values: config.mergeByFields.values.values
-          };
+      case 'comparedatasets': {
+        const mergeByFields = config.mergeByFields;
+        if (this.isNodeConfig(mergeByFields)) {
+          const values = mergeByFields.values;
+          if (this.isNodeConfig(values) && 'values' in values) {
+            fixedConfig.mergeByFields = {
+              values: values.values
+            };
+          }
         }
         break;
+      }
 
-      case 'sort':
-        if (config.sortFieldsUi?.sortField?.values) {
-          fixedConfig.sortFieldsUi = {
-            sortField: config.sortFieldsUi.sortField.values
-          };
+      case 'sort': {
+        const sortFieldsUi = config.sortFieldsUi;
+        if (this.isNodeConfig(sortFieldsUi)) {
+          const sortField = sortFieldsUi.sortField;
+          if (this.isNodeConfig(sortField) && 'values' in sortField) {
+            fixedConfig.sortFieldsUi = {
+              sortField: sortField.values
+            };
+          }
         }
         break;
+      }
 
-      case 'aggregate':
-        if (config.fieldsToAggregate?.fieldToAggregate?.values) {
-          fixedConfig.fieldsToAggregate = {
-            fieldToAggregate: config.fieldsToAggregate.fieldToAggregate.values
-          };
+      case 'aggregate': {
+        const fieldsToAggregate = config.fieldsToAggregate;
+        if (this.isNodeConfig(fieldsToAggregate)) {
+          const fieldToAggregate = fieldsToAggregate.fieldToAggregate;
+          if (this.isNodeConfig(fieldToAggregate) && 'values' in fieldToAggregate) {
+            fixedConfig.fieldsToAggregate = {
+              fieldToAggregate: fieldToAggregate.values
+            };
+          }
         }
         break;
+      }
 
-      case 'set':
-        if (config.fields?.values?.values) {
-          fixedConfig.fields = {
-            values: config.fields.values.values
-          };
+      case 'set': {
+        const fields = config.fields;
+        if (this.isNodeConfig(fields)) {
+          const values = fields.values;
+          if (this.isNodeConfig(values) && 'values' in values) {
+            fixedConfig.fields = {
+              values: values.values
+            };
+          }
         }
         break;
+      }
 
-      case 'html':
-        if (config.extractionValues?.values?.values) {
-          fixedConfig.extractionValues = {
-            values: config.extractionValues.values.values
-          };
+      case 'html': {
+        const extractionValues = config.extractionValues;
+        if (this.isNodeConfig(extractionValues)) {
+          const values = extractionValues.values;
+          if (this.isNodeConfig(values) && 'values' in values) {
+            fixedConfig.extractionValues = {
+              values: values.values
+            };
+          }
         }
         break;
+      }
 
-      case 'httprequest':
-        if (config.body?.parameters?.values) {
-          fixedConfig.body = {
-            ...config.body,
-            parameters: config.body.parameters.values
-          };
+      case 'httprequest': {
+        const body = config.body;
+        if (this.isNodeConfig(body)) {
+          const parameters = body.parameters;
+          if (this.isNodeConfig(parameters) && 'values' in parameters) {
+            fixedConfig.body = {
+              ...body,
+              parameters: parameters.values
+            };
+          }
         }
         break;
+      }
 
-      case 'airtable':
-        if (config.sort?.sortField?.values) {
-          fixedConfig.sort = {
-            sortField: config.sort.sortField.values
-          };
+      case 'airtable': {
+        const sort = config.sort;
+        if (this.isNodeConfig(sort)) {
+          const sortField = sort.sortField;
+          if (this.isNodeConfig(sortField) && 'values' in sortField) {
+            fixedConfig.sort = {
+              sortField: sortField.values
+            };
+          }
         }
         break;
+      }
     }
 
     return fixedConfig;
@@ -340,9 +460,13 @@ export class FixedCollectionValidator {
 
   /**
    * Get all known patterns (for testing and documentation)
+   * Returns a deep copy to prevent external modifications
    */
   static getAllPatterns(): FixedCollectionPattern[] {
-    return [...this.KNOWN_PATTERNS];
+    return this.KNOWN_PATTERNS.map(pattern => ({
+      ...pattern,
+      invalidPatterns: [...pattern.invalidPatterns]
+    }));
   }
 
   /**
