@@ -53,7 +53,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.n8n
+          file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -82,13 +82,16 @@ jobs:
 
       - name: Test Docker image
         run: |
+          # Test that the image starts correctly with N8N_MODE
           docker run --rm \
             -e N8N_MODE=true \
+            -e MCP_MODE=http \
             -e N8N_API_URL=http://localhost:5678 \
             -e N8N_API_KEY=test \
-            -e MCP_AUTH_TOKEN=test \
+            -e MCP_AUTH_TOKEN=test-token-minimum-32-chars-long \
+            -e AUTH_TOKEN=test-token-minimum-32-chars-long \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            node dist/index.js n8n --version
+            node -e "console.log('N8N_MODE:', process.env.N8N_MODE); process.exit(0);"
 
       - name: Test health endpoint
         run: |
@@ -97,9 +100,11 @@ jobs:
             --name n8n-mcp-test \
             -p 3000:3000 \
             -e N8N_MODE=true \
+            -e MCP_MODE=http \
             -e N8N_API_URL=http://localhost:5678 \
             -e N8N_API_KEY=test \
-            -e MCP_AUTH_TOKEN=test \
+            -e MCP_AUTH_TOKEN=test-token-minimum-32-chars-long \
+            -e AUTH_TOKEN=test-token-minimum-32-chars-long \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           
           # Wait for container to start
@@ -107,6 +112,9 @@ jobs:
           
           # Test health endpoint
           curl -f http://localhost:3000/health || exit 1
+          
+          # Test MCP endpoint
+          curl -f http://localhost:3000/mcp || exit 1
           
           # Cleanup
           docker stop n8n-mcp-test

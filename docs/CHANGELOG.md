@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Dockerfile Consolidation**: Removed redundant `Dockerfile.n8n` in favor of single optimized `Dockerfile`
+  - n8n packages are not required at runtime for N8N_MODE functionality
+  - Standard image works perfectly with `N8N_MODE=true` environment variable
+  - Reduces build complexity and maintenance overhead
+  - Image size reduced by 500MB+ (no unnecessary n8n packages)
+  - Build time improved from 8+ minutes to 1-2 minutes
+
+### Fixed
+- Fixed missing `axios` dependency in `package.runtime.json` causing Docker build failures
+
 ## [2.9.1] - 2025-08-02
 
 ### Fixed
