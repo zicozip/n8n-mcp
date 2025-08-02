@@ -8,7 +8,7 @@
 [![Tests](https://img.shields.io/badge/tests-1356%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
 [![n8n version](https://img.shields.io/badge/n8n-^1.104.1-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/VY6UOG?referralCode=n8n-mcp)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/n8n-mcp?referralCode=n8n-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with comprehensive access to n8n node documentation, properties, and operations. Deploy in minutes to give Claude and other AI assistants deep knowledge about n8n's 525+ workflow automation nodes.
 
@@ -296,7 +296,7 @@ Add to Claude Desktop config:
 
 Deploy n8n-MCP to Railway's cloud platform with zero configuration:
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/VY6UOG?referralCode=n8n-mcp)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/n8n-mcp?referralCode=n8n-mcp)
 
 **Benefits:**
 - ☁️ **Instant cloud hosting** - No server setup required
