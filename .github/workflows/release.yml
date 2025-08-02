@@ -146,6 +146,8 @@ jobs:
       
       - name: Create GitHub Release
         id: create
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.detect-version-change.outputs.new-version }}"
           IS_PRERELEASE="${{ needs.detect-version-change.outputs.is-prerelease }}"
@@ -447,11 +449,7 @@ jobs:
             echo "No documentation changes to commit"
           else
             git add README.md
-            git commit -m "docs: update version badges to v${{ needs.detect-version-change.outputs.new-version }}
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+            git commit -m "docs: update version badges to v${{ needs.detect-version-change.outputs.new-version }}"
             git push
             echo "✅ Committed documentation updates"
           fi
