@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.9.1-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.10.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![codecov](https://codecov.io/gh/czlonkowski/n8n-mcp/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/czlonkowski/n8n-mcp)
 [![Tests](https://img.shields.io/badge/tests-1356%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
@@ -780,6 +780,26 @@ Contributions are welcome! Please:
 2. Create a feature branch
 3. Run tests (`npm test`)
 4. Submit a pull request
+
+### 🚀 For Maintainers: Automated Releases
+
+This project uses automated releases triggered by version changes:
+
+```bash
+# Guided release preparation
+npm run prepare:release
+
+# Test release automation
+npm run test:release-automation
+```
+
+The system automatically handles:
+- 🏷️ GitHub releases with changelog content
+- 📦 NPM package publishing
+- 🐳 Multi-platform Docker images
+- 📚 Documentation updates
+
+See [Automated Release Guide](./docs/AUTOMATED_RELEASES.md) for complete details.
 
 ## 👏 Acknowledgments
 

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.0] - 2025-08-02
+
+### Added
+- **Automated Release System**: Complete CI/CD pipeline for automated releases on version bump
+  - GitHub Actions workflow (`.github/workflows/release.yml`) with 7 coordinated jobs
+  - Automatic version detection and changelog extraction
+  - Multi-artifact publishing: GitHub releases, NPM package, Docker images
+  - Interactive release preparation tool (`npm run prepare:release`)
+  - Comprehensive release testing tool (`npm run test:release-automation`)
+  - Full documentation in `docs/AUTOMATED_RELEASES.md`
+  - Zero-touch releases: version bump → automatic everything
+
+### Security
+- **CI/CD Security Enhancements**:
+  - Replaced deprecated `actions/create-release@v1` with secure `gh` CLI
+  - Fixed git checkout vulnerability using safe `git show` commands
+  - Fixed command injection risk using proper argument arrays
+  - Added concurrency control to prevent simultaneous releases
+  - Added disk space checks before resource-intensive operations
+  - Implemented confirmation gates for destructive operations
+
 ### Changed
 - **Dockerfile Consolidation**: Removed redundant `Dockerfile.n8n` in favor of single optimized `Dockerfile`
   - n8n packages are not required at runtime for N8N_MODE functionality
@@ -14,6 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduces build complexity and maintenance overhead
   - Image size reduced by 500MB+ (no unnecessary n8n packages)
   - Build time improved from 8+ minutes to 1-2 minutes
+
+### Added (CI/CD Features)
+- **Developer Tools**:
+  - `scripts/prepare-release.js`: Interactive guided release tool
+  - `scripts/test-release-automation.js`: Validates entire release setup
+  - `scripts/extract-changelog.js`: Modular changelog extraction
+- **Release Automation Features**:
+  - NPM publishing with 3-retry mechanism for network resilience
+  - Multi-platform Docker builds (amd64, arm64)
+  - Semantic version validation and prerelease detection
+  - Automatic documentation badge updates
+  - Runtime-optimized NPM package (8 deps vs 50+, ~50MB vs 1GB+)
 
 ### Fixed
 - Fixed missing `axios` dependency in `package.runtime.json` causing Docker build failures
@@ -1041,6 +1074,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.10.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.9.0...v2.9.1
 [2.9.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.8.3...v2.9.0
 [2.8.3]: https://github.com/czlonkowski/n8n-mcp/compare/v2.8.2...v2.8.3
