@@ -6,19 +6,6 @@ on:
     paths:
       - 'package.json'
       - 'package.runtime.json'
-    paths-ignore:
-      - '**.md'
-      - '**.txt'
-      - 'docs/**'
-      - 'examples/**'
-      - '.github/FUNDING.yml'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
-      - '.gitignore'
-      - 'LICENSE*'
-      - 'ATTRIBUTION.md'
-      - 'SECURITY.md'
-      - 'CODE_OF_CONDUCT.md'
 
 permissions:
   contents: write
