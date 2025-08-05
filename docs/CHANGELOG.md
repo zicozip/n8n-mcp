@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.2] - 2025-08-05
+
+### Updated
+- **n8n Dependencies**: Updated to latest versions for compatibility and new features
+  - n8n: 1.104.1 → 1.105.2
+  - n8n-core: 1.103.1 → 1.104.1
+  - n8n-workflow: 1.101.0 → 1.102.1
+  - @n8n/n8n-nodes-langchain: 1.103.1 → 1.104.1
+- **Node Database**: Rebuilt with 534 nodes from updated n8n packages
+- **Template Library**: Fetched 499 workflow templates from the last 12 months
+  - Templates are filtered to include only those created or updated within the past year
+  - This ensures the template library contains fresh and actively maintained workflows
+- All 1,620 tests passing with updated dependencies
+
 ## [2.10.1] - 2025-08-02
 
 ### Fixed
@@ -1084,6 +1098,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.10.2]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.1...v2.10.2
 [2.10.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.0...v2.10.1
 [2.10.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.9.1...v2.10.0
 [2.9.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.9.0...v2.9.1
