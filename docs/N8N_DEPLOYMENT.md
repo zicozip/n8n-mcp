@@ -1,6 +1,6 @@
 # n8n-MCP Deployment Guide
 
-This guide covers how to deploy n8n-MCP and connect it to AI Agent nodes with the standard MCP Client Tool. Whether you're testing locally or deploying to production, we'll show you how to set it up.
+This guide covers how to deploy n8n-MCP and connect it to your n8n instance. Whether you're testing locally or deploying to production, we'll show you how to set up n8n-MCP for use with n8n's MCP Client Tool node.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -35,15 +35,15 @@ cd n8n-mcp
 npm install
 npm run build
 
-# Run the test script
-./scripts/test-n8n-mode.sh
+# Run the integration test script
+./scripts/test-n8n-integration.sh
 ```
 
 This script will:
-1. Start n8n-MCP in n8n mode on port 3001
-2. Enable debug logging for troubleshooting
-3. Run comprehensive protocol tests
-4. Display results and any issues found
+1. Start a real n8n instance in Docker
+2. Start n8n-MCP server configured for n8n
+3. Guide you through API key setup for workflow management
+4. Test the complete integration between n8n and n8n-MCP
 
 ### Manual Local Setup
 
@@ -86,8 +86,8 @@ curl http://localhost:3001/mcp
 | `MCP_MODE` | Yes | Enables HTTP mode for n8n MCP Client | `http` |
 | `N8N_API_URL` | Yes* | URL of your n8n instance | `http://localhost:5678` |
 | `N8N_API_KEY` | Yes* | n8n API key for workflow management | `n8n_api_xxx...` |
-| `MCP_AUTH_TOKEN` | Yes | Authentication token for MCP requests | `secure-random-32-char-token` |
-| `AUTH_TOKEN` | Yes | Must match MCP_AUTH_TOKEN | `secure-random-32-char-token` |
+| `MCP_AUTH_TOKEN` | Yes | Authentication token for MCP requests (min 32 chars) | `secure-random-32-char-token` |
+| `AUTH_TOKEN` | Yes | **MUST match MCP_AUTH_TOKEN exactly** | `secure-random-32-char-token` |
 | `PORT` | No | Port for the HTTP server | `3000` (default) |
 | `LOG_LEVEL` | No | Logging verbosity | `info`, `debug`, `error` |
 
@@ -103,13 +103,48 @@ Starting with version 2.9.2, we use a single optimized Dockerfile for all deploy
 
 ## Production Deployment
 
+> **⚠️ Critical**: Docker caches images locally. Always run `docker pull ghcr.io/czlonkowski/n8n-mcp:latest` before deploying to ensure you have the latest version. This simple step prevents most deployment issues.
+
 ### Same Server as n8n
 
 If you're running n8n-MCP on the same server as your n8n instance:
 
-### Building from Source (Recommended)
+### Using Pre-built Image (Recommended)
 
-For the latest features and bug fixes, build from source:
+The pre-built images are automatically updated with each release and are the easiest way to get started.
+
+**IMPORTANT**: Always pull the latest image to avoid using cached versions:
+
+```bash
+# ALWAYS pull the latest image first
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
+
+# Generate a secure token (save this!)
+AUTH_TOKEN=$(openssl rand -hex 32)
+echo "Your AUTH_TOKEN: $AUTH_TOKEN"
+
+# Create a Docker network if n8n uses one
+docker network create n8n-net
+
+# Run n8n-MCP container
+docker run -d \
+  --name n8n-mcp \
+  --network n8n-net \
+  -p 3000:3000 \
+  -e N8N_MODE=true \
+  -e MCP_MODE=http \
+  -e N8N_API_URL=http://n8n:5678 \
+  -e N8N_API_KEY=your-n8n-api-key \
+  -e MCP_AUTH_TOKEN=$AUTH_TOKEN \
+  -e AUTH_TOKEN=$AUTH_TOKEN \
+  -e LOG_LEVEL=info \
+  --restart unless-stopped \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+### Building from Source (Advanced Users)
+
+Only build from source if you need custom modifications or are contributing to development:
 
 ```bash
 # Clone and build
@@ -119,47 +154,16 @@ cd n8n-mcp
 # Build Docker image
 docker build -t n8n-mcp:latest .
 
-# Create a Docker network if n8n uses one
-docker network create n8n-net
-
-# Run n8n-MCP container
+# Run using your local image
 docker run -d \
   --name n8n-mcp \
-  --network n8n-net \
   -p 3000:3000 \
   -e N8N_MODE=true \
   -e MCP_MODE=http \
-  -e N8N_API_URL=http://n8n:5678 \
-  -e N8N_API_KEY=your-n8n-api-key \
   -e MCP_AUTH_TOKEN=$(openssl rand -hex 32) \
   -e AUTH_TOKEN=$(openssl rand -hex 32) \
-  -e LOG_LEVEL=info \
-  --restart unless-stopped \
+  # ... other settings
   n8n-mcp:latest
-```
-
-### Using Pre-built Image (May Be Outdated)
-
-⚠️ **Warning**: Pre-built images may be outdated due to CI/CD synchronization issues. Always check the [GitHub releases](https://github.com/czlonkowski/n8n-mcp/releases) for the latest version.
-
-```bash
-# Create a Docker network if n8n uses one
-docker network create n8n-net
-
-# Run n8n-MCP container
-docker run -d \
-  --name n8n-mcp \
-  --network n8n-net \
-  -p 3000:3000 \
-  -e N8N_MODE=true \
-  -e MCP_MODE=http \
-  -e N8N_API_URL=http://n8n:5678 \
-  -e N8N_API_KEY=your-n8n-api-key \
-  -e MCP_AUTH_TOKEN=$(openssl rand -hex 32) \
-  -e AUTH_TOKEN=$(openssl rand -hex 32) \
-  -e LOG_LEVEL=info \
-  --restart unless-stopped \
-  ghcr.io/czlonkowski/n8n-mcp:latest
 ```
 
 ### Using systemd (for native installation)
@@ -198,39 +202,15 @@ sudo systemctl start n8n-mcp
 
 Deploy n8n-MCP on a separate server from your n8n instance:
 
-#### Quick Docker Deployment (Build from Source)
+#### Quick Docker Deployment (Recommended)
+
+**Always pull the latest image to ensure you have the current version:**
 
 ```bash
 # On your cloud server (Hetzner, AWS, DigitalOcean, etc.)
-# First, clone and build
-git clone https://github.com/czlonkowski/n8n-mcp.git
-cd n8n-mcp
-docker build -t n8n-mcp:latest .
+# ALWAYS pull the latest image first
+docker pull ghcr.io/czlonkowski/n8n-mcp:latest
 
-# Generate auth tokens
-AUTH_TOKEN=$(openssl rand -hex 32)
-echo "Save this AUTH_TOKEN: $AUTH_TOKEN"
-
-# Run the container
-docker run -d \
-  --name n8n-mcp \
-  -p 3000:3000 \
-  -e N8N_MODE=true \
-  -e MCP_MODE=http \
-  -e N8N_API_URL=https://your-n8n-instance.com \
-  -e N8N_API_KEY=your-n8n-api-key \
-  -e MCP_AUTH_TOKEN=$AUTH_TOKEN \
-  -e AUTH_TOKEN=$AUTH_TOKEN \
-  -e LOG_LEVEL=info \
-  --restart unless-stopped \
-  n8n-mcp:latest
-```
-
-#### Quick Docker Deployment (Pre-built Image)
-
-⚠️ **Warning**: May be outdated. Check [releases](https://github.com/czlonkowski/n8n-mcp/releases) first.
-
-```bash
 # Generate auth tokens
 AUTH_TOKEN=$(openssl rand -hex 32)
 echo "Save this AUTH_TOKEN: $AUTH_TOKEN"
@@ -248,6 +228,24 @@ docker run -d \
   -e LOG_LEVEL=info \
   --restart unless-stopped \
   ghcr.io/czlonkowski/n8n-mcp:latest
+```
+
+#### Building from Source (Advanced)
+
+Only needed if you're modifying the code:
+
+```bash
+# Clone and build
+git clone https://github.com/czlonkowski/n8n-mcp.git
+cd n8n-mcp
+docker build -t n8n-mcp:latest .
+
+# Run using local image
+docker run -d \
+  --name n8n-mcp \
+  -p 3000:3000 \
+  # ... same environment variables as above
+  n8n-mcp:latest
 ```
 
 #### Full Production Setup (Hetzner/AWS/DigitalOcean)
@@ -269,61 +267,7 @@ curl -fsSL https://get.docker.com | sh
 
 3. **Deploy n8n-MCP with SSL** (using Caddy for automatic HTTPS):
 
-**Option A: Build from Source (Recommended)**
-```bash
-# Clone and prepare
-git clone https://github.com/czlonkowski/n8n-mcp.git
-cd n8n-mcp
-
-# Build local image
-docker build -t n8n-mcp:latest .
-
-# Create docker-compose.yml
-cat > docker-compose.yml << 'EOF'
-version: '3.8'
-
-services:
-  n8n-mcp:
-    image: n8n-mcp:latest  # Using locally built image
-    container_name: n8n-mcp
-    restart: unless-stopped
-    environment:
-      - N8N_MODE=true
-      - MCP_MODE=http
-      - N8N_API_URL=${N8N_API_URL}
-      - N8N_API_KEY=${N8N_API_KEY}
-      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
-      - AUTH_TOKEN=${AUTH_TOKEN}
-      - PORT=3000
-      - LOG_LEVEL=info
-    networks:
-      - web
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - web
-
-networks:
-  web:
-    driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:
-EOF
-```
-
-**Option B: Pre-built Image (May Be Outdated)**
+**Using Docker Compose (Recommended)**
 ```bash
 # Create docker-compose.yml
 cat > docker-compose.yml << 'EOF'
@@ -332,6 +276,7 @@ version: '3.8'
 services:
   n8n-mcp:
     image: ghcr.io/czlonkowski/n8n-mcp:latest
+    pull_policy: always  # Always pull latest image
     container_name: n8n-mcp
     restart: unless-stopped
     environment:
@@ -370,7 +315,56 @@ volumes:
 EOF
 ```
 
-**Complete Setup (Both Options)**
+**Note**: The `pull_policy: always` ensures you always get the latest version.
+
+**Building from Source (if needed)**
+```bash
+# Only if you need custom modifications
+git clone https://github.com/czlonkowski/n8n-mcp.git
+cd n8n-mcp
+docker build -t n8n-mcp:local .
+
+# Then update docker-compose.yml to use:
+# image: n8n-mcp:local
+    container_name: n8n-mcp
+    restart: unless-stopped
+    environment:
+      - N8N_MODE=true
+      - MCP_MODE=http
+      - N8N_API_URL=${N8N_API_URL}
+      - N8N_API_KEY=${N8N_API_KEY}
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - AUTH_TOKEN=${AUTH_TOKEN}
+      - PORT=3000
+      - LOG_LEVEL=info
+    networks:
+      - web
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+EOF
+```
+
+**Complete the Setup**
 ```bash
 # Create Caddyfile
 cat > Caddyfile << 'EOF'
@@ -481,11 +475,20 @@ You are an n8n workflow expert. Use the MCP tools to:
 - **IP Whitelisting**: Consider restricting access to known n8n instances
 
 ### Docker Security
+- **Always pull latest images**: Docker caches images locally, so run `docker pull` before deployment
 - Run containers with `--read-only` flag if possible
 - Use specific image versions instead of `:latest` in production
 - Regular updates: `docker pull ghcr.io/czlonkowski/n8n-mcp:latest`
 
 ## Troubleshooting
+
+### Docker Image Issues
+
+**Using Outdated Cached Images**
+- **Symptom**: Missing features, old bugs reappearing, features not working as documented
+- **Cause**: Docker uses locally cached images instead of pulling the latest version
+- **Solution**: Always run `docker pull ghcr.io/czlonkowski/n8n-mcp:latest` before deployment
+- **Verification**: Check image age with `docker images | grep n8n-mcp`
 
 ### Common Configuration Issues
 
@@ -572,10 +575,10 @@ You are an n8n workflow expert. Use the MCP tools to:
 
 ### Version Compatibility Issues
 
-**"Outdated Docker Image"**
+**"Features Not Working as Expected"**
 - **Symptom**: Missing features, old bugs, or compatibility issues
-- **Solution**: Build from source instead of using pre-built images
-- **Check**: Compare your image version with [GitHub releases](https://github.com/czlonkowski/n8n-mcp/releases)
+- **Solution**: Pull the latest image: `docker pull ghcr.io/czlonkowski/n8n-mcp:latest`
+- **Check**: Verify image date with `docker inspect ghcr.io/czlonkowski/n8n-mcp:latest | grep Created`
 
 **"Protocol version mismatch"**
 - n8n-MCP automatically uses version 2024-11-05 for n8n compatibility
@@ -743,48 +746,6 @@ curl http://localhost:3001/mcp
 - **Response time**: Average 12ms for queries
 - **Caching**: Built-in 15-minute cache for repeated queries
 
-## Railway Deployment for n8n Integration
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/n8n-mcp?referralCode=n8n-mcp)
-
-If you're using the **Deploy to Railway** button, you'll need to modify some environment variables since Railway uses a different Docker image (`Dockerfile.railway`).
-
-### Required Environment Variable Changes
-
-When deploying with Railway for n8n integration, add these variables in your Railway dashboard:
-
-1. **Go to Railway dashboard** → Your service → **Variables tab**
-2. **Add the following variables**:
-
-```bash
-# Required for n8n integration mode
-N8N_MODE=true
-
-# Already set by Railway template, but verify:
-MCP_MODE=http                    # Required for HTTP mode
-MCP_AUTH_TOKEN=<your-token>      # Must match AUTH_TOKEN
-AUTH_TOKEN=<your-token>          # Same value as MCP_AUTH_TOKEN
-
-# Optional: For workflow management features
-N8N_API_URL=https://your-n8n-instance.com
-N8N_API_KEY=your-n8n-api-key
-```
-
-3. **Save changes** - Railway will automatically redeploy
-
-### Connecting n8n to Railway-deployed n8n-MCP
-
-In your n8n workflow, configure the MCP Client Tool with:
-
-```
-Server URL: https://your-app.up.railway.app/mcp
-Auth Token: [Your AUTH_TOKEN value]
-Transport: HTTP Streamable (SSE)
-```
-
-> **Note**: The Railway deployment automatically includes all required dependencies and uses the optimized `Dockerfile.railway` which is compatible with both Claude Desktop and n8n integrations.
-
-For more details on Railway deployment, see our [Railway Deployment Guide](./RAILWAY_DEPLOYMENT.md).
-
 ## Next Steps
 
 - Test your setup with the [MCP Client Tool in n8n](https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-langchain.mcpclienttool/)
@@ -794,4 +755,4 @@ For more details on Railway deployment, see our [Railway Deployment Guide](./RAI
 
 ---
 
-Need help? Open an issue on [GitHub](https://github.com/czlonkowski/n8n-mcp/issues) or check the [n8n forums](https://community.n8n.io).
+Need help? Open an issue on [GitHub](https://github.com/czlonkowski/n8n-mcp/issues) or check the [n8n forums](https://community.n8n.io)
