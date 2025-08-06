@@ -103,12 +103,14 @@ jobs:
       # Store benchmark results and compare
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
+        continue-on-error: true
+        id: benchmark
         with:
           name: n8n-mcp Benchmarks
           tool: 'customSmallerIsBetter'
           output-file-path: benchmark-results-formatted.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
+          auto-push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           # Where to store benchmark data
           benchmark-data-dir-path: 'benchmarks'
           # Alert when performance regresses by 10%
@@ -120,52 +122,60 @@ jobs:
           summary-always: true
           # Max number of data points to retain
           max-items-in-chart: 50
+          fail-on-alert: false
 
       # Comment on PR with benchmark results
       - name: Comment PR with results
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const summary = JSON.parse(fs.readFileSync('benchmark-summary.json', 'utf8'));
-            
-            // Format results for PR comment
-            let comment = '## 📊 Performance Benchmark Results\n\n';
-            comment += `🕐 Run at: ${new Date(summary.timestamp).toLocaleString()}\n\n`;
-            comment += '| Benchmark | Time | Ops/sec | Range |\n';
-            comment += '|-----------|------|---------|-------|\n';
-            
-            // Group benchmarks by category
-            const categories = {};
-            for (const benchmark of summary.benchmarks) {
-              const [category, ...nameParts] = benchmark.name.split(' - ');
-              if (!categories[category]) categories[category] = [];
-              categories[category].push({
-                ...benchmark,
-                shortName: nameParts.join(' - ')
-              });
-            }
-            
-            // Display by category
-            for (const [category, benchmarks] of Object.entries(categories)) {
-              comment += `\n### ${category}\n`;
-              for (const benchmark of benchmarks) {
-                comment += `| ${benchmark.shortName} | ${benchmark.time} | ${benchmark.opsPerSec} | ${benchmark.range} |\n`;
+            try {
+              const fs = require('fs');
+              const summary = JSON.parse(fs.readFileSync('benchmark-summary.json', 'utf8'));
+              
+              // Format results for PR comment
+              let comment = '## 📊 Performance Benchmark Results\n\n';
+              comment += `🕐 Run at: ${new Date(summary.timestamp).toLocaleString()}\n\n`;
+              comment += '| Benchmark | Time | Ops/sec | Range |\n';
+              comment += '|-----------|------|---------|-------|\n';
+              
+              // Group benchmarks by category
+              const categories = {};
+              for (const benchmark of summary.benchmarks) {
+                const [category, ...nameParts] = benchmark.name.split(' - ');
+                if (!categories[category]) categories[category] = [];
+                categories[category].push({
+                  ...benchmark,
+                  shortName: nameParts.join(' - ')
+                });
               }
+              
+              // Display by category
+              for (const [category, benchmarks] of Object.entries(categories)) {
+                comment += `\n### ${category}\n`;
+                for (const benchmark of benchmarks) {
+                  comment += `| ${benchmark.shortName} | ${benchmark.time} | ${benchmark.opsPerSec} | ${benchmark.range} |\n`;
+                }
+              }
+              
+              // Add comparison link
+              comment += '\n\n📈 [View historical benchmark trends](https://czlonkowski.github.io/n8n-mcp/benchmarks/)\n';
+              comment += '\n⚡ Performance regressions >10% will be flagged automatically.\n';
+              
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.error('Failed to create PR comment:', error.message);
+              console.log('This is likely due to insufficient permissions for external PRs.');
+              console.log('Benchmark results have been saved to artifacts instead.');
             }
-            
-            // Add comparison link
-            comment += '\n\n📈 [View historical benchmark trends](https://czlonkowski.github.io/n8n-mcp/benchmarks/)\n';
-            comment += '\n⚡ Performance regressions >10% will be flagged automatically.\n';
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
 
   # Deploy benchmark results to GitHub Pages
   deploy:
