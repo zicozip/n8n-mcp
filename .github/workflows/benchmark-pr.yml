@@ -93,71 +93,84 @@ jobs:
       - name: Post benchmark comparison to PR
         if: always()
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           script: |
-            const fs = require('fs');
-            let comment = '## ⚡ Benchmark Comparison\n\n';
-            
             try {
-              if (fs.existsSync('benchmark-comparison.md')) {
-                const comparison = fs.readFileSync('benchmark-comparison.md', 'utf8');
-                comment += comparison;
-              } else {
-                comment += 'Benchmark comparison could not be generated.';
+              const fs = require('fs');
+              let comment = '## ⚡ Benchmark Comparison\n\n';
+              
+              try {
+                if (fs.existsSync('benchmark-comparison.md')) {
+                  const comparison = fs.readFileSync('benchmark-comparison.md', 'utf8');
+                  comment += comparison;
+                } else {
+                  comment += 'Benchmark comparison could not be generated.';
+                }
+              } catch (error) {
+                comment += `Error reading benchmark comparison: ${error.message}`;
               }
-            } catch (error) {
-              comment += `Error reading benchmark comparison: ${error.message}`;
-            }
-            
-            comment += '\n\n---\n';
-            comment += `*[View full benchmark results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
-            
-            // Find existing comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('## ⚡ Benchmark Comparison')
-            );
-            
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: comment
-              });
-            } else {
-              await github.rest.issues.createComment({
+              
+              comment += '\n\n---\n';
+              comment += `*[View full benchmark results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+              
+              // Find existing comment
+              const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: comment
               });
+              
+              const botComment = comments.find(comment => 
+                comment.user.type === 'Bot' && 
+                comment.body.includes('## ⚡ Benchmark Comparison')
+              );
+              
+              if (botComment) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: comment
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: comment
+                });
+              }
+            } catch (error) {
+              console.error('Failed to create/update PR comment:', error.message);
+              console.log('This is likely due to insufficient permissions for external PRs.');
+              console.log('Benchmark comparison has been saved to artifacts instead.');
             }
       
       # Add status check
       - name: Set benchmark status
         if: always()
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           script: |
-            const hasRegression = '${{ steps.compare.outputs.REGRESSION }}' === 'true';
-            const state = hasRegression ? 'failure' : 'success';
-            const description = hasRegression 
-              ? 'Performance regressions detected' 
-              : 'No performance regressions';
-            
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              sha: context.sha,
-              state: state,
-              target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
-              description: description,
-              context: 'benchmarks/regression-check'
-            });
+            try {
+              const hasRegression = '${{ steps.compare.outputs.REGRESSION }}' === 'true';
+              const state = hasRegression ? 'failure' : 'success';
+              const description = hasRegression 
+                ? 'Performance regressions detected' 
+                : 'No performance regressions';
+              
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.sha,
+                state: state,
+                target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+                description: description,
+                context: 'benchmarks/regression-check'
+              });
+            } catch (error) {
+              console.error('Failed to create commit status:', error.message);
+              console.log('This is likely due to insufficient permissions for external PRs.');
+            }
