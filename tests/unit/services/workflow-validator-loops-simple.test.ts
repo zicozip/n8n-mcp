@@ -64,7 +64,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should complete validation without crashing
       expect(result).toBeDefined();
@@ -114,7 +114,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
           }
         };
 
-        const result = await validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow as any);
         
         // Should identify potential processing nodes
         expect(result).toBeDefined();
@@ -163,7 +163,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
           }
         };
 
-        const result = await validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow as any);
         
         // Should not warn about final nodes on done output
         expect(result).toBeDefined();
@@ -205,7 +205,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       const negativeIndexErrors = result.errors.filter(e => 
         e.message?.includes('Invalid connection index -1')
@@ -239,7 +239,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       const missingNodeErrors = result.errors.filter(e => 
         e.message?.includes('non-existent node')
@@ -276,7 +276,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not warn about self-reference for SplitInBatches
       const selfRefWarnings = result.warnings.filter(w => 
@@ -311,7 +311,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should warn about self-reference for non-loop nodes
       const selfRefWarnings = result.warnings.filter(w => 
@@ -368,7 +368,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should validate without major errors
       expect(result).toBeDefined();
@@ -399,7 +399,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         connections: {}
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should handle gracefully without crashing
       expect(result).toBeDefined();
@@ -422,7 +422,7 @@ describe('WorkflowValidator - SplitInBatches Validation (Simplified)', () => {
         connections: {}
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should report unknown node error
       const unknownErrors = result.errors.filter(e => 

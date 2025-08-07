@@ -82,7 +82,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not crash or produce output-related errors
       expect(result).toBeDefined();
@@ -113,7 +113,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         connections: {}
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result).toBeDefined();
       expect(result.valid).toBeTruthy(); // Empty workflow with webhook should be valid
@@ -147,7 +147,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should warn about self-reference but not crash
       const selfRefWarnings = result.warnings.filter(w => 
@@ -188,7 +188,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       const negativeIndexErrors = result.errors.filter(e => 
         e.message?.includes('Invalid connection index -1')
@@ -234,7 +234,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should validate without crashing (n8n allows large indices)
       expect(result).toBeDefined();
@@ -266,7 +266,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should handle gracefully without crashing
       expect(result).toBeDefined();
@@ -306,7 +306,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should handle malformed connections but report errors
       expect(result).toBeDefined();
@@ -366,7 +366,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         connections
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should warn about missing loop back because depth limit prevents detection
       const loopBackWarnings = result.warnings.filter(w => 
@@ -423,7 +423,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should complete without hanging and warn about missing loop back
       expect(result).toBeDefined();
@@ -469,7 +469,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should warn about missing loop back and self-reference
       const loopBackWarnings = result.warnings.filter(w => 
@@ -526,7 +526,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should handle without performance issues
       expect(result).toBeDefined();
@@ -589,7 +589,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should validate all connection types
       expect(result).toBeDefined();
@@ -615,7 +615,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         connections: {}
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not produce SplitInBatches-specific warnings for isolated node
       const splitWarnings = result.warnings.filter(w => 
@@ -657,7 +657,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should NOT warn about empty loop output (it's only a problem if loop connects to something but doesn't loop back)
       // An empty loop output is valid - it just means no looping occurs
@@ -703,7 +703,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Both outputs go to same node which loops back - should be valid
       // No warnings about loop back since it does connect back
@@ -749,7 +749,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should error about reversed outputs since function node on done output connects back
       const reversedErrors = result.errors.filter(e => 
@@ -776,7 +776,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         connections: {}
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should report unknown node type error
       const unknownNodeErrors = result.errors.filter(e => 
@@ -817,7 +817,7 @@ describe('Loop Output Fix - Edge Cases', () => {
       };
 
       const startTime = Date.now();
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       const duration = Date.now() - startTime;
 
       // Should complete within reasonable time (< 5 seconds)
@@ -855,7 +855,7 @@ describe('Loop Output Fix - Edge Cases', () => {
         connections
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should validate all nodes without performance issues
       expect(result).toBeDefined();

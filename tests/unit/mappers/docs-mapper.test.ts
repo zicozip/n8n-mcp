@@ -318,17 +318,18 @@ Use this node when you need to process large datasets in smaller chunks.
 
       const result = await docsMapper.fetchDocumentation('splitInBatches');
 
-      expect(result).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
-      expect(result).toContain('⚠️ OUTPUT INDICES ARE COUNTERINTUITIVE ⚠️');
-      expect(result).toContain('Output 0 (index 0) = "done"');
-      expect(result).toContain('Output 1 (index 1) = "loop"');
-      expect(result).toContain('Correct Connection Pattern:');
-      expect(result).toContain('Common Mistake:');
-      expect(result).toContain('AI assistants often connect these backwards');
+      expect(result).not.toBeNull();
+      expect(result!).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
+      expect(result!).toContain('⚠️ OUTPUT INDICES ARE COUNTERINTUITIVE ⚠️');
+      expect(result!).toContain('Output 0 (index 0) = "done"');
+      expect(result!).toContain('Output 1 (index 1) = "loop"');
+      expect(result!).toContain('Correct Connection Pattern:');
+      expect(result!).toContain('Common Mistake:');
+      expect(result!).toContain('AI assistants often connect these backwards');
       
       // Should insert before "When to use" section
-      const insertionIndex = result.indexOf('## When to use');
-      const guidanceIndex = result.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION');
+      const insertionIndex = result!.indexOf('## When to use');
+      const guidanceIndex = result!.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION');
       expect(guidanceIndex).toBeLessThan(insertionIndex);
       expect(guidanceIndex).toBeGreaterThan(0);
     });
@@ -347,10 +348,11 @@ This node splits data into batches.
 
       const result = await docsMapper.fetchDocumentation('splitInBatches');
 
-      expect(result).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
+      expect(result).not.toBeNull();
+      expect(result!).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
       // Should be inserted at the beginning since no "When to use" section
-      expect(result.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION')).toBeLessThan(
-        result.indexOf('# Split In Batches Node')
+      expect(result!.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION')).toBeLessThan(
+        result!.indexOf('# Split In Batches Node')
       );
     });
 
@@ -420,15 +422,16 @@ Configure your conditions here.
 
       const result = await docsMapper.fetchDocumentation('n8n-nodes-base.if');
 
-      expect(result).toContain('Output Connection Information');
-      expect(result).toContain('Output 0 (index 0) = "true"');
-      expect(result).toContain('Output 1 (index 1) = "false"');
-      expect(result).toContain('Items that match the condition');
-      expect(result).toContain('Items that do not match the condition');
+      expect(result).not.toBeNull();
+      expect(result!).toContain('Output Connection Information');
+      expect(result!).toContain('Output 0 (index 0) = "true"');
+      expect(result!).toContain('Output 1 (index 1) = "false"');
+      expect(result!).toContain('Items that match the condition');
+      expect(result!).toContain('Items that do not match the condition');
 
       // Should insert before "Node parameters" section
-      const parametersIndex = result.indexOf('## Node parameters');
-      const outputInfoIndex = result.indexOf('Output Connection Information');
+      const parametersIndex = result!.indexOf('## Node parameters');
+      const outputInfoIndex = result!.indexOf('Output Connection Information');
       expect(outputInfoIndex).toBeLessThan(parametersIndex);
       expect(outputInfoIndex).toBeGreaterThan(0);
     });
@@ -483,10 +486,11 @@ Use this node to route data.
 
       const result = await docsMapper.fetchDocumentation('splitInBatches');
 
-      expect(result).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
+      expect(result).not.toBeNull();
+      expect(result!).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
       // Should be prepended when no insertion point found (but there's a newline before original content)
-      const guidanceIndex = result.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION');
-      expect(guidanceIndex).toBeLessThan(result.indexOf('Simple content'));
+      const guidanceIndex = result!.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION');
+      expect(guidanceIndex).toBeLessThan(result!.indexOf('Simple content'));
       expect(guidanceIndex).toBeLessThanOrEqual(5); // Allow for some whitespace
     });
 
@@ -496,8 +500,9 @@ Use this node to route data.
 
       const result = await docsMapper.fetchDocumentation('splitInBatches');
 
-      expect(result).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
-      expect(result.length).toBeGreaterThan(0);
+      expect(result).not.toBeNull();
+      expect(result!).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
+      expect(result!.length).toBeGreaterThan(0);
     });
 
     it('should handle content with multiple "When to use" sections', async () => {
@@ -515,10 +520,11 @@ Detailed usage.
 
       const result = await docsMapper.fetchDocumentation('splitInBatches');
 
-      expect(result).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
+      expect(result).not.toBeNull();
+      expect(result!).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
       // Should insert before first occurrence
-      const firstWhenToUse = result.indexOf('## When to use (overview)');
-      const guidanceIndex = result.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION');
+      const firstWhenToUse = result!.indexOf('## When to use (overview)');
+      const guidanceIndex = result!.indexOf('CRITICAL OUTPUT CONNECTION INFORMATION');
       expect(guidanceIndex).toBeLessThan(firstWhenToUse);
     });
 
@@ -538,7 +544,8 @@ Content here.
       const result = await docsMapper.fetchDocumentation('splitInBatches');
 
       // Should still add enhancement (method doesn't check for existing enhancements)
-      const criticalSections = (result.match(/CRITICAL OUTPUT CONNECTION INFORMATION/g) || []).length;
+      expect(result).not.toBeNull();
+      const criticalSections = (result!.match(/CRITICAL OUTPUT CONNECTION INFORMATION/g) || []).length;
       expect(criticalSections).toBe(2); // Original + new enhancement
     });
 
@@ -548,8 +555,9 @@ Content here.
 
       const result = await docsMapper.fetchDocumentation('splitInBatches');
 
-      expect(result).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
-      expect(result.length).toBeGreaterThan(largeContent.length);
+      expect(result).not.toBeNull();
+      expect(result!).toContain('CRITICAL OUTPUT CONNECTION INFORMATION');
+      expect(result!.length).toBeGreaterThan(largeContent.length);
     });
   });
 

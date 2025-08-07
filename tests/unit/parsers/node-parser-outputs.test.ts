@@ -306,10 +306,12 @@ describe('NodeParser - Output Extraction', () => {
       expect(result.outputNames).toEqual(['done', 'loop']);
       
       // Verify the counterintuitive order: done=0, loop=1
-      expect(result.outputs[0].displayName).toBe('Done');
-      expect(result.outputs[1].displayName).toBe('Loop');
-      expect(result.outputNames[0]).toBe('done');
-      expect(result.outputNames[1]).toBe('loop');
+      expect(result.outputs).toBeDefined();
+      expect(result.outputNames).toBeDefined();
+      expect(result.outputs![0].displayName).toBe('Done');
+      expect(result.outputs![1].displayName).toBe('Loop');
+      expect(result.outputNames![0]).toBe('done');
+      expect(result.outputNames![1]).toBe('loop');
     });
 
     it('should handle Switch node with multiple outputs', () => {
@@ -406,8 +408,9 @@ describe('NodeParser - Output Extraction', () => {
       const result = parser.parse(NodeClass, 'n8n-nodes-base');
       
       expect(result.outputs).toHaveLength(2);
-      expect(result.outputs[0].displayName).toBe('Done');
-      expect(result.outputs[1].displayName).toBe('Loop');
+      expect(result.outputs).toBeDefined();
+      expect(result.outputs![0].displayName).toBe('Done');
+      expect(result.outputs![1].displayName).toBe('Loop');
       expect(result.outputNames).toEqual(['done', 'loop']);
     });
 
@@ -442,8 +445,9 @@ describe('NodeParser - Output Extraction', () => {
       const result = parser.parse(NodeClass, 'n8n-nodes-base');
       
       expect(result.outputs).toHaveLength(2);
-      expect(result.outputs[0].displayName).toBe('True');
-      expect(result.outputs[1].displayName).toBe('False');
+      expect(result.outputs).toBeDefined();
+      expect(result.outputs![0].displayName).toBe('True');
+      expect(result.outputs![1].displayName).toBe('False');
       expect(result.outputNames).toEqual(['true', 'false']);
     });
 

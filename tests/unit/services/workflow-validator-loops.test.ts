@@ -98,7 +98,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // The validator should detect the processing node name/type pattern and loop back
       const reversedErrors = result.errors.filter(e => 
@@ -125,7 +125,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         // No loop back from Process Item
       });
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings).toContainEqual(
         expect.objectContaining({
@@ -153,7 +153,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       });
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings).toContainEqual(
         expect.objectContaining({
@@ -182,7 +182,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         // Process Item doesn't connect back to Split In Batches
       });
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings).toContainEqual(
         expect.objectContaining({
@@ -241,7 +241,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not have SplitInBatches-specific errors or warnings
       const splitErrors = result.errors.filter(e => 
@@ -317,7 +317,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(complexWorkflow);
+      const result = await validator.validateWorkflow(complexWorkflow as any);
 
       // Should accept this correct structure without warnings
       const loopWarnings = result.warnings.filter(w => 
@@ -369,7 +369,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
           }
         };
 
-        const result = await validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow as any);
         
         const hasProcessingWarning = result.warnings.some(w => 
           w.message?.includes('appears to be a processing node')
@@ -409,7 +409,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not warn about missing loop back since it exists
       const missingLoopBackWarnings = result.warnings.filter(w => 
@@ -454,7 +454,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not warn about missing loop back since indirect loop exists
       const missingLoopBackWarnings = result.warnings.filter(w => 
@@ -507,7 +507,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         connections
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should warn about missing loop back because depth limit prevents detection
       const missingLoopBackWarnings = result.warnings.filter(w => 
@@ -546,7 +546,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should complete without hanging and warn about missing loop back
       const missingLoopBackWarnings = result.warnings.filter(w => 
@@ -578,7 +578,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not warn about self-reference for SplitInBatches
       const selfReferenceWarnings = result.warnings.filter(w => 
@@ -607,7 +607,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should warn about self-reference for non-loop nodes
       const selfReferenceWarnings = result.warnings.filter(w => 
@@ -639,7 +639,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should have connection error for non-existent node
       const connectionErrors = result.errors.filter(e => 
@@ -669,7 +669,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should not crash and should not have SplitInBatches-specific errors
       expect(result).toBeDefined();
@@ -696,7 +696,7 @@ describe('WorkflowValidator - Loop Node Validation', () => {
         }
       };
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should handle gracefully without crashing
       expect(result).toBeDefined();
