@@ -72,6 +72,8 @@ export interface WorkflowValidationResult {
 }
 
 export class WorkflowValidator {
+  private currentWorkflow: WorkflowJson | null = null;
+
   constructor(
     private nodeRepository: NodeRepository,
     private nodeValidator: typeof EnhancedConfigValidator
@@ -89,6 +91,9 @@ export class WorkflowValidator {
       profile?: 'minimal' | 'runtime' | 'ai-friendly' | 'strict';
     } = {}
   ): Promise<WorkflowValidationResult> {
+    // Store current workflow for access in helper methods
+    this.currentWorkflow = workflow;
+
     const {
       validateNodes = true,
       validateConnections = true,
@@ -745,12 +750,19 @@ export class WorkflowValidator {
 
   /**
    * Check if workflow has cycles
+   * Allow legitimate loops for SplitInBatches and similar loop nodes
    */
   private hasCycle(workflow: WorkflowJson): boolean {
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
+    const nodeTypeMap = new Map<string, string>();
+    
+    // Build node type map
+    workflow.nodes.forEach(node => {
+      nodeTypeMap.set(node.name, node.type);
+    });
 
-    const hasCycleDFS = (nodeName: string): boolean => {
+    const hasCycleDFS = (nodeName: string, pathFromLoopNode: boolean = false): boolean => {
       visited.add(nodeName);
       recursionStack.add(nodeName);
 
@@ -776,11 +788,23 @@ export class WorkflowValidator {
           });
         }
 
+        const currentNodeType = nodeTypeMap.get(nodeName);
+        const isLoopNode = currentNodeType === 'n8n-nodes-base.splitInBatches';
+        
         for (const target of allTargets) {
           if (!visited.has(target)) {
-            if (hasCycleDFS(target)) return true;
+            if (hasCycleDFS(target, pathFromLoopNode || isLoopNode)) return true;
           } else if (recursionStack.has(target)) {
-            return true;
+            // Allow cycles that involve loop nodes like SplitInBatches
+            const targetNodeType = nodeTypeMap.get(target);
+            const isTargetLoopNode = targetNodeType === 'n8n-nodes-base.splitInBatches';
+            
+            // If this cycle involves a loop node, it's legitimate
+            if (isTargetLoopNode || pathFromLoopNode) {
+              continue; // Allow this cycle
+            }
+            
+            return true; // Reject other cycles
           }
         }
       }
@@ -1591,8 +1615,9 @@ export class WorkflowValidator {
     const node = nodeMap.get(startNode);
     if (!node) return false;
 
-    // Check direct connections from this node
-    const connections = (node as any).connections;
+    // Access connections from the workflow structure, not the node
+    // We need to access this.currentWorkflow.connections[startNode]
+    const connections = (this as any).currentWorkflow?.connections[startNode];
     if (!connections) return false;
 
     for (const [outputType, outputs] of Object.entries(connections)) {

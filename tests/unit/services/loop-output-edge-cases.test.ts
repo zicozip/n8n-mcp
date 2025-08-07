@@ -16,7 +16,24 @@ describe('Loop Output Fix - Edge Cases', () => {
     vi.clearAllMocks();
 
     mockNodeRepository = {
-      getNode: vi.fn()
+      getNode: vi.fn((nodeType: string) => {
+        // Default return
+        if (nodeType === 'nodes-base.splitInBatches') {
+          return {
+            nodeType: 'nodes-base.splitInBatches',
+            outputs: [
+              { displayName: 'Done', name: 'done' },
+              { displayName: 'Loop', name: 'loop' }
+            ],
+            outputNames: ['done', 'loop'],
+            properties: []
+          };
+        }
+        return {
+          nodeType,
+          properties: []
+        };
+      })
     };
 
     mockNodeValidator = {
@@ -142,10 +159,7 @@ describe('Loop Output Fix - Edge Cases', () => {
 
   describe('Invalid connection indices', () => {
     it('should handle negative connection indices', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Negative Index Workflow',
@@ -229,10 +243,7 @@ describe('Loop Output Fix - Edge Cases', () => {
 
   describe('Malformed connection structures', () => {
     it('should handle null connection objects', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Null Connections Workflow',
@@ -262,10 +273,7 @@ describe('Loop Output Fix - Edge Cases', () => {
     });
 
     it('should handle missing connection properties', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Malformed Connections Workflow',
@@ -308,10 +316,7 @@ describe('Loop Output Fix - Edge Cases', () => {
 
   describe('Deep loop back detection limits', () => {
     it('should respect maxDepth limit in checkForLoopBack', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       // Create a very deep chain that exceeds maxDepth (50)
       const nodes = [
@@ -371,10 +376,7 @@ describe('Loop Output Fix - Edge Cases', () => {
     });
 
     it('should handle circular references without infinite loops', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Circular Reference Workflow',
@@ -432,10 +434,7 @@ describe('Loop Output Fix - Edge Cases', () => {
     });
 
     it('should handle self-referencing nodes in loop back detection', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Self Reference Workflow',
@@ -600,10 +599,7 @@ describe('Loop Output Fix - Edge Cases', () => {
 
   describe('SplitInBatches specific edge cases', () => {
     it('should handle SplitInBatches with no connections', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Isolated SplitInBatches',
@@ -631,10 +627,7 @@ describe('Loop Output Fix - Edge Cases', () => {
     });
 
     it('should handle SplitInBatches with only one output connected', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Single Output SplitInBatches',
@@ -666,18 +659,16 @@ describe('Loop Output Fix - Edge Cases', () => {
 
       const result = await validator.validateWorkflow(workflow);
 
-      // Should warn about loop output not being connected
+      // Should NOT warn about empty loop output (it's only a problem if loop connects to something but doesn't loop back)
+      // An empty loop output is valid - it just means no looping occurs
       const loopWarnings = result.warnings.filter(w => 
         w.message?.includes('loop') && w.message?.includes('connect back')
       );
-      expect(loopWarnings).toHaveLength(1);
+      expect(loopWarnings).toHaveLength(0);
     });
 
     it('should handle SplitInBatches with both outputs to same node', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       const workflow = {
         name: 'Same Target SplitInBatches',
@@ -714,7 +705,53 @@ describe('Loop Output Fix - Edge Cases', () => {
 
       const result = await validator.validateWorkflow(workflow);
 
-      // Should detect that processing node is on done output (reversed)
+      // Both outputs go to same node which loops back - should be valid
+      // No warnings about loop back since it does connect back
+      const loopWarnings = result.warnings.filter(w => 
+        w.message?.includes('loop') && w.message?.includes('connect back')
+      );
+      expect(loopWarnings).toHaveLength(0);
+    });
+
+    it('should detect reversed outputs with processing node on done output', async () => {
+      // Use default mock that includes outputs for SplitInBatches
+
+      const workflow = {
+        name: 'Reversed SplitInBatches with Function Node',
+        nodes: [
+          {
+            id: '1',
+            name: 'Split In Batches',
+            type: 'n8n-nodes-base.splitInBatches',
+            position: [100, 100],
+            parameters: {}
+          },
+          {
+            id: '2',
+            name: 'Process Function',
+            type: 'n8n-nodes-base.function',
+            position: [300, 100],
+            parameters: {}
+          }
+        ],
+        connections: {
+          'Split In Batches': {
+            main: [
+              [{ node: 'Process Function', type: 'main', index: 0 }], // Done -> Function (this is wrong)
+              [] // Loop output empty
+            ]
+          },
+          'Process Function': {
+            main: [
+              [{ node: 'Split In Batches', type: 'main', index: 0 }] // Function connects back (indicates it should be on loop)
+            ]
+          }
+        }
+      };
+
+      const result = await validator.validateWorkflow(workflow);
+
+      // Should error about reversed outputs since function node on done output connects back
       const reversedErrors = result.errors.filter(e => 
         e.message?.includes('SplitInBatches outputs appear reversed')
       );
@@ -790,10 +827,7 @@ describe('Loop Output Fix - Edge Cases', () => {
     });
 
     it('should handle workflows with many SplitInBatches nodes', async () => {
-      mockNodeRepository.getNode.mockReturnValue({
-        nodeType: 'nodes-base.splitInBatches',
-        properties: []
-      });
+      // Use default mock that includes outputs for SplitInBatches
 
       // Create 100 SplitInBatches nodes
       const nodes = Array.from({ length: 100 }, (_, i) => ({
