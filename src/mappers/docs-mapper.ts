@@ -50,8 +50,12 @@ export class DocsMapper {
     for (const relativePath of possiblePaths) {
       try {
         const fullPath = path.join(this.docsPath, relativePath);
-        const content = await fs.readFile(fullPath, 'utf-8');
+        let content = await fs.readFile(fullPath, 'utf-8');
         console.log(`  ✓ Found docs at: ${relativePath}`);
+        
+        // Inject special guidance for loop nodes
+        content = this.enhanceLoopNodeDocumentation(nodeType, content);
+        
         return content;
       } catch (error) {
         // File doesn't exist, try next
@@ -61,5 +65,57 @@ export class DocsMapper {
     
     console.log(`  ✗ No docs found for ${nodeName}`);
     return null;
+  }
+
+  private enhanceLoopNodeDocumentation(nodeType: string, content: string): string {
+    // Add critical output index information for SplitInBatches
+    if (nodeType.includes('splitInBatches')) {
+      const outputGuidance = `
+
+## CRITICAL OUTPUT CONNECTION INFORMATION
+
+**⚠️ OUTPUT INDICES ARE COUNTERINTUITIVE ⚠️**
+
+The SplitInBatches node has TWO outputs with specific indices:
+- **Output 0 (index 0) = "done"**: Receives final processed data when loop completes
+- **Output 1 (index 1) = "loop"**: Receives current batch data during iteration
+
+### Correct Connection Pattern:
+1. Connect nodes that PROCESS items inside the loop to **Output 1 ("loop")**
+2. Connect nodes that run AFTER the loop completes to **Output 0 ("done")**
+3. The last processing node in the loop must connect back to the SplitInBatches node
+
+### Common Mistake:
+AI assistants often connect these backwards because the logical flow (loop first, then done) doesn't match the technical indices (done=0, loop=1).
+
+`;
+      // Insert after the main description
+      const insertPoint = content.indexOf('## When to use');
+      if (insertPoint > -1) {
+        content = content.slice(0, insertPoint) + outputGuidance + content.slice(insertPoint);
+      } else {
+        // Append if no good insertion point found
+        content = outputGuidance + '\n' + content;
+      }
+    }
+
+    // Add guidance for IF node
+    if (nodeType.includes('.if')) {
+      const outputGuidance = `
+
+## Output Connection Information
+
+The IF node has TWO outputs:
+- **Output 0 (index 0) = "true"**: Items that match the condition
+- **Output 1 (index 1) = "false"**: Items that do not match the condition
+
+`;
+      const insertPoint = content.indexOf('## Node parameters');
+      if (insertPoint > -1) {
+        content = content.slice(0, insertPoint) + outputGuidance + content.slice(insertPoint);
+      }
+    }
+
+    return content;
   }
 }

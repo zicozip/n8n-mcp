@@ -72,6 +72,8 @@ export interface WorkflowValidationResult {
 }
 
 export class WorkflowValidator {
+  private currentWorkflow: WorkflowJson | null = null;
+
   constructor(
     private nodeRepository: NodeRepository,
     private nodeValidator: typeof EnhancedConfigValidator
@@ -89,6 +91,9 @@ export class WorkflowValidator {
       profile?: 'minimal' | 'runtime' | 'ai-friendly' | 'strict';
     } = {}
   ): Promise<WorkflowValidationResult> {
+    // Store current workflow for access in helper methods
+    this.currentWorkflow = workflow;
+
     const {
       validateNodes = true,
       validateConnections = true,
@@ -627,6 +632,9 @@ export class WorkflowValidator {
     result: WorkflowValidationResult,
     outputType: 'main' | 'error' | 'ai_tool'
   ): void {
+    // Get source node for special validation
+    const sourceNode = nodeMap.get(sourceName);
+    
     outputs.forEach((outputConnections, outputIndex) => {
       if (!outputConnections) return;
       
@@ -641,12 +649,26 @@ export class WorkflowValidator {
           return;
         }
 
+        // Special validation for SplitInBatches node
+        if (sourceNode && sourceNode.type === 'n8n-nodes-base.splitInBatches') {
+          this.validateSplitInBatchesConnection(
+            sourceNode,
+            outputIndex,
+            connection,
+            nodeMap,
+            result
+          );
+        }
+
         // Check for self-referencing connections
         if (connection.node === sourceName) {
-          result.warnings.push({
-            type: 'warning',
-            message: `Node "${sourceName}" has a self-referencing connection. This can cause infinite loops.`
-          });
+          // This is only a warning for non-loop nodes
+          if (sourceNode && sourceNode.type !== 'n8n-nodes-base.splitInBatches') {
+            result.warnings.push({
+              type: 'warning',
+              message: `Node "${sourceName}" has a self-referencing connection. This can cause infinite loops.`
+            });
+          }
         }
 
         const targetNode = nodeMap.get(connection.node);
@@ -728,12 +750,19 @@ export class WorkflowValidator {
 
   /**
    * Check if workflow has cycles
+   * Allow legitimate loops for SplitInBatches and similar loop nodes
    */
   private hasCycle(workflow: WorkflowJson): boolean {
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
+    const nodeTypeMap = new Map<string, string>();
+    
+    // Build node type map
+    workflow.nodes.forEach(node => {
+      nodeTypeMap.set(node.name, node.type);
+    });
 
-    const hasCycleDFS = (nodeName: string): boolean => {
+    const hasCycleDFS = (nodeName: string, pathFromLoopNode: boolean = false): boolean => {
       visited.add(nodeName);
       recursionStack.add(nodeName);
 
@@ -759,11 +788,23 @@ export class WorkflowValidator {
           });
         }
 
+        const currentNodeType = nodeTypeMap.get(nodeName);
+        const isLoopNode = currentNodeType === 'n8n-nodes-base.splitInBatches';
+        
         for (const target of allTargets) {
           if (!visited.has(target)) {
-            if (hasCycleDFS(target)) return true;
+            if (hasCycleDFS(target, pathFromLoopNode || isLoopNode)) return true;
           } else if (recursionStack.has(target)) {
-            return true;
+            // Allow cycles that involve loop nodes like SplitInBatches
+            const targetNodeType = nodeTypeMap.get(target);
+            const isTargetLoopNode = targetNodeType === 'n8n-nodes-base.splitInBatches';
+            
+            // If this cycle involves a loop node, it's legitimate
+            if (isTargetLoopNode || pathFromLoopNode) {
+              continue; // Allow this cycle
+            }
+            
+            return true; // Reject other cycles
           }
         }
       }
@@ -1469,5 +1510,135 @@ export class WorkflowValidator {
         'Replace "continueOnFail: true" with "onError: \'continueRegularOutput\'" for better UI compatibility and control.'
       );
     }
+  }
+
+  /**
+   * Validate SplitInBatches node connections for common mistakes
+   */
+  private validateSplitInBatchesConnection(
+    sourceNode: WorkflowNode,
+    outputIndex: number,
+    connection: { node: string; type: string; index: number },
+    nodeMap: Map<string, WorkflowNode>,
+    result: WorkflowValidationResult
+  ): void {
+    const targetNode = nodeMap.get(connection.node);
+    if (!targetNode) return;
+
+    // Check if connections appear to be reversed
+    // Output 0 = "done", Output 1 = "loop"
+    
+    if (outputIndex === 0) {
+      // This is the "done" output (index 0)
+      // Check if target looks like it should be in the loop
+      const targetType = targetNode.type.toLowerCase();
+      const targetName = targetNode.name.toLowerCase();
+      
+      // Common patterns that suggest this node should be inside the loop
+      if (targetType.includes('function') || 
+          targetType.includes('code') ||
+          targetType.includes('item') ||
+          targetName.includes('process') ||
+          targetName.includes('transform') ||
+          targetName.includes('handle')) {
+        
+        // Check if this node connects back to the SplitInBatches
+        const hasLoopBack = this.checkForLoopBack(targetNode.name, sourceNode.name, nodeMap);
+        
+        if (hasLoopBack) {
+          result.errors.push({
+            type: 'error',
+            nodeId: sourceNode.id,
+            nodeName: sourceNode.name,
+            message: `SplitInBatches outputs appear reversed! Node "${targetNode.name}" is connected to output 0 ("done") but connects back to the loop. It should be connected to output 1 ("loop") instead. Remember: Output 0 = "done" (post-loop), Output 1 = "loop" (inside loop).`
+          });
+        } else {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: sourceNode.id,
+            nodeName: sourceNode.name,
+            message: `Node "${targetNode.name}" is connected to the "done" output (index 0) but appears to be a processing node. Consider connecting it to the "loop" output (index 1) if it should process items inside the loop.`
+          });
+        }
+      }
+    } else if (outputIndex === 1) {
+      // This is the "loop" output (index 1)
+      // Check if target looks like it should be after the loop
+      const targetType = targetNode.type.toLowerCase();
+      const targetName = targetNode.name.toLowerCase();
+      
+      // Common patterns that suggest this node should be after the loop
+      if (targetType.includes('aggregate') ||
+          targetType.includes('merge') ||
+          targetType.includes('email') ||
+          targetType.includes('slack') ||
+          targetName.includes('final') ||
+          targetName.includes('complete') ||
+          targetName.includes('summary') ||
+          targetName.includes('report')) {
+        
+        result.warnings.push({
+          type: 'warning',
+          nodeId: sourceNode.id,
+          nodeName: sourceNode.name,
+          message: `Node "${targetNode.name}" is connected to the "loop" output (index 1) but appears to be a post-processing node. Consider connecting it to the "done" output (index 0) if it should run after all iterations complete.`
+        });
+      }
+      
+      // Check if loop output doesn't eventually connect back
+      const hasLoopBack = this.checkForLoopBack(targetNode.name, sourceNode.name, nodeMap);
+      if (!hasLoopBack) {
+        result.warnings.push({
+          type: 'warning',
+          nodeId: sourceNode.id,
+          nodeName: sourceNode.name,
+          message: `The "loop" output connects to "${targetNode.name}" but doesn't connect back to the SplitInBatches node. The last node in the loop should connect back to complete the iteration.`
+        });
+      }
+    }
+  }
+
+  /**
+   * Check if a node eventually connects back to a target node
+   */
+  private checkForLoopBack(
+    startNode: string,
+    targetNode: string,
+    nodeMap: Map<string, WorkflowNode>,
+    visited: Set<string> = new Set(),
+    maxDepth: number = 50
+  ): boolean {
+    if (maxDepth <= 0) return false; // Prevent stack overflow
+    if (visited.has(startNode)) return false;
+    visited.add(startNode);
+
+    const node = nodeMap.get(startNode);
+    if (!node) return false;
+
+    // Access connections from the workflow structure, not the node
+    // We need to access this.currentWorkflow.connections[startNode]
+    const connections = (this as any).currentWorkflow?.connections[startNode];
+    if (!connections) return false;
+
+    for (const [outputType, outputs] of Object.entries(connections)) {
+      if (!Array.isArray(outputs)) continue;
+      
+      for (const outputConnections of outputs) {
+        if (!Array.isArray(outputConnections)) continue;
+        
+        for (const conn of outputConnections) {
+          if (conn.node === targetNode) {
+            return true;
+          }
+          
+          // Recursively check connected nodes
+          if (this.checkForLoopBack(conn.node, targetNode, nodeMap, visited, maxDepth - 1)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   }
 }

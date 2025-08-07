@@ -834,10 +834,26 @@ export class N8NDocumentationMCPServer {
         null
     };
     
+    // Process outputs to provide clear mapping
+    let outputs = undefined;
+    if (node.outputNames && node.outputNames.length > 0) {
+      outputs = node.outputNames.map((name: string, index: number) => {
+        // Special handling for loop nodes like SplitInBatches
+        const descriptions = this.getOutputDescriptions(node.nodeType, name, index);
+        return {
+          index,
+          name,
+          description: descriptions.description,
+          connectionGuidance: descriptions.connectionGuidance
+        };
+      });
+    }
+    
     return {
       ...node,
       workflowNodeType: getWorkflowNodeType(node.package, node.nodeType),
-      aiToolCapabilities
+      aiToolCapabilities,
+      outputs
     };
   }
 
@@ -1937,6 +1953,52 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     };
   }
   
+  private getOutputDescriptions(nodeType: string, outputName: string, index: number): { description: string, connectionGuidance: string } {
+    // Special handling for loop nodes
+    if (nodeType === 'nodes-base.splitInBatches') {
+      if (outputName === 'done' && index === 0) {
+        return {
+          description: 'Final processed data after all iterations complete',
+          connectionGuidance: 'Connect to nodes that should run AFTER the loop completes'
+        };
+      } else if (outputName === 'loop' && index === 1) {
+        return {
+          description: 'Current batch data for this iteration',
+          connectionGuidance: 'Connect to nodes that process items INSIDE the loop (and connect their output back to this node)'
+        };
+      }
+    }
+    
+    // Special handling for IF node
+    if (nodeType === 'nodes-base.if') {
+      if (outputName === 'true' && index === 0) {
+        return {
+          description: 'Items that match the condition',
+          connectionGuidance: 'Connect to nodes that handle the TRUE case'
+        };
+      } else if (outputName === 'false' && index === 1) {
+        return {
+          description: 'Items that do not match the condition',
+          connectionGuidance: 'Connect to nodes that handle the FALSE case'
+        };
+      }
+    }
+    
+    // Special handling for Switch node
+    if (nodeType === 'nodes-base.switch') {
+      return {
+        description: `Output ${index}: ${outputName || 'Route ' + index}`,
+        connectionGuidance: `Connect to nodes for the "${outputName || 'route ' + index}" case`
+      };
+    }
+    
+    // Default handling
+    return {
+      description: outputName || `Output ${index}`,
+      connectionGuidance: `Connect to downstream nodes`
+    };
+  }
+
   private getCommonAIToolUseCases(nodeType: string): string[] {
     const useCaseMap: Record<string, string[]> = {
       'nodes-base.slack': [

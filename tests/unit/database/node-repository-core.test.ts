@@ -83,7 +83,9 @@ describe('NodeRepository - Core Functionality', () => {
         isWebhook: false,
         isVersioned: true,
         version: '1.0',
-        documentation: 'HTTP Request documentation'
+        documentation: 'HTTP Request documentation',
+        outputs: undefined,
+        outputNames: undefined
       };
       
       repository.saveNode(parsedNode);
@@ -108,7 +110,9 @@ describe('NodeRepository - Core Functionality', () => {
         'HTTP Request documentation',
         JSON.stringify([{ name: 'url', type: 'string' }], null, 2),
         JSON.stringify([{ name: 'execute', displayName: 'Execute' }], null, 2),
-        JSON.stringify([{ name: 'httpBasicAuth' }], null, 2)
+        JSON.stringify([{ name: 'httpBasicAuth' }], null, 2),
+        null, // outputs
+        null  // outputNames
       );
     });
     
@@ -125,7 +129,9 @@ describe('NodeRepository - Core Functionality', () => {
         isAITool: true,
         isTrigger: true,
         isWebhook: true,
-        isVersioned: false
+        isVersioned: false,
+        outputs: undefined,
+        outputNames: undefined
       };
       
       repository.saveNode(minimalNode);
@@ -157,7 +163,9 @@ describe('NodeRepository - Core Functionality', () => {
         properties_schema: JSON.stringify([{ name: 'url', type: 'string' }]),
         operations: JSON.stringify([{ name: 'execute' }]),
         credentials_required: JSON.stringify([{ name: 'httpBasicAuth' }]),
-        documentation: 'HTTP docs'
+        documentation: 'HTTP docs',
+        outputs: null,
+        output_names: null
       };
       
       mockAdapter._setMockData('node:nodes-base.httpRequest', mockRow);
@@ -179,7 +187,9 @@ describe('NodeRepository - Core Functionality', () => {
         properties: [{ name: 'url', type: 'string' }],
         operations: [{ name: 'execute' }],
         credentials: [{ name: 'httpBasicAuth' }],
-        hasDocumentation: true
+        hasDocumentation: true,
+        outputs: null,
+        outputNames: null
       });
     });
     
@@ -204,7 +214,9 @@ describe('NodeRepository - Core Functionality', () => {
         properties_schema: '{invalid json',
         operations: 'not json at all',
         credentials_required: '{"valid": "json"}',
-        documentation: null
+        documentation: null,
+        outputs: null,
+        output_names: null
       };
       
       mockAdapter._setMockData('node:nodes-base.broken', mockRow);
@@ -320,7 +332,9 @@ describe('NodeRepository - Core Functionality', () => {
         isAITool: false,
         isTrigger: false,
         isWebhook: false,
-        isVersioned: false
+        isVersioned: false,
+        outputs: undefined,
+        outputNames: undefined
       };
       
       repository.saveNode(node);
@@ -348,7 +362,9 @@ describe('NodeRepository - Core Functionality', () => {
         properties_schema: '[]',
         operations: '[]',
         credentials_required: '[]',
-        documentation: null
+        documentation: null,
+        outputs: null,
+        output_names: null
       };
       
       mockAdapter._setMockData('node:nodes-base.bool-test', mockRow);

@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   properties_schema TEXT,
   operations TEXT,
   credentials_required TEXT,
+  outputs TEXT, -- JSON array of output definitions
+  output_names TEXT, -- JSON array of output names
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

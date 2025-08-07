@@ -16,14 +16,19 @@ export interface ParsedNode {
   isVersioned: boolean;
   packageName: string;
   documentation?: string;
+  outputs?: any[];
+  outputNames?: string[];
 }
 
 export class NodeParser {
   private propertyExtractor = new PropertyExtractor();
+  private currentNodeClass: any = null;
   
   parse(nodeClass: any, packageName: string): ParsedNode {
+    this.currentNodeClass = nodeClass;
     // Get base description (handles versioned nodes)
     const description = this.getNodeDescription(nodeClass);
+    const outputInfo = this.extractOutputs(description);
     
     return {
       style: this.detectStyle(nodeClass),
@@ -39,7 +44,9 @@ export class NodeParser {
       operations: this.propertyExtractor.extractOperations(nodeClass),
       version: this.extractVersion(nodeClass),
       isVersioned: this.detectVersioned(nodeClass),
-      packageName: packageName
+      packageName: packageName,
+      outputs: outputInfo.outputs,
+      outputNames: outputInfo.outputNames
     };
   }
   
@@ -221,5 +228,52 @@ export class NodeParser {
     }
     
     return false;
+  }
+
+  private extractOutputs(description: any): { outputs?: any[], outputNames?: string[] } {
+    const result: { outputs?: any[], outputNames?: string[] } = {};
+    
+    // First check the base description
+    if (description.outputs) {
+      result.outputs = Array.isArray(description.outputs) ? description.outputs : [description.outputs];
+    }
+    
+    if (description.outputNames) {
+      result.outputNames = Array.isArray(description.outputNames) ? description.outputNames : [description.outputNames];
+    }
+    
+    // If no outputs found and this is a versioned node, check the latest version
+    if (!result.outputs && !result.outputNames) {
+      const nodeClass = this.currentNodeClass; // We'll need to track this
+      if (nodeClass) {
+        try {
+          const instance = new nodeClass();
+          if (instance.nodeVersions) {
+            // Get the latest version
+            const versions = Object.keys(instance.nodeVersions).map(Number);
+            const latestVersion = Math.max(...versions);
+            const versionedDescription = instance.nodeVersions[latestVersion]?.description;
+            
+            if (versionedDescription) {
+              if (versionedDescription.outputs) {
+                result.outputs = Array.isArray(versionedDescription.outputs) 
+                  ? versionedDescription.outputs 
+                  : [versionedDescription.outputs];
+              }
+              
+              if (versionedDescription.outputNames) {
+                result.outputNames = Array.isArray(versionedDescription.outputNames) 
+                  ? versionedDescription.outputNames 
+                  : [versionedDescription.outputNames];
+              }
+            }
+          }
+        } catch (e) {
+          // Ignore errors from instantiating node
+        }
+      }
+    }
+    
+    return result;
   }
 }
