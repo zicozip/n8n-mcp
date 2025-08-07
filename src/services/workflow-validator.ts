@@ -80,6 +80,18 @@ export class WorkflowValidator {
   ) {}
 
   /**
+   * Check if a node is a Sticky Note or other non-executable node
+   */
+  private isStickyNote(node: WorkflowNode): boolean {
+    const stickyNoteTypes = [
+      'n8n-nodes-base.stickyNote',
+      'nodes-base.stickyNote',
+      '@n8n/n8n-nodes-base.stickyNote'
+    ];
+    return stickyNoteTypes.includes(node.type);
+  }
+
+  /**
    * Validate a complete workflow
    */
   async validateWorkflow(
@@ -127,9 +139,10 @@ export class WorkflowValidator {
         return result;
       }
 
-      // Update statistics after null check
-      result.statistics.totalNodes = Array.isArray(workflow.nodes) ? workflow.nodes.length : 0;
-      result.statistics.enabledNodes = Array.isArray(workflow.nodes) ? workflow.nodes.filter(n => !n.disabled).length : 0;
+      // Update statistics after null check (exclude sticky notes from counts)
+      const executableNodes = Array.isArray(workflow.nodes) ? workflow.nodes.filter(n => !this.isStickyNote(n)) : [];
+      result.statistics.totalNodes = executableNodes.length;
+      result.statistics.enabledNodes = executableNodes.filter(n => !n.disabled).length;
 
       // Basic workflow structure validation
       this.validateWorkflowStructure(workflow, result);
@@ -143,21 +156,26 @@ export class WorkflowValidator {
 
         // Validate connections if requested
         if (validateConnections) {
-          this.validateConnections(workflow, result);
+          this.validateConnections(workflow, result, profile);
         }
 
         // Validate expressions if requested
         if (validateExpressions && workflow.nodes.length > 0) {
-          this.validateExpressions(workflow, result);
+          this.validateExpressions(workflow, result, profile);
         }
 
         // Check workflow patterns and best practices
         if (workflow.nodes.length > 0) {
-          this.checkWorkflowPatterns(workflow, result);
+          this.checkWorkflowPatterns(workflow, result, profile);
         }
 
         // Add suggestions based on findings
         this.generateSuggestions(workflow, result);
+        
+        // Add AI-specific recovery suggestions if there are errors
+        if (result.errors.length > 0) {
+          this.addErrorRecoverySuggestions(result);
+        }
       }
 
     } catch (error) {
@@ -308,7 +326,7 @@ export class WorkflowValidator {
     profile: string
   ): Promise<void> {
     for (const node of workflow.nodes) {
-      if (node.disabled) continue;
+      if (node.disabled || this.isStickyNote(node)) continue;
 
       try {
         // Validate node name length
@@ -500,7 +518,8 @@ export class WorkflowValidator {
    */
   private validateConnections(
     workflow: WorkflowJson,
-    result: WorkflowValidationResult
+    result: WorkflowValidationResult,
+    profile: string = 'runtime'
   ): void {
     const nodeMap = new Map(workflow.nodes.map(n => [n.name, n]));
     const nodeIdMap = new Map(workflow.nodes.map(n => [n.id, n]));
@@ -591,9 +610,9 @@ export class WorkflowValidator {
       }
     });
 
-    // Check for orphaned nodes
+    // Check for orphaned nodes (exclude sticky notes)
     for (const node of workflow.nodes) {
-      if (node.disabled) continue;
+      if (node.disabled || this.isStickyNote(node)) continue;
       
       const normalizedType = node.type.replace('n8n-nodes-base.', 'nodes-base.');
       const isTrigger = normalizedType.toLowerCase().includes('trigger') || 
@@ -612,8 +631,8 @@ export class WorkflowValidator {
       }
     }
 
-    // Check for cycles
-    if (this.hasCycle(workflow)) {
+    // Check for cycles (skip in minimal profile to reduce false positives)
+    if (profile !== 'minimal' && this.hasCycle(workflow)) {
       result.errors.push({
         type: 'error',
         message: 'Workflow contains a cycle (infinite loop)'
@@ -757,10 +776,22 @@ export class WorkflowValidator {
     const recursionStack = new Set<string>();
     const nodeTypeMap = new Map<string, string>();
     
-    // Build node type map
+    // Build node type map (exclude sticky notes)
     workflow.nodes.forEach(node => {
-      nodeTypeMap.set(node.name, node.type);
+      if (!this.isStickyNote(node)) {
+        nodeTypeMap.set(node.name, node.type);
+      }
     });
+    
+    // Known legitimate loop node types
+    const loopNodeTypes = [
+      'n8n-nodes-base.splitInBatches',
+      'nodes-base.splitInBatches',
+      'n8n-nodes-base.itemLists',
+      'nodes-base.itemLists',
+      'n8n-nodes-base.loop',
+      'nodes-base.loop'
+    ];
 
     const hasCycleDFS = (nodeName: string, pathFromLoopNode: boolean = false): boolean => {
       visited.add(nodeName);
@@ -789,18 +820,18 @@ export class WorkflowValidator {
         }
 
         const currentNodeType = nodeTypeMap.get(nodeName);
-        const isLoopNode = currentNodeType === 'n8n-nodes-base.splitInBatches';
+        const isLoopNode = loopNodeTypes.includes(currentNodeType || '');
         
         for (const target of allTargets) {
           if (!visited.has(target)) {
             if (hasCycleDFS(target, pathFromLoopNode || isLoopNode)) return true;
           } else if (recursionStack.has(target)) {
-            // Allow cycles that involve loop nodes like SplitInBatches
+            // Allow cycles that involve legitimate loop nodes
             const targetNodeType = nodeTypeMap.get(target);
-            const isTargetLoopNode = targetNodeType === 'n8n-nodes-base.splitInBatches';
+            const isTargetLoopNode = loopNodeTypes.includes(targetNodeType || '');
             
             // If this cycle involves a loop node, it's legitimate
-            if (isTargetLoopNode || pathFromLoopNode) {
+            if (isTargetLoopNode || pathFromLoopNode || isLoopNode) {
               continue; // Allow this cycle
             }
             
@@ -813,9 +844,9 @@ export class WorkflowValidator {
       return false;
     };
 
-    // Check from all nodes
+    // Check from all executable nodes (exclude sticky notes)
     for (const node of workflow.nodes) {
-      if (!visited.has(node.name)) {
+      if (!this.isStickyNote(node) && !visited.has(node.name)) {
         if (hasCycleDFS(node.name)) return true;
       }
     }
@@ -828,12 +859,13 @@ export class WorkflowValidator {
    */
   private validateExpressions(
     workflow: WorkflowJson,
-    result: WorkflowValidationResult
+    result: WorkflowValidationResult,
+    profile: string = 'runtime'
   ): void {
     const nodeNames = workflow.nodes.map(n => n.name);
 
     for (const node of workflow.nodes) {
-      if (node.disabled) continue;
+      if (node.disabled || this.isStickyNote(node)) continue;
 
       // Create expression context
       const context = {
@@ -922,23 +954,27 @@ export class WorkflowValidator {
    */
   private checkWorkflowPatterns(
     workflow: WorkflowJson,
-    result: WorkflowValidationResult
+    result: WorkflowValidationResult,
+    profile: string = 'runtime'
   ): void {
     // Check for error handling
     const hasErrorHandling = Object.values(workflow.connections).some(
       outputs => outputs.error && outputs.error.length > 0
     );
 
-    if (!hasErrorHandling && workflow.nodes.length > 3) {
+    // Only suggest error handling in stricter profiles
+    if (!hasErrorHandling && workflow.nodes.length > 3 && profile !== 'minimal') {
       result.warnings.push({
         type: 'warning',
         message: 'Consider adding error handling to your workflow'
       });
     }
 
-    // Check node-level error handling properties for ALL nodes
+    // Check node-level error handling properties for ALL executable nodes
     for (const node of workflow.nodes) {
-      this.checkNodeErrorHandling(node, workflow, result);
+      if (!this.isStickyNote(node)) {
+        this.checkNodeErrorHandling(node, workflow, result);
+      }
     }
 
     // Check for very long linear workflows
@@ -1640,5 +1676,76 @@ export class WorkflowValidator {
     }
 
     return false;
+  }
+
+  /**
+   * Add AI-specific error recovery suggestions
+   */
+  private addErrorRecoverySuggestions(result: WorkflowValidationResult): void {
+    // Categorize errors and provide specific recovery actions
+    const errorTypes = {
+      nodeType: result.errors.filter(e => e.message.includes('node type') || e.message.includes('Node type')),
+      connection: result.errors.filter(e => e.message.includes('connection') || e.message.includes('Connection')),
+      structure: result.errors.filter(e => e.message.includes('structure') || e.message.includes('nodes must be')),
+      configuration: result.errors.filter(e => e.message.includes('property') || e.message.includes('field')),
+      typeVersion: result.errors.filter(e => e.message.includes('typeVersion'))
+    };
+
+    // Add recovery suggestions based on error types
+    if (errorTypes.nodeType.length > 0) {
+      result.suggestions.unshift(
+        '🔧 RECOVERY: Invalid node types detected. Use these patterns:',
+        '   • For core nodes: "n8n-nodes-base.nodeName" (e.g., "n8n-nodes-base.webhook")',
+        '   • For AI nodes: "@n8n/n8n-nodes-langchain.nodeName"',
+        '   • Never use just the node name without package prefix'
+      );
+    }
+
+    if (errorTypes.connection.length > 0) {
+      result.suggestions.unshift(
+        '🔧 RECOVERY: Connection errors detected. Fix with:',
+        '   • Use node NAMES in connections, not IDs or types',
+        '   • Structure: { "Source Node Name": { "main": [[{ "node": "Target Node Name", "type": "main", "index": 0 }]] } }',
+        '   • Ensure all referenced nodes exist in the workflow'
+      );
+    }
+
+    if (errorTypes.structure.length > 0) {
+      result.suggestions.unshift(
+        '🔧 RECOVERY: Workflow structure errors. Fix with:',
+        '   • Ensure "nodes" is an array: "nodes": [...]',
+        '   • Ensure "connections" is an object: "connections": {...}',
+        '   • Add at least one node to create a valid workflow'
+      );
+    }
+
+    if (errorTypes.configuration.length > 0) {
+      result.suggestions.unshift(
+        '🔧 RECOVERY: Node configuration errors. Fix with:',
+        '   • Check required fields using validate_node_minimal first',
+        '   • Use get_node_essentials to see what fields are needed',
+        '   • Ensure operation-specific fields match the node\'s requirements'
+      );
+    }
+
+    if (errorTypes.typeVersion.length > 0) {
+      result.suggestions.unshift(
+        '🔧 RECOVERY: TypeVersion errors. Fix with:',
+        '   • Add "typeVersion": 1 (or latest version) to each node',
+        '   • Use get_node_info to check the correct version for each node type'
+      );
+    }
+
+    // Add general recovery workflow
+    if (result.errors.length > 3) {
+      result.suggestions.push(
+        '📋 SUGGESTED WORKFLOW: Too many errors detected. Try this approach:',
+        '   1. Fix structural issues first (nodes array, connections object)',
+        '   2. Validate node types and fix invalid ones',
+        '   3. Add required typeVersion to all nodes',
+        '   4. Test connections step by step',
+        '   5. Use validate_node_minimal on individual nodes to verify configuration'
+      );
+    }
   }
 }

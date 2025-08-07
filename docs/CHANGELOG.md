@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.3] - 2025-08-07
+
+### Fixed
+- **Validation System Robustness**: Fixed multiple critical validation issues affecting AI agents and workflow validation (fixes #58, #68, #70, #73)
+  - **Issue #73**: Fixed `validate_node_minimal` crash when config is undefined
+    - Added safe property access with optional chaining (`config?.resource`)
+    - Tool now handles undefined, null, and malformed configs gracefully
+  - **Issue #58**: Fixed `validate_node_operation` crash on invalid nodeType
+    - Added type checking before calling string methods
+    - Prevents "Cannot read properties of undefined (reading 'replace')" error
+  - **Issue #70**: Fixed validation profile settings being ignored
+    - Extended profile parameter to all validation phases (nodes, connections, expressions)
+    - Added Sticky Notes filtering to reduce false positives
+    - Enhanced cycle detection to allow legitimate loops (SplitInBatches)
+  - **Issue #68**: Added error recovery suggestions for AI agents
+    - New `addErrorRecoverySuggestions()` method provides actionable recovery steps
+    - Categorizes errors and suggests specific fixes for each type
+    - Helps AI agents self-correct when validation fails
+
+### Added
+- **Input Validation System**: Comprehensive validation for all MCP tool inputs
+  - Created `validation-schemas.ts` with custom validation utilities
+  - No external dependencies - pure TypeScript implementation
+  - Tool-specific validation schemas for all MCP tools
+  - Clear error messages with field-level details
+- **Enhanced Cycle Detection**: Improved detection of legitimate loops vs actual cycles
+  - Recognizes SplitInBatches loop patterns as valid
+  - Reduces false positive cycle warnings
+- **Comprehensive Test Suite**: Added 16 tests covering all validation fixes
+  - Tests for crash prevention with malformed inputs
+  - Tests for profile behavior across validation phases
+  - Tests for error recovery suggestions
+  - Tests for legitimate loop patterns
+
+### Enhanced
+- **Validation Profiles**: Now consistently applied across all validation phases
+  - `minimal`: Reduces warnings for basic validation
+  - `runtime`: Standard validation for production workflows
+  - `ai-friendly`: Optimized for AI agent workflow creation
+  - `strict`: Maximum validation for critical workflows
+- **Error Messages**: More helpful and actionable for both humans and AI agents
+  - Specific recovery suggestions for common errors
+  - Clear guidance on fixing validation issues
+  - Examples of correct configurations
+
 ## [2.10.2] - 2025-08-05
 
 ### Updated

@@ -180,6 +180,9 @@ The MCP server exposes tools in several categories:
 - Sub-agents are not allowed to spawn further sub-agents
 - When you use sub-agents, do not allow them to commit and push. That should be done by you
 
+### Development Best Practices
+- Run typecheck and lint after every code change
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.

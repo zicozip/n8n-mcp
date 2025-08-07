@@ -45,6 +45,19 @@ export class EnhancedConfigValidator extends ConfigValidator {
     mode: ValidationMode = 'operation',
     profile: ValidationProfile = 'ai-friendly'
   ): EnhancedValidationResult {
+    // Input validation - ensure parameters are valid
+    if (typeof nodeType !== 'string') {
+      throw new Error(`Invalid nodeType: expected string, got ${typeof nodeType}`);
+    }
+    
+    if (!config || typeof config !== 'object') {
+      throw new Error(`Invalid config: expected object, got ${typeof config}`);
+    }
+    
+    if (!Array.isArray(properties)) {
+      throw new Error(`Invalid properties: expected array, got ${typeof properties}`);
+    }
+    
     // Extract operation context from config
     const operationContext = this.extractOperationContext(config);
     
@@ -190,6 +203,17 @@ export class EnhancedConfigValidator extends ConfigValidator {
     config: Record<string, any>,
     result: EnhancedValidationResult
   ): void {
+    // Type safety check - this should never happen with proper validation
+    if (typeof nodeType !== 'string') {
+      result.errors.push({
+        type: 'invalid_type',
+        property: 'nodeType',
+        message: `Invalid nodeType: expected string, got ${typeof nodeType}`,
+        fix: 'Provide a valid node type string (e.g., "nodes-base.webhook")'
+      });
+      return;
+    }
+    
     // First, validate fixedCollection properties for known problematic nodes
     this.validateFixedCollectionStructures(nodeType, config, result);
     

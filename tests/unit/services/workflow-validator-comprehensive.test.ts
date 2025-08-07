@@ -223,7 +223,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
     it('should error when nodes array is missing', async () => {
       const workflow = { connections: {} } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.message === 'Workflow must have a nodes array')).toBe(true);
@@ -232,7 +232,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
     it('should error when connections object is missing', async () => {
       const workflow = { nodes: [] } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.message === 'Workflow must have a connections object')).toBe(true);
@@ -241,7 +241,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
     it('should warn when workflow has no nodes', async () => {
       const workflow = { nodes: [], connections: {} } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(true); // Empty workflows are valid but get a warning
       expect(result.warnings).toHaveLength(1);
@@ -260,7 +260,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.message.includes('Single-node workflows are only valid for webhook endpoints'))).toBe(true);
@@ -279,7 +279,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(true);
       expect(result.warnings.some(w => w.message.includes('Webhook node has no connections'))).toBe(true);
@@ -306,7 +306,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.message.includes('Multi-node workflow has no connections'))).toBe(true);
@@ -333,7 +333,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Duplicate node name: "Webhook"'))).toBe(true);
     });
@@ -359,7 +359,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Duplicate node ID: "1"'))).toBe(true);
     });
@@ -392,7 +392,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.statistics.triggerNodes).toBe(3);
     });
@@ -422,7 +422,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Workflow has no trigger nodes'))).toBe(true);
     });
@@ -449,7 +449,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.statistics.totalNodes).toBe(2);
       expect(result.statistics.enabledNodes).toBe(1);
@@ -472,7 +472,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(mockNodeRepository.getNode).not.toHaveBeenCalled();
     });
@@ -491,7 +491,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.message.includes('Invalid node type: "nodes-base.webhook"'))).toBe(true);
@@ -512,7 +512,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.message.includes('Unknown node type: "httpRequest"'))).toBe(true);
@@ -533,7 +533,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('n8n-nodes-base.webhook');
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-base.webhook');
@@ -553,7 +553,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('@n8n/n8n-nodes-langchain.agent');
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-langchain.agent');
@@ -574,7 +574,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Missing required property \'typeVersion\''))).toBe(true);
     });
@@ -594,7 +594,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Invalid typeVersion: invalid'))).toBe(true);
     });
@@ -614,7 +614,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Outdated typeVersion: 1. Latest is 2'))).toBe(true);
     });
@@ -634,7 +634,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('typeVersion 10 exceeds maximum supported version 2'))).toBe(true);
     });
@@ -664,7 +664,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Missing required field: url'))).toBe(true);
       expect(result.warnings.some(w => w.message.includes('Consider using HTTPS'))).toBe(true);
@@ -689,7 +689,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Failed to validate node: Validation error'))).toBe(true);
     });
@@ -721,7 +721,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.statistics.validConnections).toBe(1);
       expect(result.statistics.invalidConnections).toBe(0);
@@ -745,7 +745,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Connection from non-existent node: "NonExistent"'))).toBe(true);
       expect(result.statistics.invalidConnections).toBe(1);
@@ -776,7 +776,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Connection uses node ID \'webhook-id\' instead of node name \'Webhook\''))).toBe(true);
     });
@@ -799,7 +799,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Connection to non-existent node: "NonExistent"'))).toBe(true);
       expect(result.statistics.invalidConnections).toBe(1);
@@ -830,7 +830,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Connection target uses node ID \'set-id\' instead of node name \'Set\''))).toBe(true);
     });
@@ -861,7 +861,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Connection to disabled node: "Set"'))).toBe(true);
     });
@@ -891,7 +891,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.statistics.validConnections).toBe(1);
     });
@@ -921,7 +921,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.statistics.validConnections).toBe(1);
     });
@@ -953,7 +953,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Community node "CustomTool" is being used as an AI tool'))).toBe(true);
     });
@@ -990,7 +990,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Node is not connected to any other nodes') && w.nodeName === 'Orphaned')).toBe(true);
     });
@@ -1033,7 +1033,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Workflow contains a cycle'))).toBe(true);
     });
@@ -1068,7 +1068,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.statistics.validConnections).toBe(1);
       expect(result.valid).toBe(true);
@@ -1110,7 +1110,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(ExpressionValidator.validateNodeExpressions).toHaveBeenCalledWith(
         expect.objectContaining({ values: expect.any(Object) }),
@@ -1146,7 +1146,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Expression error: Invalid expression syntax'))).toBe(true);
       expect(result.warnings.some(w => w.message.includes('Expression warning: Deprecated variable usage'))).toBe(true);
@@ -1170,7 +1170,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(ExpressionValidator.validateNodeExpressions).not.toHaveBeenCalled();
     });
@@ -1187,7 +1187,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const workflow = builder.build() as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Consider adding error handling'))).toBe(true);
     });
@@ -1208,7 +1208,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const workflow = builder.build() as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Long linear chain detected'))).toBe(true);
     });
@@ -1230,7 +1230,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Missing credentials configuration for slackApi'))).toBe(true);
     });
@@ -1249,7 +1249,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('AI Agent has no tools connected'))).toBe(true);
     });
@@ -1279,7 +1279,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE'))).toBe(true);
     });
@@ -1306,7 +1306,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Node-level properties onError, retryOnFail, credentials are in the wrong location'))).toBe(true);
       expect(result.errors.some(e => e.details?.fix?.includes('Move these properties from node.parameters to the node level'))).toBe(true);
@@ -1327,7 +1327,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Invalid onError value: "invalidValue"'))).toBe(true);
     });
@@ -1347,7 +1347,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Using deprecated "continueOnFail: true"'))).toBe(true);
     });
@@ -1368,7 +1368,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('Cannot use both "continueOnFail" and "onError" properties'))).toBe(true);
     });
@@ -1390,7 +1390,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.errors.some(e => e.message.includes('maxTries must be a positive number'))).toBe(true);
       expect(result.errors.some(e => e.message.includes('waitBetweenTries must be a non-negative number'))).toBe(true);
@@ -1413,7 +1413,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('maxTries is set to 15'))).toBe(true);
       expect(result.warnings.some(w => w.message.includes('waitBetweenTries is set to 400000ms'))).toBe(true);
@@ -1434,7 +1434,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('retryOnFail is enabled but maxTries is not specified'))).toBe(true);
     });
@@ -1459,7 +1459,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
 
       expect(result.errors.some(e => e.message.includes('alwaysOutputData must be a boolean'))).toBe(true);
@@ -1484,7 +1484,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('executeOnce is enabled'))).toBe(true);
     });
@@ -1512,7 +1512,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
           connections: {}
         } as any;
 
-        const result = await validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow as any);
 
         expect(result.warnings.some(w => w.message.includes(nodeInfo.message) && w.message.includes('without error handling'))).toBe(true);
       }
@@ -1534,7 +1534,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.warnings.some(w => w.message.includes('Both continueOnFail and retryOnFail are enabled'))).toBe(true);
     });
@@ -1554,7 +1554,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Consider enabling alwaysOutputData'))).toBe(true);
     });
@@ -1569,7 +1569,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const workflow = builder.build() as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Most nodes lack error handling'))).toBe(true);
     });
@@ -1589,7 +1589,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Replace "continueOnFail: true" with "onError:'))).toBe(true);
     });
@@ -1610,7 +1610,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Add a trigger node'))).toBe(true);
     });
@@ -1636,7 +1636,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {} // Missing connections
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Example connection structure'))).toBe(true);
       expect(result.suggestions.some(s => s.includes('Use node NAMES (not IDs) in connections'))).toBe(true);
@@ -1667,7 +1667,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Add error handling'))).toBe(true);
     });
@@ -1682,7 +1682,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const workflow = builder.build() as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Consider breaking this workflow into smaller sub-workflows'))).toBe(true);
     });
@@ -1708,7 +1708,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('Consider using a Code node for complex data transformations'))).toBe(true);
     });
@@ -1727,7 +1727,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.suggestions.some(s => s.includes('A minimal workflow needs'))).toBe(true);
     });
@@ -1756,7 +1756,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
           connections: {}
         } as any;
 
-        const result = await validator.validateWorkflow(workflow);
+        const result = await validator.validateWorkflow(workflow as any);
 
         expect(result.errors.some(e => e.message.includes(`Did you mean`) && e.message.includes(testCase.suggestion))).toBe(true);
       }
@@ -1848,7 +1848,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Should have multiple errors
       expect(result.valid).toBe(false);
@@ -1940,7 +1940,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         }
       } as any;
 
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
