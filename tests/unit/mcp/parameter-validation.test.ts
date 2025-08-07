@@ -176,7 +176,7 @@ describe('Parameter Validation', () => {
     describe('search_nodes', () => {
       it('should require query parameter', async () => {
         await expect(server.testExecuteTool('search_nodes', {}))
-          .rejects.toThrow('Missing required parameters for search_nodes: query');
+          .rejects.toThrow('search_nodes: Validation failed:\n  • query: query is required');
       });
 
       it('should succeed with valid query', async () => {
@@ -194,29 +194,28 @@ describe('Parameter Validation', () => {
         expect(result).toEqual({ results: [] });
       });
 
-      it('should convert limit to number and use default on invalid value', async () => {
-        const result = await server.testExecuteTool('search_nodes', { 
+      it('should reject invalid limit value', async () => {
+        await expect(server.testExecuteTool('search_nodes', { 
           query: 'http',
           limit: 'invalid'
-        });
-        expect(result).toEqual({ results: [] });
+        })).rejects.toThrow('search_nodes: Validation failed:\n  • limit: limit must be a number, got string');
       });
     });
 
     describe('validate_node_operation', () => {
       it('should require nodeType and config parameters', async () => {
         await expect(server.testExecuteTool('validate_node_operation', {}))
-          .rejects.toThrow('Missing required parameters for validate_node_operation: nodeType, config');
+          .rejects.toThrow('validate_node_operation: Validation failed:\n  • nodeType: nodeType is required\n  • config: config is required');
       });
 
       it('should require nodeType parameter when config is provided', async () => {
         await expect(server.testExecuteTool('validate_node_operation', { config: {} }))
-          .rejects.toThrow('Missing required parameters for validate_node_operation: nodeType');
+          .rejects.toThrow('validate_node_operation: Validation failed:\n  • nodeType: nodeType is required');
       });
 
       it('should require config parameter when nodeType is provided', async () => {
         await expect(server.testExecuteTool('validate_node_operation', { nodeType: 'nodes-base.httpRequest' }))
-          .rejects.toThrow('Missing required parameters for validate_node_operation: config');
+          .rejects.toThrow('validate_node_operation: Validation failed:\n  • config: config is required');
       });
 
       it('should succeed with valid parameters', async () => {
@@ -255,7 +254,7 @@ describe('Parameter Validation', () => {
     describe('list_node_templates', () => {
       it('should require nodeTypes parameter', async () => {
         await expect(server.testExecuteTool('list_node_templates', {}))
-          .rejects.toThrow('Missing required parameters for list_node_templates: nodeTypes');
+          .rejects.toThrow('list_node_templates: Validation failed:\n  • nodeTypes: nodeTypes is required');
       });
 
       it('should succeed with valid nodeTypes array', async () => {
@@ -290,26 +289,18 @@ describe('Parameter Validation', () => {
     });
 
     describe('limit parameter conversion', () => {
-      it('should convert string numbers to numbers', async () => {
-        const mockSearchNodes = vi.spyOn(server as any, 'searchNodes');
-        
-        await server.testExecuteTool('search_nodes', { 
+      it('should reject string limit values', async () => {
+        await expect(server.testExecuteTool('search_nodes', { 
           query: 'test',
           limit: '15'
-        });
-
-        expect(mockSearchNodes).toHaveBeenCalledWith('test', 15, { mode: undefined });
+        })).rejects.toThrow('search_nodes: Validation failed:\n  • limit: limit must be a number, got string');
       });
 
-      it('should use default when limit is invalid string', async () => {
-        const mockSearchNodes = vi.spyOn(server as any, 'searchNodes');
-        
-        await server.testExecuteTool('search_nodes', { 
+      it('should reject invalid string limit values', async () => {
+        await expect(server.testExecuteTool('search_nodes', { 
           query: 'test',
           limit: 'invalid'
-        });
-
-        expect(mockSearchNodes).toHaveBeenCalledWith('test', 20, { mode: undefined });
+        })).rejects.toThrow('search_nodes: Validation failed:\n  • limit: limit must be a number, got string');
       });
 
       it('should use default when limit is undefined', async () => {
@@ -322,15 +313,11 @@ describe('Parameter Validation', () => {
         expect(mockSearchNodes).toHaveBeenCalledWith('test', 20, { mode: undefined });
       });
 
-      it('should handle zero as valid limit', async () => {
-        const mockSearchNodes = vi.spyOn(server as any, 'searchNodes');
-        
-        await server.testExecuteTool('search_nodes', { 
+      it('should reject zero as limit due to minimum constraint', async () => {
+        await expect(server.testExecuteTool('search_nodes', { 
           query: 'test',
           limit: 0
-        });
-
-        expect(mockSearchNodes).toHaveBeenCalledWith('test', 20, { mode: undefined }); // 0 converts to falsy, uses default
+        })).rejects.toThrow('search_nodes: Validation failed:\n  • limit: limit must be at least 1, got 0');
       });
     });
 
@@ -361,26 +348,18 @@ describe('Parameter Validation', () => {
     });
 
     describe('templateLimit parameter conversion', () => {
-      it('should convert string numbers to numbers', async () => {
-        const mockListNodeTemplates = vi.spyOn(server as any, 'listNodeTemplates');
-        
-        await server.testExecuteTool('list_node_templates', { 
+      it('should reject string limit values', async () => {
+        await expect(server.testExecuteTool('list_node_templates', { 
           nodeTypes: ['nodes-base.httpRequest'],
           limit: '5'
-        });
-
-        expect(mockListNodeTemplates).toHaveBeenCalledWith(['nodes-base.httpRequest'], 5);
+        })).rejects.toThrow('list_node_templates: Validation failed:\n  • limit: limit must be a number, got string');
       });
 
-      it('should use default when templateLimit is invalid', async () => {
-        const mockListNodeTemplates = vi.spyOn(server as any, 'listNodeTemplates');
-        
-        await server.testExecuteTool('list_node_templates', { 
+      it('should reject invalid string limit values', async () => {
+        await expect(server.testExecuteTool('list_node_templates', { 
           nodeTypes: ['nodes-base.httpRequest'],
           limit: 'invalid'
-        });
-
-        expect(mockListNodeTemplates).toHaveBeenCalledWith(['nodes-base.httpRequest'], 10);
+        })).rejects.toThrow('list_node_templates: Validation failed:\n  • limit: limit must be a number, got string');
       });
     });
 
@@ -452,7 +431,7 @@ describe('Parameter Validation', () => {
     it('should list all missing parameters', () => {
       expect(() => {
         server.testValidateToolParams('validate_node_operation', { profile: 'strict' }, ['nodeType', 'config']);
-      }).toThrow('Missing required parameters for validate_node_operation: nodeType, config');
+      }).toThrow('validate_node_operation: Validation failed:\n  • nodeType: nodeType is required\n  • config: config is required');
     });
 
     it('should include helpful guidance', () => {
@@ -475,10 +454,10 @@ describe('Parameter Validation', () => {
         .rejects.toThrow('Missing required parameters for get_node_info: nodeType');
       
       await expect(server.testExecuteTool('search_nodes', {}))
-        .rejects.toThrow('Missing required parameters for search_nodes: query');
+        .rejects.toThrow('search_nodes: Validation failed:\n  • query: query is required');
       
       await expect(server.testExecuteTool('validate_node_operation', { nodeType: 'test' }))
-        .rejects.toThrow('Missing required parameters for validate_node_operation: config');
+        .rejects.toThrow('validate_node_operation: Validation failed:\n  • config: config is required');
     });
 
     it('should handle edge cases in parameter validation gracefully', async () => {
@@ -492,24 +471,34 @@ describe('Parameter Validation', () => {
     });
 
     it('should provide consistent error format across all tools', async () => {
-      const toolsWithRequiredParams = [
-        { name: 'get_node_info', args: {}, missing: 'nodeType' },
-        { name: 'search_nodes', args: {}, missing: 'query' },
-        { name: 'get_node_documentation', args: {}, missing: 'nodeType' },
-        { name: 'get_node_essentials', args: {}, missing: 'nodeType' },
-        { name: 'search_node_properties', args: {}, missing: 'nodeType, query' },
-        { name: 'get_node_for_task', args: {}, missing: 'task' },
-        { name: 'validate_node_operation', args: {}, missing: 'nodeType, config' },
-        { name: 'validate_node_minimal', args: {}, missing: 'nodeType, config' },
-        { name: 'get_property_dependencies', args: {}, missing: 'nodeType' },
-        { name: 'get_node_as_tool_info', args: {}, missing: 'nodeType' },
-        { name: 'list_node_templates', args: {}, missing: 'nodeTypes' },
-        { name: 'get_template', args: {}, missing: 'templateId' },
+      // Tools using legacy validation
+      const legacyValidationTools = [
+        { name: 'get_node_info', args: {}, expected: 'Missing required parameters for get_node_info: nodeType' },
+        { name: 'get_node_documentation', args: {}, expected: 'Missing required parameters for get_node_documentation: nodeType' },
+        { name: 'get_node_essentials', args: {}, expected: 'Missing required parameters for get_node_essentials: nodeType' },
+        { name: 'search_node_properties', args: {}, expected: 'Missing required parameters for search_node_properties: nodeType, query' },
+        { name: 'get_node_for_task', args: {}, expected: 'Missing required parameters for get_node_for_task: task' },
+        { name: 'get_property_dependencies', args: {}, expected: 'Missing required parameters for get_property_dependencies: nodeType' },
+        { name: 'get_node_as_tool_info', args: {}, expected: 'Missing required parameters for get_node_as_tool_info: nodeType' },
+        { name: 'get_template', args: {}, expected: 'Missing required parameters for get_template: templateId' },
       ];
 
-      for (const tool of toolsWithRequiredParams) {
+      for (const tool of legacyValidationTools) {
         await expect(server.testExecuteTool(tool.name, tool.args))
-          .rejects.toThrow(`Missing required parameters for ${tool.name}: ${tool.missing}`);
+          .rejects.toThrow(tool.expected);
+      }
+
+      // Tools using new schema validation
+      const schemaValidationTools = [
+        { name: 'search_nodes', args: {}, expected: 'search_nodes: Validation failed:\n  • query: query is required' },
+        { name: 'validate_node_operation', args: {}, expected: 'validate_node_operation: Validation failed:\n  • nodeType: nodeType is required\n  • config: config is required' },
+        { name: 'validate_node_minimal', args: {}, expected: 'validate_node_minimal: Validation failed:\n  • nodeType: nodeType is required\n  • config: config is required' },
+        { name: 'list_node_templates', args: {}, expected: 'list_node_templates: Validation failed:\n  • nodeTypes: nodeTypes is required' },
+      ];
+
+      for (const tool of schemaValidationTools) {
+        await expect(server.testExecuteTool(tool.name, tool.args))
+          .rejects.toThrow(tool.expected);
       }
     });
 
@@ -540,23 +529,28 @@ describe('Parameter Validation', () => {
       }));
 
       const n8nToolsWithRequiredParams = [
-        { name: 'n8n_create_workflow', args: {}, missing: 'name, nodes, connections' },
-        { name: 'n8n_get_workflow', args: {}, missing: 'id' },
-        { name: 'n8n_get_workflow_details', args: {}, missing: 'id' },
-        { name: 'n8n_get_workflow_structure', args: {}, missing: 'id' },
-        { name: 'n8n_get_workflow_minimal', args: {}, missing: 'id' },
-        { name: 'n8n_update_full_workflow', args: {}, missing: 'id' },
-        { name: 'n8n_update_partial_workflow', args: {}, missing: 'id, operations' },
-        { name: 'n8n_delete_workflow', args: {}, missing: 'id' },
-        { name: 'n8n_validate_workflow', args: {}, missing: 'id' },
-        { name: 'n8n_trigger_webhook_workflow', args: {}, missing: 'webhookUrl' },
-        { name: 'n8n_get_execution', args: {}, missing: 'id' },
-        { name: 'n8n_delete_execution', args: {}, missing: 'id' },
+        { name: 'n8n_create_workflow', args: {}, expected: 'n8n_create_workflow: Validation failed:\n  • name: name is required\n  • nodes: nodes is required\n  • connections: connections is required' },
+        { name: 'n8n_get_workflow', args: {}, expected: 'n8n_get_workflow: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_get_workflow_details', args: {}, expected: 'n8n_get_workflow_details: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_get_workflow_structure', args: {}, expected: 'n8n_get_workflow_structure: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_get_workflow_minimal', args: {}, expected: 'n8n_get_workflow_minimal: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_update_full_workflow', args: {}, expected: 'n8n_update_full_workflow: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_delete_workflow', args: {}, expected: 'n8n_delete_workflow: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_validate_workflow', args: {}, expected: 'n8n_validate_workflow: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_get_execution', args: {}, expected: 'n8n_get_execution: Validation failed:\n  • id: id is required' },
+        { name: 'n8n_delete_execution', args: {}, expected: 'n8n_delete_execution: Validation failed:\n  • id: id is required' },
       ];
+
+      // n8n_update_partial_workflow and n8n_trigger_webhook_workflow use legacy validation
+      await expect(server.testExecuteTool('n8n_update_partial_workflow', {}))
+        .rejects.toThrow('Missing required parameters for n8n_update_partial_workflow: id, operations');
+      
+      await expect(server.testExecuteTool('n8n_trigger_webhook_workflow', {}))
+        .rejects.toThrow('Missing required parameters for n8n_trigger_webhook_workflow: webhookUrl');
 
       for (const tool of n8nToolsWithRequiredParams) {
         await expect(server.testExecuteTool(tool.name, tool.args))
-          .rejects.toThrow(`Missing required parameters for ${tool.name}: ${tool.missing}`);
+          .rejects.toThrow(tool.expected);
       }
     });
   });
