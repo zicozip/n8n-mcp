@@ -109,16 +109,16 @@ describe('MCP Error Handling', () => {
       });
 
       it('should handle empty search query', async () => {
-        // Empty query returns empty results
-        const response = await client.callTool({ name: 'search_nodes', arguments: {
-          query: ''
-        } });
-        
-        const result = JSON.parse((response as any).content[0].text);
-        // search_nodes returns 'results' not 'nodes'
-        expect(result).toHaveProperty('results');
-        expect(Array.isArray(result.results)).toBe(true);
-        expect(result.results).toHaveLength(0);
+        try {
+          await client.callTool({ name: 'search_nodes', arguments: {
+            query: ''
+          } });
+          expect.fail('Should have thrown an error');
+        } catch (error: any) {
+          expect(error).toBeDefined();
+          expect(error.message).toContain("search_nodes: Validation failed:");
+          expect(error.message).toContain("query: query cannot be empty");
+        }
       });
 
       it('should handle non-existent node types', async () => {
@@ -149,19 +149,19 @@ describe('MCP Error Handling', () => {
       });
 
       it('should handle malformed workflow structure', async () => {
-        const response = await client.callTool({ name: 'validate_workflow', arguments: {
-          workflow: {
-            // Missing required 'nodes' array
-            connections: {}
-          }
-        } });
-        
-        // Should return validation error, not throw
-        const validation = JSON.parse((response as any).content[0].text);
-        expect(validation.valid).toBe(false);
-        expect(validation.errors).toBeDefined();
-        expect(validation.errors.length).toBeGreaterThan(0);
-        expect(validation.errors[0].message).toContain('nodes');
+        try {
+          await client.callTool({ name: 'validate_workflow', arguments: {
+            workflow: {
+              // Missing required 'nodes' array
+              connections: {}
+            }
+          } });
+          expect.fail('Should have thrown an error');
+        } catch (error: any) {
+          expect(error).toBeDefined();
+          expect(error.message).toContain("validate_workflow: Validation failed:");
+          expect(error.message).toContain("workflow.nodes: workflow.nodes is required");
+        }
       });
 
       it('should handle circular workflow references', async () => {
@@ -501,7 +501,8 @@ describe('MCP Error Handling', () => {
       } catch (error: any) {
         expect(error).toBeDefined();
         // The error now properly validates required parameters
-        expect(error.message).toContain("Missing required parameters");
+        expect(error.message).toContain("search_nodes: Validation failed:");
+        expect(error.message).toContain("query: query is required");
       }
     });
 
