@@ -22,8 +22,9 @@ export class NodeRepository {
         node_type, package_name, display_name, description,
         category, development_style, is_ai_tool, is_trigger,
         is_webhook, is_versioned, version, documentation,
-        properties_schema, operations, credentials_required
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        properties_schema, operations, credentials_required,
+        outputs, output_names
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     stmt.run(
@@ -41,7 +42,9 @@ export class NodeRepository {
       node.documentation || null,
       JSON.stringify(node.properties, null, 2),
       JSON.stringify(node.operations, null, 2),
-      JSON.stringify(node.credentials, null, 2)
+      JSON.stringify(node.credentials, null, 2),
+      node.outputs ? JSON.stringify(node.outputs, null, 2) : null,
+      node.outputNames ? JSON.stringify(node.outputNames, null, 2) : null
     );
   }
   
@@ -70,7 +73,9 @@ export class NodeRepository {
       properties: this.safeJsonParse(row.properties_schema, []),
       operations: this.safeJsonParse(row.operations, []),
       credentials: this.safeJsonParse(row.credentials_required, []),
-      hasDocumentation: !!row.documentation
+      hasDocumentation: !!row.documentation,
+      outputs: row.outputs ? this.safeJsonParse(row.outputs, null) : null,
+      outputNames: row.output_names ? this.safeJsonParse(row.output_names, null) : null
     };
   }
   
@@ -238,7 +243,9 @@ export class NodeRepository {
       properties: this.safeJsonParse(row.properties_schema, []),
       operations: this.safeJsonParse(row.operations, []),
       credentials: this.safeJsonParse(row.credentials_required, []),
-      hasDocumentation: !!row.documentation
+      hasDocumentation: !!row.documentation,
+      outputs: row.outputs ? this.safeJsonParse(row.outputs, null) : null,
+      outputNames: row.output_names ? this.safeJsonParse(row.output_names, null) : null
     };
   }
 }
