@@ -46,7 +46,8 @@ describe('Validation System Fixes', () => {
   });
 
   afterAll(() => {
-    delete process.env.NODE_ENV;
+    // Reset NODE_ENV instead of deleting it
+    delete (process.env as any).NODE_ENV;
   });
 
   describe('Issue #73: validate_node_minimal crashes without input validation', () => {
@@ -146,7 +147,7 @@ describe('Validation System Fixes', () => {
             id: '1',
             name: 'Webhook',
             type: 'n8n-nodes-base.webhook',
-            position: [100, 200],
+            position: [100, 200] as [number, number],
             parameters: { path: '/test', httpMethod: 'POST' },
             typeVersion: 1
           },
@@ -154,7 +155,7 @@ describe('Validation System Fixes', () => {
             id: '2',
             name: 'Set',
             type: 'n8n-nodes-base.set',
-            position: [300, 200],
+            position: [300, 200] as [number, number],
             parameters: { values: {} },
             typeVersion: 1
           }
@@ -186,7 +187,7 @@ describe('Validation System Fixes', () => {
             id: '1',
             name: 'Webhook',
             type: 'n8n-nodes-base.webhook',
-            position: [100, 200],
+            position: [100, 200] as [number, number],
             parameters: { path: '/test', httpMethod: 'POST' },
             typeVersion: 1
           },
@@ -194,7 +195,7 @@ describe('Validation System Fixes', () => {
             id: '2',
             name: 'Sticky Note',
             type: 'n8n-nodes-base.stickyNote',
-            position: [300, 100],
+            position: [300, 100] as [number, number],
             parameters: { content: 'This is a note' },
             typeVersion: 1
           }
@@ -216,7 +217,7 @@ describe('Validation System Fixes', () => {
             id: '1',
             name: 'Manual Trigger',
             type: 'n8n-nodes-base.manualTrigger',
-            position: [100, 200],
+            position: [100, 200] as [number, number],
             parameters: {},
             typeVersion: 1
           },
@@ -224,7 +225,7 @@ describe('Validation System Fixes', () => {
             id: '2',
             name: 'SplitInBatches',
             type: 'n8n-nodes-base.splitInBatches',
-            position: [300, 200],
+            position: [300, 200] as [number, number],
             parameters: { batchSize: 1 },
             typeVersion: 1
           },
@@ -232,7 +233,7 @@ describe('Validation System Fixes', () => {
             id: '3',
             name: 'Set',
             type: 'n8n-nodes-base.set',
-            position: [500, 200],
+            position: [500, 200] as [number, number],
             parameters: { values: {} },
             typeVersion: 1
           }
@@ -270,7 +271,7 @@ describe('Validation System Fixes', () => {
             id: '1',
             name: 'Invalid Node',
             type: 'invalid-node-type',
-            position: [100, 200],
+            position: [100, 200] as [number, number],
             parameters: {},
             typeVersion: 1
           }
@@ -296,7 +297,7 @@ describe('Validation System Fixes', () => {
             id: '1',
             name: 'Webhook',
             type: 'n8n-nodes-base.webhook',
-            position: [100, 200],
+            position: [100, 200] as [number, number],
             parameters: { path: '/test', httpMethod: 'POST' },
             typeVersion: 1
           }
@@ -328,7 +329,7 @@ describe('Validation System Fixes', () => {
             id: '1',
             name: 'Invalid Node 1',
             type: 'invalid-type-1',
-            position: [100, 200],
+            position: [100, 200] as [number, number],
             parameters: {}
             // Missing typeVersion
           },
@@ -336,7 +337,7 @@ describe('Validation System Fixes', () => {
             id: '2',
             name: 'Invalid Node 2',
             type: 'invalid-type-2',
-            position: [300, 200],
+            position: [300, 200] as [number, number],
             parameters: {}
             // Missing typeVersion
           },
@@ -344,7 +345,7 @@ describe('Validation System Fixes', () => {
             id: '3',
             name: 'Invalid Node 3',
             type: 'invalid-type-3',
-            position: [500, 200],
+            position: [500, 200] as [number, number],
             parameters: {}
             // Missing typeVersion
           }
