@@ -28,6 +28,7 @@ import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { getToolDocumentation, getToolsOverview } from './tools-documentation';
 import { PROJECT_VERSION } from '../utils/version';
 import { normalizeNodeType, getNodeTypeAlternatives, getWorkflowNodeType } from '../utils/node-utils';
+import { ToolValidation, Validator, ValidationError } from '../utils/validation-schemas';
 import { 
   negotiateProtocolVersion, 
   logProtocolNegotiation,
@@ -460,9 +461,77 @@ export class N8NDocumentationMCPServer {
   }
 
   /**
-   * Validate required parameters for tool execution
+   * Enhanced parameter validation using schemas
    */
-  private validateToolParams(toolName: string, args: any, requiredParams: string[]): void {
+  private validateToolParams(toolName: string, args: any, legacyRequiredParams?: string[]): void {
+    try {
+      // If legacy required params are provided, use the new validation but fall back to basic if needed
+      let validationResult;
+      
+      switch (toolName) {
+        case 'validate_node_operation':
+          validationResult = ToolValidation.validateNodeOperation(args);
+          break;
+        case 'validate_node_minimal':
+          validationResult = ToolValidation.validateNodeMinimal(args);
+          break;
+        case 'validate_workflow':
+        case 'validate_workflow_connections':
+        case 'validate_workflow_expressions':
+          validationResult = ToolValidation.validateWorkflow(args);
+          break;
+      case 'search_nodes':
+        validationResult = ToolValidation.validateSearchNodes(args);
+        break;
+      case 'list_node_templates':
+        validationResult = ToolValidation.validateListNodeTemplates(args);
+        break;
+      case 'n8n_create_workflow':
+        validationResult = ToolValidation.validateCreateWorkflow(args);
+        break;
+      case 'n8n_get_workflow':
+      case 'n8n_get_workflow_details':
+      case 'n8n_get_workflow_structure':
+      case 'n8n_get_workflow_minimal':
+      case 'n8n_update_full_workflow':
+      case 'n8n_delete_workflow':
+      case 'n8n_validate_workflow':
+      case 'n8n_get_execution':
+      case 'n8n_delete_execution':
+        validationResult = ToolValidation.validateWorkflowId(args);
+        break;
+      default:
+        // For tools not yet migrated to schema validation, use basic validation
+        return this.validateToolParamsBasic(toolName, args, legacyRequiredParams || []);
+      }
+      
+      if (!validationResult.valid) {
+        const errorMessage = Validator.formatErrors(validationResult, toolName);
+        logger.error(`Parameter validation failed for ${toolName}:`, errorMessage);
+        throw new ValidationError(errorMessage);
+      }
+    } catch (error) {
+      // Handle validation errors properly
+      if (error instanceof ValidationError) {
+        throw error; // Re-throw validation errors as-is
+      }
+      
+      // Handle unexpected errors from validation system
+      logger.error(`Validation system error for ${toolName}:`, error);
+      
+      // Provide a user-friendly error message
+      const errorMessage = error instanceof Error 
+        ? `Internal validation error: ${error.message}`
+        : `Internal validation error while processing ${toolName}`;
+      
+      throw new Error(errorMessage);
+    }
+  }
+  
+  /**
+   * Legacy parameter validation (fallback)
+   */
+  private validateToolParamsBasic(toolName: string, args: any, requiredParams: string[]): void {
     const missing: string[] = [];
     
     for (const param of requiredParams) {
@@ -619,12 +688,17 @@ export class N8NDocumentationMCPServer {
               fix: 'Provide config as an object with node properties'
             }],
             warnings: [],
-            suggestions: [],
+            suggestions: [
+              '🔧 RECOVERY: Invalid config detected. Fix with:',
+              '   • Ensure config is an object: { "resource": "...", "operation": "..." }',
+              '   • Use get_node_essentials to see required fields for this node type',
+              '   • Check if the node type is correct before configuring it'
+            ],
             summary: {
               hasErrors: true,
               errorCount: 1,
               warningCount: 0,
-              suggestionCount: 0
+              suggestionCount: 3
             }
           };
         }
@@ -638,7 +712,10 @@ export class N8NDocumentationMCPServer {
             nodeType: args.nodeType || 'unknown',
             displayName: 'Unknown Node',
             valid: false,
-            missingRequiredFields: ['Invalid config format - expected object']
+            missingRequiredFields: [
+              'Invalid config format - expected object',
+              '🔧 RECOVERY: Use format { "resource": "...", "operation": "..." } or {} for empty config'
+            ]
           };
         }
         return this.validateNodeMinimal(args.nodeType, args.config);
@@ -2141,12 +2218,12 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     // Get properties  
     const properties = node.properties || [];
     
-    // Extract operation context
+    // Extract operation context (safely handle undefined config properties)
     const operationContext = {
-      resource: config.resource,
-      operation: config.operation,
-      action: config.action,
-      mode: config.mode
+      resource: config?.resource,
+      operation: config?.operation,
+      action: config?.action,
+      mode: config?.mode
     };
     
     // Find missing required fields
@@ -2163,7 +2240,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         // Check show conditions
         if (prop.displayOptions.show) {
           for (const [key, values] of Object.entries(prop.displayOptions.show)) {
-            const configValue = config[key];
+            const configValue = config?.[key];
             const expectedValues = Array.isArray(values) ? values : [values];
             
             if (!expectedValues.includes(configValue)) {
@@ -2176,7 +2253,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         // Check hide conditions
         if (isVisible && prop.displayOptions.hide) {
           for (const [key, values] of Object.entries(prop.displayOptions.hide)) {
-            const configValue = config[key];
+            const configValue = config?.[key];
             const expectedValues = Array.isArray(values) ? values : [values];
             
             if (expectedValues.includes(configValue)) {
@@ -2189,8 +2266,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         if (!isVisible) continue;
       }
       
-      // Check if field is missing
-      if (!(prop.name in config)) {
+      // Check if field is missing (safely handle null/undefined config)
+      if (!config || !(prop.name in config)) {
         missingFields.push(prop.displayName || prop.name);
       }
     }

@@ -157,7 +157,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         nodes: [],
         connections: {}
       };
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.valid).toBe(true);
       expect(result.warnings.some(w => w.message.includes('empty'))).toBe(true);
     });
@@ -181,7 +181,7 @@ describe('WorkflowValidator - Edge Cases', () => {
       const workflow = { nodes, connections };
       
       const start = Date.now();
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       const duration = Date.now() - start;
       
       expect(result).toBeDefined();
@@ -207,7 +207,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.statistics.invalidConnections).toBe(0);
     });
 
@@ -228,7 +228,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.valid).toBe(true);
     });
   });
@@ -264,7 +264,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         connections: {}
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.errors.length).toBeGreaterThan(0);
     });
 
@@ -292,7 +292,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.warnings.some(w => w.message.includes('self-referencing'))).toBe(true);
     });
 
@@ -308,7 +308,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.errors.some(e => e.message.includes('non-existent'))).toBe(true);
     });
 
@@ -324,7 +324,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.errors.length).toBeGreaterThan(0);
     });
 
@@ -341,7 +341,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         } as any
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       // Should still work as type and index can have defaults
       expect(result.statistics.validConnections).toBeGreaterThan(0);
     });
@@ -359,7 +359,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.errors.some(e => e.message.includes('Invalid'))).toBe(true);
     });
   });
@@ -382,7 +382,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.valid).toBe(true);
     });
 
@@ -395,7 +395,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         connections: {}
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.warnings.some(w => w.message.includes('very long'))).toBe(true);
     });
   });
@@ -479,7 +479,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.statistics.validConnections).toBeGreaterThan(0);
     });
   });
@@ -499,7 +499,7 @@ describe('WorkflowValidator - Edge Cases', () => {
         }
       };
       
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.statistics.validConnections).toBeGreaterThan(0);
     });

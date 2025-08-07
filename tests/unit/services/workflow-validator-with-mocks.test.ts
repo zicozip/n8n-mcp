@@ -77,7 +77,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.valid).toBe(true);
@@ -113,7 +113,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.valid).toBe(false);
@@ -154,7 +154,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.valid).toBe(false);
@@ -229,7 +229,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.valid).toBe(true);
@@ -297,7 +297,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.valid).toBe(false);
@@ -386,7 +386,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.valid).toBe(false);
@@ -438,7 +438,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.warnings.some(w => w.message.includes('Outdated typeVersion'))).toBe(true);
@@ -471,7 +471,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Act
-      const result = await validator.validateWorkflow(workflow);
+      const result = await validator.validateWorkflow(workflow as any);
 
       // Assert
       expect(result.valid).toBe(false);
