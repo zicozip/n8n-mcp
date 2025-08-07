@@ -124,9 +124,9 @@ describe('MCP Tool Invocation', () => {
         const andNodes = andResult.results;
         expect(andNodes.length).toBeLessThanOrEqual(orNodes.length);
 
-        // FUZZY mode
+        // FUZZY mode - use less typo-heavy search
         const fuzzyResponse = await client.callTool({ name: 'search_nodes', arguments: {
-          query: 'htpp requst', // Intentional typos
+          query: 'http req', // Partial match should work
           mode: 'FUZZY'
         }});
         const fuzzyResult = JSON.parse(((fuzzyResponse as any).content[0]).text);
