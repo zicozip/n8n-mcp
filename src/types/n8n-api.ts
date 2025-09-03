@@ -49,6 +49,7 @@ export interface Workflow {
   nodes: WorkflowNode[];
   connections: WorkflowConnection;
   active?: boolean; // Optional for creation as it's read-only
+  isArchived?: boolean; // Optional, available in newer n8n versions
   settings?: WorkflowSettings;
   staticData?: Record<string, unknown>;
   tags?: string[];
