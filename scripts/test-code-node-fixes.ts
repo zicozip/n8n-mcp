@@ -10,7 +10,7 @@ import { getToolDocumentation } from '../src/mcp/tools-documentation';
 import { ExampleGenerator } from '../src/services/example-generator';
 import { EnhancedConfigValidator } from '../src/services/enhanced-config-validator';
 
-const dbPath = process.env.NODE_DB_PATH || './nodes.db';
+const dbPath = process.env.NODE_DB_PATH || './data/nodes.db';
 
 async function main() {
   console.log('🧪 Testing Code Node Documentation Fixes\n');
