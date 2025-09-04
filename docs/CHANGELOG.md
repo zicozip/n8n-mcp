@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.8] - 2025-09-04
+
+### Updated
+- **n8n Dependencies**: Updated to latest versions for compatibility and new features
+  - n8n: 1.107.4 → 1.109.2
+  - @n8n/n8n-nodes-langchain: 1.106.2 → 1.109.1
+  - n8n-nodes-base: 1.106.3 → 1.108.0 (via dependencies)
+- **Node Database**: Rebuilt with 535 nodes from updated n8n packages
+- **Node.js Compatibility**: Optimized for Node.js v22.17.0 LTS
+  - Enhanced better-sqlite3 native binary compatibility
+  - Fixed SQL.js fallback mode for environments without native binaries
+- **CI/CD Improvements**: Fixed Rollup native module compatibility for GitHub Actions
+  - Added explicit platform-specific rollup binaries for cross-platform builds
+  - Resolved npm ci failures in Linux CI environment
+  - Fixed package-lock.json synchronization issues
+- **Platform Support**: Enhanced cross-platform deployment compatibility
+  - macOS ARM64 and Linux x64 platform binaries included
+  - Improved npm package distribution with proper dependency resolution
+- All 1,728+ tests passing with updated dependencies
+
+### Fixed
+- **CI/CD Pipeline**: Resolved test failures in GitHub Actions
+  - Fixed pyodide version conflicts between langchain dependencies
+  - Regenerated package-lock.json with proper dependency resolution
+  - Fixed Rollup native module loading in Linux CI environment
+- **Database Compatibility**: Enhanced SQL.js fallback reliability
+  - Improved parameter binding and state management
+  - Fixed statement cleanup to prevent memory leaks
+- **Deployment Reliability**: Better handling of platform-specific dependencies
+  - npm ci now works consistently across development and CI environments
+
 ## [2.10.5] - 2025-08-20
 
 ### Updated
