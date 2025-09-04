@@ -376,52 +376,71 @@ class SQLJSStatement implements PreparedStatement {
   constructor(private stmt: any, private onModify: () => void) {}
   
   run(...params: any[]): RunResult {
-    if (params.length > 0) {
-      this.bindParams(params);
-      this.stmt.bind(this.boundParams);
+    try {
+      if (params.length > 0) {
+        this.bindParams(params);
+        if (this.boundParams) {
+          this.stmt.bind(this.boundParams);
+        }
+      }
+      
+      this.stmt.run();
+      this.onModify();
+      
+      // sql.js doesn't provide changes/lastInsertRowid easily
+      return {
+        changes: 1, // Assume success means 1 change
+        lastInsertRowid: 0
+      };
+    } catch (error) {
+      this.stmt.reset();
+      throw error;
     }
-    
-    this.stmt.run();
-    this.onModify();
-    
-    // sql.js doesn't provide changes/lastInsertRowid easily
-    return {
-      changes: 0,
-      lastInsertRowid: 0
-    };
   }
   
   get(...params: any[]): any {
-    if (params.length > 0) {
-      this.bindParams(params);
-    }
-    
-    this.stmt.bind(this.boundParams);
-    
-    if (this.stmt.step()) {
-      const result = this.stmt.getAsObject();
+    try {
+      if (params.length > 0) {
+        this.bindParams(params);
+        if (this.boundParams) {
+          this.stmt.bind(this.boundParams);
+        }
+      }
+      
+      if (this.stmt.step()) {
+        const result = this.stmt.getAsObject();
+        this.stmt.reset();
+        return this.convertIntegerColumns(result);
+      }
+      
       this.stmt.reset();
-      return this.convertIntegerColumns(result);
+      return undefined;
+    } catch (error) {
+      this.stmt.reset();
+      throw error;
     }
-    
-    this.stmt.reset();
-    return undefined;
   }
   
   all(...params: any[]): any[] {
-    if (params.length > 0) {
-      this.bindParams(params);
+    try {
+      if (params.length > 0) {
+        this.bindParams(params);
+        if (this.boundParams) {
+          this.stmt.bind(this.boundParams);
+        }
+      }
+      
+      const results: any[] = [];
+      while (this.stmt.step()) {
+        results.push(this.convertIntegerColumns(this.stmt.getAsObject()));
+      }
+      
+      this.stmt.reset();
+      return results;
+    } catch (error) {
+      this.stmt.reset();
+      throw error;
     }
-    
-    this.stmt.bind(this.boundParams);
-    
-    const results: any[] = [];
-    while (this.stmt.step()) {
-      results.push(this.convertIntegerColumns(this.stmt.getAsObject()));
-    }
-    
-    this.stmt.reset();
-    return results;
   }
   
   iterate(...params: any[]): IterableIterator<any> {
@@ -455,12 +474,18 @@ class SQLJSStatement implements PreparedStatement {
   }
   
   private bindParams(params: any[]): void {
-    if (params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0])) {
+    if (params.length === 0) {
+      this.boundParams = null;
+      return;
+    }
+    
+    if (params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0]) && params[0] !== null) {
       // Named parameters passed as object
       this.boundParams = params[0];
     } else {
       // Positional parameters - sql.js uses array for positional
-      this.boundParams = params;
+      // Filter out undefined values that might cause issues
+      this.boundParams = params.map(p => p === undefined ? null : p);
     }
   }
   
