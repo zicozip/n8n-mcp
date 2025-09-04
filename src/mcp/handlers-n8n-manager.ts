@@ -282,6 +282,7 @@ export async function handleGetWorkflowStructure(args: unknown): Promise<McpTool
         id: workflow.id,
         name: workflow.name,
         active: workflow.active,
+        isArchived: workflow.isArchived,
         nodes: simplifiedNodes,
         connections: workflow.connections,
         nodeCount: workflow.nodes.length,
@@ -325,6 +326,7 @@ export async function handleGetWorkflowMinimal(args: unknown): Promise<McpToolRe
         id: workflow.id,
         name: workflow.name,
         active: workflow.active,
+        isArchived: workflow.isArchived,
         tags: workflow.tags || [],
         createdAt: workflow.createdAt,
         updatedAt: workflow.updatedAt
@@ -470,6 +472,7 @@ export async function handleListWorkflows(args: unknown): Promise<McpToolRespons
       id: workflow.id,
       name: workflow.name,
       active: workflow.active,
+      isArchived: workflow.isArchived,
       createdAt: workflow.createdAt,
       updatedAt: workflow.updatedAt,
       tags: workflow.tags || [],
