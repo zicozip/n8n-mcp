@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduces failed queries by approximately 50%
   - Added `template-node-resolver.ts` utility for node type resolution
   - Added 23 tests for template node resolution
+- **Structured Template Metadata with OpenAI**: AI-powered metadata generation for templates
+  - Uses OpenAI's batch API with gpt-4o-mini for 50% cost savings
+  - Generates structured metadata: categories, complexity, use cases, setup time
+  - Batch processing with 24-hour SLA
+  - No runtime dependencies - all preprocessing
+  - Add `--generate-metadata` flag to fetch-templates script
+  - New environment variables: OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BATCH_SIZE
+  - Added metadata columns to database schema
+  - New repository methods for metadata management
 
 ## [2.11.0] - 2025-01-14
 

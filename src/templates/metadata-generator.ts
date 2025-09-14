@@ -1,0 +1,287 @@
+import OpenAI from 'openai';
+import { z } from 'zod';
+import { logger } from '../utils/logger';
+import { TemplateWorkflow, TemplateDetail } from './template-fetcher';
+
+// Metadata schema using Zod for validation
+export const TemplateMetadataSchema = z.object({
+  categories: z.array(z.string()).max(5).describe('Main categories (max 5)'),
+  complexity: z.enum(['simple', 'medium', 'complex']).describe('Implementation complexity'),
+  use_cases: z.array(z.string()).max(5).describe('Primary use cases'),
+  estimated_setup_minutes: z.number().min(5).max(480).describe('Setup time in minutes'),
+  required_services: z.array(z.string()).describe('External services needed'),
+  key_features: z.array(z.string()).max(5).describe('Main capabilities'),
+  target_audience: z.array(z.string()).max(3).describe('Target users')
+});
+
+export type TemplateMetadata = z.infer<typeof TemplateMetadataSchema>;
+
+export interface MetadataRequest {
+  templateId: number;
+  name: string;
+  description?: string;
+  nodes: string[];
+  workflow?: any;
+}
+
+export interface MetadataResult {
+  templateId: number;
+  metadata: TemplateMetadata;
+  error?: string;
+}
+
+export class MetadataGenerator {
+  private client: OpenAI;
+  private model: string;
+  
+  constructor(apiKey: string, model: string = 'gpt-4o-mini') {
+    this.client = new OpenAI({ apiKey });
+    this.model = model;
+  }
+  
+  /**
+   * Generate the JSON schema for OpenAI structured outputs
+   */
+  private getJsonSchema() {
+    return {
+      name: 'template_metadata',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          categories: {
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: 5,
+            description: 'Main categories like automation, integration, data processing'
+          },
+          complexity: {
+            type: 'string',
+            enum: ['simple', 'medium', 'complex'],
+            description: 'Implementation complexity level'
+          },
+          use_cases: {
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: 5,
+            description: 'Primary use cases for this template'
+          },
+          estimated_setup_minutes: {
+            type: 'number',
+            minimum: 5,
+            maximum: 480,
+            description: 'Estimated setup time in minutes'
+          },
+          required_services: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'External services or APIs required'
+          },
+          key_features: {
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: 5,
+            description: 'Main capabilities or features'
+          },
+          target_audience: {
+            type: 'array',
+            items: { type: 'string' },
+            maxItems: 3,
+            description: 'Target users like developers, marketers, analysts'
+          }
+        },
+        required: [
+          'categories',
+          'complexity',
+          'use_cases',
+          'estimated_setup_minutes',
+          'required_services',
+          'key_features',
+          'target_audience'
+        ],
+        additionalProperties: false
+      }
+    };
+  }
+  
+  /**
+   * Create a batch request for a single template
+   */
+  createBatchRequest(template: MetadataRequest): any {
+    // Extract node information for analysis
+    const nodesSummary = this.summarizeNodes(template.nodes);
+    
+    // Build context for the AI
+    const context = [
+      `Template: ${template.name}`,
+      template.description ? `Description: ${template.description}` : '',
+      `Nodes Used (${template.nodes.length}): ${nodesSummary}`,
+      template.workflow ? `Workflow has ${template.workflow.nodes?.length || 0} nodes with ${Object.keys(template.workflow.connections || {}).length} connections` : ''
+    ].filter(Boolean).join('\n');
+    
+    return {
+      custom_id: `template-${template.templateId}`,
+      method: 'POST',
+      url: '/v1/chat/completions',
+      body: {
+        model: this.model,
+        temperature: 0.1,
+        max_tokens: 500,
+        response_format: {
+          type: 'json_schema',
+          json_schema: this.getJsonSchema()
+        },
+        messages: [
+          {
+            role: 'system',
+            content: `You are an n8n workflow expert analyzing templates to extract structured metadata.
+            
+            Analyze the provided template information and extract:
+            - Categories: Classify into relevant categories (automation, integration, data, communication, etc.)
+            - Complexity: Assess as simple (1-3 nodes), medium (4-8 nodes), or complex (9+ nodes or advanced logic)
+            - Use cases: Identify primary business use cases
+            - Setup time: Estimate realistic setup time based on complexity and required configurations
+            - Required services: List any external services, APIs, or accounts needed
+            - Key features: Highlight main capabilities or benefits
+            - Target audience: Identify who would benefit most (developers, marketers, ops teams, etc.)
+            
+            Be concise and practical in your analysis.`
+          },
+          {
+            role: 'user',
+            content: context
+          }
+        ]
+      }
+    };
+  }
+  
+  /**
+   * Summarize nodes for better context
+   */
+  private summarizeNodes(nodes: string[]): string {
+    // Group similar nodes
+    const nodeGroups: Record<string, number> = {};
+    
+    for (const node of nodes) {
+      // Extract base node name (remove package prefix)
+      const baseName = node.split('.').pop() || node;
+      
+      // Group by category
+      if (baseName.includes('webhook') || baseName.includes('http')) {
+        nodeGroups['HTTP/Webhooks'] = (nodeGroups['HTTP/Webhooks'] || 0) + 1;
+      } else if (baseName.includes('database') || baseName.includes('postgres') || baseName.includes('mysql')) {
+        nodeGroups['Database'] = (nodeGroups['Database'] || 0) + 1;
+      } else if (baseName.includes('slack') || baseName.includes('email') || baseName.includes('gmail')) {
+        nodeGroups['Communication'] = (nodeGroups['Communication'] || 0) + 1;
+      } else if (baseName.includes('ai') || baseName.includes('openai') || baseName.includes('langchain')) {
+        nodeGroups['AI/ML'] = (nodeGroups['AI/ML'] || 0) + 1;
+      } else if (baseName.includes('sheet') || baseName.includes('csv') || baseName.includes('excel')) {
+        nodeGroups['Spreadsheets'] = (nodeGroups['Spreadsheets'] || 0) + 1;
+      } else {
+        const cleanName = baseName.replace(/Trigger$/, '').replace(/Node$/, '');
+        nodeGroups[cleanName] = (nodeGroups[cleanName] || 0) + 1;
+      }
+    }
+    
+    // Format summary
+    const summary = Object.entries(nodeGroups)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10) // Top 10 groups
+      .map(([name, count]) => count > 1 ? `${name} (${count})` : name)
+      .join(', ');
+    
+    return summary;
+  }
+  
+  /**
+   * Parse a batch result
+   */
+  parseResult(result: any): MetadataResult {
+    try {
+      if (result.error) {
+        return {
+          templateId: parseInt(result.custom_id.replace('template-', '')),
+          metadata: this.getDefaultMetadata(),
+          error: result.error.message
+        };
+      }
+      
+      const response = result.response;
+      if (!response?.body?.choices?.[0]?.message?.content) {
+        throw new Error('Invalid response structure');
+      }
+      
+      const content = response.body.choices[0].message.content;
+      const metadata = JSON.parse(content);
+      
+      // Validate with Zod
+      const validated = TemplateMetadataSchema.parse(metadata);
+      
+      return {
+        templateId: parseInt(result.custom_id.replace('template-', '')),
+        metadata: validated
+      };
+    } catch (error) {
+      logger.error(`Error parsing result for ${result.custom_id}:`, error);
+      return {
+        templateId: parseInt(result.custom_id.replace('template-', '')),
+        metadata: this.getDefaultMetadata(),
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+  
+  /**
+   * Get default metadata for fallback
+   */
+  private getDefaultMetadata(): TemplateMetadata {
+    return {
+      categories: ['automation'],
+      complexity: 'medium',
+      use_cases: ['Process automation'],
+      estimated_setup_minutes: 30,
+      required_services: [],
+      key_features: ['Workflow automation'],
+      target_audience: ['developers']
+    };
+  }
+  
+  /**
+   * Generate metadata for a single template (for testing)
+   */
+  async generateSingle(template: MetadataRequest): Promise<TemplateMetadata> {
+    try {
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        temperature: 0.1,
+        max_tokens: 500,
+        response_format: {
+          type: 'json_schema',
+          json_schema: this.getJsonSchema()
+        } as any,
+        messages: [
+          {
+            role: 'system',
+            content: `You are an n8n workflow expert analyzing templates to extract structured metadata.`
+          },
+          {
+            role: 'user',
+            content: `Analyze this template: ${template.name}\nNodes: ${template.nodes.join(', ')}`
+          }
+        ]
+      });
+      
+      const content = completion.choices[0].message.content;
+      if (!content) {
+        throw new Error('No content in response');
+      }
+      
+      const metadata = JSON.parse(content);
+      return TemplateMetadataSchema.parse(metadata);
+    } catch (error) {
+      logger.error('Error generating single metadata:', error);
+      return this.getDefaultMetadata();
+    }
+  }
+}

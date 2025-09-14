@@ -42,13 +42,16 @@ CREATE TABLE IF NOT EXISTS templates (
   created_at DATETIME,
   updated_at DATETIME,
   url TEXT,
-  scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  metadata_json TEXT, -- Structured metadata from OpenAI (JSON)
+  metadata_generated_at DATETIME -- When metadata was generated
 );
 
 -- Templates indexes
 CREATE INDEX IF NOT EXISTS idx_template_nodes ON templates(nodes_used);
 CREATE INDEX IF NOT EXISTS idx_template_updated ON templates(updated_at);
 CREATE INDEX IF NOT EXISTS idx_template_name ON templates(name);
+CREATE INDEX IF NOT EXISTS idx_template_metadata ON templates(metadata_generated_at);
 
 -- Note: FTS5 tables are created conditionally at runtime if FTS5 is supported
 -- See template-repository.ts initializeFTS5() method

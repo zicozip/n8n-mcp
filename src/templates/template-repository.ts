@@ -22,6 +22,8 @@ export interface StoredTemplate {
   updated_at: string;
   url: string;
   scraped_at: string;
+  metadata_json?: string; // Structured metadata from OpenAI (JSON string)
+  metadata_generated_at?: string; // When metadata was generated
 }
 
 export class TemplateRepository {
@@ -535,5 +537,92 @@ export class TemplateRepository {
       logger.warn('Failed to rebuild template FTS5 index:', error);
       // Non-critical error - search will fallback to LIKE
     }
+  }
+  
+  /**
+   * Update metadata for a template
+   */
+  updateTemplateMetadata(templateId: number, metadata: any): void {
+    const stmt = this.db.prepare(`
+      UPDATE templates 
+      SET metadata_json = ?, metadata_generated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    
+    stmt.run(JSON.stringify(metadata), templateId);
+    logger.debug(`Updated metadata for template ${templateId}`);
+  }
+  
+  /**
+   * Batch update metadata for multiple templates
+   */
+  batchUpdateMetadata(metadataMap: Map<number, any>): void {
+    const stmt = this.db.prepare(`
+      UPDATE templates 
+      SET metadata_json = ?, metadata_generated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    
+    // Simple approach - just run the updates
+    // Most operations are fast enough without explicit transactions
+    for (const [templateId, metadata] of metadataMap.entries()) {
+      stmt.run(JSON.stringify(metadata), templateId);
+    }
+    
+    logger.info(`Updated metadata for ${metadataMap.size} templates`);
+  }
+  
+  /**
+   * Get templates without metadata
+   */
+  getTemplatesWithoutMetadata(limit: number = 100): StoredTemplate[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM templates 
+      WHERE metadata_json IS NULL OR metadata_generated_at IS NULL
+      ORDER BY views DESC
+      LIMIT ?
+    `);
+    
+    return stmt.all(limit) as StoredTemplate[];
+  }
+  
+  /**
+   * Get templates with outdated metadata (older than days specified)
+   */
+  getTemplatesWithOutdatedMetadata(daysOld: number = 30, limit: number = 100): StoredTemplate[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM templates 
+      WHERE metadata_generated_at < datetime('now', '-' || ? || ' days')
+      ORDER BY views DESC
+      LIMIT ?
+    `);
+    
+    return stmt.all(daysOld, limit) as StoredTemplate[];
+  }
+  
+  /**
+   * Get template metadata stats
+   */
+  getMetadataStats(): { 
+    total: number; 
+    withMetadata: number; 
+    withoutMetadata: number;
+    outdated: number;
+  } {
+    const total = this.getTemplateCount();
+    
+    const withMetadata = (this.db.prepare(`
+      SELECT COUNT(*) as count FROM templates 
+      WHERE metadata_json IS NOT NULL
+    `).get() as { count: number }).count;
+    
+    const withoutMetadata = total - withMetadata;
+    
+    const outdated = (this.db.prepare(`
+      SELECT COUNT(*) as count FROM templates 
+      WHERE metadata_generated_at < datetime('now', '-30 days')
+    `).get() as { count: number }).count;
+    
+    return { total, withMetadata, withoutMetadata, outdated };
   }
 }

@@ -3,11 +3,20 @@ import { createDatabaseAdapter } from '../database/database-adapter';
 import { TemplateService } from '../templates/template-service';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as dotenv from 'dotenv';
+import type { MetadataRequest } from '../templates/metadata-generator';
 
-async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild') {
+// Load environment variables
+dotenv.config();
+
+async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild', generateMetadata: boolean = false) {
   const modeEmoji = mode === 'rebuild' ? '🔄' : '⬆️';
   const modeText = mode === 'rebuild' ? 'Rebuilding' : 'Updating';
   console.log(`${modeEmoji} ${modeText} n8n workflow templates...\n`);
+  
+  if (generateMetadata) {
+    console.log('🤖 Metadata generation enabled (using OpenAI)\n');
+  }
   
   // Ensure data directory exists
   const dataDir = './data';
@@ -114,6 +123,14 @@ async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild') {
       console.log(`   ${index + 1}. ${node.node} (${node.count} templates)`);
     });
     
+    // Generate metadata if requested
+    if (generateMetadata && process.env.OPENAI_API_KEY) {
+      console.log('\n🤖 Generating metadata for templates...');
+      await generateTemplateMetadata(db, service);
+    } else if (generateMetadata && !process.env.OPENAI_API_KEY) {
+      console.log('\n⚠️  Metadata generation requested but OPENAI_API_KEY not set');
+    }
+    
   } catch (error) {
     console.error('\n❌ Error fetching templates:', error);
     process.exit(1);
@@ -125,34 +142,120 @@ async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild') {
   }
 }
 
+// Generate metadata for templates using OpenAI
+async function generateTemplateMetadata(db: any, service: TemplateService) {
+  try {
+    const { BatchProcessor } = await import('../templates/batch-processor');
+    const repository = (service as any).repository;
+    
+    // Get templates without metadata
+    const templatesWithoutMetadata = repository.getTemplatesWithoutMetadata(500);
+    
+    if (templatesWithoutMetadata.length === 0) {
+      console.log('✅ All templates already have metadata');
+      return;
+    }
+    
+    console.log(`Found ${templatesWithoutMetadata.length} templates without metadata`);
+    
+    // Create batch processor
+    const processor = new BatchProcessor({
+      apiKey: process.env.OPENAI_API_KEY!,
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      batchSize: parseInt(process.env.OPENAI_BATCH_SIZE || '100'),
+      outputDir: './temp/batch'
+    });
+    
+    // Prepare metadata requests
+    const requests: MetadataRequest[] = templatesWithoutMetadata.map((t: any) => ({
+      templateId: t.id,
+      name: t.name,
+      description: t.description,
+      nodes: JSON.parse(t.nodes_used),
+      workflow: t.workflow_json_compressed 
+        ? JSON.parse(Buffer.from(t.workflow_json_compressed, 'base64').toString())
+        : (t.workflow_json ? JSON.parse(t.workflow_json) : undefined)
+    }));
+    
+    // Process in batches
+    const results = await processor.processTemplates(requests, (message, current, total) => {
+      process.stdout.write(`\r📊 ${message}: ${current}/${total}`);
+    });
+    
+    console.log('\n');
+    
+    // Update database with metadata
+    const metadataMap = new Map();
+    for (const [templateId, result] of results) {
+      if (!result.error) {
+        metadataMap.set(templateId, result.metadata);
+      }
+    }
+    
+    if (metadataMap.size > 0) {
+      repository.batchUpdateMetadata(metadataMap);
+      console.log(`✅ Updated metadata for ${metadataMap.size} templates`);
+    }
+    
+    // Show stats
+    const stats = repository.getMetadataStats();
+    console.log('\n📈 Metadata Statistics:');
+    console.log(`   - Total templates: ${stats.total}`);
+    console.log(`   - With metadata: ${stats.withMetadata}`);
+    console.log(`   - Without metadata: ${stats.withoutMetadata}`);
+    console.log(`   - Outdated (>30 days): ${stats.outdated}`);
+  } catch (error) {
+    console.error('\n❌ Error generating metadata:', error);
+  }
+}
+
 // Parse command line arguments
-function parseArgs(): 'rebuild' | 'update' {
+function parseArgs(): { mode: 'rebuild' | 'update', generateMetadata: boolean } {
   const args = process.argv.slice(2);
+  
+  let mode: 'rebuild' | 'update' = 'rebuild';
+  let generateMetadata = false;
   
   // Check for --mode flag
   const modeIndex = args.findIndex(arg => arg.startsWith('--mode'));
   if (modeIndex !== -1) {
     const modeArg = args[modeIndex];
-    const mode = modeArg.includes('=') ? modeArg.split('=')[1] : args[modeIndex + 1];
+    const modeValue = modeArg.includes('=') ? modeArg.split('=')[1] : args[modeIndex + 1];
     
-    if (mode === 'update') {
-      return 'update';
+    if (modeValue === 'update') {
+      mode = 'update';
     }
   }
   
   // Check for --update flag as shorthand
   if (args.includes('--update')) {
-    return 'update';
+    mode = 'update';
   }
   
-  // Default to rebuild
-  return 'rebuild';
+  // Check for --generate-metadata flag
+  if (args.includes('--generate-metadata') || args.includes('--metadata')) {
+    generateMetadata = true;
+  }
+  
+  // Show help if requested
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('Usage: npm run fetch:templates [options]\n');
+    console.log('Options:');
+    console.log('  --mode=rebuild|update  Rebuild from scratch or update existing (default: rebuild)');
+    console.log('  --update               Shorthand for --mode=update');
+    console.log('  --generate-metadata    Generate AI metadata for templates (requires OPENAI_API_KEY)');
+    console.log('  --metadata             Shorthand for --generate-metadata');
+    console.log('  --help, -h             Show this help message');
+    process.exit(0);
+  }
+  
+  return { mode, generateMetadata };
 }
 
 // Run if called directly
 if (require.main === module) {
-  const mode = parseArgs();
-  fetchTemplates(mode).catch(console.error);
+  const { mode, generateMetadata } = parseArgs();
+  fetchTemplates(mode, generateMetadata).catch(console.error);
 }
 
 export { fetchTemplates };
