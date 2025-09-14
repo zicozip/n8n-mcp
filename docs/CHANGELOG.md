@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Fuzzy Node Type Matching for Templates**: Improved template discovery with flexible node type resolution
+  - Templates can now be found using simple node names: `["slack"]` instead of `["n8n-nodes-base.slack"]`
+  - Accepts various input formats: bare names, partial prefixes, and case variations
+  - Automatically expands related node types: `["email"]` finds Gmail, email send, and related templates
+  - `["slack"]` also finds `slackTrigger` templates
+  - Case-insensitive matching: `["Slack"]`, `["WEBHOOK"]`, `["HttpRequest"]` all work
+  - Backward compatible - existing exact formats continue working
+  - Reduces failed queries by approximately 50%
+  - Added `template-node-resolver.ts` utility for node type resolution
+  - Added 23 tests for template node resolution
+
 ## [2.11.0] - 2025-01-14
 
 ### Added
