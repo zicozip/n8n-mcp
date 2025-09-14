@@ -173,6 +173,7 @@ describe('TemplateRepository - Core Functionality', () => {
         call => call[0].includes('INSERT OR REPLACE INTO templates')
       )?.[0] || '');
       
+      // The implementation now uses gzip compression, so we just verify the call happened
       expect(stmt?.run).toHaveBeenCalledWith(
         123, // id
         123, // workflow_id
@@ -182,14 +183,7 @@ describe('TemplateRepository - Core Functionality', () => {
         'johndoe',
         1, // verified
         JSON.stringify(['n8n-nodes-base.httpRequest', 'n8n-nodes-base.slack']),
-        JSON.stringify({ 
-          nodes: [
-            { type: 'n8n-nodes-base.httpRequest', name: 'HTTP Request', id: '1', position: [0, 0], parameters: {}, typeVersion: 1 },
-            { type: 'n8n-nodes-base.slack', name: 'Slack', id: '2', position: [100, 0], parameters: {}, typeVersion: 1 }
-          ], 
-          connections: {}, 
-          settings: {} 
-        }),
+        expect.any(String), // compressed workflow JSON
         JSON.stringify(['automation', 'integration']),
         1000, // views
         '2024-01-01T00:00:00Z',
@@ -316,7 +310,7 @@ describe('TemplateRepository - Core Functionality', () => {
       
       const results = repository.getTemplatesByNodes(['n8n-nodes-base.httpRequest'], 5);
       
-      expect(stmt.all).toHaveBeenCalledWith('%"n8n-nodes-base.httpRequest"%', 5);
+      expect(stmt.all).toHaveBeenCalledWith('%"n8n-nodes-base.httpRequest"%', 5, 0);
       expect(results).toEqual(mockTemplates);
     });
   });
@@ -389,6 +383,102 @@ describe('TemplateRepository - Core Functionality', () => {
       expect(stats.totalTemplates).toBe(100);
       expect(stats.averageViews).toBe(251);
       expect(stats.topUsedNodes).toContainEqual({ node: 'n8n-nodes-base.httpRequest', count: 2 });
+    });
+  });
+
+  describe('pagination count methods', () => {
+    it('should get node templates count', () => {
+      mockAdapter._setMockData('node_templates_count', 15);
+      
+      const stmt = new MockPreparedStatement('', new Map());
+      stmt.get = vi.fn(() => ({ count: 15 }));
+      mockAdapter.prepare = vi.fn(() => stmt);
+      
+      const count = repository.getNodeTemplatesCount(['n8n-nodes-base.webhook']);
+      
+      expect(count).toBe(15);
+      expect(stmt.get).toHaveBeenCalledWith('%"n8n-nodes-base.webhook"%');
+    });
+
+    it('should get search count', () => {
+      const stmt = new MockPreparedStatement('', new Map());
+      stmt.get = vi.fn(() => ({ count: 8 }));
+      mockAdapter.prepare = vi.fn(() => stmt);
+      
+      const count = repository.getSearchCount('webhook');
+      
+      expect(count).toBe(8);
+    });
+
+    it('should get task templates count', () => {
+      const stmt = new MockPreparedStatement('', new Map());
+      stmt.get = vi.fn(() => ({ count: 12 }));
+      mockAdapter.prepare = vi.fn(() => stmt);
+      
+      const count = repository.getTaskTemplatesCount('ai_automation');
+      
+      expect(count).toBe(12);
+    });
+
+    it('should handle pagination in getAllTemplates', () => {
+      const mockTemplates = [
+        { id: 1, name: 'Template 1' },
+        { id: 2, name: 'Template 2' }
+      ];
+      
+      const stmt = new MockPreparedStatement('', new Map());
+      stmt.all = vi.fn(() => mockTemplates);
+      mockAdapter.prepare = vi.fn(() => stmt);
+      
+      const results = repository.getAllTemplates(10, 5, 'name');
+      
+      expect(results).toEqual(mockTemplates);
+      expect(stmt.all).toHaveBeenCalledWith(10, 5);
+    });
+
+    it('should handle pagination in getTemplatesByNodes', () => {
+      const mockTemplates = [
+        { id: 1, nodes_used: '["n8n-nodes-base.webhook"]' }
+      ];
+      
+      const stmt = new MockPreparedStatement('', new Map());
+      stmt.all = vi.fn(() => mockTemplates);
+      mockAdapter.prepare = vi.fn(() => stmt);
+      
+      const results = repository.getTemplatesByNodes(['n8n-nodes-base.webhook'], 5, 10);
+      
+      expect(results).toEqual(mockTemplates);
+      expect(stmt.all).toHaveBeenCalledWith('%"n8n-nodes-base.webhook"%', 5, 10);
+    });
+
+    it('should handle pagination in searchTemplates', () => {
+      const mockTemplates = [
+        { id: 1, name: 'Search Result 1' }
+      ];
+      
+      mockAdapter._setMockData('fts_results', mockTemplates);
+      
+      const stmt = new MockPreparedStatement('', new Map());
+      stmt.all = vi.fn(() => mockTemplates);
+      mockAdapter.prepare = vi.fn(() => stmt);
+      
+      const results = repository.searchTemplates('webhook', 20, 40);
+      
+      expect(results).toEqual(mockTemplates);
+    });
+
+    it('should handle pagination in getTemplatesForTask', () => {
+      const mockTemplates = [
+        { id: 1, categories: '["ai"]' }
+      ];
+      
+      const stmt = new MockPreparedStatement('', new Map());
+      stmt.all = vi.fn(() => mockTemplates);
+      mockAdapter.prepare = vi.fn(() => stmt);
+      
+      const results = repository.getTemplatesForTask('ai_automation', 15, 30);
+      
+      expect(results).toEqual(mockTemplates);
     });
   });
   

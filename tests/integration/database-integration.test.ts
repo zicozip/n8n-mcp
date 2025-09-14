@@ -163,7 +163,8 @@ describe('Database Integration Tests', () => {
       expect(template!.name).toBe('AI Content Generator');
       
       // Parse workflow JSON
-      const workflow = JSON.parse(template!.workflow_json);
+      expect(template!.workflow_json).toBeTruthy();
+      const workflow = JSON.parse(template!.workflow_json!);
       expect(workflow.nodes).toHaveLength(3);
       expect(workflow.nodes[0].name).toBe('Webhook');
       expect(workflow.nodes[1].name).toBe('OpenAI');

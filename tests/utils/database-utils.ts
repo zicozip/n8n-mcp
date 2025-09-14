@@ -280,7 +280,7 @@ export function createTestTemplate(overrides: Partial<TemplateWorkflow> = {}): T
       verified: false
     },
     createdAt: overrides.createdAt || new Date().toISOString(),
-    totalViews: overrides.totalViews || 0,
+    totalViews: overrides.totalViews || 100,
     ...overrides
   };
 }
