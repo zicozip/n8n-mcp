@@ -125,8 +125,8 @@ export class MetadataGenerator {
       url: '/v1/chat/completions',
       body: {
         model: this.model,
-        temperature: 0.1,
-        max_tokens: 500,
+        temperature: 1,
+        max_completion_tokens: 1000,
         response_format: {
           type: 'json_schema',
           json_schema: this.getJsonSchema()
@@ -134,18 +134,7 @@ export class MetadataGenerator {
         messages: [
           {
             role: 'system',
-            content: `You are an n8n workflow expert analyzing templates to extract structured metadata.
-            
-            Analyze the provided template information and extract:
-            - Categories: Classify into relevant categories (automation, integration, data, communication, etc.)
-            - Complexity: Assess as simple (1-3 nodes), medium (4-8 nodes), or complex (9+ nodes or advanced logic)
-            - Use cases: Identify primary business use cases
-            - Setup time: Estimate realistic setup time based on complexity and required configurations
-            - Required services: List any external services, APIs, or accounts needed
-            - Key features: Highlight main capabilities or benefits
-            - Target audience: Identify who would benefit most (developers, marketers, ops teams, etc.)
-            
-            Be concise and practical in your analysis.`
+            content: `Analyze n8n workflow templates and extract metadata. Be concise.`
           },
           {
             role: 'user',
@@ -254,8 +243,8 @@ export class MetadataGenerator {
     try {
       const completion = await this.client.chat.completions.create({
         model: this.model,
-        temperature: 0.1,
-        max_tokens: 500,
+        temperature: 1,
+        max_completion_tokens: 1000,
         response_format: {
           type: 'json_schema',
           json_schema: this.getJsonSchema()
@@ -263,17 +252,18 @@ export class MetadataGenerator {
         messages: [
           {
             role: 'system',
-            content: `You are an n8n workflow expert analyzing templates to extract structured metadata.`
+            content: `Analyze n8n workflow templates and extract metadata. Be concise.`
           },
           {
             role: 'user',
-            content: `Analyze this template: ${template.name}\nNodes: ${template.nodes.join(', ')}`
+            content: `Template: ${template.name}\nNodes: ${template.nodes.slice(0, 10).join(', ')}`
           }
         ]
       });
       
       const content = completion.choices[0].message.content;
       if (!content) {
+        logger.error('No content in OpenAI response');
         throw new Error('No content in response');
       }
       

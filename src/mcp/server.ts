@@ -730,7 +730,8 @@ export class N8NDocumentationMCPServer {
         const listLimit = Math.min(Math.max(Number(args.limit) || 10, 1), 100);
         const listOffset = Math.max(Number(args.offset) || 0, 0);
         const sortBy = args.sortBy || 'views';
-        return this.listTemplates(listLimit, listOffset, sortBy);
+        const includeMetadata = Boolean(args.includeMetadata);
+        return this.listTemplates(listLimit, listOffset, sortBy, includeMetadata);
       case 'list_node_templates':
         this.validateToolParams(name, args, ['nodeTypes']);
         const templateLimit = Math.min(Math.max(Number(args.limit) || 10, 1), 100);
@@ -751,6 +752,18 @@ export class N8NDocumentationMCPServer {
         const taskLimit = Math.min(Math.max(Number(args.limit) || 10, 1), 100);
         const taskOffset = Math.max(Number(args.offset) || 0, 0);
         return this.getTemplatesForTask(args.task, taskLimit, taskOffset);
+      case 'search_templates_by_metadata':
+        // No required params - all filters are optional
+        const metadataLimit = Math.min(Math.max(Number(args.limit) || 20, 1), 100);
+        const metadataOffset = Math.max(Number(args.offset) || 0, 0);
+        return this.searchTemplatesByMetadata({
+          category: args.category,
+          complexity: args.complexity,
+          maxSetupMinutes: args.maxSetupMinutes ? Number(args.maxSetupMinutes) : undefined,
+          minSetupMinutes: args.minSetupMinutes ? Number(args.minSetupMinutes) : undefined,
+          requiredService: args.requiredService,
+          targetAudience: args.targetAudience
+        }, metadataLimit, metadataOffset);
       case 'validate_workflow':
         this.validateToolParams(name, args, ['workflow']);
         return this.validateWorkflow(args.workflow, args.options);
@@ -2328,11 +2341,11 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   }
   
   // Template-related methods
-  private async listTemplates(limit: number = 10, offset: number = 0, sortBy: 'views' | 'created_at' | 'name' = 'views'): Promise<any> {
+  private async listTemplates(limit: number = 10, offset: number = 0, sortBy: 'views' | 'created_at' | 'name' = 'views', includeMetadata: boolean = false): Promise<any> {
     await this.ensureInitialized();
     if (!this.templateService) throw new Error('Template service not initialized');
     
-    const result = await this.templateService.listTemplates(limit, offset, sortBy);
+    const result = await this.templateService.listTemplates(limit, offset, sortBy, includeMetadata);
     
     return {
       ...result,
@@ -2428,6 +2441,50 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
       task,
       description: this.getTaskDescription(task),
       tip: `${result.total} templates available for ${task}. Showing ${result.items.length}.`
+    };
+  }
+  
+  private async searchTemplatesByMetadata(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }, limit: number = 20, offset: number = 0): Promise<any> {
+    await this.ensureInitialized();
+    if (!this.templateService) throw new Error('Template service not initialized');
+    
+    const result = await this.templateService.searchTemplatesByMetadata(filters, limit, offset);
+    
+    // Build filter summary for feedback
+    const filterSummary: string[] = [];
+    if (filters.category) filterSummary.push(`category: ${filters.category}`);
+    if (filters.complexity) filterSummary.push(`complexity: ${filters.complexity}`);
+    if (filters.maxSetupMinutes) filterSummary.push(`max setup: ${filters.maxSetupMinutes} min`);
+    if (filters.minSetupMinutes) filterSummary.push(`min setup: ${filters.minSetupMinutes} min`);
+    if (filters.requiredService) filterSummary.push(`service: ${filters.requiredService}`);
+    if (filters.targetAudience) filterSummary.push(`audience: ${filters.targetAudience}`);
+    
+    if (result.items.length === 0 && offset === 0) {
+      // Get available categories and audiences for suggestions
+      const availableCategories = await this.templateService.getAvailableCategories();
+      const availableAudiences = await this.templateService.getAvailableTargetAudiences();
+      
+      return {
+        ...result,
+        message: `No templates found with filters: ${filterSummary.join(', ')}`,
+        availableCategories: availableCategories.slice(0, 10),
+        availableAudiences: availableAudiences.slice(0, 5),
+        tip: "Try broader filters or different categories. Use list_templates to see all templates."
+      };
+    }
+    
+    return {
+      ...result,
+      filters,
+      filterSummary: filterSummary.join(', '),
+      tip: `Found ${result.total} templates matching filters. Showing ${result.items.length}. Each includes AI-generated metadata.`
     };
   }
   

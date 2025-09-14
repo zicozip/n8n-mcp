@@ -94,6 +94,7 @@ tmp/
 # data/*.db
 data/*.db-journal
 data/*.db.bak
+data/*.db.backup
 !data/.gitkeep
 !data/nodes.db
 

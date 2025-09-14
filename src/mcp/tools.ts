@@ -325,7 +325,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'list_templates',
-    description: `List all templates with minimal data (id, name, views, node count). Use for browsing available templates.`,
+    description: `List all templates with minimal data (id, name, description, views, node count). Optionally include AI-generated metadata for smart filtering.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -347,6 +347,11 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
           enum: ['views', 'created_at', 'name'],
           description: 'Sort field. Default: views (popularity).',
           default: 'views',
+        },
+        includeMetadata: {
+          type: 'boolean',
+          description: 'Include AI-generated metadata (categories, complexity, setup time, etc.). Default false.',
+          default: false,
         },
       },
     },
@@ -463,6 +468,57 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
         },
       },
       required: ['task'],
+    },
+  },
+  {
+    name: 'search_templates_by_metadata',
+    description: `Search templates by AI-generated metadata. Filter by category, complexity, setup time, services, or audience. Returns rich metadata for smart template discovery.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: 'Filter by category (e.g., "automation", "integration", "data processing")',
+        },
+        complexity: {
+          type: 'string',
+          enum: ['simple', 'medium', 'complex'],
+          description: 'Filter by complexity level',
+        },
+        maxSetupMinutes: {
+          type: 'number',
+          description: 'Maximum setup time in minutes',
+          minimum: 5,
+          maximum: 480,
+        },
+        minSetupMinutes: {
+          type: 'number',
+          description: 'Minimum setup time in minutes',
+          minimum: 5,
+          maximum: 480,
+        },
+        requiredService: {
+          type: 'string',
+          description: 'Filter by required service (e.g., "openai", "slack", "google")',
+        },
+        targetAudience: {
+          type: 'string',
+          description: 'Filter by target audience (e.g., "developers", "marketers", "analysts")',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of results. Default 20.',
+          default: 20,
+          minimum: 1,
+          maximum: 100,
+        },
+        offset: {
+          type: 'number',
+          description: 'Pagination offset. Default 0.',
+          default: 0,
+          minimum: 0,
+        },
+      },
     },
   },
   {

@@ -18,15 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduces failed queries by approximately 50%
   - Added `template-node-resolver.ts` utility for node type resolution
   - Added 23 tests for template node resolution
-- **Structured Template Metadata with OpenAI**: AI-powered metadata generation for templates
-  - Uses OpenAI's batch API with gpt-4o-mini for 50% cost savings
-  - Generates structured metadata: categories, complexity, use cases, setup time
-  - Batch processing with 24-hour SLA
-  - No runtime dependencies - all preprocessing
-  - Add `--generate-metadata` flag to fetch-templates script
-  - New environment variables: OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BATCH_SIZE
-  - Added metadata columns to database schema
-  - New repository methods for metadata management
+- **Structured Template Metadata System**: Comprehensive metadata for intelligent template discovery
+  - Generated metadata for 2,534 templates (97.5% coverage) using OpenAI's batch API
+  - Rich metadata structure: categories, complexity, use cases, setup time, required services, key features, target audience
+  - New `search_templates_by_metadata` tool for advanced filtering by multiple criteria
+  - Enhanced `list_templates` tool with optional `includeMetadata` parameter
+  - Templates now always include descriptions in list responses
+  - Metadata enables filtering by complexity level (simple/medium/complex)
+  - Filter by estimated setup time ranges (5-480 minutes)
+  - Filter by required external services (OpenAI, Slack, Google, etc.)
+  - Filter by target audience (developers, marketers, analysts, etc.)
+  - Multiple filter combinations supported for precise template discovery
+  - SQLite JSON extraction for efficient metadata queries
+  - Batch processing with OpenAI's gpt-4o-mini model for cost efficiency
+  - Added comprehensive tool documentation for new metadata features
+  - New database columns: metadata_json, metadata_generated_at
+  - Repository methods for metadata search and filtering
 
 ## [2.11.0] - 2025-01-14
 

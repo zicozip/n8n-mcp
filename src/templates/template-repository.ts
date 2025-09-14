@@ -625,4 +625,173 @@ export class TemplateRepository {
     
     return { total, withMetadata, withoutMetadata, outdated };
   }
+  
+  /**
+   * Search templates by metadata fields
+   */
+  searchTemplatesByMetadata(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }, limit: number = 20, offset: number = 0): StoredTemplate[] {
+    const conditions: string[] = ['metadata_json IS NOT NULL'];
+    const params: any[] = [];
+    
+    // Build WHERE conditions based on filters
+    if (filters.category) {
+      conditions.push("json_extract(metadata_json, '$.categories') LIKE ?");
+      params.push(`%"${filters.category}"%`);
+    }
+    
+    if (filters.complexity) {
+      conditions.push("json_extract(metadata_json, '$.complexity') = ?");
+      params.push(filters.complexity);
+    }
+    
+    if (filters.maxSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?");
+      params.push(filters.maxSetupMinutes);
+    }
+    
+    if (filters.minSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?");
+      params.push(filters.minSetupMinutes);
+    }
+    
+    if (filters.requiredService) {
+      conditions.push("json_extract(metadata_json, '$.required_services') LIKE ?");
+      params.push(`%"${filters.requiredService}"%`);
+    }
+    
+    if (filters.targetAudience) {
+      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE ?");
+      params.push(`%"${filters.targetAudience}"%`);
+    }
+    
+    const query = `
+      SELECT * FROM templates 
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY views DESC, created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    params.push(limit, offset);
+    const results = this.db.prepare(query).all(...params) as StoredTemplate[];
+    
+    logger.debug(`Metadata search found ${results.length} results`, { filters, count: results.length });
+    return results.map(t => this.decompressWorkflow(t));
+  }
+  
+  /**
+   * Get count for metadata search results
+   */
+  getMetadataSearchCount(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }): number {
+    const conditions: string[] = ['metadata_json IS NOT NULL'];
+    const params: any[] = [];
+    
+    if (filters.category) {
+      conditions.push("json_extract(metadata_json, '$.categories') LIKE ?");
+      params.push(`%"${filters.category}"%`);
+    }
+    
+    if (filters.complexity) {
+      conditions.push("json_extract(metadata_json, '$.complexity') = ?");
+      params.push(filters.complexity);
+    }
+    
+    if (filters.maxSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?");
+      params.push(filters.maxSetupMinutes);
+    }
+    
+    if (filters.minSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?");
+      params.push(filters.minSetupMinutes);
+    }
+    
+    if (filters.requiredService) {
+      conditions.push("json_extract(metadata_json, '$.required_services') LIKE ?");
+      params.push(`%"${filters.requiredService}"%`);
+    }
+    
+    if (filters.targetAudience) {
+      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE ?");
+      params.push(`%"${filters.targetAudience}"%`);
+    }
+    
+    const query = `SELECT COUNT(*) as count FROM templates WHERE ${conditions.join(' AND ')}`;
+    const result = this.db.prepare(query).get(...params) as { count: number };
+    
+    return result.count;
+  }
+  
+  /**
+   * Get unique categories from metadata
+   */
+  getAvailableCategories(): string[] {
+    const results = this.db.prepare(`
+      SELECT DISTINCT json_extract(value, '$') as category
+      FROM templates, json_each(json_extract(metadata_json, '$.categories'))
+      WHERE metadata_json IS NOT NULL
+      ORDER BY category
+    `).all() as { category: string }[];
+    
+    return results.map(r => r.category);
+  }
+  
+  /**
+   * Get unique target audiences from metadata
+   */
+  getAvailableTargetAudiences(): string[] {
+    const results = this.db.prepare(`
+      SELECT DISTINCT json_extract(value, '$') as audience
+      FROM templates, json_each(json_extract(metadata_json, '$.target_audience'))
+      WHERE metadata_json IS NOT NULL
+      ORDER BY audience
+    `).all() as { audience: string }[];
+    
+    return results.map(r => r.audience);
+  }
+  
+  /**
+   * Get templates by category with metadata
+   */
+  getTemplatesByCategory(category: string, limit: number = 10, offset: number = 0): StoredTemplate[] {
+    const query = `
+      SELECT * FROM templates 
+      WHERE metadata_json IS NOT NULL 
+        AND json_extract(metadata_json, '$.categories') LIKE ?
+      ORDER BY views DESC, created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    const results = this.db.prepare(query).all(`%"${category}"%`, limit, offset) as StoredTemplate[];
+    return results.map(t => this.decompressWorkflow(t));
+  }
+  
+  /**
+   * Get templates by complexity level
+   */
+  getTemplatesByComplexity(complexity: 'simple' | 'medium' | 'complex', limit: number = 10, offset: number = 0): StoredTemplate[] {
+    const query = `
+      SELECT * FROM templates 
+      WHERE metadata_json IS NOT NULL 
+        AND json_extract(metadata_json, '$.complexity') = ?
+      ORDER BY views DESC, created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    const results = this.db.prepare(query).all(complexity, limit, offset) as StoredTemplate[];
+    return results.map(t => this.decompressWorkflow(t));
+  }
 }

@@ -15,6 +15,15 @@ export interface TemplateInfo {
   views: number;
   created: string;
   url: string;
+  metadata?: {
+    categories: string[];
+    complexity: 'simple' | 'medium' | 'complex';
+    use_cases: string[];
+    estimated_setup_minutes: number;
+    required_services: string[];
+    key_features: string[];
+    target_audience: string[];
+  };
 }
 
 export interface TemplateWithWorkflow extends TemplateInfo {
@@ -32,8 +41,18 @@ export interface PaginatedResponse<T> {
 export interface TemplateMinimal {
   id: number;
   name: string;
+  description: string;
   views: number;
   nodeCount: number;
+  metadata?: {
+    categories: string[];
+    complexity: 'simple' | 'medium' | 'complex';
+    use_cases: string[];
+    estimated_setup_minutes: number;
+    required_services: string[];
+    key_features: string[];
+    target_audience: string[];
+  };
 }
 
 export class TemplateService {
@@ -137,16 +156,30 @@ export class TemplateService {
   /**
    * List all templates with minimal data
    */
-  async listTemplates(limit: number = 10, offset: number = 0, sortBy: 'views' | 'created_at' | 'name' = 'views'): Promise<PaginatedResponse<TemplateMinimal>> {
+  async listTemplates(limit: number = 10, offset: number = 0, sortBy: 'views' | 'created_at' | 'name' = 'views', includeMetadata: boolean = false): Promise<PaginatedResponse<TemplateMinimal>> {
     const templates = this.repository.getAllTemplates(limit, offset, sortBy);
     const total = this.repository.getTemplateCount();
     
-    const items = templates.map(t => ({
-      id: t.id,
-      name: t.name,
-      views: t.views,
-      nodeCount: JSON.parse(t.nodes_used).length
-    }));
+    const items = templates.map(t => {
+      const item: TemplateMinimal = {
+        id: t.id,
+        name: t.name,
+        description: t.description, // Always include description
+        views: t.views,
+        nodeCount: JSON.parse(t.nodes_used).length
+      };
+      
+      // Optionally include metadata
+      if (includeMetadata && t.metadata_json) {
+        try {
+          item.metadata = JSON.parse(t.metadata_json);
+        } catch (error) {
+          logger.warn(`Failed to parse metadata for template ${t.id}:`, error);
+        }
+      }
+      
+      return item;
+    });
     
     return {
       items,
@@ -173,6 +206,87 @@ export class TemplateService {
       'api_integration',
       'database_operations'
     ];
+  }
+  
+  /**
+   * Search templates by metadata filters
+   */
+  async searchTemplatesByMetadata(
+    filters: {
+      category?: string;
+      complexity?: 'simple' | 'medium' | 'complex';
+      maxSetupMinutes?: number;
+      minSetupMinutes?: number;
+      requiredService?: string;
+      targetAudience?: string;
+    },
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<PaginatedResponse<TemplateInfo>> {
+    const templates = this.repository.searchTemplatesByMetadata(filters, limit, offset);
+    const total = this.repository.getMetadataSearchCount(filters);
+    
+    return {
+      items: templates.map(this.formatTemplateInfo.bind(this)),
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    };
+  }
+  
+  /**
+   * Get available categories from template metadata
+   */
+  async getAvailableCategories(): Promise<string[]> {
+    return this.repository.getAvailableCategories();
+  }
+  
+  /**
+   * Get available target audiences from template metadata
+   */
+  async getAvailableTargetAudiences(): Promise<string[]> {
+    return this.repository.getAvailableTargetAudiences();
+  }
+  
+  /**
+   * Get templates by category
+   */
+  async getTemplatesByCategory(
+    category: string,
+    limit: number = 10,
+    offset: number = 0
+  ): Promise<PaginatedResponse<TemplateInfo>> {
+    const templates = this.repository.getTemplatesByCategory(category, limit, offset);
+    const total = this.repository.getMetadataSearchCount({ category });
+    
+    return {
+      items: templates.map(this.formatTemplateInfo.bind(this)),
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    };
+  }
+  
+  /**
+   * Get templates by complexity level
+   */
+  async getTemplatesByComplexity(
+    complexity: 'simple' | 'medium' | 'complex',
+    limit: number = 10,
+    offset: number = 0
+  ): Promise<PaginatedResponse<TemplateInfo>> {
+    const templates = this.repository.getTemplatesByComplexity(complexity, limit, offset);
+    const total = this.repository.getMetadataSearchCount({ complexity });
+    
+    return {
+      items: templates.map(this.formatTemplateInfo.bind(this)),
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    };
   }
   
   /**
@@ -263,7 +377,7 @@ export class TemplateService {
    * Format stored template for API response
    */
   private formatTemplateInfo(template: StoredTemplate): TemplateInfo {
-    return {
+    const info: TemplateInfo = {
       id: template.id,
       name: template.name,
       description: template.description,
@@ -277,5 +391,16 @@ export class TemplateService {
       created: template.created_at,
       url: template.url
     };
+    
+    // Include metadata if available
+    if (template.metadata_json) {
+      try {
+        info.metadata = JSON.parse(template.metadata_json);
+      } catch (error) {
+        logger.warn(`Failed to parse metadata for template ${template.id}:`, error);
+      }
+    }
+    
+    return info;
   }
 }

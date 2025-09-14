@@ -40,7 +40,7 @@ export class BatchProcessor {
   }
   
   /**
-   * Process templates in batches
+   * Process templates in batches (parallel submission)
    */
   async processTemplates(
     templates: MetadataRequest[],
@@ -51,31 +51,112 @@ export class BatchProcessor {
     
     logger.info(`Processing ${templates.length} templates in ${batches.length} batches`);
     
+    // Submit all batches in parallel
+    console.log(`\n📤 Submitting ${batches.length} batch${batches.length > 1 ? 'es' : ''} to OpenAI...`);
+    const batchJobs: Array<{ batchNum: number; jobPromise: Promise<any>; templates: MetadataRequest[] }> = [];
+    
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
       const batchNum = i + 1;
       
       try {
-        progressCallback?.(`Processing batch ${batchNum}/${batches.length}`, i * this.batchSize, templates.length);
+        progressCallback?.(`Submitting batch ${batchNum}/${batches.length}`, i * this.batchSize, templates.length);
         
-        // Process this batch
-        const batchResults = await this.processBatch(batch, `batch_${batchNum}`);
+        // Submit batch (don't wait for completion)
+        const jobPromise = this.submitBatch(batch, `batch_${batchNum}`);
+        batchJobs.push({ batchNum, jobPromise, templates: batch });
         
-        // Merge results
-        for (const result of batchResults) {
-          results.set(result.templateId, result);
-        }
+        console.log(`   📨 Submitted batch ${batchNum}/${batches.length} (${batch.length} templates)`);
+      } catch (error) {
+        logger.error(`Error submitting batch ${batchNum}:`, error);
+        console.error(`   ❌ Failed to submit batch ${batchNum}`);
+      }
+    }
+    
+    console.log(`\n⏳ All batches submitted. Waiting for completion...`);
+    console.log(`   (Batches process in parallel - this is much faster than sequential processing)`);
+    
+    // Process all batches in parallel and collect results as they complete
+    const batchPromises = batchJobs.map(async ({ batchNum, jobPromise, templates: batchTemplates }) => {
+      try {
+        const completedJob = await jobPromise;
+        console.log(`\n📦 Retrieving results for batch ${batchNum}/${batches.length}...`);
         
-        logger.info(`Completed batch ${batchNum}/${batches.length}: ${batchResults.length} results`);
-        progressCallback?.(`Completed batch ${batchNum}/${batches.length}`, Math.min((i + 1) * this.batchSize, templates.length), templates.length);
+        // Retrieve and parse results
+        const batchResults = await this.retrieveResults(completedJob);
+        
+        logger.info(`Retrieved ${batchResults.length} results from batch ${batchNum}`);
+        progressCallback?.(`Retrieved batch ${batchNum}/${batches.length}`, 
+          Math.min(batchNum * this.batchSize, templates.length), templates.length);
+        
+        return { batchNum, results: batchResults };
       } catch (error) {
         logger.error(`Error processing batch ${batchNum}:`, error);
-        // Continue with next batch
+        console.error(`   ❌ Batch ${batchNum} failed:`, error);
+        return { batchNum, results: [] };
+      }
+    });
+    
+    // Wait for all batches to complete
+    const allBatchResults = await Promise.all(batchPromises);
+    
+    // Merge all results
+    for (const { batchNum, results: batchResults } of allBatchResults) {
+      for (const result of batchResults) {
+        results.set(result.templateId, result);
+      }
+      if (batchResults.length > 0) {
+        console.log(`   ✅ Merged ${batchResults.length} results from batch ${batchNum}`);
       }
     }
     
     logger.info(`Batch processing complete: ${results.size} results`);
     return results;
+  }
+  
+  /**
+   * Submit a batch without waiting for completion
+   */
+  private async submitBatch(templates: MetadataRequest[], batchName: string): Promise<any> {
+    // Create JSONL file
+    const inputFile = await this.createBatchFile(templates, batchName);
+    
+    try {
+      // Upload file to OpenAI
+      const uploadedFile = await this.uploadFile(inputFile);
+      
+      // Create batch job
+      const batchJob = await this.createBatchJob(uploadedFile.id);
+      
+      // Start monitoring (returns promise that resolves when complete)
+      const monitoringPromise = this.monitorBatchJob(batchJob.id);
+      
+      // Clean up input file immediately
+      try {
+        fs.unlinkSync(inputFile);
+      } catch {}
+      
+      // Store file IDs for cleanup later
+      monitoringPromise.then(async (completedJob) => {
+        // Cleanup uploaded files after completion
+        try {
+          await this.client.files.del(uploadedFile.id);
+          if (completedJob.output_file_id) {
+            // Note: We'll delete output file after retrieving results
+          }
+        } catch (error) {
+          logger.warn(`Failed to cleanup files for batch ${batchName}`, error);
+        }
+      });
+      
+      return monitoringPromise;
+    } catch (error) {
+      // Cleanup on error
+      try {
+        fs.unlinkSync(inputFile);
+      } catch {}
+      throw error;
+    }
   }
   
   /**
@@ -180,17 +261,33 @@ export class BatchProcessor {
    * Monitor batch job with exponential backoff
    */
   private async monitorBatchJob(batchId: string): Promise<any> {
-    const waitTimes = [60, 120, 300, 600, 900, 1800]; // Progressive wait times in seconds
+    // Start with shorter wait times for better UX
+    const waitTimes = [30, 60, 120, 300, 600, 900, 1800]; // Progressive wait times in seconds
     let waitIndex = 0;
     let attempts = 0;
     const maxAttempts = 100; // Safety limit
+    const startTime = Date.now();
+    let lastStatus = '';
     
     while (attempts < maxAttempts) {
       const batchJob = await this.client.batches.retrieve(batchId);
       
+      // Only log if status changed
+      if (batchJob.status !== lastStatus) {
+        const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
+        const statusSymbol = batchJob.status === 'in_progress' ? '⚙️' : 
+                            batchJob.status === 'finalizing' ? '📦' :
+                            batchJob.status === 'validating' ? '🔍' : '⏳';
+        
+        console.log(`   ${statusSymbol} Batch ${batchId.slice(-8)}: ${batchJob.status} (${elapsedMinutes} min)`);
+        lastStatus = batchJob.status;
+      }
+      
       logger.debug(`Batch ${batchId} status: ${batchJob.status} (attempt ${attempts + 1})`);
       
       if (batchJob.status === 'completed') {
+        const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
+        console.log(`   ✅ Batch ${batchId.slice(-8)} completed in ${elapsedMinutes} minutes`);
         logger.info(`Batch job ${batchId} completed successfully`);
         return batchJob;
       }
