@@ -47,7 +47,7 @@ export class TemplateService {
     
     return {
       ...this.formatTemplateInfo(template),
-      workflow: JSON.parse(template.workflow_json)
+      workflow: JSON.parse(template.workflow_json || '{}')
     };
   }
   
@@ -94,36 +94,59 @@ export class TemplateService {
   
   /**
    * Fetch and update templates from n8n.io
+   * @param mode - 'rebuild' to clear and rebuild, 'update' to add only new templates
    */
   async fetchAndUpdateTemplates(
-    progressCallback?: (message: string, current: number, total: number) => void
+    progressCallback?: (message: string, current: number, total: number) => void,
+    mode: 'rebuild' | 'update' = 'rebuild'
   ): Promise<void> {
     try {
       // Dynamically import fetcher only when needed (requires axios)
       const { TemplateFetcher } = await import('./template-fetcher');
       const fetcher = new TemplateFetcher();
       
-      // Clear existing templates
-      this.repository.clearTemplates();
+      // Get existing template IDs if in update mode
+      let existingIds: Set<number> = new Set();
+      if (mode === 'update') {
+        existingIds = this.repository.getExistingTemplateIds();
+        logger.info(`Update mode: Found ${existingIds.size} existing templates in database`);
+      } else {
+        // Clear existing templates in rebuild mode
+        this.repository.clearTemplates();
+        logger.info('Rebuild mode: Cleared existing templates');
+      }
       
       // Fetch template list
-      logger.info('Fetching template list from n8n.io');
+      logger.info(`Fetching template list from n8n.io (mode: ${mode})`);
       const templates = await fetcher.fetchTemplates((current, total) => {
         progressCallback?.('Fetching template list', current, total);
       });
       
-      logger.info(`Found ${templates.length} templates from last year`);
+      logger.info(`Found ${templates.length} templates from last 12 months`);
+      
+      // Filter to only new templates if in update mode
+      let templatesToFetch = templates;
+      if (mode === 'update') {
+        templatesToFetch = templates.filter(t => !existingIds.has(t.id));
+        logger.info(`Update mode: ${templatesToFetch.length} new templates to fetch (skipping ${templates.length - templatesToFetch.length} existing)`);
+        
+        if (templatesToFetch.length === 0) {
+          logger.info('No new templates to fetch');
+          progressCallback?.('No new templates', 0, 0);
+          return;
+        }
+      }
       
       // Fetch details for each template
-      logger.info('Fetching template details');
-      const details = await fetcher.fetchAllTemplateDetails(templates, (current, total) => {
+      logger.info(`Fetching details for ${templatesToFetch.length} templates`);
+      const details = await fetcher.fetchAllTemplateDetails(templatesToFetch, (current, total) => {
         progressCallback?.('Fetching template details', current, total);
       });
       
       // Save to database
       logger.info('Saving templates to database');
       let saved = 0;
-      for (const template of templates) {
+      for (const template of templatesToFetch) {
         const detail = details.get(template.id);
         if (detail) {
           this.repository.saveTemplate(template, detail);
@@ -134,8 +157,10 @@ export class TemplateService {
       logger.info(`Successfully saved ${saved} templates to database`);
       
       // Rebuild FTS5 index after bulk import
-      logger.info('Rebuilding FTS5 index for templates');
-      this.repository.rebuildTemplateFTS();
+      if (saved > 0) {
+        logger.info('Rebuilding FTS5 index for templates');
+        this.repository.rebuildTemplateFTS();
+      }
       
       progressCallback?.('Complete', saved, saved);
     } catch (error) {

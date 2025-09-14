@@ -4,8 +4,10 @@ import { TemplateService } from '../templates/template-service';
 import * as fs from 'fs';
 import * as path from 'path';
 
-async function fetchTemplates() {
-  console.log('🌐 Fetching n8n workflow templates...\n');
+async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild') {
+  const modeEmoji = mode === 'rebuild' ? '🔄' : '⬆️';
+  const modeText = mode === 'rebuild' ? 'Rebuilding' : 'Updating';
+  console.log(`${modeEmoji} ${modeText} n8n workflow templates...\n`);
   
   // Ensure data directory exists
   const dataDir = './data';
@@ -16,13 +18,17 @@ async function fetchTemplates() {
   // Initialize database
   const db = await createDatabaseAdapter('./data/nodes.db');
   
-  // Drop existing templates table to ensure clean schema
-  try {
-    db.exec('DROP TABLE IF EXISTS templates');
-    db.exec('DROP TABLE IF EXISTS templates_fts');
-    console.log('🗑️  Dropped existing templates tables\n');
-  } catch (error) {
-    // Ignore errors if tables don't exist
+  // Only drop tables in rebuild mode
+  if (mode === 'rebuild') {
+    try {
+      db.exec('DROP TABLE IF EXISTS templates');
+      db.exec('DROP TABLE IF EXISTS templates_fts');
+      console.log('🗑️  Dropped existing templates tables (rebuild mode)\n');
+    } catch (error) {
+      // Ignore errors if tables don't exist
+    }
+  } else {
+    console.log('📊 Update mode: Keeping existing templates\n');
   }
   
   // Apply schema with updated constraint
@@ -86,10 +92,10 @@ async function fetchTemplates() {
         process.stdout.write('\r' + ' '.repeat(lastMessage.length) + '\r');
       }
       
-      const progress = Math.round((current / total) * 100);
+      const progress = total > 0 ? Math.round((current / total) * 100) : 0;
       lastMessage = `📊 ${message}: ${current}/${total} (${progress}%)`;
       process.stdout.write(lastMessage);
-    });
+    }, mode);
     
     console.log('\n'); // New line after progress
     
@@ -119,9 +125,34 @@ async function fetchTemplates() {
   }
 }
 
+// Parse command line arguments
+function parseArgs(): 'rebuild' | 'update' {
+  const args = process.argv.slice(2);
+  
+  // Check for --mode flag
+  const modeIndex = args.findIndex(arg => arg.startsWith('--mode'));
+  if (modeIndex !== -1) {
+    const modeArg = args[modeIndex];
+    const mode = modeArg.includes('=') ? modeArg.split('=')[1] : args[modeIndex + 1];
+    
+    if (mode === 'update') {
+      return 'update';
+    }
+  }
+  
+  // Check for --update flag as shorthand
+  if (args.includes('--update')) {
+    return 'update';
+  }
+  
+  // Default to rebuild
+  return 'rebuild';
+}
+
 // Run if called directly
 if (require.main === module) {
-  fetchTemplates().catch(console.error);
+  const mode = parseArgs();
+  fetchTemplates(mode).catch(console.error);
 }
 
 export { fetchTemplates };

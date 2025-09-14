@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS templates (
   author_username TEXT,
   author_verified INTEGER DEFAULT 0,
   nodes_used TEXT, -- JSON array of node types
-  workflow_json TEXT NOT NULL, -- Complete workflow JSON
+  workflow_json TEXT, -- Complete workflow JSON (deprecated, use workflow_json_compressed)
+  workflow_json_compressed TEXT, -- Compressed workflow JSON (base64 encoded gzip)
   categories TEXT, -- JSON array of categories
   views INTEGER DEFAULT 0,
   created_at DATETIME,

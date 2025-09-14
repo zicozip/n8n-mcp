@@ -2,6 +2,7 @@ import { DatabaseAdapter } from '../database/database-adapter';
 import { TemplateWorkflow, TemplateDetail } from './template-fetcher';
 import { logger } from '../utils/logger';
 import { TemplateSanitizer } from '../utils/template-sanitizer';
+import * as zlib from 'zlib';
 
 export interface StoredTemplate {
   id: number;
@@ -12,7 +13,8 @@ export interface StoredTemplate {
   author_username: string;
   author_verified: number;
   nodes_used: string; // JSON string
-  workflow_json: string; // JSON string
+  workflow_json?: string; // JSON string (deprecated)
+  workflow_json_compressed?: string; // Base64 encoded gzip
   categories: string; // JSON string
   views: number;
   created_at: string;
@@ -105,10 +107,16 @@ export class TemplateRepository {
    * Save a template to the database
    */
   saveTemplate(workflow: TemplateWorkflow, detail: TemplateDetail, categories: string[] = []): void {
+    // Filter out templates with 10 or fewer views
+    if ((workflow.totalViews || 0) <= 10) {
+      logger.debug(`Skipping template ${workflow.id}: ${workflow.name} (only ${workflow.totalViews} views)`);
+      return;
+    }
+    
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO templates (
         id, workflow_id, name, description, author_name, author_username,
-        author_verified, nodes_used, workflow_json, categories, views,
+        author_verified, nodes_used, workflow_json_compressed, categories, views,
         created_at, updated_at, url
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -133,6 +141,17 @@ export class TemplateRepository {
       });
     }
     
+    // Compress the workflow JSON
+    const workflowJsonStr = JSON.stringify(sanitizedWorkflow);
+    const compressed = zlib.gzipSync(workflowJsonStr);
+    const compressedBase64 = compressed.toString('base64');
+    
+    // Log compression ratio
+    const originalSize = Buffer.byteLength(workflowJsonStr);
+    const compressedSize = compressed.length;
+    const ratio = Math.round((1 - compressedSize / originalSize) * 100);
+    logger.debug(`Template ${workflow.id} compression: ${originalSize} → ${compressedSize} bytes (${ratio}% reduction)`);
+    
     stmt.run(
       workflow.id,
       workflow.id,
@@ -142,7 +161,7 @@ export class TemplateRepository {
       workflow.user.username,
       workflow.user.verified ? 1 : 0,
       JSON.stringify(nodeTypes),
-      JSON.stringify(sanitizedWorkflow),
+      compressedBase64,
       JSON.stringify(categories),
       workflow.totalViews || 0,
       workflow.createdAt,
@@ -165,7 +184,8 @@ export class TemplateRepository {
     `;
     
     const params = [...nodeTypes.map(n => `%"${n}"%`), limit];
-    return this.db.prepare(query).all(...params) as StoredTemplate[];
+    const results = this.db.prepare(query).all(...params) as StoredTemplate[];
+    return results.map(t => this.decompressWorkflow(t));
   }
   
   /**
@@ -176,7 +196,37 @@ export class TemplateRepository {
       SELECT * FROM templates WHERE id = ?
     `).get(templateId) as StoredTemplate | undefined;
     
-    return row || null;
+    if (!row) return null;
+    
+    // Decompress workflow JSON if compressed
+    if (row.workflow_json_compressed && !row.workflow_json) {
+      try {
+        const compressed = Buffer.from(row.workflow_json_compressed, 'base64');
+        const decompressed = zlib.gunzipSync(compressed);
+        row.workflow_json = decompressed.toString();
+      } catch (error) {
+        logger.error(`Failed to decompress workflow for template ${templateId}:`, error);
+        return null;
+      }
+    }
+    
+    return row;
+  }
+  
+  /**
+   * Decompress workflow JSON for a template
+   */
+  private decompressWorkflow(template: StoredTemplate): StoredTemplate {
+    if (template.workflow_json_compressed && !template.workflow_json) {
+      try {
+        const compressed = Buffer.from(template.workflow_json_compressed, 'base64');
+        const decompressed = zlib.gunzipSync(compressed);
+        template.workflow_json = decompressed.toString();
+      } catch (error) {
+        logger.error(`Failed to decompress workflow for template ${template.id}:`, error);
+      }
+    }
+    return template;
   }
   
   /**
@@ -209,7 +259,7 @@ export class TemplateRepository {
       `).all(ftsQuery, limit) as StoredTemplate[];
       
       logger.debug(`FTS5 search returned ${results.length} results`);
-      return results;
+      return results.map(t => this.decompressWorkflow(t));
     } catch (error: any) {
       // If FTS5 query fails, fallback to LIKE search
       logger.warn('FTS5 template search failed, using LIKE fallback:', {
@@ -236,7 +286,7 @@ export class TemplateRepository {
     `).all(likeQuery, likeQuery, limit) as StoredTemplate[];
     
     logger.debug(`LIKE search returned ${results.length} results`);
-    return results;
+    return results.map(t => this.decompressWorkflow(t));
   }
   
   /**
@@ -269,11 +319,12 @@ export class TemplateRepository {
    * Get all templates with limit
    */
   getAllTemplates(limit: number = 10): StoredTemplate[] {
-    return this.db.prepare(`
+    const results = this.db.prepare(`
       SELECT * FROM templates 
       ORDER BY views DESC, created_at DESC
       LIMIT ?
     `).all(limit) as StoredTemplate[];
+    return results.map(t => this.decompressWorkflow(t));
   }
   
   /**
@@ -282,6 +333,41 @@ export class TemplateRepository {
   getTemplateCount(): number {
     const result = this.db.prepare('SELECT COUNT(*) as count FROM templates').get() as { count: number };
     return result.count;
+  }
+  
+  /**
+   * Get all existing template IDs for comparison
+   * Used in update mode to skip already fetched templates
+   */
+  getExistingTemplateIds(): Set<number> {
+    const rows = this.db.prepare('SELECT id FROM templates').all() as { id: number }[];
+    return new Set(rows.map(r => r.id));
+  }
+  
+  /**
+   * Check if a template exists in the database
+   */
+  hasTemplate(templateId: number): boolean {
+    const result = this.db.prepare('SELECT 1 FROM templates WHERE id = ?').get(templateId) as { 1: number } | undefined;
+    return result !== undefined;
+  }
+  
+  /**
+   * Get template metadata (id, name, updated_at) for all templates
+   * Used for comparison in update scenarios
+   */
+  getTemplateMetadata(): Map<number, { name: string; updated_at: string }> {
+    const rows = this.db.prepare('SELECT id, name, updated_at FROM templates').all() as {
+      id: number;
+      name: string;
+      updated_at: string;
+    }[];
+    
+    const metadata = new Map<number, { name: string; updated_at: string }>();
+    for (const row of rows) {
+      metadata.set(row.id, { name: row.name, updated_at: row.updated_at });
+    }
+    return metadata;
   }
   
   /**

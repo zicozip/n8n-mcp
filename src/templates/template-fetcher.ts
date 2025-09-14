@@ -39,58 +39,75 @@ export interface TemplateDetail {
 
 export class TemplateFetcher {
   private readonly baseUrl = 'https://api.n8n.io/api/templates';
-  private readonly pageSize = 100;
+  private readonly pageSize = 250; // Maximum allowed by API
   
+  /**
+   * Fetch all templates and filter to last 12 months
+   * This fetches ALL pages first, then applies date filter locally
+   */
   async fetchTemplates(progressCallback?: (current: number, total: number) => void): Promise<TemplateWorkflow[]> {
+    const allTemplates = await this.fetchAllTemplates(progressCallback);
+    
+    // Apply date filter locally after fetching all
     const oneYearAgo = new Date();
     oneYearAgo.setMonth(oneYearAgo.getMonth() - 12);
     
+    const recentTemplates = allTemplates.filter((w: TemplateWorkflow) => {
+      const createdDate = new Date(w.createdAt);
+      return createdDate >= oneYearAgo;
+    });
+    
+    logger.info(`Filtered to ${recentTemplates.length} templates from last 12 months (out of ${allTemplates.length} total)`);
+    return recentTemplates;
+  }
+  
+  /**
+   * Fetch ALL templates from the API without date filtering
+   * Used internally and can be used for other filtering strategies
+   */
+  async fetchAllTemplates(progressCallback?: (current: number, total: number) => void): Promise<TemplateWorkflow[]> {
     const allTemplates: TemplateWorkflow[] = [];
     let page = 1;
     let hasMore = true;
+    let totalWorkflows = 0;
     
-    logger.info('Starting template fetch from n8n.io API');
+    logger.info('Starting complete template fetch from n8n.io API');
     
     while (hasMore) {
       try {
         const response = await axios.get(`${this.baseUrl}/search`, {
           params: {
             page,
-            rows: this.pageSize,
-            sort_by: 'last-updated'
+            rows: this.pageSize
+            // Note: sort_by parameter doesn't work, templates come in popularity order
           }
         });
         
-        const { workflows, totalWorkflows } = response.data;
+        const { workflows } = response.data;
+        totalWorkflows = response.data.totalWorkflows || totalWorkflows;
         
-        // Filter templates by date
-        const recentTemplates = workflows.filter((w: TemplateWorkflow) => {
-          const createdDate = new Date(w.createdAt);
-          return createdDate >= oneYearAgo;
-        });
+        allTemplates.push(...workflows);
         
-        // If we hit templates older than 1 year, stop fetching
-        if (recentTemplates.length < workflows.length) {
-          hasMore = false;
-          logger.info(`Reached templates older than 1 year at page ${page}`);
-        }
-        
-        allTemplates.push(...recentTemplates);
+        // Calculate total pages for better progress reporting
+        const totalPages = Math.ceil(totalWorkflows / this.pageSize);
         
         if (progressCallback) {
-          progressCallback(allTemplates.length, Math.min(totalWorkflows, allTemplates.length + 500));
+          // Enhanced progress with page information
+          progressCallback(allTemplates.length, totalWorkflows);
         }
         
+        logger.debug(`Fetched page ${page}/${totalPages}: ${workflows.length} templates (total so far: ${allTemplates.length}/${totalWorkflows})`);
+        
         // Check if there are more pages
-        if (workflows.length < this.pageSize || allTemplates.length >= totalWorkflows) {
+        if (workflows.length < this.pageSize) {
           hasMore = false;
         }
         
         page++;
         
-        // Rate limiting - be nice to the API
+        // Rate limiting - be nice to the API (slightly faster with 250 rows/page)
         if (hasMore) {
-          await this.sleep(500); // 500ms between requests
+          await this.sleep(300); // 300ms between requests (was 500ms with 100 rows)
         }
       } catch (error) {
         logger.error(`Error fetching templates page ${page}:`, error);
@@ -98,7 +115,7 @@ export class TemplateFetcher {
       }
     }
     
-    logger.info(`Fetched ${allTemplates.length} templates from last year`);
+    logger.info(`Fetched all ${allTemplates.length} templates from n8n.io`);
     return allTemplates;
   }
   
@@ -131,8 +148,8 @@ export class TemplateFetcher {
           progressCallback(i + 1, workflows.length);
         }
         
-        // Rate limiting
-        await this.sleep(200); // 200ms between requests
+        // Rate limiting (conservative to avoid API throttling)
+        await this.sleep(150); // 150ms between requests
       } catch (error) {
         logger.error(`Failed to fetch details for workflow ${workflow.id}:`, error);
         // Continue with other templates
