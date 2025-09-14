@@ -371,8 +371,109 @@ describe('n8nDocumentationToolsFinal', () => {
       });
     });
 
+    describe('search_templates_by_metadata', () => {
+      const tool = n8nDocumentationToolsFinal.find(t => t.name === 'search_templates_by_metadata');
+
+      it('should exist in the tools array', () => {
+        expect(tool).toBeDefined();
+        expect(tool?.name).toBe('search_templates_by_metadata');
+      });
+
+      it('should have proper description', () => {
+        expect(tool?.description).toContain('Search templates by AI-generated metadata');
+        expect(tool?.description).toContain('category');
+        expect(tool?.description).toContain('complexity');
+      });
+
+      it('should have correct input schema structure', () => {
+        expect(tool?.inputSchema.type).toBe('object');
+        expect(tool?.inputSchema.properties).toBeDefined();
+        expect(tool?.inputSchema.required).toBeUndefined(); // All parameters are optional
+      });
+
+      it('should have category parameter with proper schema', () => {
+        const categoryProp = tool?.inputSchema.properties?.category;
+        expect(categoryProp).toBeDefined();
+        expect(categoryProp.type).toBe('string');
+        expect(categoryProp.description).toContain('category');
+      });
+
+      it('should have complexity parameter with enum values', () => {
+        const complexityProp = tool?.inputSchema.properties?.complexity;
+        expect(complexityProp).toBeDefined();
+        expect(complexityProp.enum).toEqual(['simple', 'medium', 'complex']);
+        expect(complexityProp.description).toContain('complexity');
+      });
+
+      it('should have time-based parameters with numeric constraints', () => {
+        const maxTimeProp = tool?.inputSchema.properties?.maxSetupMinutes;
+        const minTimeProp = tool?.inputSchema.properties?.minSetupMinutes;
+        
+        expect(maxTimeProp).toBeDefined();
+        expect(maxTimeProp.type).toBe('number');
+        expect(maxTimeProp.maximum).toBe(480);
+        expect(maxTimeProp.minimum).toBe(5);
+        
+        expect(minTimeProp).toBeDefined();
+        expect(minTimeProp.type).toBe('number');
+        expect(minTimeProp.maximum).toBe(480);
+        expect(minTimeProp.minimum).toBe(5);
+      });
+
+      it('should have service and audience parameters', () => {
+        const serviceProp = tool?.inputSchema.properties?.requiredService;
+        const audienceProp = tool?.inputSchema.properties?.targetAudience;
+        
+        expect(serviceProp).toBeDefined();
+        expect(serviceProp.type).toBe('string');
+        expect(serviceProp.description).toContain('service');
+        
+        expect(audienceProp).toBeDefined();
+        expect(audienceProp.type).toBe('string');
+        expect(audienceProp.description).toContain('audience');
+      });
+
+      it('should have pagination parameters', () => {
+        const limitProp = tool?.inputSchema.properties?.limit;
+        const offsetProp = tool?.inputSchema.properties?.offset;
+        
+        expect(limitProp).toBeDefined();
+        expect(limitProp.type).toBe('number');
+        expect(limitProp.default).toBe(20);
+        expect(limitProp.maximum).toBe(100);
+        expect(limitProp.minimum).toBe(1);
+        
+        expect(offsetProp).toBeDefined();
+        expect(offsetProp.type).toBe('number');
+        expect(offsetProp.default).toBe(0);
+        expect(offsetProp.minimum).toBe(0);
+      });
+
+      it('should include all expected properties', () => {
+        const properties = Object.keys(tool?.inputSchema.properties || {});
+        const expectedProperties = [
+          'category',
+          'complexity', 
+          'maxSetupMinutes',
+          'minSetupMinutes',
+          'requiredService',
+          'targetAudience',
+          'limit',
+          'offset'
+        ];
+        
+        expectedProperties.forEach(prop => {
+          expect(properties).toContain(prop);
+        });
+      });
+
+      it('should have appropriate additionalProperties setting', () => {
+        expect(tool?.inputSchema.additionalProperties).toBe(false);
+      });
+    });
+
     describe('Enhanced pagination support', () => {
-      const paginatedTools = ['list_node_templates', 'search_templates', 'get_templates_for_task'];
+      const paginatedTools = ['list_node_templates', 'search_templates', 'get_templates_for_task', 'search_templates_by_metadata'];
 
       paginatedTools.forEach(toolName => {
         describe(toolName, () => {

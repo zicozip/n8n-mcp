@@ -640,10 +640,13 @@ export class TemplateRepository {
     const conditions: string[] = ['metadata_json IS NOT NULL'];
     const params: any[] = [];
     
-    // Build WHERE conditions based on filters
+    // Build WHERE conditions based on filters with proper parameterization
     if (filters.category) {
-      conditions.push("json_extract(metadata_json, '$.categories') LIKE ?");
-      params.push(`%"${filters.category}"%`);
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
+      // Escape special characters and quotes for JSON string matching
+      const sanitizedCategory = JSON.stringify(filters.category).slice(1, -1);
+      params.push(sanitizedCategory);
     }
     
     if (filters.complexity) {
@@ -662,13 +665,19 @@ export class TemplateRepository {
     }
     
     if (filters.requiredService) {
-      conditions.push("json_extract(metadata_json, '$.required_services') LIKE ?");
-      params.push(`%"${filters.requiredService}"%`);
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
+      // Escape special characters and quotes for JSON string matching
+      const sanitizedService = JSON.stringify(filters.requiredService).slice(1, -1);
+      params.push(sanitizedService);
     }
     
     if (filters.targetAudience) {
-      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE ?");
-      params.push(`%"${filters.targetAudience}"%`);
+      // Use parameterized LIKE with JSON array search - safe from injection  
+      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
+      // Escape special characters and quotes for JSON string matching
+      const sanitizedAudience = JSON.stringify(filters.targetAudience).slice(1, -1);
+      params.push(sanitizedAudience);
     }
     
     const query = `
@@ -700,8 +709,10 @@ export class TemplateRepository {
     const params: any[] = [];
     
     if (filters.category) {
-      conditions.push("json_extract(metadata_json, '$.categories') LIKE ?");
-      params.push(`%"${filters.category}"%`);
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
+      const sanitizedCategory = JSON.stringify(filters.category).slice(1, -1);
+      params.push(sanitizedCategory);
     }
     
     if (filters.complexity) {
@@ -720,13 +731,17 @@ export class TemplateRepository {
     }
     
     if (filters.requiredService) {
-      conditions.push("json_extract(metadata_json, '$.required_services') LIKE ?");
-      params.push(`%"${filters.requiredService}"%`);
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
+      const sanitizedService = JSON.stringify(filters.requiredService).slice(1, -1);
+      params.push(sanitizedService);
     }
     
     if (filters.targetAudience) {
-      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE ?");
-      params.push(`%"${filters.targetAudience}"%`);
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
+      const sanitizedAudience = JSON.stringify(filters.targetAudience).slice(1, -1);
+      params.push(sanitizedAudience);
     }
     
     const query = `SELECT COUNT(*) as count FROM templates WHERE ${conditions.join(' AND ')}`;

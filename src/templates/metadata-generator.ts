@@ -111,10 +111,15 @@ export class MetadataGenerator {
     // Extract node information for analysis
     const nodesSummary = this.summarizeNodes(template.nodes);
     
-    // Build context for the AI
+    // Sanitize template name and description to prevent prompt injection
+    const sanitizedName = this.sanitizeInput(template.name, 200);
+    const sanitizedDescription = template.description ? 
+      this.sanitizeInput(template.description, 500) : '';
+    
+    // Build context for the AI with sanitized inputs
     const context = [
-      `Template: ${template.name}`,
-      template.description ? `Description: ${template.description}` : '',
+      `Template: ${sanitizedName}`,
+      sanitizedDescription ? `Description: ${sanitizedDescription}` : '',
       `Nodes Used (${template.nodes.length}): ${nodesSummary}`,
       template.workflow ? `Workflow has ${template.workflow.nodes?.length || 0} nodes with ${Object.keys(template.workflow.connections || {}).length} connections` : ''
     ].filter(Boolean).join('\n');
@@ -125,7 +130,7 @@ export class MetadataGenerator {
       url: '/v1/chat/completions',
       body: {
         model: this.model,
-        temperature: 1,
+        temperature: 0.3,  // Lower temperature for more consistent structured outputs
         max_completion_tokens: 1000,
         response_format: {
           type: 'json_schema',
@@ -143,6 +148,27 @@ export class MetadataGenerator {
         ]
       }
     };
+  }
+  
+  /**
+   * Sanitize input to prevent prompt injection and control token usage
+   */
+  private sanitizeInput(input: string, maxLength: number): string {
+    // Truncate to max length
+    let sanitized = input.slice(0, maxLength);
+    
+    // Remove control characters and excessive whitespace
+    sanitized = sanitized.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+    
+    // Replace multiple spaces/newlines with single space
+    sanitized = sanitized.replace(/\s+/g, ' ').trim();
+    
+    // Remove potential prompt injection patterns
+    sanitized = sanitized.replace(/\b(system|assistant|user|human|ai):/gi, '');
+    sanitized = sanitized.replace(/```[\s\S]*?```/g, ''); // Remove code blocks
+    sanitized = sanitized.replace(/\[INST\]|\[\/INST\]/g, ''); // Remove instruction markers
+    
+    return sanitized;
   }
   
   /**
@@ -243,7 +269,7 @@ export class MetadataGenerator {
     try {
       const completion = await this.client.chat.completions.create({
         model: this.model,
-        temperature: 1,
+        temperature: 0.3,  // Lower temperature for more consistent structured outputs
         max_completion_tokens: 1000,
         response_format: {
           type: 'json_schema',

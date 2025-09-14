@@ -56,7 +56,9 @@ describe('TemplateService', () => {
     created_at: overrides.created_at || '2024-01-01T00:00:00Z',
     updated_at: overrides.updated_at || '2024-01-01T00:00:00Z',
     url: overrides.url || `https://n8n.io/workflows/${id}`,
-    scraped_at: '2024-01-01T00:00:00Z'
+    scraped_at: '2024-01-01T00:00:00Z',
+    metadata_json: overrides.metadata_json || null,
+    metadata_generated_at: overrides.metadata_generated_at || null
   });
 
   beforeEach(() => {
@@ -79,7 +81,9 @@ describe('TemplateService', () => {
       getExistingTemplateIds: vi.fn(),
       clearTemplates: vi.fn(),
       saveTemplate: vi.fn(),
-      rebuildTemplateFTS: vi.fn()
+      rebuildTemplateFTS: vi.fn(),
+      searchTemplatesByMetadata: vi.fn(),
+      getSearchTemplatesByMetadataCount: vi.fn()
     } as any;
 
     // Mock the constructor
@@ -517,6 +521,114 @@ describe('TemplateService', () => {
       }));
 
       await expect(service.fetchAndUpdateTemplates()).rejects.toThrow('Fetch failed');
+    });
+  });
+
+  describe('searchTemplatesByMetadata', () => {
+    it('should return paginated metadata search results', async () => {
+      const mockTemplates = [
+        createMockTemplate(1, { 
+          name: 'AI Workflow',
+          metadata_json: JSON.stringify({
+            categories: ['ai', 'automation'],
+            complexity: 'complex',
+            estimated_setup_minutes: 60
+          })
+        }),
+        createMockTemplate(2, { 
+          name: 'Simple Webhook',
+          metadata_json: JSON.stringify({
+            categories: ['automation'],
+            complexity: 'simple',
+            estimated_setup_minutes: 15
+          })
+        })
+      ];
+
+      mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue(mockTemplates);
+      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(12);
+
+      const result = await service.searchTemplatesByMetadata({
+        complexity: 'simple',
+        maxSetupMinutes: 30
+      }, 10, 5);
+
+      expect(result).toEqual({
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            id: 1,
+            name: 'AI Workflow',
+            metadata: {
+              categories: ['ai', 'automation'],
+              complexity: 'complex',
+              estimated_setup_minutes: 60
+            }
+          }),
+          expect.objectContaining({
+            id: 2,
+            name: 'Simple Webhook',
+            metadata: {
+              categories: ['automation'],
+              complexity: 'simple',
+              estimated_setup_minutes: 15
+            }
+          })
+        ]),
+        total: 12,
+        limit: 10,
+        offset: 5,
+        hasMore: false // 5 + 10 >= 12
+      });
+
+      expect(mockRepository.searchTemplatesByMetadata).toHaveBeenCalledWith({
+        complexity: 'simple',
+        maxSetupMinutes: 30
+      }, 10, 5);
+      expect(mockRepository.getSearchTemplatesByMetadataCount).toHaveBeenCalledWith({
+        complexity: 'simple',
+        maxSetupMinutes: 30
+      });
+    });
+
+    it('should use default pagination parameters', async () => {
+      mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue([]);
+      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(0);
+
+      await service.searchTemplatesByMetadata({ category: 'test' });
+
+      expect(mockRepository.searchTemplatesByMetadata).toHaveBeenCalledWith({ category: 'test' }, 20, 0);
+    });
+
+    it('should handle templates without metadata gracefully', async () => {
+      const templatesWithoutMetadata = [
+        createMockTemplate(1, { metadata_json: null }),
+        createMockTemplate(2, { metadata_json: undefined }),
+        createMockTemplate(3, { metadata_json: 'invalid json' })
+      ];
+
+      mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue(templatesWithoutMetadata);
+      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(3);
+
+      const result = await service.searchTemplatesByMetadata({ category: 'test' });
+
+      expect(result.items).toHaveLength(3);
+      result.items.forEach(item => {
+        expect(item.metadata).toBeNull();
+      });
+    });
+
+    it('should handle malformed metadata JSON', async () => {
+      const templateWithBadMetadata = createMockTemplate(1, { 
+        metadata_json: '{"invalid": json syntax}'
+      });
+
+      mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue([templateWithBadMetadata]);
+      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(1);
+
+      const result = await service.searchTemplatesByMetadata({ category: 'test' });
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].metadata).toBeNull();
     });
   });
 
