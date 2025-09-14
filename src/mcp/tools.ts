@@ -519,6 +519,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
           minimum: 0,
         },
       },
+      additionalProperties: false,
     },
   },
   {

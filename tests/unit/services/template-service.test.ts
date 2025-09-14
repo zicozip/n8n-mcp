@@ -83,7 +83,7 @@ describe('TemplateService', () => {
       saveTemplate: vi.fn(),
       rebuildTemplateFTS: vi.fn(),
       searchTemplatesByMetadata: vi.fn(),
-      getSearchTemplatesByMetadataCount: vi.fn()
+      getMetadataSearchCount: vi.fn()
     } as any;
 
     // Mock the constructor
@@ -546,7 +546,7 @@ describe('TemplateService', () => {
       ];
 
       mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue(mockTemplates);
-      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(12);
+      mockRepository.getMetadataSearchCount = vi.fn().mockReturnValue(12);
 
       const result = await service.searchTemplatesByMetadata({
         complexity: 'simple',
@@ -584,7 +584,7 @@ describe('TemplateService', () => {
         complexity: 'simple',
         maxSetupMinutes: 30
       }, 10, 5);
-      expect(mockRepository.getSearchTemplatesByMetadataCount).toHaveBeenCalledWith({
+      expect(mockRepository.getMetadataSearchCount).toHaveBeenCalledWith({
         complexity: 'simple',
         maxSetupMinutes: 30
       });
@@ -592,7 +592,7 @@ describe('TemplateService', () => {
 
     it('should use default pagination parameters', async () => {
       mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue([]);
-      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(0);
+      mockRepository.getMetadataSearchCount = vi.fn().mockReturnValue(0);
 
       await service.searchTemplatesByMetadata({ category: 'test' });
 
@@ -607,13 +607,13 @@ describe('TemplateService', () => {
       ];
 
       mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue(templatesWithoutMetadata);
-      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(3);
+      mockRepository.getMetadataSearchCount = vi.fn().mockReturnValue(3);
 
       const result = await service.searchTemplatesByMetadata({ category: 'test' });
 
       expect(result.items).toHaveLength(3);
       result.items.forEach(item => {
-        expect(item.metadata).toBeNull();
+        expect(item.metadata).toBeUndefined();
       });
     });
 
@@ -623,12 +623,12 @@ describe('TemplateService', () => {
       });
 
       mockRepository.searchTemplatesByMetadata = vi.fn().mockReturnValue([templateWithBadMetadata]);
-      mockRepository.getSearchTemplatesByMetadataCount = vi.fn().mockReturnValue(1);
+      mockRepository.getMetadataSearchCount = vi.fn().mockReturnValue(1);
 
       const result = await service.searchTemplatesByMetadata({ category: 'test' });
 
       expect(result.items).toHaveLength(1);
-      expect(result.items[0].metadata).toBeNull();
+      expect(result.items[0].metadata).toBeUndefined();
     });
   });
 

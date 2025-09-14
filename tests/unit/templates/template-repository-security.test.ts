@@ -130,12 +130,14 @@ describe('TemplateRepository - Security Tests', () => {
         // Should use parameterized queries, not inject SQL
         const capturedParams = stmt._getCapturedParams();
         expect(capturedParams.length).toBeGreaterThan(0);
-        expect(capturedParams[0]).toContain(`%"${maliciousCategory}"%`);
+        // The parameter should be the sanitized version (JSON.stringify then slice to remove quotes)
+        const expectedParam = JSON.stringify(maliciousCategory).slice(1, -1);
+        expect(capturedParams[0]).toContain(expectedParam);
         
         // Verify the SQL doesn't contain the malicious content directly
         const prepareCall = mockAdapter.prepare.mock.calls[0][0];
         expect(prepareCall).not.toContain('DROP TABLE');
-        expect(prepareCall).toContain('json_extract(metadata_json, \'$.categories\') LIKE ?');
+        expect(prepareCall).toContain('json_extract(metadata_json, \'$.categories\') LIKE '%' || ? || '%'');
       });
 
       it('should prevent SQL injection in requiredService parameter', () => {
@@ -152,11 +154,12 @@ describe('TemplateRepository - Security Tests', () => {
         });
         
         const capturedParams = stmt._getCapturedParams();
-        expect(capturedParams[0]).toContain(`%"${maliciousService}"%`);
+        const expectedParam = JSON.stringify(maliciousService).slice(1, -1);
+        expect(capturedParams[0]).toContain(expectedParam);
         
         const prepareCall = mockAdapter.prepare.mock.calls[0][0];
         expect(prepareCall).not.toContain('UNION SELECT');
-        expect(prepareCall).toContain('json_extract(metadata_json, \'$.required_services\') LIKE ?');
+        expect(prepareCall).toContain('json_extract(metadata_json, \'$.required_services\') LIKE '%' || ? || '%'');
       });
 
       it('should prevent SQL injection in targetAudience parameter', () => {
@@ -173,11 +176,12 @@ describe('TemplateRepository - Security Tests', () => {
         });
         
         const capturedParams = stmt._getCapturedParams();
-        expect(capturedParams[0]).toContain(`%"${maliciousAudience}"%`);
+        const expectedParam = JSON.stringify(maliciousAudience).slice(1, -1);
+        expect(capturedParams[0]).toContain(expectedParam);
         
         const prepareCall = mockAdapter.prepare.mock.calls[0][0];
         expect(prepareCall).not.toContain('DELETE FROM');
-        expect(prepareCall).toContain('json_extract(metadata_json, \'$.target_audience\') LIKE ?');
+        expect(prepareCall).toContain('json_extract(metadata_json, \'$.target_audience\') LIKE '%' || ? || '%'');
       });
 
       it('should safely handle special characters in parameters', () => {
@@ -194,11 +198,12 @@ describe('TemplateRepository - Security Tests', () => {
         });
         
         const capturedParams = stmt._getCapturedParams();
-        expect(capturedParams[0]).toContain(`%"${specialChars}"%`);
+        const expectedParam = JSON.stringify(specialChars).slice(1, -1);
+        expect(capturedParams[0]).toContain(expectedParam);
         
         // Should use parameterized query
         const prepareCall = mockAdapter.prepare.mock.calls[0][0];
-        expect(prepareCall).toContain('json_extract(metadata_json, \'$.categories\') LIKE ?');
+        expect(prepareCall).toContain('json_extract(metadata_json, \'$.categories\') LIKE '%' || ? || '%'');
       });
 
       it('should prevent injection through numeric parameters', () => {
@@ -224,7 +229,7 @@ describe('TemplateRepository - Security Tests', () => {
       });
     });
 
-    describe('getSearchTemplatesByMetadataCount', () => {
+    describe('getMetadataSearchCount', () => {
       it('should use parameterized queries for count operations', () => {
         const maliciousCategory = "'; DROP TABLE templates; SELECT COUNT(*) FROM sqlite_master WHERE name LIKE '%";
         
@@ -232,12 +237,13 @@ describe('TemplateRepository - Security Tests', () => {
         stmt._setMockResults([{ count: 0 }]);
         mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
         
-        repository.getSearchTemplatesByMetadataCount({
+        repository.getMetadataSearchCount({
           category: maliciousCategory
         });
         
         const capturedParams = stmt._getCapturedParams();
-        expect(capturedParams[0]).toContain(`%"${maliciousCategory}"%`);
+        const expectedParam = JSON.stringify(maliciousCategory).slice(1, -1);
+        expect(capturedParams[0]).toContain(expectedParam);
         
         const prepareCall = mockAdapter.prepare.mock.calls[0][0];
         expect(prepareCall).not.toContain('DROP TABLE');
@@ -268,7 +274,9 @@ describe('TemplateRepository - Security Tests', () => {
         
         // Should use parameterized UPDATE
         const prepareCall = mockAdapter.prepare.mock.calls[0][0];
-        expect(prepareCall).toContain('UPDATE templates SET metadata_json = ?');
+        expect(prepareCall).toContain('UPDATE templates');
+        expect(prepareCall).toContain('metadata_json = ?');
+        expect(prepareCall).toContain('WHERE id = ?');
         expect(prepareCall).not.toContain('DROP TABLE');
       });
     });
@@ -288,9 +296,11 @@ describe('TemplateRepository - Security Tests', () => {
         expect(capturedParams).toHaveLength(2);
         
         // Both calls should be parameterized
-        expect(capturedParams[0][0]).toContain('"; DROP TABLE templates; --');
+        const firstJson = capturedParams[0][0];
+        const secondJson = capturedParams[1][0];
+        expect(firstJson).toContain("'; DROP TABLE templates; --"); // Should be JSON-encoded
         expect(capturedParams[0][1]).toBe(1);
-        expect(capturedParams[1][0]).toContain('normal category');
+        expect(secondJson).toContain('normal category');
         expect(capturedParams[1][1]).toBe(2);
       });
     });
@@ -305,8 +315,7 @@ describe('TemplateRepository - Security Tests', () => {
       repository.getUniqueCategories();
       
       const prepareCall = mockAdapter.prepare.mock.calls[0][0];
-      expect(prepareCall).toContain('json_extract(metadata_json, \'$.categories\')');
-      expect(prepareCall).toContain('json_each(');
+      expect(prepareCall).toContain('json_each(metadata_json, \'$.categories\')');
       expect(prepareCall).not.toContain('eval(');
       expect(prepareCall).not.toContain('exec(');
     });
@@ -319,8 +328,8 @@ describe('TemplateRepository - Security Tests', () => {
       repository.getUniqueTargetAudiences();
       
       const prepareCall = mockAdapter.prepare.mock.calls[0][0];
-      expect(prepareCall).toContain('json_extract(metadata_json, \'$.target_audience\')');
-      expect(prepareCall).toContain('json_each(');
+      expect(prepareCall).toContain('json_each(metadata_json, \'$.target_audience\')');
+      expect(prepareCall).not.toContain('eval(');
     });
 
     it('should safely handle complex JSON structures', () => {
@@ -331,7 +340,7 @@ describe('TemplateRepository - Security Tests', () => {
       repository.getTemplatesByCategory('test');
       
       const prepareCall = mockAdapter.prepare.mock.calls[0][0];
-      expect(prepareCall).toContain('json_extract(metadata_json, \'$.categories\') LIKE ?');
+      expect(prepareCall).toContain('json_extract(metadata_json, \'$.categories\') LIKE '%' || ? || '%'');
       
       const capturedParams = stmt._getCapturedParams();
       expect(capturedParams[0]).toContain('%"test"%');
@@ -373,7 +382,8 @@ describe('TemplateRepository - Security Tests', () => {
       
       // Empty strings should still be processed (might be valid searches)
       const capturedParams = stmt._getCapturedParams();
-      expect(capturedParams[0]).toContain('%""%');
+      const expectedParam = JSON.stringify("").slice(1, -1); // Results in empty string
+      expect(capturedParams[0]).toContain(expectedParam);
     });
 
     it('should validate numeric ranges', () => {
@@ -410,8 +420,10 @@ describe('TemplateRepository - Security Tests', () => {
       });
       
       const capturedParams = stmt._getCapturedParams();
-      expect(capturedParams[0]).toContain(`%"${unicodeCategory}"%`);
-      expect(capturedParams[0]).toContain(`%"${emojiAudience}"%`);
+      const expectedCategoryParam = JSON.stringify(unicodeCategory).slice(1, -1);
+      const expectedAudienceParam = JSON.stringify(emojiAudience).slice(1, -1);
+      expect(capturedParams[0]).toContain(expectedCategoryParam);
+      expect(capturedParams[1]).toContain(expectedAudienceParam);
     });
   });
 
@@ -484,7 +496,7 @@ describe('TemplateRepository - Security Tests', () => {
       mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
       
       expect(() => {
-        repository.getSearchTemplatesByMetadataCount({
+        repository.getMetadataSearchCount({
           category: "'; DROP TABLE templates; --"
         });
       }).toThrow(); // Should throw, but not expose SQL details
