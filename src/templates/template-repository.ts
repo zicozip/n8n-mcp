@@ -173,17 +173,17 @@ export class TemplateRepository {
   /**
    * Get templates that use specific node types
    */
-  getTemplatesByNodes(nodeTypes: string[], limit: number = 10): StoredTemplate[] {
+  getTemplatesByNodes(nodeTypes: string[], limit: number = 10, offset: number = 0): StoredTemplate[] {
     // Build query for multiple node types
     const conditions = nodeTypes.map(() => "nodes_used LIKE ?").join(" OR ");
     const query = `
       SELECT * FROM templates 
       WHERE ${conditions}
       ORDER BY views DESC, created_at DESC
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `;
     
-    const params = [...nodeTypes.map(n => `%"${n}"%`), limit];
+    const params = [...nodeTypes.map(n => `%"${n}"%`), limit, offset];
     const results = this.db.prepare(query).all(...params) as StoredTemplate[];
     return results.map(t => this.decompressWorkflow(t));
   }
@@ -232,13 +232,13 @@ export class TemplateRepository {
   /**
    * Search templates by name or description
    */
-  searchTemplates(query: string, limit: number = 20): StoredTemplate[] {
+  searchTemplates(query: string, limit: number = 20, offset: number = 0): StoredTemplate[] {
     logger.debug(`Searching templates for: "${query}" (FTS5: ${this.hasFTS5Support})`);
     
     // If FTS5 is not supported, go straight to LIKE search
     if (!this.hasFTS5Support) {
       logger.debug('Using LIKE search (FTS5 not available)');
-      return this.searchTemplatesLIKE(query, limit);
+      return this.searchTemplatesLIKE(query, limit, offset);
     }
     
     try {
@@ -255,8 +255,8 @@ export class TemplateRepository {
         JOIN templates_fts ON t.id = templates_fts.rowid
         WHERE templates_fts MATCH ?
         ORDER BY rank, t.views DESC
-        LIMIT ?
-      `).all(ftsQuery, limit) as StoredTemplate[];
+        LIMIT ? OFFSET ?
+      `).all(ftsQuery, limit, offset) as StoredTemplate[];
       
       logger.debug(`FTS5 search returned ${results.length} results`);
       return results.map(t => this.decompressWorkflow(t));
@@ -267,14 +267,14 @@ export class TemplateRepository {
         query: query,
         ftsQuery: query.split(' ').map(term => `"${term}"`).join(' OR ')
       });
-      return this.searchTemplatesLIKE(query, limit);
+      return this.searchTemplatesLIKE(query, limit, offset);
     }
   }
   
   /**
    * Fallback search using LIKE when FTS5 is not available
    */
-  private searchTemplatesLIKE(query: string, limit: number = 20): StoredTemplate[] {
+  private searchTemplatesLIKE(query: string, limit: number = 20, offset: number = 0): StoredTemplate[] {
     const likeQuery = `%${query}%`;
     logger.debug(`Using LIKE search with pattern: ${likeQuery}`);
     
@@ -282,8 +282,8 @@ export class TemplateRepository {
       SELECT * FROM templates 
       WHERE name LIKE ? OR description LIKE ?
       ORDER BY views DESC, created_at DESC
-      LIMIT ?
-    `).all(likeQuery, likeQuery, limit) as StoredTemplate[];
+      LIMIT ? OFFSET ?
+    `).all(likeQuery, likeQuery, limit, offset) as StoredTemplate[];
     
     logger.debug(`LIKE search returned ${results.length} results`);
     return results.map(t => this.decompressWorkflow(t));
@@ -292,7 +292,7 @@ export class TemplateRepository {
   /**
    * Get templates for a specific task/use case
    */
-  getTemplatesForTask(task: string): StoredTemplate[] {
+  getTemplatesForTask(task: string, limit: number = 10, offset: number = 0): StoredTemplate[] {
     // Map tasks to relevant node combinations
     const taskNodeMap: Record<string, string[]> = {
       'ai_automation': ['@n8n/n8n-nodes-langchain.openAi', '@n8n/n8n-nodes-langchain.agent', 'n8n-nodes-base.openAi'],
@@ -312,18 +312,21 @@ export class TemplateRepository {
       return [];
     }
     
-    return this.getTemplatesByNodes(nodes, 10);
+    return this.getTemplatesByNodes(nodes, limit, offset);
   }
   
   /**
    * Get all templates with limit
    */
-  getAllTemplates(limit: number = 10): StoredTemplate[] {
+  getAllTemplates(limit: number = 10, offset: number = 0, sortBy: 'views' | 'created_at' | 'name' = 'views'): StoredTemplate[] {
+    const orderClause = sortBy === 'name' ? 'name ASC' : 
+                        sortBy === 'created_at' ? 'created_at DESC' : 
+                        'views DESC, created_at DESC';
     const results = this.db.prepare(`
       SELECT * FROM templates 
-      ORDER BY views DESC, created_at DESC
-      LIMIT ?
-    `).all(limit) as StoredTemplate[];
+      ORDER BY ${orderClause}
+      LIMIT ? OFFSET ?
+    `).all(limit, offset) as StoredTemplate[];
     return results.map(t => this.decompressWorkflow(t));
   }
   
@@ -333,6 +336,77 @@ export class TemplateRepository {
   getTemplateCount(): number {
     const result = this.db.prepare('SELECT COUNT(*) as count FROM templates').get() as { count: number };
     return result.count;
+  }
+  
+  /**
+   * Get count for search results
+   */
+  getSearchCount(query: string): number {
+    if (!this.hasFTS5Support) {
+      const likeQuery = `%${query}%`;
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count FROM templates 
+        WHERE name LIKE ? OR description LIKE ?
+      `).get(likeQuery, likeQuery) as { count: number };
+      return result.count;
+    }
+    
+    try {
+      const ftsQuery = query.split(' ').map(term => {
+        const escaped = term.replace(/"/g, '""');
+        return `"${escaped}"`;
+      }).join(' OR ');
+      
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count FROM templates t
+        JOIN templates_fts ON t.id = templates_fts.rowid
+        WHERE templates_fts MATCH ?
+      `).get(ftsQuery) as { count: number };
+      return result.count;
+    } catch {
+      const likeQuery = `%${query}%`;
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count FROM templates 
+        WHERE name LIKE ? OR description LIKE ?
+      `).get(likeQuery, likeQuery) as { count: number };
+      return result.count;
+    }
+  }
+  
+  /**
+   * Get count for node templates
+   */
+  getNodeTemplatesCount(nodeTypes: string[]): number {
+    const conditions = nodeTypes.map(() => "nodes_used LIKE ?").join(" OR ");
+    const query = `SELECT COUNT(*) as count FROM templates WHERE ${conditions}`;
+    const params = nodeTypes.map(n => `%"${n}"%`);
+    const result = this.db.prepare(query).get(...params) as { count: number };
+    return result.count;
+  }
+  
+  /**
+   * Get count for task templates
+   */
+  getTaskTemplatesCount(task: string): number {
+    const taskNodeMap: Record<string, string[]> = {
+      'ai_automation': ['@n8n/n8n-nodes-langchain.openAi', '@n8n/n8n-nodes-langchain.agent', 'n8n-nodes-base.openAi'],
+      'data_sync': ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.postgres', 'n8n-nodes-base.mysql'],
+      'webhook_processing': ['n8n-nodes-base.webhook', 'n8n-nodes-base.httpRequest'],
+      'email_automation': ['n8n-nodes-base.gmail', 'n8n-nodes-base.emailSend', 'n8n-nodes-base.emailReadImap'],
+      'slack_integration': ['n8n-nodes-base.slack', 'n8n-nodes-base.slackTrigger'],
+      'data_transformation': ['n8n-nodes-base.code', 'n8n-nodes-base.set', 'n8n-nodes-base.merge'],
+      'file_processing': ['n8n-nodes-base.readBinaryFile', 'n8n-nodes-base.writeBinaryFile', 'n8n-nodes-base.googleDrive'],
+      'scheduling': ['n8n-nodes-base.scheduleTrigger', 'n8n-nodes-base.cron'],
+      'api_integration': ['n8n-nodes-base.httpRequest', 'n8n-nodes-base.graphql'],
+      'database_operations': ['n8n-nodes-base.postgres', 'n8n-nodes-base.mysql', 'n8n-nodes-base.mongodb']
+    };
+    
+    const nodes = taskNodeMap[task];
+    if (!nodes) {
+      return 0;
+    }
+    
+    return this.getNodeTemplatesCount(nodes);
   }
   
   /**

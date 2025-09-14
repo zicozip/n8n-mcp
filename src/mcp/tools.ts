@@ -324,8 +324,36 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
     },
   },
   {
+    name: 'list_templates',
+    description: `List all templates with minimal data (id, name, views, node count). Use for browsing available templates.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Number of results (1-100). Default 10.',
+          default: 10,
+          minimum: 1,
+          maximum: 100,
+        },
+        offset: {
+          type: 'number',
+          description: 'Pagination offset. Default 0.',
+          default: 0,
+          minimum: 0,
+        },
+        sortBy: {
+          type: 'string',
+          enum: ['views', 'created_at', 'name'],
+          description: 'Sort field. Default: views (popularity).',
+          default: 'views',
+        },
+      },
+    },
+  },
+  {
     name: 'list_node_templates',
-    description: `Find templates using specific nodes. 399 community workflows. Use FULL types: "n8n-nodes-base.httpRequest".`,
+    description: `Find templates using specific nodes. Returns paginated results. Use FULL types: "n8n-nodes-base.httpRequest".`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -338,6 +366,14 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
           type: 'number',
           description: 'Maximum number of templates to return. Default 10.',
           default: 10,
+          minimum: 1,
+          maximum: 100,
+        },
+        offset: {
+          type: 'number',
+          description: 'Pagination offset. Default 0.',
+          default: 0,
+          minimum: 0,
         },
       },
       required: ['nodeTypes'],
@@ -345,7 +381,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_template',
-    description: `Get complete workflow JSON by ID. Ready to import. IDs from list_node_templates or search_templates.`,
+    description: `Get template by ID. Use mode to control response size: nodes_only (minimal), structure (nodes+connections), full (complete workflow).`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -353,13 +389,19 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
           type: 'number',
           description: 'The template ID to retrieve',
         },
+        mode: {
+          type: 'string',
+          enum: ['nodes_only', 'structure', 'full'],
+          description: 'Response detail level. nodes_only: just node list, structure: nodes+connections, full: complete workflow JSON.',
+          default: 'full',
+        },
       },
       required: ['templateId'],
     },
   },
   {
     name: 'search_templates',
-    description: `Search templates by name/description keywords. NOT for node types! For nodes use list_node_templates. Example: "chatbot".`,
+    description: `Search templates by name/description keywords. Returns paginated results. NOT for node types! For nodes use list_node_templates.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -371,6 +413,14 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
           type: 'number',
           description: 'Maximum number of results. Default 20.',
           default: 20,
+          minimum: 1,
+          maximum: 100,
+        },
+        offset: {
+          type: 'number',
+          description: 'Pagination offset. Default 0.',
+          default: 0,
+          minimum: 0,
         },
       },
       required: ['query'],
@@ -378,7 +428,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_templates_for_task',
-    description: `Curated templates by task: ai_automation, data_sync, webhooks, email, slack, data_transform, files, scheduling, api, database.`,
+    description: `Curated templates by task. Returns paginated results sorted by popularity.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -397,6 +447,19 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
             'database_operations'
           ],
           description: 'The type of task to get templates for',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of results. Default 10.',
+          default: 10,
+          minimum: 1,
+          maximum: 100,
+        },
+        offset: {
+          type: 'number',
+          description: 'Pagination offset. Default 0.',
+          default: 0,
+          minimum: 0,
         },
       },
       required: ['task'],

@@ -21,6 +21,21 @@ export interface TemplateWithWorkflow extends TemplateInfo {
   workflow: any;
 }
 
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface TemplateMinimal {
+  id: number;
+  name: string;
+  views: number;
+  nodeCount: number;
+}
+
 export class TemplateService {
   private repository: TemplateRepository;
   
@@ -31,40 +46,115 @@ export class TemplateService {
   /**
    * List templates that use specific node types
    */
-  async listNodeTemplates(nodeTypes: string[], limit: number = 10): Promise<TemplateInfo[]> {
-    const templates = this.repository.getTemplatesByNodes(nodeTypes, limit);
-    return templates.map(this.formatTemplateInfo);
+  async listNodeTemplates(nodeTypes: string[], limit: number = 10, offset: number = 0): Promise<PaginatedResponse<TemplateInfo>> {
+    const templates = this.repository.getTemplatesByNodes(nodeTypes, limit, offset);
+    const total = this.repository.getNodeTemplatesCount(nodeTypes);
+    
+    return {
+      items: templates.map(this.formatTemplateInfo),
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    };
   }
   
   /**
-   * Get a specific template with full workflow
+   * Get a specific template with different detail levels
    */
-  async getTemplate(templateId: number): Promise<TemplateWithWorkflow | null> {
+  async getTemplate(templateId: number, mode: 'nodes_only' | 'structure' | 'full' = 'full'): Promise<any> {
     const template = this.repository.getTemplate(templateId);
     if (!template) {
       return null;
     }
     
+    const workflow = JSON.parse(template.workflow_json || '{}');
+    
+    if (mode === 'nodes_only') {
+      return {
+        id: template.id,
+        name: template.name,
+        nodes: workflow.nodes?.map((n: any) => ({
+          type: n.type,
+          name: n.name
+        })) || []
+      };
+    }
+    
+    if (mode === 'structure') {
+      return {
+        id: template.id,
+        name: template.name,
+        nodes: workflow.nodes?.map((n: any) => ({
+          id: n.id,
+          type: n.type,
+          name: n.name,
+          position: n.position
+        })) || [],
+        connections: workflow.connections || {}
+      };
+    }
+    
+    // Full mode
     return {
       ...this.formatTemplateInfo(template),
-      workflow: JSON.parse(template.workflow_json || '{}')
+      workflow
     };
   }
   
   /**
    * Search templates by query
    */
-  async searchTemplates(query: string, limit: number = 20): Promise<TemplateInfo[]> {
-    const templates = this.repository.searchTemplates(query, limit);
-    return templates.map(this.formatTemplateInfo);
+  async searchTemplates(query: string, limit: number = 20, offset: number = 0): Promise<PaginatedResponse<TemplateInfo>> {
+    const templates = this.repository.searchTemplates(query, limit, offset);
+    const total = this.repository.getSearchCount(query);
+    
+    return {
+      items: templates.map(this.formatTemplateInfo),
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    };
   }
   
   /**
    * Get templates for a specific task
    */
-  async getTemplatesForTask(task: string): Promise<TemplateInfo[]> {
-    const templates = this.repository.getTemplatesForTask(task);
-    return templates.map(this.formatTemplateInfo);
+  async getTemplatesForTask(task: string, limit: number = 10, offset: number = 0): Promise<PaginatedResponse<TemplateInfo>> {
+    const templates = this.repository.getTemplatesForTask(task, limit, offset);
+    const total = this.repository.getTaskTemplatesCount(task);
+    
+    return {
+      items: templates.map(this.formatTemplateInfo),
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    };
+  }
+  
+  /**
+   * List all templates with minimal data
+   */
+  async listTemplates(limit: number = 10, offset: number = 0, sortBy: 'views' | 'created_at' | 'name' = 'views'): Promise<PaginatedResponse<TemplateMinimal>> {
+    const templates = this.repository.getAllTemplates(limit, offset, sortBy);
+    const total = this.repository.getTemplateCount();
+    
+    const items = templates.map(t => ({
+      id: t.id,
+      name: t.name,
+      views: t.views,
+      nodeCount: JSON.parse(t.nodes_used).length
+    }));
+    
+    return {
+      items,
+      total,
+      limit,
+      offset,
+      hasMore: offset + limit < total
+    };
   }
   
   /**
