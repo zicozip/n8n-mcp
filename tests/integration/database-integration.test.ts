@@ -57,7 +57,7 @@ describe('Database Integration Tests', () => {
         ],
         user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
         createdAt: new Date().toISOString(),
-        totalViews: 0
+        totalViews: 100
       },
       {
         id: 101,
@@ -70,7 +70,7 @@ describe('Database Integration Tests', () => {
         ],
         user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
         createdAt: new Date().toISOString(),
-        totalViews: 0
+        totalViews: 100
       },
       {
         id: 102,
@@ -85,7 +85,7 @@ describe('Database Integration Tests', () => {
         ],
         user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
         createdAt: new Date().toISOString(),
-        totalViews: 0
+        totalViews: 100
       }
     ]);
   });
