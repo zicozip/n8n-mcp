@@ -350,8 +350,8 @@ describe('TemplateService', () => {
 
       expect(result).toEqual({
         items: [
-          { id: 1, name: 'Template A', views: 200, nodeCount: 2 },
-          { id: 2, name: 'Template B', views: 150, nodeCount: 1 }
+          { id: 1, name: 'Template A', description: 'Description for template 1', views: 200, nodeCount: 2 },
+          { id: 2, name: 'Template B', description: 'Description for template 2', views: 150, nodeCount: 1 }
         ],
         total: 50,
         limit: 10,

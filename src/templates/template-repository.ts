@@ -809,4 +809,85 @@ export class TemplateRepository {
     const results = this.db.prepare(query).all(complexity, limit, offset) as StoredTemplate[];
     return results.map(t => this.decompressWorkflow(t));
   }
+
+  /**
+   * Get count of templates matching metadata search
+   */
+  getSearchTemplatesByMetadataCount(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }): number {
+    let sql = `
+      SELECT COUNT(*) as count FROM templates 
+      WHERE metadata_json IS NOT NULL
+    `;
+    const params: any[] = [];
+
+    if (filters.category) {
+      sql += ` AND json_extract(metadata_json, '$.categories') LIKE ?`;
+      params.push(`%"${filters.category}"%`);
+    }
+
+    if (filters.complexity) {
+      sql += ` AND json_extract(metadata_json, '$.complexity') = ?`;
+      params.push(filters.complexity);
+    }
+
+    if (filters.maxSetupMinutes !== undefined) {
+      sql += ` AND CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?`;
+      params.push(filters.maxSetupMinutes);
+    }
+
+    if (filters.minSetupMinutes !== undefined) {
+      sql += ` AND CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?`;
+      params.push(filters.minSetupMinutes);
+    }
+
+    if (filters.requiredService) {
+      sql += ` AND json_extract(metadata_json, '$.required_services') LIKE ?`;
+      params.push(`%"${filters.requiredService}"%`);
+    }
+
+    if (filters.targetAudience) {
+      sql += ` AND json_extract(metadata_json, '$.target_audience') LIKE ?`;
+      params.push(`%"${filters.targetAudience}"%`);
+    }
+
+    const result = this.db.prepare(sql).get(...params) as { count: number };
+    return result?.count || 0;
+  }
+
+  /**
+   * Get unique categories from metadata
+   */
+  getUniqueCategories(): string[] {
+    const sql = `
+      SELECT DISTINCT value as category
+      FROM templates, json_each(metadata_json, '$.categories')
+      WHERE metadata_json IS NOT NULL
+      ORDER BY category
+    `;
+    
+    const results = this.db.prepare(sql).all() as { category: string }[];
+    return results.map(r => r.category);
+  }
+
+  /**
+   * Get unique target audiences from metadata
+   */
+  getUniqueTargetAudiences(): string[] {
+    const sql = `
+      SELECT DISTINCT value as audience
+      FROM templates, json_each(metadata_json, '$.target_audience')
+      WHERE metadata_json IS NOT NULL
+      ORDER BY audience
+    `;
+    
+    const results = this.db.prepare(sql).all() as { audience: string }[];
+    return results.map(r => r.audience);
+  }
 }

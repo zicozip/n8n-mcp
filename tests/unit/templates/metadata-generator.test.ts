@@ -370,13 +370,20 @@ describe('MetadataGenerator', () => {
     });
 
     it('should handle network timeouts gracefully in generateSingle', async () => {
-      // Mock OpenAI to simulate timeout
-      const mockClient = generator['client'];
-      const originalCreate = mockClient.chat.completions.create;
+      // Create a new generator with mocked OpenAI client
+      const mockClient = {
+        chat: {
+          completions: {
+            create: vi.fn().mockRejectedValue(new Error('Request timed out'))
+          }
+        }
+      };
       
-      mockClient.chat.completions.create = vi.fn().mockRejectedValue(
-        new Error('Request timed out')
-      );
+      // Override the client property using Object.defineProperty
+      Object.defineProperty(generator, 'client', {
+        value: mockClient,
+        writable: true
+      });
       
       const template: MetadataRequest = {
         templateId: 555,
@@ -388,9 +395,6 @@ describe('MetadataGenerator', () => {
       
       // Should return default metadata instead of throwing
       expect(result).toEqual(generator['getDefaultMetadata']());
-      
-      // Restore original method
-      mockClient.chat.completions.create = originalCreate;
     });
   });
 
