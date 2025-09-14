@@ -3,6 +3,7 @@ import { TemplateWorkflow, TemplateDetail } from './template-fetcher';
 import { logger } from '../utils/logger';
 import { TemplateSanitizer } from '../utils/template-sanitizer';
 import * as zlib from 'zlib';
+import { resolveTemplateNodeTypes } from '../utils/template-node-resolver';
 
 export interface StoredTemplate {
   id: number;
@@ -174,8 +175,16 @@ export class TemplateRepository {
    * Get templates that use specific node types
    */
   getTemplatesByNodes(nodeTypes: string[], limit: number = 10, offset: number = 0): StoredTemplate[] {
+    // Resolve input node types to all possible template formats
+    const resolvedTypes = resolveTemplateNodeTypes(nodeTypes);
+    
+    if (resolvedTypes.length === 0) {
+      logger.debug('No resolved types for template search', { input: nodeTypes });
+      return [];
+    }
+    
     // Build query for multiple node types
-    const conditions = nodeTypes.map(() => "nodes_used LIKE ?").join(" OR ");
+    const conditions = resolvedTypes.map(() => "nodes_used LIKE ?").join(" OR ");
     const query = `
       SELECT * FROM templates 
       WHERE ${conditions}
@@ -183,8 +192,15 @@ export class TemplateRepository {
       LIMIT ? OFFSET ?
     `;
     
-    const params = [...nodeTypes.map(n => `%"${n}"%`), limit, offset];
+    const params = [...resolvedTypes.map(n => `%"${n}"%`), limit, offset];
     const results = this.db.prepare(query).all(...params) as StoredTemplate[];
+    
+    logger.debug(`Template search found ${results.length} results`, {
+      input: nodeTypes,
+      resolved: resolvedTypes,
+      found: results.length
+    });
+    
     return results.map(t => this.decompressWorkflow(t));
   }
   
@@ -377,9 +393,16 @@ export class TemplateRepository {
    * Get count for node templates
    */
   getNodeTemplatesCount(nodeTypes: string[]): number {
-    const conditions = nodeTypes.map(() => "nodes_used LIKE ?").join(" OR ");
+    // Resolve input node types to all possible template formats
+    const resolvedTypes = resolveTemplateNodeTypes(nodeTypes);
+    
+    if (resolvedTypes.length === 0) {
+      return 0;
+    }
+    
+    const conditions = resolvedTypes.map(() => "nodes_used LIKE ?").join(" OR ");
     const query = `SELECT COUNT(*) as count FROM templates WHERE ${conditions}`;
-    const params = nodeTypes.map(n => `%"${n}"%`);
+    const params = resolvedTypes.map(n => `%"${n}"%`);
     const result = this.db.prepare(query).get(...params) as { count: number };
     return result.count;
   }
