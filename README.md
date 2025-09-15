@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.10.9-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.11.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![codecov](https://codecov.io/gh/czlonkowski/n8n-mcp/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/czlonkowski/n8n-mcp)
 [![Tests](https://img.shields.io/badge/tests-1728%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
@@ -389,6 +389,10 @@ You are an expert in n8n automation software using n8n-MCP tools. Your role is t
 
 6. **Building Phase** - Create or customize the workflow:
    - If using template: `get_template(templateId, {mode: "full"})`
+   - **MANDATORY ATTRIBUTION**: When using a template, ALWAYS inform the user:
+     - "This workflow is based on a template by **[author.name]** (@[author.username])"
+     - "View the original template at: [url]"
+     - Example: "This workflow is based on a template by **David Ashby** (@cfomodz). View the original at: https://n8n.io/workflows/2414"
    - Customize template or build from validated configurations
    - Connect nodes with proper structure
    - Add error handling where appropriate
@@ -410,6 +414,7 @@ You are an expert in n8n automation software using n8n-MCP tools. Your role is t
 ## Key Insights
 
 - **TEMPLATES FIRST** - Always check for existing templates before building from scratch (2,500+ available!)
+- **ATTRIBUTION REQUIRED** - Always credit template authors with name, username, and link to n8n.io
 - **SMART FILTERING** - Use metadata filters to find templates matching user skill level and time constraints
 - **USE CODE NODE ONLY WHEN IT IS NECESSARY** - always prefer to use standard nodes over code node. Use code node only when you are sure you need it.
 - **VALIDATE EARLY AND OFTEN** - Catch errors before they reach deployment
@@ -504,6 +509,7 @@ n8n_update_partial_workflow({
 
 - ALWAYS check for existing templates before building from scratch
 - LEVERAGE metadata filters to find skill-appropriate templates
+- **ALWAYS ATTRIBUTE TEMPLATES**: When using any template, you MUST share the author's name, username, and link to the original template on n8n.io
 - VALIDATE templates before deployment (they may need updates)
 - USE diff operations for updates (80-90% token savings)
 - STATE validation results clearly
@@ -860,6 +866,23 @@ See [Automated Release Guide](./docs/AUTOMATED_RELEASES.md) for complete details
 - [n8n](https://n8n.io) team for the workflow automation platform
 - [Anthropic](https://anthropic.com) for the Model Context Protocol
 - All contributors and users of this project
+
+### Template Attribution
+
+All workflow templates in this project are fetched from n8n's public template gallery at [n8n.io/workflows](https://n8n.io/workflows). Each template includes:
+- Full attribution to the original creator (name and username)
+- Direct link to the source template on n8n.io
+- Original workflow ID for reference
+
+The AI agent instructions in this project contain mandatory attribution requirements. When using any template, the AI will automatically:
+- Share the template author's name and username
+- Provide a direct link to the original template on n8n.io
+- Display attribution in the format: "This workflow is based on a template by **[author]** (@[username]). View the original at: [url]"
+
+Template creators retain all rights to their workflows. This project indexes templates to improve discoverability through AI assistants. If you're a template creator and have concerns about your template being indexed, please open an issue.
+
+Special thanks to the prolific template contributors whose work helps thousands of users automate their workflows, including:
+**David Ashby** (@cfomodz), **Yaron Been** (@yaron-nofluff), **Jimleuk** (@jimleuk), **Davide** (@n3witalia), **David Olusola** (@dae221), **Ranjan Dailata** (@ranjancse), **Airtop** (@cesar-at-airtop), **Joseph LePage** (@joe), **Don Jayamaha Jr** (@don-the-gem-dealer), **Angel Menendez** (@djangelic), and the entire n8n community of creators!
 
 ---
 
