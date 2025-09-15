@@ -23,7 +23,13 @@ const mockClient = {
 
 vi.mock('openai', () => {
   return {
-    default: vi.fn().mockImplementation(() => mockClient)
+    default: class MockOpenAI {
+      files = mockClient.files;
+      batches = mockClient.batches;
+      constructor(config: any) {
+        // Mock constructor
+      }
+    }
   };
 });
 
@@ -33,12 +39,13 @@ const mockGenerator = {
   parseResult: vi.fn()
 };
 
-class MockMetadataGenerator {
-  createBatchRequest = mockGenerator.createBatchRequest;
-  parseResult = mockGenerator.parseResult;
-}
-
 vi.mock('../../../src/templates/metadata-generator', () => {
+  // Define MockMetadataGenerator inside the factory to avoid hoisting issues
+  class MockMetadataGenerator {
+    createBatchRequest = mockGenerator.createBatchRequest;
+    parseResult = mockGenerator.parseResult;
+  }
+  
   return {
     MetadataGenerator: MockMetadataGenerator
   };
