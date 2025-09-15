@@ -122,10 +122,7 @@ describe('TemplateRepository - Security Tests', () => {
         mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
         
         repository.searchTemplatesByMetadata({
-          category: maliciousCategory,
-          limit: 10,
-          offset: 0
-        });
+          category: maliciousCategory}, 10, 0);
         
         // Should use parameterized queries, not inject SQL
         const capturedParams = stmt._getCapturedParams();
@@ -149,10 +146,7 @@ describe('TemplateRepository - Security Tests', () => {
         mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
         
         repository.searchTemplatesByMetadata({
-          requiredService: maliciousService,
-          limit: 10,
-          offset: 0
-        });
+          requiredService: maliciousService}, 10, 0);
         
         const capturedParams = stmt._getCapturedParams();
         const expectedParam = JSON.stringify(maliciousService).slice(1, -1);
@@ -172,10 +166,7 @@ describe('TemplateRepository - Security Tests', () => {
         mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
         
         repository.searchTemplatesByMetadata({
-          targetAudience: maliciousAudience,
-          limit: 10,
-          offset: 0
-        });
+          targetAudience: maliciousAudience}, 10, 0);
         
         const capturedParams = stmt._getCapturedParams();
         const expectedParam = JSON.stringify(maliciousAudience).slice(1, -1);
@@ -195,10 +186,7 @@ describe('TemplateRepository - Security Tests', () => {
         mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
         
         repository.searchTemplatesByMetadata({
-          category: specialChars,
-          limit: 10,
-          offset: 0
-        });
+          category: specialChars}, 10, 0);
         
         const capturedParams = stmt._getCapturedParams();
         const expectedParam = JSON.stringify(specialChars).slice(1, -1);
@@ -216,12 +204,9 @@ describe('TemplateRepository - Security Tests', () => {
         mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
         
         // Try to inject through numeric parameters
-        repository.searchTemplatesByMetadata({
-          maxSetupMinutes: 999999999, // Large number
-          minSetupMinutes: -999999999, // Negative number
-          limit: 10,
-          offset: 0
-        });
+        repository.searchTemplatesByMetadata({maxSetupMinutes: 999999999, // Large number
+          minSetupMinutes: -999999999 // Negative number
+        }, 10, 0);
         
         const capturedParams = stmt._getCapturedParams();
         // capturedParams[0] is the first call's parameters array
@@ -365,10 +350,7 @@ describe('TemplateRepository - Security Tests', () => {
       
       repository.searchTemplatesByMetadata({
         category: undefined as any,
-        complexity: null as any,
-        limit: 10,
-        offset: 0
-      });
+        complexity: null as any}, 10, 0);
       
       // Should not break and should exclude undefined/null filters
       const prepareCall = mockAdapter.prepare.mock.calls[0][0];
@@ -385,10 +367,7 @@ describe('TemplateRepository - Security Tests', () => {
       repository.searchTemplatesByMetadata({
         category: '',
         requiredService: '',
-        targetAudience: '',
-        limit: 10,
-        offset: 0
-      });
+        targetAudience: ''}, 10, 0);
       
       // Empty strings should still be processed (might be valid searches)
       const capturedParams = stmt._getCapturedParams();
@@ -407,10 +386,7 @@ describe('TemplateRepository - Security Tests', () => {
       
       repository.searchTemplatesByMetadata({
         maxSetupMinutes: Number.MAX_SAFE_INTEGER,
-        minSetupMinutes: Number.MIN_SAFE_INTEGER,
-        limit: 10,
-        offset: 0
-      });
+        minSetupMinutes: Number.MIN_SAFE_INTEGER}, 10, 0);
       
       // Should handle extreme values without breaking
       const capturedParams = stmt._getCapturedParams();
@@ -428,10 +404,7 @@ describe('TemplateRepository - Security Tests', () => {
       
       repository.searchTemplatesByMetadata({
         category: unicodeCategory,
-        targetAudience: emojiAudience,
-        limit: 10,
-        offset: 0
-      });
+        targetAudience: emojiAudience}, 10, 0);
       
       const capturedParams = stmt._getCapturedParams();
       const expectedCategoryParam = JSON.stringify(unicodeCategory).slice(1, -1);
@@ -449,10 +422,7 @@ describe('TemplateRepository - Security Tests', () => {
       mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
       
       repository.searchTemplatesByMetadata({
-        category: 'test',
-        limit: 10,
-        offset: 0
-      });
+        category: 'test'}, 10, 0);
       
       const prepareCall = mockAdapter.prepare.mock.calls[0][0];
       
@@ -524,10 +494,7 @@ describe('TemplateRepository - Security Tests', () => {
       stmt._setMockResults([]);
       mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
       
-      repository.searchTemplatesByMetadata({
-        limit: 999999999, // Very large limit
-        offset: 0
-      });
+      repository.searchTemplatesByMetadata({}, 999999999, 0); // Very large limit
       
       const capturedParams = stmt._getCapturedParams();
       // Check if parameters were captured
@@ -548,10 +515,7 @@ describe('TemplateRepository - Security Tests', () => {
       mockAdapter.prepare = vi.fn().mockReturnValue(stmt);
       
       repository.searchTemplatesByMetadata({
-        category: veryLongString,
-        limit: 10,
-        offset: 0
-      });
+        category: veryLongString}, 10, 0);
       
       const capturedParams = stmt._getCapturedParams();
       expect(capturedParams[0][0]).toContain(veryLongString);

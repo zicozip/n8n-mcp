@@ -246,10 +246,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
       // Verify metadata was updated
       const templates = repository.searchTemplatesByMetadata({
-        category: 'test',
-        limit: 10,
-        offset: 0
-      });
+        category: 'test'}, 10, 0);
 
       expect(templates).toHaveLength(1);
       expect(templates[0].id).toBe(1);
@@ -281,10 +278,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
       // Verify both templates were updated
       const templates = repository.searchTemplatesByMetadata({
-        category: 'batch_test',
-        limit: 10,
-        offset: 0
-      });
+        category: 'batch_test'}, 10, 0);
 
       expect(templates).toHaveLength(2);
       expect(templates.map(t => t.id).sort()).toEqual([1, 2]);
@@ -292,10 +286,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
     it('should search templates by category', () => {
       const templates = repository.searchTemplatesByMetadata({
-        category: 'automation',
-        limit: 10,
-        offset: 0
-      });
+        category: 'automation'}, 10, 0);
 
       expect(templates.length).toBeGreaterThan(0);
       expect(templates[0]).toHaveProperty('id');
@@ -304,16 +295,10 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
     it('should search templates by complexity', () => {
       const simpleTemplates = repository.searchTemplatesByMetadata({
-        complexity: 'simple',
-        limit: 10,
-        offset: 0
-      });
+        complexity: 'simple'}, 10, 0);
 
       const complexTemplates = repository.searchTemplatesByMetadata({
-        complexity: 'complex',
-        limit: 10,
-        offset: 0
-      });
+        complexity: 'complex'}, 10, 0);
 
       expect(simpleTemplates).toHaveLength(1);
       expect(complexTemplates).toHaveLength(1);
@@ -323,16 +308,10 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
     it('should search templates by setup time', () => {
       const quickTemplates = repository.searchTemplatesByMetadata({
-        maxSetupMinutes: 30,
-        limit: 10,
-        offset: 0
-      });
+        maxSetupMinutes: 30}, 10, 0);
 
       const longTemplates = repository.searchTemplatesByMetadata({
-        minSetupMinutes: 60,
-        limit: 10,
-        offset: 0
-      });
+        minSetupMinutes: 60}, 10, 0);
 
       expect(quickTemplates).toHaveLength(1); // Only 15 min template (45 min > 30)
       expect(longTemplates).toHaveLength(1); // 120 min template
@@ -340,16 +319,10 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
     it('should search templates by required service', () => {
       const slackTemplates = repository.searchTemplatesByMetadata({
-        requiredService: 'slack',
-        limit: 10,
-        offset: 0
-      });
+        requiredService: 'slack'}, 10, 0);
 
       const openaiTemplates = repository.searchTemplatesByMetadata({
-        requiredService: 'OpenAI',
-        limit: 10,
-        offset: 0
-      });
+        requiredService: 'OpenAI'}, 10, 0);
 
       expect(slackTemplates).toHaveLength(1);
       expect(openaiTemplates).toHaveLength(1);
@@ -357,16 +330,10 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
     it('should search templates by target audience', () => {
       const developerTemplates = repository.searchTemplatesByMetadata({
-        targetAudience: 'developers',
-        limit: 10,
-        offset: 0
-      });
+        targetAudience: 'developers'}, 10, 0);
 
       const marketerTemplates = repository.searchTemplatesByMetadata({
-        targetAudience: 'marketers',
-        limit: 10,
-        offset: 0
-      });
+        targetAudience: 'marketers'}, 10, 0);
 
       expect(developerTemplates).toHaveLength(2);
       expect(marketerTemplates).toHaveLength(2);
@@ -376,10 +343,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
       const filteredTemplates = repository.searchTemplatesByMetadata({
         complexity: 'medium',
         targetAudience: 'marketers',
-        maxSetupMinutes: 60,
-        limit: 10,
-        offset: 0
-      });
+        maxSetupMinutes: 60}, 10, 0);
 
       expect(filteredTemplates).toHaveLength(1);
       expect(filteredTemplates[0].id).toBe(3);
@@ -487,10 +451,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
   describe('Service Layer Integration', () => {
     it('should search templates with metadata through service', async () => {
       const results = await service.searchTemplatesByMetadata({
-        complexity: 'simple',
-        limit: 10,
-        offset: 0
-      });
+        complexity: 'simple'}, 10, 0);
 
       expect(results).toHaveProperty('items');
       expect(results).toHaveProperty('total');
@@ -519,10 +480,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
     it('should return templates with metadata information', async () => {
       const results = await service.searchTemplatesByMetadata({
-        category: 'automation',
-        limit: 10,
-        offset: 0
-      });
+        category: 'automation'}, 10, 0);
 
       expect(results.items.length).toBeGreaterThan(0);
       
@@ -545,10 +503,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
       maliciousInputs.forEach(input => {
         expect(() => {
           repository.searchTemplatesByMetadata({
-            ...input,
-            limit: 10,
-            offset: 0
-          });
+            ...input}, 10, 0);
         }).not.toThrow();
       });
     });
@@ -571,10 +526,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
     it('should handle empty search results gracefully', () => {
       const results = repository.searchTemplatesByMetadata({
-        category: 'nonexistent_category',
-        limit: 10,
-        offset: 0
-      });
+        category: 'nonexistent_category'}, 10, 0);
 
       expect(results).toHaveLength(0);
     });
@@ -583,10 +535,8 @@ describe('Template Metadata Operations - Integration Tests', () => {
       // Test extreme values
       const results = repository.searchTemplatesByMetadata({
         maxSetupMinutes: 0,
-        minSetupMinutes: 999999,
-        limit: 0,
-        offset: -1
-      });
+        minSetupMinutes: 999999
+      }, 0, -1); // offset -1 to test edge case
 
       expect(Array.isArray(results)).toBe(true);
     });
@@ -596,10 +546,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
     it('should handle large result sets efficiently', () => {
       // Test with maximum limit
       const startTime = Date.now();
-      const results = repository.searchTemplatesByMetadata({
-        limit: 100,
-        offset: 0
-      });
+      const results = repository.searchTemplatesByMetadata({}, 100, 0);
       const endTime = Date.now();
 
       expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
@@ -607,7 +554,7 @@ describe('Template Metadata Operations - Integration Tests', () => {
     });
 
     it('should handle concurrent metadata updates', () => {
-      const updates = [];
+      const updates: any[] = [];
       
       for (let i = 0; i < 10; i++) {
         updates.push(() => {

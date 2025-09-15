@@ -463,7 +463,7 @@ describe('MetadataGenerator', () => {
       const userMessage = request.body.messages[1].content;
       
       // Should limit to top 10 groups
-      const summaryLine = userMessage.split('\n').find(line => 
+      const summaryLine = userMessage.split('\n').find((line: string) => 
         line.includes('Nodes Used (50)')
       );
       
