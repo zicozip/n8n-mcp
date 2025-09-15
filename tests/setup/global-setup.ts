@@ -48,8 +48,15 @@ if (!testConfig.logging.debug) {
 
 // Set up performance monitoring if enabled
 if (testConfig.performance) {
+  // Use a high-resolution timer that maintains timing precision
+  let startTime = process.hrtime.bigint();
+  
   global.performance = global.performance || {
-    now: () => Date.now(),
+    now: () => {
+      // Convert nanoseconds to milliseconds with high precision
+      const currentTime = process.hrtime.bigint();
+      return Number(currentTime - startTime) / 1000000; // Convert nanoseconds to milliseconds
+    },
     mark: vi.fn(),
     measure: vi.fn(),
     getEntriesByName: vi.fn(() => []),

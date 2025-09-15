@@ -22,7 +22,8 @@ import {
   getNodeForTaskDoc, 
   listNodeTemplatesDoc, 
   getTemplateDoc, 
-  searchTemplatesDoc, 
+  searchTemplatesDoc,
+  searchTemplatesByMetadataDoc, 
   getTemplatesForTaskDoc 
 } from './templates';
 import { 
@@ -83,6 +84,7 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
   list_node_templates: listNodeTemplatesDoc,
   get_template: getTemplateDoc,
   search_templates: searchTemplatesDoc,
+  search_templates_by_metadata: searchTemplatesByMetadataDoc,
   get_templates_for_task: getTemplatesForTaskDoc,
   
   // Workflow Management tools (n8n API)

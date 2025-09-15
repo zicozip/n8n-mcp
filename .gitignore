@@ -94,6 +94,7 @@ tmp/
 # data/*.db
 data/*.db-journal
 data/*.db.bak
+data/*.db.backup
 !data/.gitkeep
 !data/nodes.db
 
@@ -126,3 +127,6 @@ n8n-mcp-wrapper.sh
 
 # Package tarballs
 *.tgz
+
+# MCP configuration files
+.mcp.json

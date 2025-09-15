@@ -254,7 +254,7 @@ describe('n8nDocumentationToolsFinal', () => {
         discovery: ['list_nodes', 'search_nodes', 'list_ai_tools'],
         configuration: ['get_node_info', 'get_node_essentials', 'get_node_documentation'],
         validation: ['validate_node_operation', 'validate_workflow', 'validate_node_minimal'],
-        templates: ['list_tasks', 'get_node_for_task', 'search_templates'],
+        templates: ['list_tasks', 'get_node_for_task', 'search_templates', 'list_templates', 'get_template', 'list_node_templates'],
         documentation: ['tools_documentation']
       };
 
@@ -314,6 +314,186 @@ describe('n8nDocumentationToolsFinal', () => {
         expect(arrayParam?.type).toBe('array');
         expect(arrayParam?.items).toBeDefined();
         expect(arrayParam?.items.type).toBe('string');
+      });
+    });
+  });
+
+  describe('New Template Tools', () => {
+    describe('list_templates', () => {
+      const tool = n8nDocumentationToolsFinal.find(t => t.name === 'list_templates');
+
+      it('should exist and be properly defined', () => {
+        expect(tool).toBeDefined();
+        expect(tool?.description).toContain('minimal data');
+      });
+
+      it('should have correct parameters', () => {
+        expect(tool?.inputSchema.properties).toHaveProperty('limit');
+        expect(tool?.inputSchema.properties).toHaveProperty('offset');
+        expect(tool?.inputSchema.properties).toHaveProperty('sortBy');
+
+        const limitParam = tool?.inputSchema.properties.limit;
+        expect(limitParam.type).toBe('number');
+        expect(limitParam.minimum).toBe(1);
+        expect(limitParam.maximum).toBe(100);
+
+        const offsetParam = tool?.inputSchema.properties.offset;
+        expect(offsetParam.type).toBe('number');
+        expect(offsetParam.minimum).toBe(0);
+
+        const sortByParam = tool?.inputSchema.properties.sortBy;
+        expect(sortByParam.enum).toEqual(['views', 'created_at', 'name']);
+      });
+
+      it('should have no required parameters', () => {
+        expect(tool?.inputSchema.required).toBeUndefined();
+      });
+    });
+
+    describe('get_template (enhanced)', () => {
+      const tool = n8nDocumentationToolsFinal.find(t => t.name === 'get_template');
+
+      it('should exist and support mode parameter', () => {
+        expect(tool).toBeDefined();
+        expect(tool?.description).toContain('mode');
+      });
+
+      it('should have mode parameter with correct values', () => {
+        expect(tool?.inputSchema.properties).toHaveProperty('mode');
+
+        const modeParam = tool?.inputSchema.properties.mode;
+        expect(modeParam.enum).toEqual(['nodes_only', 'structure', 'full']);
+        expect(modeParam.default).toBe('full');
+      });
+
+      it('should require templateId parameter', () => {
+        expect(tool?.inputSchema.required).toContain('templateId');
+      });
+    });
+
+    describe('search_templates_by_metadata', () => {
+      const tool = n8nDocumentationToolsFinal.find(t => t.name === 'search_templates_by_metadata');
+
+      it('should exist in the tools array', () => {
+        expect(tool).toBeDefined();
+        expect(tool?.name).toBe('search_templates_by_metadata');
+      });
+
+      it('should have proper description', () => {
+        expect(tool?.description).toContain('Search templates by AI-generated metadata');
+        expect(tool?.description).toContain('category');
+        expect(tool?.description).toContain('complexity');
+      });
+
+      it('should have correct input schema structure', () => {
+        expect(tool?.inputSchema.type).toBe('object');
+        expect(tool?.inputSchema.properties).toBeDefined();
+        expect(tool?.inputSchema.required).toBeUndefined(); // All parameters are optional
+      });
+
+      it('should have category parameter with proper schema', () => {
+        const categoryProp = tool?.inputSchema.properties?.category;
+        expect(categoryProp).toBeDefined();
+        expect(categoryProp.type).toBe('string');
+        expect(categoryProp.description).toContain('category');
+      });
+
+      it('should have complexity parameter with enum values', () => {
+        const complexityProp = tool?.inputSchema.properties?.complexity;
+        expect(complexityProp).toBeDefined();
+        expect(complexityProp.enum).toEqual(['simple', 'medium', 'complex']);
+        expect(complexityProp.description).toContain('complexity');
+      });
+
+      it('should have time-based parameters with numeric constraints', () => {
+        const maxTimeProp = tool?.inputSchema.properties?.maxSetupMinutes;
+        const minTimeProp = tool?.inputSchema.properties?.minSetupMinutes;
+        
+        expect(maxTimeProp).toBeDefined();
+        expect(maxTimeProp.type).toBe('number');
+        expect(maxTimeProp.maximum).toBe(480);
+        expect(maxTimeProp.minimum).toBe(5);
+        
+        expect(minTimeProp).toBeDefined();
+        expect(minTimeProp.type).toBe('number');
+        expect(minTimeProp.maximum).toBe(480);
+        expect(minTimeProp.minimum).toBe(5);
+      });
+
+      it('should have service and audience parameters', () => {
+        const serviceProp = tool?.inputSchema.properties?.requiredService;
+        const audienceProp = tool?.inputSchema.properties?.targetAudience;
+        
+        expect(serviceProp).toBeDefined();
+        expect(serviceProp.type).toBe('string');
+        expect(serviceProp.description).toContain('service');
+        
+        expect(audienceProp).toBeDefined();
+        expect(audienceProp.type).toBe('string');
+        expect(audienceProp.description).toContain('audience');
+      });
+
+      it('should have pagination parameters', () => {
+        const limitProp = tool?.inputSchema.properties?.limit;
+        const offsetProp = tool?.inputSchema.properties?.offset;
+        
+        expect(limitProp).toBeDefined();
+        expect(limitProp.type).toBe('number');
+        expect(limitProp.default).toBe(20);
+        expect(limitProp.maximum).toBe(100);
+        expect(limitProp.minimum).toBe(1);
+        
+        expect(offsetProp).toBeDefined();
+        expect(offsetProp.type).toBe('number');
+        expect(offsetProp.default).toBe(0);
+        expect(offsetProp.minimum).toBe(0);
+      });
+
+      it('should include all expected properties', () => {
+        const properties = Object.keys(tool?.inputSchema.properties || {});
+        const expectedProperties = [
+          'category',
+          'complexity', 
+          'maxSetupMinutes',
+          'minSetupMinutes',
+          'requiredService',
+          'targetAudience',
+          'limit',
+          'offset'
+        ];
+        
+        expectedProperties.forEach(prop => {
+          expect(properties).toContain(prop);
+        });
+      });
+
+      it('should have appropriate additionalProperties setting', () => {
+        expect(tool?.inputSchema.additionalProperties).toBe(false);
+      });
+    });
+
+    describe('Enhanced pagination support', () => {
+      const paginatedTools = ['list_node_templates', 'search_templates', 'get_templates_for_task', 'search_templates_by_metadata'];
+
+      paginatedTools.forEach(toolName => {
+        describe(toolName, () => {
+          const tool = n8nDocumentationToolsFinal.find(t => t.name === toolName);
+
+          it('should support limit parameter', () => {
+            expect(tool?.inputSchema.properties).toHaveProperty('limit');
+            const limitParam = tool?.inputSchema.properties.limit;
+            expect(limitParam.type).toBe('number');
+            expect(limitParam.minimum).toBeGreaterThanOrEqual(1);
+            expect(limitParam.maximum).toBeGreaterThanOrEqual(50);
+          });
+
+          it('should support offset parameter', () => {
+            expect(tool?.inputSchema.properties).toHaveProperty('offset');
+            const offsetParam = tool?.inputSchema.properties.offset;
+            expect(offsetParam.type).toBe('number');
+            expect(offsetParam.minimum).toBe(0);
+          });
+        });
       });
     });
   });

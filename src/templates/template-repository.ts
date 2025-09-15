@@ -2,6 +2,8 @@ import { DatabaseAdapter } from '../database/database-adapter';
 import { TemplateWorkflow, TemplateDetail } from './template-fetcher';
 import { logger } from '../utils/logger';
 import { TemplateSanitizer } from '../utils/template-sanitizer';
+import * as zlib from 'zlib';
+import { resolveTemplateNodeTypes } from '../utils/template-node-resolver';
 
 export interface StoredTemplate {
   id: number;
@@ -12,13 +14,16 @@ export interface StoredTemplate {
   author_username: string;
   author_verified: number;
   nodes_used: string; // JSON string
-  workflow_json: string; // JSON string
+  workflow_json?: string; // JSON string (deprecated)
+  workflow_json_compressed?: string; // Base64 encoded gzip
   categories: string; // JSON string
   views: number;
   created_at: string;
   updated_at: string;
   url: string;
   scraped_at: string;
+  metadata_json?: string; // Structured metadata from OpenAI (JSON string)
+  metadata_generated_at?: string; // When metadata was generated
 }
 
 export class TemplateRepository {
@@ -105,10 +110,16 @@ export class TemplateRepository {
    * Save a template to the database
    */
   saveTemplate(workflow: TemplateWorkflow, detail: TemplateDetail, categories: string[] = []): void {
+    // Filter out templates with 10 or fewer views
+    if ((workflow.totalViews || 0) <= 10) {
+      logger.debug(`Skipping template ${workflow.id}: ${workflow.name} (only ${workflow.totalViews} views)`);
+      return;
+    }
+    
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO templates (
         id, workflow_id, name, description, author_name, author_username,
-        author_verified, nodes_used, workflow_json, categories, views,
+        author_verified, nodes_used, workflow_json_compressed, categories, views,
         created_at, updated_at, url
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -133,6 +144,17 @@ export class TemplateRepository {
       });
     }
     
+    // Compress the workflow JSON
+    const workflowJsonStr = JSON.stringify(sanitizedWorkflow);
+    const compressed = zlib.gzipSync(workflowJsonStr);
+    const compressedBase64 = compressed.toString('base64');
+    
+    // Log compression ratio
+    const originalSize = Buffer.byteLength(workflowJsonStr);
+    const compressedSize = compressed.length;
+    const ratio = Math.round((1 - compressedSize / originalSize) * 100);
+    logger.debug(`Template ${workflow.id} compression: ${originalSize} → ${compressedSize} bytes (${ratio}% reduction)`);
+    
     stmt.run(
       workflow.id,
       workflow.id,
@@ -142,7 +164,7 @@ export class TemplateRepository {
       workflow.user.username,
       workflow.user.verified ? 1 : 0,
       JSON.stringify(nodeTypes),
-      JSON.stringify(sanitizedWorkflow),
+      compressedBase64,
       JSON.stringify(categories),
       workflow.totalViews || 0,
       workflow.createdAt,
@@ -154,18 +176,34 @@ export class TemplateRepository {
   /**
    * Get templates that use specific node types
    */
-  getTemplatesByNodes(nodeTypes: string[], limit: number = 10): StoredTemplate[] {
+  getTemplatesByNodes(nodeTypes: string[], limit: number = 10, offset: number = 0): StoredTemplate[] {
+    // Resolve input node types to all possible template formats
+    const resolvedTypes = resolveTemplateNodeTypes(nodeTypes);
+    
+    if (resolvedTypes.length === 0) {
+      logger.debug('No resolved types for template search', { input: nodeTypes });
+      return [];
+    }
+    
     // Build query for multiple node types
-    const conditions = nodeTypes.map(() => "nodes_used LIKE ?").join(" OR ");
+    const conditions = resolvedTypes.map(() => "nodes_used LIKE ?").join(" OR ");
     const query = `
       SELECT * FROM templates 
       WHERE ${conditions}
       ORDER BY views DESC, created_at DESC
-      LIMIT ?
+      LIMIT ? OFFSET ?
     `;
     
-    const params = [...nodeTypes.map(n => `%"${n}"%`), limit];
-    return this.db.prepare(query).all(...params) as StoredTemplate[];
+    const params = [...resolvedTypes.map(n => `%"${n}"%`), limit, offset];
+    const results = this.db.prepare(query).all(...params) as StoredTemplate[];
+    
+    logger.debug(`Template search found ${results.length} results`, {
+      input: nodeTypes,
+      resolved: resolvedTypes,
+      found: results.length
+    });
+    
+    return results.map(t => this.decompressWorkflow(t));
   }
   
   /**
@@ -176,19 +214,49 @@ export class TemplateRepository {
       SELECT * FROM templates WHERE id = ?
     `).get(templateId) as StoredTemplate | undefined;
     
-    return row || null;
+    if (!row) return null;
+    
+    // Decompress workflow JSON if compressed
+    if (row.workflow_json_compressed && !row.workflow_json) {
+      try {
+        const compressed = Buffer.from(row.workflow_json_compressed, 'base64');
+        const decompressed = zlib.gunzipSync(compressed);
+        row.workflow_json = decompressed.toString();
+      } catch (error) {
+        logger.error(`Failed to decompress workflow for template ${templateId}:`, error);
+        return null;
+      }
+    }
+    
+    return row;
+  }
+  
+  /**
+   * Decompress workflow JSON for a template
+   */
+  private decompressWorkflow(template: StoredTemplate): StoredTemplate {
+    if (template.workflow_json_compressed && !template.workflow_json) {
+      try {
+        const compressed = Buffer.from(template.workflow_json_compressed, 'base64');
+        const decompressed = zlib.gunzipSync(compressed);
+        template.workflow_json = decompressed.toString();
+      } catch (error) {
+        logger.error(`Failed to decompress workflow for template ${template.id}:`, error);
+      }
+    }
+    return template;
   }
   
   /**
    * Search templates by name or description
    */
-  searchTemplates(query: string, limit: number = 20): StoredTemplate[] {
+  searchTemplates(query: string, limit: number = 20, offset: number = 0): StoredTemplate[] {
     logger.debug(`Searching templates for: "${query}" (FTS5: ${this.hasFTS5Support})`);
     
     // If FTS5 is not supported, go straight to LIKE search
     if (!this.hasFTS5Support) {
       logger.debug('Using LIKE search (FTS5 not available)');
-      return this.searchTemplatesLIKE(query, limit);
+      return this.searchTemplatesLIKE(query, limit, offset);
     }
     
     try {
@@ -205,11 +273,11 @@ export class TemplateRepository {
         JOIN templates_fts ON t.id = templates_fts.rowid
         WHERE templates_fts MATCH ?
         ORDER BY rank, t.views DESC
-        LIMIT ?
-      `).all(ftsQuery, limit) as StoredTemplate[];
+        LIMIT ? OFFSET ?
+      `).all(ftsQuery, limit, offset) as StoredTemplate[];
       
       logger.debug(`FTS5 search returned ${results.length} results`);
-      return results;
+      return results.map(t => this.decompressWorkflow(t));
     } catch (error: any) {
       // If FTS5 query fails, fallback to LIKE search
       logger.warn('FTS5 template search failed, using LIKE fallback:', {
@@ -217,14 +285,14 @@ export class TemplateRepository {
         query: query,
         ftsQuery: query.split(' ').map(term => `"${term}"`).join(' OR ')
       });
-      return this.searchTemplatesLIKE(query, limit);
+      return this.searchTemplatesLIKE(query, limit, offset);
     }
   }
   
   /**
    * Fallback search using LIKE when FTS5 is not available
    */
-  private searchTemplatesLIKE(query: string, limit: number = 20): StoredTemplate[] {
+  private searchTemplatesLIKE(query: string, limit: number = 20, offset: number = 0): StoredTemplate[] {
     const likeQuery = `%${query}%`;
     logger.debug(`Using LIKE search with pattern: ${likeQuery}`);
     
@@ -232,17 +300,17 @@ export class TemplateRepository {
       SELECT * FROM templates 
       WHERE name LIKE ? OR description LIKE ?
       ORDER BY views DESC, created_at DESC
-      LIMIT ?
-    `).all(likeQuery, likeQuery, limit) as StoredTemplate[];
+      LIMIT ? OFFSET ?
+    `).all(likeQuery, likeQuery, limit, offset) as StoredTemplate[];
     
     logger.debug(`LIKE search returned ${results.length} results`);
-    return results;
+    return results.map(t => this.decompressWorkflow(t));
   }
   
   /**
    * Get templates for a specific task/use case
    */
-  getTemplatesForTask(task: string): StoredTemplate[] {
+  getTemplatesForTask(task: string, limit: number = 10, offset: number = 0): StoredTemplate[] {
     // Map tasks to relevant node combinations
     const taskNodeMap: Record<string, string[]> = {
       'ai_automation': ['@n8n/n8n-nodes-langchain.openAi', '@n8n/n8n-nodes-langchain.agent', 'n8n-nodes-base.openAi'],
@@ -262,18 +330,22 @@ export class TemplateRepository {
       return [];
     }
     
-    return this.getTemplatesByNodes(nodes, 10);
+    return this.getTemplatesByNodes(nodes, limit, offset);
   }
   
   /**
    * Get all templates with limit
    */
-  getAllTemplates(limit: number = 10): StoredTemplate[] {
-    return this.db.prepare(`
+  getAllTemplates(limit: number = 10, offset: number = 0, sortBy: 'views' | 'created_at' | 'name' = 'views'): StoredTemplate[] {
+    const orderClause = sortBy === 'name' ? 'name ASC' : 
+                        sortBy === 'created_at' ? 'created_at DESC' : 
+                        'views DESC, created_at DESC';
+    const results = this.db.prepare(`
       SELECT * FROM templates 
-      ORDER BY views DESC, created_at DESC
-      LIMIT ?
-    `).all(limit) as StoredTemplate[];
+      ORDER BY ${orderClause}
+      LIMIT ? OFFSET ?
+    `).all(limit, offset) as StoredTemplate[];
+    return results.map(t => this.decompressWorkflow(t));
   }
   
   /**
@@ -282,6 +354,119 @@ export class TemplateRepository {
   getTemplateCount(): number {
     const result = this.db.prepare('SELECT COUNT(*) as count FROM templates').get() as { count: number };
     return result.count;
+  }
+  
+  /**
+   * Get count for search results
+   */
+  getSearchCount(query: string): number {
+    if (!this.hasFTS5Support) {
+      const likeQuery = `%${query}%`;
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count FROM templates 
+        WHERE name LIKE ? OR description LIKE ?
+      `).get(likeQuery, likeQuery) as { count: number };
+      return result.count;
+    }
+    
+    try {
+      const ftsQuery = query.split(' ').map(term => {
+        const escaped = term.replace(/"/g, '""');
+        return `"${escaped}"`;
+      }).join(' OR ');
+      
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count FROM templates t
+        JOIN templates_fts ON t.id = templates_fts.rowid
+        WHERE templates_fts MATCH ?
+      `).get(ftsQuery) as { count: number };
+      return result.count;
+    } catch {
+      const likeQuery = `%${query}%`;
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count FROM templates 
+        WHERE name LIKE ? OR description LIKE ?
+      `).get(likeQuery, likeQuery) as { count: number };
+      return result.count;
+    }
+  }
+  
+  /**
+   * Get count for node templates
+   */
+  getNodeTemplatesCount(nodeTypes: string[]): number {
+    // Resolve input node types to all possible template formats
+    const resolvedTypes = resolveTemplateNodeTypes(nodeTypes);
+    
+    if (resolvedTypes.length === 0) {
+      return 0;
+    }
+    
+    const conditions = resolvedTypes.map(() => "nodes_used LIKE ?").join(" OR ");
+    const query = `SELECT COUNT(*) as count FROM templates WHERE ${conditions}`;
+    const params = resolvedTypes.map(n => `%"${n}"%`);
+    const result = this.db.prepare(query).get(...params) as { count: number };
+    return result.count;
+  }
+  
+  /**
+   * Get count for task templates
+   */
+  getTaskTemplatesCount(task: string): number {
+    const taskNodeMap: Record<string, string[]> = {
+      'ai_automation': ['@n8n/n8n-nodes-langchain.openAi', '@n8n/n8n-nodes-langchain.agent', 'n8n-nodes-base.openAi'],
+      'data_sync': ['n8n-nodes-base.googleSheets', 'n8n-nodes-base.postgres', 'n8n-nodes-base.mysql'],
+      'webhook_processing': ['n8n-nodes-base.webhook', 'n8n-nodes-base.httpRequest'],
+      'email_automation': ['n8n-nodes-base.gmail', 'n8n-nodes-base.emailSend', 'n8n-nodes-base.emailReadImap'],
+      'slack_integration': ['n8n-nodes-base.slack', 'n8n-nodes-base.slackTrigger'],
+      'data_transformation': ['n8n-nodes-base.code', 'n8n-nodes-base.set', 'n8n-nodes-base.merge'],
+      'file_processing': ['n8n-nodes-base.readBinaryFile', 'n8n-nodes-base.writeBinaryFile', 'n8n-nodes-base.googleDrive'],
+      'scheduling': ['n8n-nodes-base.scheduleTrigger', 'n8n-nodes-base.cron'],
+      'api_integration': ['n8n-nodes-base.httpRequest', 'n8n-nodes-base.graphql'],
+      'database_operations': ['n8n-nodes-base.postgres', 'n8n-nodes-base.mysql', 'n8n-nodes-base.mongodb']
+    };
+    
+    const nodes = taskNodeMap[task];
+    if (!nodes) {
+      return 0;
+    }
+    
+    return this.getNodeTemplatesCount(nodes);
+  }
+  
+  /**
+   * Get all existing template IDs for comparison
+   * Used in update mode to skip already fetched templates
+   */
+  getExistingTemplateIds(): Set<number> {
+    const rows = this.db.prepare('SELECT id FROM templates').all() as { id: number }[];
+    return new Set(rows.map(r => r.id));
+  }
+  
+  /**
+   * Check if a template exists in the database
+   */
+  hasTemplate(templateId: number): boolean {
+    const result = this.db.prepare('SELECT 1 FROM templates WHERE id = ?').get(templateId) as { 1: number } | undefined;
+    return result !== undefined;
+  }
+  
+  /**
+   * Get template metadata (id, name, updated_at) for all templates
+   * Used for comparison in update scenarios
+   */
+  getTemplateMetadata(): Map<number, { name: string; updated_at: string }> {
+    const rows = this.db.prepare('SELECT id, name, updated_at FROM templates').all() as {
+      id: number;
+      name: string;
+      updated_at: string;
+    }[];
+    
+    const metadata = new Map<number, { name: string; updated_at: string }>();
+    for (const row of rows) {
+      metadata.set(row.id, { name: row.name, updated_at: row.updated_at });
+    }
+    return metadata;
   }
   
   /**
@@ -352,5 +537,359 @@ export class TemplateRepository {
       logger.warn('Failed to rebuild template FTS5 index:', error);
       // Non-critical error - search will fallback to LIKE
     }
+  }
+  
+  /**
+   * Update metadata for a template
+   */
+  updateTemplateMetadata(templateId: number, metadata: any): void {
+    const stmt = this.db.prepare(`
+      UPDATE templates 
+      SET metadata_json = ?, metadata_generated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    
+    stmt.run(JSON.stringify(metadata), templateId);
+    logger.debug(`Updated metadata for template ${templateId}`);
+  }
+  
+  /**
+   * Batch update metadata for multiple templates
+   */
+  batchUpdateMetadata(metadataMap: Map<number, any>): void {
+    const stmt = this.db.prepare(`
+      UPDATE templates 
+      SET metadata_json = ?, metadata_generated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+    
+    // Simple approach - just run the updates
+    // Most operations are fast enough without explicit transactions
+    for (const [templateId, metadata] of metadataMap.entries()) {
+      stmt.run(JSON.stringify(metadata), templateId);
+    }
+    
+    logger.info(`Updated metadata for ${metadataMap.size} templates`);
+  }
+  
+  /**
+   * Get templates without metadata
+   */
+  getTemplatesWithoutMetadata(limit: number = 100): StoredTemplate[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM templates 
+      WHERE metadata_json IS NULL OR metadata_generated_at IS NULL
+      ORDER BY views DESC
+      LIMIT ?
+    `);
+    
+    return stmt.all(limit) as StoredTemplate[];
+  }
+  
+  /**
+   * Get templates with outdated metadata (older than days specified)
+   */
+  getTemplatesWithOutdatedMetadata(daysOld: number = 30, limit: number = 100): StoredTemplate[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM templates 
+      WHERE metadata_generated_at < datetime('now', '-' || ? || ' days')
+      ORDER BY views DESC
+      LIMIT ?
+    `);
+    
+    return stmt.all(daysOld, limit) as StoredTemplate[];
+  }
+  
+  /**
+   * Get template metadata stats
+   */
+  getMetadataStats(): { 
+    total: number; 
+    withMetadata: number; 
+    withoutMetadata: number;
+    outdated: number;
+  } {
+    const total = this.getTemplateCount();
+    
+    const withMetadata = (this.db.prepare(`
+      SELECT COUNT(*) as count FROM templates 
+      WHERE metadata_json IS NOT NULL
+    `).get() as { count: number }).count;
+    
+    const withoutMetadata = total - withMetadata;
+    
+    const outdated = (this.db.prepare(`
+      SELECT COUNT(*) as count FROM templates 
+      WHERE metadata_generated_at < datetime('now', '-30 days')
+    `).get() as { count: number }).count;
+    
+    return { total, withMetadata, withoutMetadata, outdated };
+  }
+  
+  /**
+   * Search templates by metadata fields
+   */
+  searchTemplatesByMetadata(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }, limit: number = 20, offset: number = 0): StoredTemplate[] {
+    const conditions: string[] = ['metadata_json IS NOT NULL'];
+    const params: any[] = [];
+    
+    // Build WHERE conditions based on filters with proper parameterization
+    if (filters.category !== undefined) {
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
+      // Escape special characters and quotes for JSON string matching
+      const sanitizedCategory = JSON.stringify(filters.category).slice(1, -1);
+      params.push(sanitizedCategory);
+    }
+    
+    if (filters.complexity) {
+      conditions.push("json_extract(metadata_json, '$.complexity') = ?");
+      params.push(filters.complexity);
+    }
+    
+    if (filters.maxSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?");
+      params.push(filters.maxSetupMinutes);
+    }
+    
+    if (filters.minSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?");
+      params.push(filters.minSetupMinutes);
+    }
+    
+    if (filters.requiredService !== undefined) {
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
+      // Escape special characters and quotes for JSON string matching
+      const sanitizedService = JSON.stringify(filters.requiredService).slice(1, -1);
+      params.push(sanitizedService);
+    }
+    
+    if (filters.targetAudience !== undefined) {
+      // Use parameterized LIKE with JSON array search - safe from injection  
+      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
+      // Escape special characters and quotes for JSON string matching
+      const sanitizedAudience = JSON.stringify(filters.targetAudience).slice(1, -1);
+      params.push(sanitizedAudience);
+    }
+    
+    const query = `
+      SELECT * FROM templates 
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY views DESC, created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    params.push(limit, offset);
+    const results = this.db.prepare(query).all(...params) as StoredTemplate[];
+    
+    logger.debug(`Metadata search found ${results.length} results`, { filters, count: results.length });
+    return results.map(t => this.decompressWorkflow(t));
+  }
+  
+  /**
+   * Get count for metadata search results
+   */
+  getMetadataSearchCount(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }): number {
+    const conditions: string[] = ['metadata_json IS NOT NULL'];
+    const params: any[] = [];
+    
+    if (filters.category !== undefined) {
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
+      const sanitizedCategory = JSON.stringify(filters.category).slice(1, -1);
+      params.push(sanitizedCategory);
+    }
+    
+    if (filters.complexity) {
+      conditions.push("json_extract(metadata_json, '$.complexity') = ?");
+      params.push(filters.complexity);
+    }
+    
+    if (filters.maxSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?");
+      params.push(filters.maxSetupMinutes);
+    }
+    
+    if (filters.minSetupMinutes !== undefined) {
+      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?");
+      params.push(filters.minSetupMinutes);
+    }
+    
+    if (filters.requiredService !== undefined) {
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
+      const sanitizedService = JSON.stringify(filters.requiredService).slice(1, -1);
+      params.push(sanitizedService);
+    }
+    
+    if (filters.targetAudience !== undefined) {
+      // Use parameterized LIKE with JSON array search - safe from injection
+      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
+      const sanitizedAudience = JSON.stringify(filters.targetAudience).slice(1, -1);
+      params.push(sanitizedAudience);
+    }
+    
+    const query = `SELECT COUNT(*) as count FROM templates WHERE ${conditions.join(' AND ')}`;
+    const result = this.db.prepare(query).get(...params) as { count: number };
+    
+    return result.count;
+  }
+  
+  /**
+   * Get unique categories from metadata
+   */
+  getAvailableCategories(): string[] {
+    const results = this.db.prepare(`
+      SELECT DISTINCT json_extract(value, '$') as category
+      FROM templates, json_each(json_extract(metadata_json, '$.categories'))
+      WHERE metadata_json IS NOT NULL
+      ORDER BY category
+    `).all() as { category: string }[];
+    
+    return results.map(r => r.category);
+  }
+  
+  /**
+   * Get unique target audiences from metadata
+   */
+  getAvailableTargetAudiences(): string[] {
+    const results = this.db.prepare(`
+      SELECT DISTINCT json_extract(value, '$') as audience
+      FROM templates, json_each(json_extract(metadata_json, '$.target_audience'))
+      WHERE metadata_json IS NOT NULL
+      ORDER BY audience
+    `).all() as { audience: string }[];
+    
+    return results.map(r => r.audience);
+  }
+  
+  /**
+   * Get templates by category with metadata
+   */
+  getTemplatesByCategory(category: string, limit: number = 10, offset: number = 0): StoredTemplate[] {
+    const query = `
+      SELECT * FROM templates 
+      WHERE metadata_json IS NOT NULL 
+        AND json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'
+      ORDER BY views DESC, created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    // Use same sanitization as searchTemplatesByMetadata for consistency
+    const sanitizedCategory = JSON.stringify(category).slice(1, -1);
+    const results = this.db.prepare(query).all(sanitizedCategory, limit, offset) as StoredTemplate[];
+    return results.map(t => this.decompressWorkflow(t));
+  }
+  
+  /**
+   * Get templates by complexity level
+   */
+  getTemplatesByComplexity(complexity: 'simple' | 'medium' | 'complex', limit: number = 10, offset: number = 0): StoredTemplate[] {
+    const query = `
+      SELECT * FROM templates 
+      WHERE metadata_json IS NOT NULL 
+        AND json_extract(metadata_json, '$.complexity') = ?
+      ORDER BY views DESC, created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    const results = this.db.prepare(query).all(complexity, limit, offset) as StoredTemplate[];
+    return results.map(t => this.decompressWorkflow(t));
+  }
+
+  /**
+   * Get count of templates matching metadata search
+   */
+  getSearchTemplatesByMetadataCount(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }): number {
+    let sql = `
+      SELECT COUNT(*) as count FROM templates 
+      WHERE metadata_json IS NOT NULL
+    `;
+    const params: any[] = [];
+
+    if (filters.category) {
+      sql += ` AND json_extract(metadata_json, '$.categories') LIKE ?`;
+      params.push(`%"${filters.category}"%`);
+    }
+
+    if (filters.complexity) {
+      sql += ` AND json_extract(metadata_json, '$.complexity') = ?`;
+      params.push(filters.complexity);
+    }
+
+    if (filters.maxSetupMinutes !== undefined) {
+      sql += ` AND CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?`;
+      params.push(filters.maxSetupMinutes);
+    }
+
+    if (filters.minSetupMinutes !== undefined) {
+      sql += ` AND CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?`;
+      params.push(filters.minSetupMinutes);
+    }
+
+    if (filters.requiredService) {
+      sql += ` AND json_extract(metadata_json, '$.required_services') LIKE ?`;
+      params.push(`%"${filters.requiredService}"%`);
+    }
+
+    if (filters.targetAudience) {
+      sql += ` AND json_extract(metadata_json, '$.target_audience') LIKE ?`;
+      params.push(`%"${filters.targetAudience}"%`);
+    }
+
+    const result = this.db.prepare(sql).get(...params) as { count: number };
+    return result?.count || 0;
+  }
+
+  /**
+   * Get unique categories from metadata
+   */
+  getUniqueCategories(): string[] {
+    const sql = `
+      SELECT DISTINCT value as category
+      FROM templates, json_each(metadata_json, '$.categories')
+      WHERE metadata_json IS NOT NULL
+      ORDER BY category
+    `;
+    
+    const results = this.db.prepare(sql).all() as { category: string }[];
+    return results.map(r => r.category);
+  }
+
+  /**
+   * Get unique target audiences from metadata
+   */
+  getUniqueTargetAudiences(): string[] {
+    const sql = `
+      SELECT DISTINCT value as audience
+      FROM templates, json_each(metadata_json, '$.target_audience')
+      WHERE metadata_json IS NOT NULL
+      ORDER BY audience
+    `;
+    
+    const results = this.db.prepare(sql).all() as { audience: string }[];
+    return results.map(r => r.audience);
   }
 }

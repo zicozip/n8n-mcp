@@ -371,7 +371,7 @@ describe('Parameter Validation', () => {
           templateId: 123
         });
 
-        expect(mockGetTemplate).toHaveBeenCalledWith(123);
+        expect(mockGetTemplate).toHaveBeenCalledWith(123, 'full');
       });
 
       it('should convert string templateId to number', async () => {
@@ -381,7 +381,7 @@ describe('Parameter Validation', () => {
           templateId: '123'
         });
 
-        expect(mockGetTemplate).toHaveBeenCalledWith(123);
+        expect(mockGetTemplate).toHaveBeenCalledWith(123, 'full');
       });
     });
   });

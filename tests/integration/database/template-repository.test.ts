@@ -131,7 +131,8 @@ describe('TemplateRepository Integration Tests', () => {
       const saved = repository.getTemplate(template.id);
       expect(saved).toBeTruthy();
       
-      const workflowJson = JSON.parse(saved!.workflow_json);
+      expect(saved!.workflow_json).toBeTruthy();
+      const workflowJson = JSON.parse(saved!.workflow_json!);
       expect(workflowJson.pinData).toBeUndefined();
     });
   });
@@ -239,6 +240,32 @@ describe('TemplateRepository Integration Tests', () => {
       const results = repository.searchTemplates('special');
       expect(results.length).toBeGreaterThan(0);
     });
+
+    it('should support pagination in search results', () => {
+      for (let i = 1; i <= 15; i++) {
+        const template = createTemplateWorkflow({
+          id: i,
+          name: `Search Template ${i}`,
+          description: 'Common search term'
+        });
+        const detail = createTemplateDetail({ id: i });
+        repository.saveTemplate(template, detail);
+      }
+
+      const page1 = repository.searchTemplates('search', 5, 0);
+      expect(page1).toHaveLength(5);
+
+      const page2 = repository.searchTemplates('search', 5, 5);
+      expect(page2).toHaveLength(5);
+
+      const page3 = repository.searchTemplates('search', 5, 10);
+      expect(page3).toHaveLength(5);
+
+      // Should be different templates on each page
+      const page1Ids = page1.map(t => t.id);
+      const page2Ids = page2.map(t => t.id);
+      expect(page1Ids.filter(id => page2Ids.includes(id))).toHaveLength(0);
+    });
   });
 
   describe('getTemplatesByNodeTypes', () => {
@@ -319,6 +346,17 @@ describe('TemplateRepository Integration Tests', () => {
       const results = repository.getTemplatesByNodes(['n8n-nodes-base.webhook'], 1);
       expect(results).toHaveLength(1);
     });
+
+    it('should support pagination with offset', () => {
+      const results1 = repository.getTemplatesByNodes(['n8n-nodes-base.webhook'], 1, 0);
+      expect(results1).toHaveLength(1);
+      
+      const results2 = repository.getTemplatesByNodes(['n8n-nodes-base.webhook'], 1, 1);
+      expect(results2).toHaveLength(1);
+      
+      // Results should be different
+      expect(results1[0].id).not.toBe(results2[0].id);
+    });
   });
 
   describe('getAllTemplates', () => {
@@ -336,6 +374,51 @@ describe('TemplateRepository Integration Tests', () => {
 
       const templates = repository.getAllTemplates(10);
       expect(templates).toHaveLength(10);
+    });
+
+    it('should support pagination with offset', () => {
+      for (let i = 1; i <= 15; i++) {
+        const template = createTemplateWorkflow({ id: i });
+        const detail = createTemplateDetail({ id: i });
+        repository.saveTemplate(template, detail);
+      }
+
+      const page1 = repository.getAllTemplates(5, 0);
+      expect(page1).toHaveLength(5);
+
+      const page2 = repository.getAllTemplates(5, 5);
+      expect(page2).toHaveLength(5);
+
+      const page3 = repository.getAllTemplates(5, 10);
+      expect(page3).toHaveLength(5);
+
+      // Should be different templates on each page
+      const page1Ids = page1.map(t => t.id);
+      const page2Ids = page2.map(t => t.id);
+      const page3Ids = page3.map(t => t.id);
+
+      expect(page1Ids.filter(id => page2Ids.includes(id))).toHaveLength(0);
+      expect(page2Ids.filter(id => page3Ids.includes(id))).toHaveLength(0);
+    });
+
+    it('should support different sort orders', () => {
+      const template1 = createTemplateWorkflow({ id: 1, name: 'Alpha Template', totalViews: 50 });
+      const detail1 = createTemplateDetail({ id: 1 });
+      repository.saveTemplate(template1, detail1);
+
+      const template2 = createTemplateWorkflow({ id: 2, name: 'Beta Template', totalViews: 100 });
+      const detail2 = createTemplateDetail({ id: 2 });
+      repository.saveTemplate(template2, detail2);
+
+      // Sort by views (default) - highest first
+      const byViews = repository.getAllTemplates(10, 0, 'views');
+      expect(byViews[0].name).toBe('Beta Template');
+      expect(byViews[1].name).toBe('Alpha Template');
+
+      // Sort by name - alphabetical
+      const byName = repository.getAllTemplates(10, 0, 'name');
+      expect(byName[0].name).toBe('Alpha Template');
+      expect(byName[1].name).toBe('Beta Template');
     });
 
     it('should order templates by views and created_at descending', () => {
@@ -365,7 +448,7 @@ describe('TemplateRepository Integration Tests', () => {
       const saved = repository.getTemplate(1);
       expect(saved).toBeTruthy();
       expect(saved?.workflow_json).toBeTruthy();
-      const workflow = JSON.parse(saved!.workflow_json);
+      const workflow = JSON.parse(saved!.workflow_json!);
       expect(workflow.nodes).toHaveLength(detail.workflow.nodes.length);
     });
   });
@@ -460,6 +543,104 @@ describe('TemplateRepository Integration Tests', () => {
 
       expect(searchDuration).toBeLessThan(50); // Search should be very fast
       expect(results).toHaveLength(50);
+    });
+  });
+
+  describe('New pagination count methods', () => {
+    beforeEach(() => {
+      // Set up test data
+      for (let i = 1; i <= 25; i++) {
+        const template = createTemplateWorkflow({
+          id: i,
+          name: `Template ${i}`,
+          description: i <= 10 ? 'webhook automation' : 'data processing'
+        });
+        const detail = createTemplateDetail({
+          id: i,
+          workflow: {
+            nodes: i <= 15 ? [
+              { id: 'node1', type: 'n8n-nodes-base.webhook', name: 'Webhook', position: [0, 0], parameters: {}, typeVersion: 1 }
+            ] : [
+              { id: 'node1', type: 'n8n-nodes-base.httpRequest', name: 'HTTP', position: [0, 0], parameters: {}, typeVersion: 1 }
+            ],
+            connections: {},
+            settings: {}
+          }
+        });
+        repository.saveTemplate(template, detail);
+      }
+    });
+
+    describe('getNodeTemplatesCount', () => {
+      it('should return correct count for node type searches', () => {
+        const webhookCount = repository.getNodeTemplatesCount(['n8n-nodes-base.webhook']);
+        expect(webhookCount).toBe(15);
+
+        const httpCount = repository.getNodeTemplatesCount(['n8n-nodes-base.httpRequest']);
+        expect(httpCount).toBe(10);
+
+        const bothCount = repository.getNodeTemplatesCount([
+          'n8n-nodes-base.webhook',
+          'n8n-nodes-base.httpRequest'
+        ]);
+        expect(bothCount).toBe(25); // OR query, so all templates
+      });
+
+      it('should return 0 for non-existent node types', () => {
+        const count = repository.getNodeTemplatesCount(['non-existent-node']);
+        expect(count).toBe(0);
+      });
+    });
+
+    describe('getSearchCount', () => {
+      it('should return correct count for search queries', () => {
+        const webhookSearchCount = repository.getSearchCount('webhook');
+        expect(webhookSearchCount).toBe(10);
+
+        const processingSearchCount = repository.getSearchCount('processing');
+        expect(processingSearchCount).toBe(15);
+
+        const noResultsCount = repository.getSearchCount('nonexistent');
+        expect(noResultsCount).toBe(0);
+      });
+    });
+
+    describe('getTaskTemplatesCount', () => {
+      it('should return correct count for task-based searches', () => {
+        const webhookTaskCount = repository.getTaskTemplatesCount('webhook_processing');
+        expect(webhookTaskCount).toBeGreaterThan(0);
+
+        const unknownTaskCount = repository.getTaskTemplatesCount('unknown_task');
+        expect(unknownTaskCount).toBe(0);
+      });
+    });
+
+    describe('getTemplateCount', () => {
+      it('should return total template count', () => {
+        const totalCount = repository.getTemplateCount();
+        expect(totalCount).toBe(25);
+      });
+
+      it('should return 0 for empty database', () => {
+        repository.clearTemplates();
+        const count = repository.getTemplateCount();
+        expect(count).toBe(0);
+      });
+    });
+
+    describe('getTemplatesForTask with pagination', () => {
+      it('should support pagination for task-based searches', () => {
+        const page1 = repository.getTemplatesForTask('webhook_processing', 5, 0);
+        const page2 = repository.getTemplatesForTask('webhook_processing', 5, 5);
+        
+        expect(page1).toHaveLength(5);
+        expect(page2).toHaveLength(5);
+
+        // Should be different results
+        const page1Ids = page1.map(t => t.id);
+        const page2Ids = page2.map(t => t.id);
+        expect(page1Ids.filter(id => page2Ids.includes(id))).toHaveLength(0);
+      });
     });
   });
 });

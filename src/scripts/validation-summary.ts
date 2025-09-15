@@ -52,7 +52,7 @@ async function runValidationSummary() {
 
     for (const template of templates) {
       try {
-        const workflow = JSON.parse(template.workflow_json);
+        const workflow = JSON.parse(template.workflow_json || '{}');
         const validationResult = await validator.validateWorkflow(workflow, {
           profile: 'minimal' // Use minimal profile to focus on critical errors
         });

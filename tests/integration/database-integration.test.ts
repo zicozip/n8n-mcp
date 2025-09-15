@@ -57,7 +57,7 @@ describe('Database Integration Tests', () => {
         ],
         user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
         createdAt: new Date().toISOString(),
-        totalViews: 0
+        totalViews: 100
       },
       {
         id: 101,
@@ -70,7 +70,7 @@ describe('Database Integration Tests', () => {
         ],
         user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
         createdAt: new Date().toISOString(),
-        totalViews: 0
+        totalViews: 100
       },
       {
         id: 102,
@@ -85,7 +85,7 @@ describe('Database Integration Tests', () => {
         ],
         user: { id: 1, name: 'Test User', username: 'testuser', verified: false },
         createdAt: new Date().toISOString(),
-        totalViews: 0
+        totalViews: 100
       }
     ]);
   });
@@ -163,7 +163,8 @@ describe('Database Integration Tests', () => {
       expect(template!.name).toBe('AI Content Generator');
       
       // Parse workflow JSON
-      const workflow = JSON.parse(template!.workflow_json);
+      expect(template!.workflow_json).toBeTruthy();
+      const workflow = JSON.parse(template!.workflow_json!);
       expect(workflow.nodes).toHaveLength(3);
       expect(workflow.nodes[0].name).toBe('Webhook');
       expect(workflow.nodes[1].name).toBe('OpenAI');

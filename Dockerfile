@@ -9,11 +9,13 @@ WORKDIR /app
 COPY tsconfig*.json ./
 
 # Create minimal package.json and install ONLY build dependencies
+# Note: openai and zod are needed for TypeScript compilation of template metadata modules
 RUN --mount=type=cache,target=/root/.npm \
     echo '{}' > package.json && \
     npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3 \
         @modelcontextprotocol/sdk@^1.12.1 dotenv@^16.5.0 express@^5.1.0 axios@^1.10.0 \
-        n8n-workflow@^1.96.0 uuid@^11.0.5 @types/uuid@^10.0.0
+        n8n-workflow@^1.96.0 uuid@^11.0.5 @types/uuid@^10.0.0 \
+        openai@^4.77.0 zod@^3.24.1
 
 # Copy source and build
 COPY src ./src
