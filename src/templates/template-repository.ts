@@ -641,7 +641,7 @@ export class TemplateRepository {
     const params: any[] = [];
     
     // Build WHERE conditions based on filters with proper parameterization
-    if (filters.category) {
+    if (filters.category !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
       // Escape special characters and quotes for JSON string matching
@@ -664,7 +664,7 @@ export class TemplateRepository {
       params.push(filters.minSetupMinutes);
     }
     
-    if (filters.requiredService) {
+    if (filters.requiredService !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
       // Escape special characters and quotes for JSON string matching
@@ -672,7 +672,7 @@ export class TemplateRepository {
       params.push(sanitizedService);
     }
     
-    if (filters.targetAudience) {
+    if (filters.targetAudience !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection  
       conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
       // Escape special characters and quotes for JSON string matching
@@ -708,7 +708,7 @@ export class TemplateRepository {
     const conditions: string[] = ['metadata_json IS NOT NULL'];
     const params: any[] = [];
     
-    if (filters.category) {
+    if (filters.category !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
       const sanitizedCategory = JSON.stringify(filters.category).slice(1, -1);
@@ -730,14 +730,14 @@ export class TemplateRepository {
       params.push(filters.minSetupMinutes);
     }
     
-    if (filters.requiredService) {
+    if (filters.requiredService !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
       const sanitizedService = JSON.stringify(filters.requiredService).slice(1, -1);
       params.push(sanitizedService);
     }
     
-    if (filters.targetAudience) {
+    if (filters.targetAudience !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
       const sanitizedAudience = JSON.stringify(filters.targetAudience).slice(1, -1);
@@ -785,12 +785,14 @@ export class TemplateRepository {
     const query = `
       SELECT * FROM templates 
       WHERE metadata_json IS NOT NULL 
-        AND json_extract(metadata_json, '$.categories') LIKE ?
+        AND json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'
       ORDER BY views DESC, created_at DESC
       LIMIT ? OFFSET ?
     `;
     
-    const results = this.db.prepare(query).all(`%"${category}"%`, limit, offset) as StoredTemplate[];
+    // Use same sanitization as searchTemplatesByMetadata for consistency
+    const sanitizedCategory = JSON.stringify(category).slice(1, -1);
+    const results = this.db.prepare(query).all(sanitizedCategory, limit, offset) as StoredTemplate[];
     return results.map(t => this.decompressWorkflow(t));
   }
   

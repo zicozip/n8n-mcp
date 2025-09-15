@@ -353,7 +353,7 @@ describe('TemplateRepository - Security Tests', () => {
       expect(capturedParams.length).toBeGreaterThan(0);
       // Find the parameter that contains 'test'
       const testParam = capturedParams[0].find((p: any) => typeof p === 'string' && p.includes('test'));
-      expect(testParam).toBe('%"test"%');
+      expect(testParam).toBe('test');
     });
   });
 
