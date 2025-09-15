@@ -55,6 +55,9 @@ export interface TemplateMinimal {
   };
 }
 
+export type TemplateField = 'id' | 'name' | 'description' | 'author' | 'nodes' | 'views' | 'created' | 'url' | 'metadata';
+export type PartialTemplateInfo = Partial<TemplateInfo>;
+
 export class TemplateService {
   private repository: TemplateRepository;
   
@@ -124,12 +127,17 @@ export class TemplateService {
   /**
    * Search templates by query
    */
-  async searchTemplates(query: string, limit: number = 20, offset: number = 0): Promise<PaginatedResponse<TemplateInfo>> {
+  async searchTemplates(query: string, limit: number = 20, offset: number = 0, fields?: string[]): Promise<PaginatedResponse<PartialTemplateInfo>> {
     const templates = this.repository.searchTemplates(query, limit, offset);
     const total = this.repository.getSearchCount(query);
     
+    // If fields are specified, filter the template info
+    const items = fields 
+      ? templates.map(t => this.formatTemplateWithFields(t, fields))
+      : templates.map(t => this.formatTemplateInfo(t));
+    
     return {
-      items: templates.map(this.formatTemplateInfo),
+      items,
       total,
       limit,
       offset,
@@ -402,5 +410,22 @@ export class TemplateService {
     }
     
     return info;
+  }
+  
+  /**
+   * Format template with only specified fields
+   */
+  private formatTemplateWithFields(template: StoredTemplate, fields: string[]): PartialTemplateInfo {
+    const fullInfo = this.formatTemplateInfo(template);
+    const result: PartialTemplateInfo = {};
+    
+    // Only include requested fields
+    for (const field of fields) {
+      if (field in fullInfo) {
+        (result as any)[field] = (fullInfo as any)[field];
+      }
+    }
+    
+    return result;
   }
 }

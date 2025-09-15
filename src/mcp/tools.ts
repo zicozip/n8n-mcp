@@ -414,6 +414,14 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
           type: 'string',
           description: 'Search keyword as string. Example: "chatbot"',
         },
+        fields: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['id', 'name', 'description', 'author', 'nodes', 'views', 'created', 'url', 'metadata'],
+          },
+          description: 'Fields to include in response. Default: all fields. Example: ["id", "name"] for minimal response.',
+        },
         limit: {
           type: 'number',
           description: 'Maximum number of results. Default 20.',
