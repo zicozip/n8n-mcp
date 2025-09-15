@@ -5,13 +5,14 @@ export const searchTemplatesDoc: ToolDocumentation = {
   category: 'templates',
   essentials: {
     description: 'Search templates by name/description keywords. NOT for node types! For nodes use list_node_templates. Example: "chatbot".',
-    keyParameters: ['query', 'limit'],
-    example: 'search_templates({query: "chatbot"})',
+    keyParameters: ['query', 'limit', 'fields'],
+    example: 'search_templates({query: "chatbot", fields: ["id", "name"]})',
     performance: 'Fast (<100ms) - FTS5 full-text search',
     tips: [
       'Searches template names and descriptions, NOT node types',
       'Use keywords like "automation", "sync", "notification"',
-      'For node-specific search, use list_node_templates instead'
+      'For node-specific search, use list_node_templates instead',
+      'Use fields parameter to get only specific data (reduces response by 70-90%)'
     ]
   },
   full: {
@@ -21,6 +22,11 @@ export const searchTemplatesDoc: ToolDocumentation = {
         type: 'string',
         required: true,
         description: 'Search query for template names/descriptions. NOT for node types! Examples: "chatbot", "automation", "social media", "webhook". For node-based search use list_node_templates instead.'
+      },
+      fields: {
+        type: 'array',
+        required: false,
+        description: 'Fields to include in response. Options: "id", "name", "description", "author", "nodes", "views", "created", "url", "metadata". Default: all fields. Example: ["id", "name"] for minimal response.'
       },
       limit: {
         type: 'number',
@@ -47,7 +53,9 @@ export const searchTemplatesDoc: ToolDocumentation = {
       'search_templates({query: "email notification"}) - Find email alert workflows',
       'search_templates({query: "data sync"}) - Find data synchronization workflows',
       'search_templates({query: "webhook automation", limit: 30}) - Find webhook-based automations',
-      'search_templates({query: "social media scheduler"}) - Find social posting workflows'
+      'search_templates({query: "social media scheduler"}) - Find social posting workflows',
+      'search_templates({query: "slack", fields: ["id", "name"]}) - Get only IDs and names of Slack templates',
+      'search_templates({query: "automation", fields: ["id", "name", "description"]}) - Get minimal info for automation templates'
     ],
     useCases: [
       'Find workflows by business purpose',

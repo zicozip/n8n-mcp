@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.1] - 2025-09-15
+
+### Added
+- **Optional Fields Parameter for search_templates**: Enhanced search_templates tool with field filtering capability
+  - New optional `fields` parameter accepts an array of field names to include in response
+  - Supported fields: 'id', 'name', 'description', 'author', 'nodes', 'views', 'created', 'url', 'metadata'
+  - Reduces response size by 70-98% when requesting only specific fields (e.g., just id and name)
+  - Maintains full backward compatibility - existing calls without fields parameter work unchanged
+  - Example: `search_templates({query: "slack", fields: ["id", "name"]})` returns minimal data
+  - Significantly improves AI agent performance by reducing token usage
+
 ### Added
 - **Fuzzy Node Type Matching for Templates**: Improved template discovery with flexible node type resolution
   - Templates can now be found using simple node names: `["slack"]` instead of `["n8n-nodes-base.slack"]`
@@ -1286,6 +1297,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.11.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.11.0...v2.11.1
+[2.11.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.9...v2.11.0
+[2.10.9]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.8...v2.10.9
+[2.10.8]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.5...v2.10.8
+[2.10.5]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.4...v2.10.5
 [2.10.4]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.3...v2.10.4
 [2.10.3]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.2...v2.10.3
 [2.10.2]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.1...v2.10.2

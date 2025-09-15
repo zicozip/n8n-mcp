@@ -746,7 +746,8 @@ export class N8NDocumentationMCPServer {
         this.validateToolParams(name, args, ['query']);
         const searchLimit = Math.min(Math.max(Number(args.limit) || 20, 1), 100);
         const searchOffset = Math.max(Number(args.offset) || 0, 0);
-        return this.searchTemplates(args.query, searchLimit, searchOffset);
+        const searchFields = args.fields as string[] | undefined;
+        return this.searchTemplates(args.query, searchLimit, searchOffset, searchFields);
       case 'get_templates_for_task':
         this.validateToolParams(name, args, ['task']);
         const taskLimit = Math.min(Math.max(Number(args.limit) || 10, 1), 100);
@@ -2399,11 +2400,11 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     };
   }
   
-  private async searchTemplates(query: string, limit: number = 20, offset: number = 0): Promise<any> {
+  private async searchTemplates(query: string, limit: number = 20, offset: number = 0, fields?: string[]): Promise<any> {
     await this.ensureInitialized();
     if (!this.templateService) throw new Error('Template service not initialized');
     
-    const result = await this.templateService.searchTemplates(query, limit, offset);
+    const result = await this.templateService.searchTemplates(query, limit, offset, fields);
     
     if (result.items.length === 0 && offset === 0) {
       return {

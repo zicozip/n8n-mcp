@@ -683,7 +683,7 @@ describe('TemplateService', () => {
 
       const result = await service.searchTemplates('test');
 
-      expect(result.items[0].author.verified).toBe(false);
+      expect(result.items[0]?.author?.verified).toBe(false);
     });
   });
 });
