@@ -3,12 +3,10 @@ import { TemplateService } from '../../../src/templates/template-service';
 import { TemplateRepository } from '../../../src/templates/template-repository';
 import { MetadataGenerator } from '../../../src/templates/metadata-generator';
 import { BatchProcessor } from '../../../src/templates/batch-processor';
-import { DatabaseAdapter } from '../../../src/database/database-adapter';
-import { BetterSqlite3Adapter } from '../../../src/database/adapters/better-sqlite3-adapter';
-import Database from 'better-sqlite3';
+import { DatabaseAdapter, createDatabaseAdapter } from '../../../src/database/database-adapter';
 import { tmpdir } from 'os';
-import { join } from 'path';
-import { unlinkSync, existsSync } from 'fs';
+import * as path from 'path';
+import { unlinkSync, existsSync, readFileSync } from 'fs';
 
 // Mock logger
 vi.mock('../../../src/utils/logger', () => ({
@@ -57,7 +55,6 @@ vi.mock('openai', () => {
 });
 
 describe('Template Metadata Operations - Integration Tests', () => {
-  let db: Database.Database;
   let adapter: DatabaseAdapter;
   let repository: TemplateRepository;
   let service: TemplateService;
@@ -65,9 +62,13 @@ describe('Template Metadata Operations - Integration Tests', () => {
 
   beforeEach(async () => {
     // Create temporary database
-    dbPath = join(tmpdir(), `test-metadata-${Date.now()}.db`);
-    db = new Database(dbPath);
-    adapter = new BetterSqlite3Adapter(db);
+    dbPath = path.join(tmpdir(), `test-metadata-${Date.now()}.db`);
+    adapter = await createDatabaseAdapter(dbPath);
+    
+    // Initialize database schema
+    const schemaPath = path.join(__dirname, '../../../src/database/schema.sql');
+    const schema = readFileSync(schemaPath, 'utf8');
+    adapter.exec(schema);
     
     // Initialize repository and service
     repository = new TemplateRepository(adapter);
@@ -78,8 +79,8 @@ describe('Template Metadata Operations - Integration Tests', () => {
   });
 
   afterEach(() => {
-    if (db) {
-      db.close();
+    if (adapter) {
+      adapter.close();
     }
     if (existsSync(dbPath)) {
       unlinkSync(dbPath);
