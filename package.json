@@ -1,6 +1,6 @@
 {
   "name": "n8n-mcp",
-  "version": "2.11.1",
+  "version": "2.11.2",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
   "bin": {
@@ -128,12 +128,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.2",
-    "@n8n/n8n-nodes-langchain": "^1.109.1",
+    "@n8n/n8n-nodes-langchain": "^1.110.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "n8n": "^1.110.1",
-    "n8n-core": "^1.109.0",
-    "n8n-workflow": "^1.107.0",
+    "n8n": "^1.111.0",
+    "n8n-core": "^1.110.0",
+    "n8n-workflow": "^1.108.0",
     "openai": "^4.77.0",
     "sql.js": "^1.13.0",
     "uuid": "^10.0.0",
@@ -143,5 +143,8 @@
     "@rollup/rollup-darwin-arm64": "^4.50.0",
     "@rollup/rollup-linux-x64-gnu": "^4.50.0",
     "better-sqlite3": "^11.10.0"
+  },
+  "overrides": {
+    "pyodide": "0.26.4"
   }
 }
