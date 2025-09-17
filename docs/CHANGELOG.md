@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.3] - 2025-09-17
+
+### Fixed
+- **n8n_update_partial_workflow Tool**: Fixed critical bug where updateNode and updateConnection operations were using incorrect property name
+  - Changed from `changes` property to `updates` property to match documentation and expected behavior
+  - Resolves issue where AI agents would break workflow connections when updating nodes
+  - Fixes GitHub issues #159 (update_partial_workflow is invalid) and #168 (partial workflow update returns error)
+  - All related tests updated to use correct property name
+
 ## [2.11.2] - 2025-09-16
 
 ### Updated
