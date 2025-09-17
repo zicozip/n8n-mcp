@@ -159,7 +159,7 @@ describe('handlers-workflow-diff', () => {
           {
             type: 'updateNode',
             nodeId: 'node2',
-            changes: { name: 'Updated HTTP Request' },
+            updates: { name: 'Updated HTTP Request' },
           },
         ],
         validateOnly: true,
@@ -196,7 +196,7 @@ describe('handlers-workflow-diff', () => {
           {
             type: 'updateNode',
             nodeId: 'node1',
-            changes: { name: 'Updated Start' },
+            updates: { name: 'Updated Start' },
           },
           {
             type: 'addNode',
@@ -243,7 +243,7 @@ describe('handlers-workflow-diff', () => {
           {
             type: 'updateNode',
             nodeId: 'non-existent-node',
-            changes: { name: 'Updated' },
+            updates: { name: 'Updated' },
           },
         ],
       };
@@ -320,7 +320,7 @@ describe('handlers-workflow-diff', () => {
 
       const result = await handleUpdatePartialWorkflow({
         id: 'test-id',
-        operations: [{ type: 'updateNode', nodeId: 'node1', changes: {} }],
+        operations: [{ type: 'updateNode', nodeId: 'node1', updates: {} }],
       });
 
       expect(result).toEqual({
@@ -341,7 +341,7 @@ describe('handlers-workflow-diff', () => {
           {
             // Missing required 'type' field
             nodeId: 'node1',
-            changes: {},
+            updates: {},
           },
         ],
       };
@@ -417,7 +417,7 @@ describe('handlers-workflow-diff', () => {
 
       await handleUpdatePartialWorkflow({
         id: 'test-id',
-        operations: [{ type: 'updateNode', nodeId: 'node1', changes: {} }],
+        operations: [{ type: 'updateNode', nodeId: 'node1', updates: {} }],
       });
 
       expect(logger.debug).toHaveBeenCalledWith(
@@ -502,7 +502,7 @@ describe('handlers-workflow-diff', () => {
             type: 'updateNode',
             nodeId: 'node1',
             nodeName: 'Start', // Both nodeId and nodeName provided
-            changes: { name: 'New Start' },
+            updates: { name: 'New Start' },
             description: 'Update start node name',
           },
           {
@@ -561,8 +561,8 @@ describe('handlers-workflow-diff', () => {
       const diffRequest = {
         id: 'test-workflow-id',
         operations: [
-          { type: 'updateNode', nodeId: 'node1', changes: { name: 'Updated' } },
-          { type: 'updateNode', nodeId: 'invalid-node', changes: { name: 'Fail' } },
+          { type: 'updateNode', nodeId: 'node1', updates: { name: 'Updated' } },
+          { type: 'updateNode', nodeId: 'invalid-node', updates: { name: 'Fail' } },
           { type: 'addTag', tag: 'test' },
         ],
       };
