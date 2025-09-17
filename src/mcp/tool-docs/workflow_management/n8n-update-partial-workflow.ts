@@ -48,7 +48,7 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
     },
     returns: 'Updated workflow object or validation results if validateOnly=true',
     examples: [
-      '// Update node parameter\nn8n_update_partial_workflow({id: "abc", operations: [{type: "updateNode", nodeName: "HTTP Request", changes: {"parameters.url": "https://api.example.com"}}]})',
+      '// Update node parameter\nn8n_update_partial_workflow({id: "abc", operations: [{type: "updateNode", nodeName: "HTTP Request", updates: {"parameters.url": "https://api.example.com"}}]})',
       '// Add connection between nodes\nn8n_update_partial_workflow({id: "xyz", operations: [{type: "addConnection", source: "Webhook", target: "Slack", sourceOutput: "main", targetInput: "main"}]})',
       '// Multiple operations in one call\nn8n_update_partial_workflow({id: "123", operations: [\n  {type: "addNode", node: {name: "Transform", type: "n8n-nodes-base.code", position: [400, 300]}},\n  {type: "addConnection", source: "Webhook", target: "Transform"},\n  {type: "updateSettings", settings: {timezone: "America/New_York"}}\n]})',
       '// Validate before applying\nn8n_update_partial_workflow({id: "456", operations: [{type: "removeNode", nodeName: "Old Process"}], validateOnly: true})'
@@ -73,7 +73,7 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
       'Operations validated together - all must be valid',
       'Order matters for dependent operations (e.g., must add node before connecting to it)',
       'Node references accept ID or name, but name must be unique',
-      'Dot notation for nested updates: use "parameters.url" not nested objects'
+      'Use "updates" property for updateNode operations: {type: "updateNode", updates: {...}}'
     ],
     relatedTools: ['n8n_update_full_workflow', 'n8n_get_workflow', 'validate_workflow', 'tools_documentation']
   }

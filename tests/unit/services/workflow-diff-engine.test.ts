@@ -281,7 +281,7 @@ describe('WorkflowDiffEngine', () => {
       const operation: UpdateNodeOperation = {
         type: 'updateNode',
         nodeId: 'http-1',
-        changes: {
+        updates: {
           'parameters.method': 'POST',
           'parameters.url': 'https://new-api.example.com'
         }
@@ -304,7 +304,7 @@ describe('WorkflowDiffEngine', () => {
       const operation: UpdateNodeOperation = {
         type: 'updateNode',
         nodeName: 'Slack',
-        changes: {
+        updates: {
           'parameters.resource': 'channel',
           'parameters.operation': 'create',
           'credentials.slackApi.name': 'New Slack Account'
@@ -329,7 +329,7 @@ describe('WorkflowDiffEngine', () => {
       const operation: UpdateNodeOperation = {
         type: 'updateNode',
         nodeId: 'non-existent',
-        changes: {
+        updates: {
           'parameters.test': 'value'
         }
       };
@@ -617,7 +617,7 @@ describe('WorkflowDiffEngine', () => {
         type: 'updateConnection',
         source: 'IF',
         target: 'slack-1',
-        changes: {
+        updates: {
           sourceOutput: 'false',
           sourceIndex: 0,
           targetIndex: 0
@@ -1039,7 +1039,7 @@ describe('WorkflowDiffEngine', () => {
       const operation: UpdateNodeOperation = {
         type: 'updateNode',
         nodeId: 'Webhook', // Using name as ID
-        changes: {
+        updates: {
           'parameters.path': 'new-webhook-path'
         }
       };

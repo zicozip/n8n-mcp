@@ -31,7 +31,7 @@ export interface UpdateNodeOperation extends DiffOperation {
   type: 'updateNode';
   nodeId?: string; // Can use either ID or name
   nodeName?: string;
-  changes: {
+  updates: {
     [path: string]: any; // Dot notation paths like 'parameters.url'
   };
 }
@@ -78,7 +78,7 @@ export interface UpdateConnectionOperation extends DiffOperation {
   type: 'updateConnection';
   source: string;
   target: string;
-  changes: {
+  updates: {
     sourceOutput?: string;
     targetInput?: string;
     sourceIndex?: number;
