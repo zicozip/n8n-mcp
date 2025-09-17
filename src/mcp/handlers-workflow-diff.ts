@@ -21,7 +21,7 @@ const workflowDiffSchema = z.object({
     node: z.any().optional(),
     nodeId: z.string().optional(),
     nodeName: z.string().optional(),
-    changes: z.any().optional(),
+    updates: z.any().optional(),
     position: z.tuple([z.number(), z.number()]).optional(),
     // Connection operations
     source: z.string().optional(),
