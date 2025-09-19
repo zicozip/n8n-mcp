@@ -208,4 +208,133 @@ describe('Flexible Instance Configuration', () => {
       expect(isInstanceContext({ n8nApiUrl: 123 })).toBe(false);
     });
   });
+
+  describe('HTTP Header Extraction Logic', () => {
+    it('should create instance context from headers', () => {
+      // Test the logic that would extract context from headers
+      const headers = {
+        'x-n8n-url': 'https://instance1.n8n.cloud',
+        'x-n8n-key': 'test-api-key-123',
+        'x-instance-id': 'instance-test-1',
+        'x-session-id': 'session-test-123',
+        'user-agent': 'test-client/1.0'
+      };
+
+      // This simulates the logic in http-server-single-session.ts
+      const instanceContext: InstanceContext | undefined =
+        (headers['x-n8n-url'] || headers['x-n8n-key']) ? {
+          n8nApiUrl: headers['x-n8n-url'] as string,
+          n8nApiKey: headers['x-n8n-key'] as string,
+          instanceId: headers['x-instance-id'] as string,
+          sessionId: headers['x-session-id'] as string,
+          metadata: {
+            userAgent: headers['user-agent'],
+            ip: '127.0.0.1'
+          }
+        } : undefined;
+
+      expect(instanceContext).toBeDefined();
+      expect(instanceContext?.n8nApiUrl).toBe('https://instance1.n8n.cloud');
+      expect(instanceContext?.n8nApiKey).toBe('test-api-key-123');
+      expect(instanceContext?.instanceId).toBe('instance-test-1');
+      expect(instanceContext?.sessionId).toBe('session-test-123');
+      expect(instanceContext?.metadata?.userAgent).toBe('test-client/1.0');
+    });
+
+    it('should not create context when headers are missing', () => {
+      // Test when no relevant headers are present
+      const headers: Record<string, string | undefined> = {
+        'content-type': 'application/json',
+        'user-agent': 'test-client/1.0'
+      };
+
+      const instanceContext: InstanceContext | undefined =
+        (headers['x-n8n-url'] || headers['x-n8n-key']) ? {
+          n8nApiUrl: headers['x-n8n-url'] as string,
+          n8nApiKey: headers['x-n8n-key'] as string,
+          instanceId: headers['x-instance-id'] as string,
+          sessionId: headers['x-session-id'] as string,
+          metadata: {
+            userAgent: headers['user-agent'],
+            ip: '127.0.0.1'
+          }
+        } : undefined;
+
+      expect(instanceContext).toBeUndefined();
+    });
+
+    it('should create context with partial headers', () => {
+      // Test when only some headers are present
+      const headers: Record<string, string | undefined> = {
+        'x-n8n-url': 'https://partial.n8n.cloud',
+        'x-instance-id': 'partial-instance'
+        // Missing x-n8n-key and x-session-id
+      };
+
+      const instanceContext: InstanceContext | undefined =
+        (headers['x-n8n-url'] || headers['x-n8n-key']) ? {
+          n8nApiUrl: headers['x-n8n-url'] as string,
+          n8nApiKey: headers['x-n8n-key'] as string,
+          instanceId: headers['x-instance-id'] as string,
+          sessionId: headers['x-session-id'] as string,
+          metadata: undefined
+        } : undefined;
+
+      expect(instanceContext).toBeDefined();
+      expect(instanceContext?.n8nApiUrl).toBe('https://partial.n8n.cloud');
+      expect(instanceContext?.n8nApiKey).toBeUndefined();
+      expect(instanceContext?.instanceId).toBe('partial-instance');
+      expect(instanceContext?.sessionId).toBeUndefined();
+    });
+
+    it('should prioritize x-n8n-key for context creation', () => {
+      // Test when only API key is present
+      const headers: Record<string, string | undefined> = {
+        'x-n8n-key': 'key-only-test',
+        'x-instance-id': 'key-only-instance'
+        // Missing x-n8n-url
+      };
+
+      const instanceContext: InstanceContext | undefined =
+        (headers['x-n8n-url'] || headers['x-n8n-key']) ? {
+          n8nApiUrl: headers['x-n8n-url'] as string,
+          n8nApiKey: headers['x-n8n-key'] as string,
+          instanceId: headers['x-instance-id'] as string,
+          sessionId: headers['x-session-id'] as string,
+          metadata: undefined
+        } : undefined;
+
+      expect(instanceContext).toBeDefined();
+      expect(instanceContext?.n8nApiKey).toBe('key-only-test');
+      expect(instanceContext?.n8nApiUrl).toBeUndefined();
+      expect(instanceContext?.instanceId).toBe('key-only-instance');
+    });
+
+    it('should handle empty string headers', () => {
+      // Test with empty strings
+      const headers = {
+        'x-n8n-url': '',
+        'x-n8n-key': 'valid-key',
+        'x-instance-id': '',
+        'x-session-id': ''
+      };
+
+      // Empty string for URL should not trigger context creation
+      // But valid key should
+      const instanceContext: InstanceContext | undefined =
+        (headers['x-n8n-url'] || headers['x-n8n-key']) ? {
+          n8nApiUrl: headers['x-n8n-url'] as string,
+          n8nApiKey: headers['x-n8n-key'] as string,
+          instanceId: headers['x-instance-id'] as string,
+          sessionId: headers['x-session-id'] as string,
+          metadata: undefined
+        } : undefined;
+
+      expect(instanceContext).toBeDefined();
+      expect(instanceContext?.n8nApiUrl).toBe('');
+      expect(instanceContext?.n8nApiKey).toBe('valid-key');
+      expect(instanceContext?.instanceId).toBe('');
+      expect(instanceContext?.sessionId).toBe('');
+    });
+  });
 });

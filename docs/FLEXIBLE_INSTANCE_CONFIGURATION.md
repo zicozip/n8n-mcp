@@ -99,6 +99,61 @@ if (client) {
 }
 ```
 
+### HTTP Headers for Multi-Tenant Support
+
+When using the HTTP server mode, clients can pass instance-specific configuration via HTTP headers:
+
+```bash
+# Example curl request with instance headers
+curl -X POST http://localhost:3000/mcp \
+  -H "Authorization: Bearer your-auth-token" \
+  -H "Content-Type: application/json" \
+  -H "X-N8n-Url: https://instance1.n8n.cloud" \
+  -H "X-N8n-Key: instance1-api-key" \
+  -H "X-Instance-Id: instance-1" \
+  -H "X-Session-Id: session-123" \
+  -d '{"method": "n8n_list_workflows", "params": {}, "id": 1}'
+```
+
+#### Supported Headers
+
+- **X-N8n-Url**: The n8n instance URL (e.g., `https://instance.n8n.cloud`)
+- **X-N8n-Key**: The API key for authentication with the n8n instance
+- **X-Instance-Id**: A unique identifier for the instance (optional, for tracking)
+- **X-Session-Id**: A session identifier (optional, for session tracking)
+
+#### Header Extraction Logic
+
+1. If either `X-N8n-Url` or `X-N8n-Key` header is present, an instance context is created
+2. All headers are extracted and passed to the MCP server
+3. The server uses the instance-specific configuration instead of environment variables
+4. If no headers are present, the server falls back to environment variables (backward compatible)
+
+#### Example: JavaScript Client
+
+```javascript
+const headers = {
+  'Authorization': 'Bearer your-auth-token',
+  'Content-Type': 'application/json',
+  'X-N8n-Url': 'https://customer1.n8n.cloud',
+  'X-N8n-Key': 'customer1-api-key',
+  'X-Instance-Id': 'customer-1',
+  'X-Session-Id': 'session-456'
+};
+
+const response = await fetch('http://localhost:3000/mcp', {
+  method: 'POST',
+  headers: headers,
+  body: JSON.stringify({
+    method: 'n8n_list_workflows',
+    params: {},
+    id: 1
+  })
+});
+
+const result = await response.json();
+```
+
 ### HTTP Server Integration
 
 ```typescript
