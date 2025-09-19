@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   getInstanceCacheMetrics,
-  getInstanceCacheMetrics,
   getN8nApiClient,
   clearInstanceCache
 } from '../../../src/mcp/handlers-n8n-manager';
