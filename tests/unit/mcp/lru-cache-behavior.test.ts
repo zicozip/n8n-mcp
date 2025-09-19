@@ -28,7 +28,7 @@ vi.mock('../../../src/types/instance-context', async () => {
 describe('LRU Cache Behavior Tests', () => {
   let mockN8nApiClient: Mock;
   let mockGetN8nApiConfigFromContext: Mock;
-  let mockLogger: Mock;
+  let mockLogger: any; // Logger mock has complex type
   let mockValidateInstanceContext: Mock;
 
   beforeEach(() => {

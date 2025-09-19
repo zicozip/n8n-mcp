@@ -21,7 +21,7 @@ vi.mock('../../src/utils/logger');
 describe('Advanced Security and Error Handling Tests', () => {
   let mockN8nApiClient: Mock;
   let mockGetN8nApiConfigFromContext: Mock;
-  let mockLogger: Mock;
+  let mockLogger: any; // Logger mock has complex type
 
   beforeEach(() => {
     vi.resetAllMocks();

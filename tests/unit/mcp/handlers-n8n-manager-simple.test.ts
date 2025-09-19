@@ -187,7 +187,7 @@ describe('handlers-n8n-manager Simple Coverage Tests', () => {
 
   describe('Array and Object Handling', () => {
     it('should handle undefined array lengths', () => {
-      const workflowData = {
+      const workflowData: { nodes?: any[] } = {
         nodes: undefined
       };
 
@@ -283,7 +283,7 @@ describe('handlers-n8n-manager Simple Coverage Tests', () => {
     });
 
     it('should handle missing dependencies', () => {
-      const packageJson = {};
+      const packageJson: { dependencies?: { n8n?: string } } = {};
 
       const supportedVersion = packageJson.dependencies?.n8n?.replace(/[^0-9.]/g, '') || '';
 
