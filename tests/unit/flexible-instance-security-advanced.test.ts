@@ -48,7 +48,7 @@ describe('Advanced Security and Error Handling Tests', () => {
 
       // URL should be invalid due to special characters
       expect(validation.valid).toBe(false);
-      expect(validation.errors).toContain('Invalid n8nApiUrl format');
+      expect(validation.errors?.some(error => error.startsWith('Invalid n8nApiUrl:'))).toBe(true);
     });
 
     it('should handle XSS attempts in context fields', () => {
@@ -304,7 +304,7 @@ describe('Advanced Security and Error Handling Tests', () => {
       const validation = validateInstanceContext(sensitiveContext);
 
       expect(validation.valid).toBe(false);
-      expect(validation.errors).toContain('Invalid n8nApiUrl format');
+      expect(validation.errors?.some(error => error.startsWith('Invalid n8nApiUrl:'))).toBe(true);
 
       // Should not contain the actual invalid URL
       const errorData = JSON.stringify(validation);

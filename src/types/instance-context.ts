@@ -101,10 +101,10 @@ export function validateInstanceContext(context: InstanceContext): {
       try {
         const parsed = new URL(context.n8nApiUrl);
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-          errors.push(`Invalid n8nApiUrl: ${context.n8nApiUrl} - URL must use HTTP or HTTPS protocol, got ${parsed.protocol}`);
+          errors.push(`Invalid n8nApiUrl: URL must use HTTP or HTTPS protocol, got ${parsed.protocol}`);
         }
       } catch {
-        errors.push(`Invalid n8nApiUrl: ${context.n8nApiUrl} - URL format is malformed or incomplete`);
+        errors.push(`Invalid n8nApiUrl: URL format is malformed or incomplete`);
       }
     }
   }

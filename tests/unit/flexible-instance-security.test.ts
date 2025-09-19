@@ -50,7 +50,7 @@ describe('Flexible Instance Security', () => {
           };
           const validation = validateInstanceContext(context);
           expect(validation.valid).toBe(false);
-          expect(validation.errors).toContain('Invalid n8nApiUrl format');
+          expect(validation.errors?.some(error => error.startsWith('Invalid n8nApiUrl:'))).toBe(true);
         });
       });
     });
@@ -91,7 +91,7 @@ describe('Flexible Instance Security', () => {
           };
           const validation = validateInstanceContext(context);
           expect(validation.valid).toBe(false);
-          expect(validation.errors).toContain('Invalid n8nApiKey format');
+          expect(validation.errors?.some(error => error.startsWith('Invalid n8nApiKey:'))).toBe(true);
         });
       });
     });
@@ -108,7 +108,7 @@ describe('Flexible Instance Security', () => {
           };
           const validation = validateInstanceContext(context);
           expect(validation.valid).toBe(false);
-          expect(validation.errors).toContain('n8nApiTimeout must be a positive number');
+          expect(validation.errors?.some(error => error.includes('Must be positive (greater than 0)'))).toBe(true);
         });
 
         // NaN and Infinity are handled differently
@@ -141,7 +141,7 @@ describe('Flexible Instance Security', () => {
           };
           const validation = validateInstanceContext(context);
           expect(validation.valid).toBe(false);
-          expect(validation.errors).toContain('n8nApiMaxRetries must be a non-negative number');
+          expect(validation.errors?.some(error => error.includes('Must be non-negative (0 or greater)'))).toBe(true);
         });
 
         // Valid retries (including 0)
