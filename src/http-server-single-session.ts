@@ -16,11 +16,12 @@ import { getStartupBaseUrl, formatEndpointUrls, detectBaseUrl } from './utils/ur
 import { PROJECT_VERSION } from './utils/version';
 import { v4 as uuidv4 } from 'uuid';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { 
-  negotiateProtocolVersion, 
+import {
+  negotiateProtocolVersion,
   logProtocolNegotiation,
-  STANDARD_PROTOCOL_VERSION 
+  STANDARD_PROTOCOL_VERSION
 } from './utils/protocol-version';
+import { InstanceContext } from './types/instance-context';
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ export class SingleSessionHTTPServer {
   private transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
   private servers: { [sessionId: string]: N8NDocumentationMCPServer } = {};
   private sessionMetadata: { [sessionId: string]: { lastAccess: Date; createdAt: Date } } = {};
+  private sessionContexts: { [sessionId: string]: InstanceContext | undefined } = {};
   private session: Session | null = null;  // Keep for SSE compatibility
   private consoleManager = new ConsoleManager();
   private expressServer: any;
@@ -93,7 +95,7 @@ export class SingleSessionHTTPServer {
   private cleanupExpiredSessions(): void {
     const now = Date.now();
     const expiredSessions: string[] = [];
-    
+
     // Check for expired sessions
     for (const sessionId in this.sessionMetadata) {
       const metadata = this.sessionMetadata[sessionId];
@@ -101,14 +103,23 @@ export class SingleSessionHTTPServer {
         expiredSessions.push(sessionId);
       }
     }
-    
+
+    // Also check for orphaned contexts (sessions that were removed but context remained)
+    for (const sessionId in this.sessionContexts) {
+      if (!this.sessionMetadata[sessionId]) {
+        // Context exists but session doesn't - clean it up
+        delete this.sessionContexts[sessionId];
+        logger.debug('Cleaned orphaned session context', { sessionId });
+      }
+    }
+
     // Remove expired sessions
     for (const sessionId of expiredSessions) {
       this.removeSession(sessionId, 'expired');
     }
-    
+
     if (expiredSessions.length > 0) {
-      logger.info('Cleaned up expired sessions', { 
+      logger.info('Cleaned up expired sessions', {
         removed: expiredSessions.length,
         remaining: this.getActiveSessionCount()
       });
@@ -126,9 +137,10 @@ export class SingleSessionHTTPServer {
         delete this.transports[sessionId];
       }
       
-      // Remove server and metadata
+      // Remove server, metadata, and context
       delete this.servers[sessionId];
       delete this.sessionMetadata[sessionId];
+      delete this.sessionContexts[sessionId];
       
       logger.info('Session removed', { sessionId, reason });
     } catch (error) {
@@ -301,8 +313,16 @@ export class SingleSessionHTTPServer {
 
   /**
    * Handle incoming MCP request using proper SDK pattern
+   *
+   * @param req - Express request object
+   * @param res - Express response object
+   * @param instanceContext - Optional instance-specific configuration
    */
-  async handleRequest(req: express.Request, res: express.Response): Promise<void> {
+  async handleRequest(
+    req: express.Request,
+    res: express.Response,
+    instanceContext?: InstanceContext
+  ): Promise<void> {
     const startTime = Date.now();
     
     // Wrap all operations to prevent console interference
@@ -346,10 +366,10 @@ export class SingleSessionHTTPServer {
           
           // For initialize requests: always create new transport and server
           logger.info('handleRequest: Creating new transport for initialize request');
-          
+
           // Use client-provided session ID or generate one if not provided
           const sessionIdToUse = sessionId || uuidv4();
-          const server = new N8NDocumentationMCPServer();
+          const server = new N8NDocumentationMCPServer(instanceContext);
           
           transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: () => sessionIdToUse,
@@ -361,11 +381,12 @@ export class SingleSessionHTTPServer {
               this.transports[initializedSessionId] = transport;
               this.servers[initializedSessionId] = server;
               
-              // Store session metadata
+              // Store session metadata and context
               this.sessionMetadata[initializedSessionId] = {
                 lastAccess: new Date(),
                 createdAt: new Date()
               };
+              this.sessionContexts[initializedSessionId] = instanceContext;
             }
           });
           

@@ -29,11 +29,12 @@ import { getToolDocumentation, getToolsOverview } from './tools-documentation';
 import { PROJECT_VERSION } from '../utils/version';
 import { normalizeNodeType, getNodeTypeAlternatives, getWorkflowNodeType } from '../utils/node-utils';
 import { ToolValidation, Validator, ValidationError } from '../utils/validation-schemas';
-import { 
-  negotiateProtocolVersion, 
+import {
+  negotiateProtocolVersion,
   logProtocolNegotiation,
-  STANDARD_PROTOCOL_VERSION 
+  STANDARD_PROTOCOL_VERSION
 } from '../utils/protocol-version';
+import { InstanceContext } from '../types/instance-context';
 
 interface NodeRow {
   node_type: string;
@@ -61,8 +62,10 @@ export class N8NDocumentationMCPServer {
   private initialized: Promise<void>;
   private cache = new SimpleCache();
   private clientInfo: any = null;
+  private instanceContext?: InstanceContext;
 
-  constructor() {
+  constructor(instanceContext?: InstanceContext) {
+    this.instanceContext = instanceContext;
     // Check for test environment first
     const envDbPath = process.env.NODE_DB_PATH;
     let dbPath: string | null = null;
@@ -778,57 +781,57 @@ export class N8NDocumentationMCPServer {
       // n8n Management Tools (if API is configured)
       case 'n8n_create_workflow':
         this.validateToolParams(name, args, ['name', 'nodes', 'connections']);
-        return n8nHandlers.handleCreateWorkflow(args);
+        return n8nHandlers.handleCreateWorkflow(args, this.instanceContext);
       case 'n8n_get_workflow':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleGetWorkflow(args);
+        return n8nHandlers.handleGetWorkflow(args, this.instanceContext);
       case 'n8n_get_workflow_details':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleGetWorkflowDetails(args);
+        return n8nHandlers.handleGetWorkflowDetails(args, this.instanceContext);
       case 'n8n_get_workflow_structure':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleGetWorkflowStructure(args);
+        return n8nHandlers.handleGetWorkflowStructure(args, this.instanceContext);
       case 'n8n_get_workflow_minimal':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleGetWorkflowMinimal(args);
+        return n8nHandlers.handleGetWorkflowMinimal(args, this.instanceContext);
       case 'n8n_update_full_workflow':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleUpdateWorkflow(args);
+        return n8nHandlers.handleUpdateWorkflow(args, this.instanceContext);
       case 'n8n_update_partial_workflow':
         this.validateToolParams(name, args, ['id', 'operations']);
-        return handleUpdatePartialWorkflow(args);
+        return handleUpdatePartialWorkflow(args, this.instanceContext);
       case 'n8n_delete_workflow':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleDeleteWorkflow(args);
+        return n8nHandlers.handleDeleteWorkflow(args, this.instanceContext);
       case 'n8n_list_workflows':
         // No required parameters
-        return n8nHandlers.handleListWorkflows(args);
+        return n8nHandlers.handleListWorkflows(args, this.instanceContext);
       case 'n8n_validate_workflow':
         this.validateToolParams(name, args, ['id']);
         await this.ensureInitialized();
         if (!this.repository) throw new Error('Repository not initialized');
-        return n8nHandlers.handleValidateWorkflow(args, this.repository);
+        return n8nHandlers.handleValidateWorkflow(args, this.repository, this.instanceContext);
       case 'n8n_trigger_webhook_workflow':
         this.validateToolParams(name, args, ['webhookUrl']);
-        return n8nHandlers.handleTriggerWebhookWorkflow(args);
+        return n8nHandlers.handleTriggerWebhookWorkflow(args, this.instanceContext);
       case 'n8n_get_execution':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleGetExecution(args);
+        return n8nHandlers.handleGetExecution(args, this.instanceContext);
       case 'n8n_list_executions':
         // No required parameters
-        return n8nHandlers.handleListExecutions(args);
+        return n8nHandlers.handleListExecutions(args, this.instanceContext);
       case 'n8n_delete_execution':
         this.validateToolParams(name, args, ['id']);
-        return n8nHandlers.handleDeleteExecution(args);
+        return n8nHandlers.handleDeleteExecution(args, this.instanceContext);
       case 'n8n_health_check':
         // No required parameters
-        return n8nHandlers.handleHealthCheck();
+        return n8nHandlers.handleHealthCheck(this.instanceContext);
       case 'n8n_list_available_tools':
         // No required parameters
-        return n8nHandlers.handleListAvailableTools();
+        return n8nHandlers.handleListAvailableTools(this.instanceContext);
       case 'n8n_diagnostic':
         // No required parameters
-        return n8nHandlers.handleDiagnostic({ params: { arguments: args } });
+        return n8nHandlers.handleDiagnostic({ params: { arguments: args } }, this.instanceContext);
         
       default:
         throw new Error(`Unknown tool: ${name}`);

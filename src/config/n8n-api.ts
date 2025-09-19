@@ -48,5 +48,27 @@ export function isN8nApiConfigured(): boolean {
   return config !== null;
 }
 
+/**
+ * Create n8n API configuration from instance context
+ * Used for flexible instance configuration support
+ */
+export function getN8nApiConfigFromContext(context: {
+  n8nApiUrl?: string;
+  n8nApiKey?: string;
+  n8nApiTimeout?: number;
+  n8nApiMaxRetries?: number;
+}): N8nApiConfig | null {
+  if (!context.n8nApiUrl || !context.n8nApiKey) {
+    return null;
+  }
+
+  return {
+    baseUrl: context.n8nApiUrl,
+    apiKey: context.n8nApiKey,
+    timeout: context.n8nApiTimeout ?? 30000,
+    maxRetries: context.n8nApiMaxRetries ?? 3,
+  };
+}
+
 // Type export
 export type N8nApiConfig = NonNullable<ReturnType<typeof getN8nApiConfig>>;

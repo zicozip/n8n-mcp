@@ -10,6 +10,7 @@ import { WorkflowDiffEngine } from '../services/workflow-diff-engine';
 import { getN8nApiClient } from './handlers-n8n-manager';
 import { N8nApiError, getUserFriendlyErrorMessage } from '../utils/n8n-errors';
 import { logger } from '../utils/logger';
+import { InstanceContext } from '../types/instance-context';
 
 // Zod schema for the diff request
 const workflowDiffSchema = z.object({
@@ -38,7 +39,7 @@ const workflowDiffSchema = z.object({
   validateOnly: z.boolean().optional(),
 });
 
-export async function handleUpdatePartialWorkflow(args: unknown): Promise<McpToolResponse> {
+export async function handleUpdatePartialWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
     // Debug logging (only in debug mode)
     if (process.env.DEBUG_MCP === 'true') {
@@ -54,7 +55,7 @@ export async function handleUpdatePartialWorkflow(args: unknown): Promise<McpToo
     const input = workflowDiffSchema.parse(args);
     
     // Get API client
-    const client = getN8nApiClient();
+    const client = getN8nApiClient(context);
     if (!client) {
       return {
         success: false,

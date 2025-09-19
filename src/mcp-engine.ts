@@ -1,6 +1,6 @@
 /**
  * N8N MCP Engine - Clean interface for service integration
- * 
+ *
  * This class provides a simple API for integrating the n8n-MCP server
  * into larger services. The wrapping service handles authentication,
  * multi-tenancy, rate limiting, etc.
@@ -8,6 +8,7 @@
 import { Request, Response } from 'express';
 import { SingleSessionHTTPServer } from './http-server-single-session';
 import { logger } from './utils/logger';
+import { InstanceContext } from './types/instance-context';
 
 export interface EngineHealth {
   status: 'healthy' | 'unhealthy';
@@ -40,21 +41,33 @@ export class N8NMCPEngine {
   }
   
   /**
-   * Process a single MCP request
+   * Process a single MCP request with optional instance context
    * The wrapping service handles authentication, multi-tenancy, etc.
-   * 
+   *
+   * @param req - Express request object
+   * @param res - Express response object
+   * @param instanceContext - Optional instance-specific configuration
+   *
    * @example
-   * // In your service
-   * const engine = new N8NMCPEngine();
-   * 
-   * app.post('/api/users/:userId/mcp', authenticate, async (req, res) => {
-   *   // Your service handles auth, rate limiting, user context
-   *   await engine.processRequest(req, res);
-   * });
+   * // Basic usage (backward compatible)
+   * await engine.processRequest(req, res);
+   *
+   * @example
+   * // With instance context
+   * const context: InstanceContext = {
+   *   n8nApiUrl: 'https://instance1.n8n.cloud',
+   *   n8nApiKey: 'instance1-key',
+   *   instanceId: 'tenant-123'
+   * };
+   * await engine.processRequest(req, res, context);
    */
-  async processRequest(req: Request, res: Response): Promise<void> {
+  async processRequest(
+    req: Request,
+    res: Response,
+    instanceContext?: InstanceContext
+  ): Promise<void> {
     try {
-      await this.server.handleRequest(req, res);
+      await this.server.handleRequest(req, res, instanceContext);
     } catch (error) {
       logger.error('Engine processRequest error:', error);
       throw error;
@@ -130,36 +143,39 @@ export class N8NMCPEngine {
 }
 
 /**
- * Example usage in a multi-tenant service:
- * 
+ * Example usage with flexible instance configuration:
+ *
  * ```typescript
- * import { N8NMCPEngine } from 'n8n-mcp/engine';
+ * import { N8NMCPEngine, InstanceContext } from 'n8n-mcp';
  * import express from 'express';
- * 
+ *
  * const app = express();
  * const engine = new N8NMCPEngine();
- * 
+ *
  * // Middleware for authentication
  * const authenticate = (req, res, next) => {
  *   // Your auth logic
  *   req.userId = 'user123';
  *   next();
  * };
- * 
- * // MCP endpoint with multi-tenant support
- * app.post('/api/mcp/:userId', authenticate, async (req, res) => {
- *   // Log usage for billing
- *   await logUsage(req.userId, 'mcp-request');
- *   
- *   // Rate limiting
- *   if (await isRateLimited(req.userId)) {
- *     return res.status(429).json({ error: 'Rate limited' });
- *   }
- *   
- *   // Process request
- *   await engine.processRequest(req, res);
+ *
+ * // MCP endpoint with flexible instance support
+ * app.post('/api/instances/:instanceId/mcp', authenticate, async (req, res) => {
+ *   // Get instance configuration from your database
+ *   const instance = await getInstanceConfig(req.params.instanceId);
+ *
+ *   // Create instance context
+ *   const context: InstanceContext = {
+ *     n8nApiUrl: instance.n8nUrl,
+ *     n8nApiKey: instance.apiKey,
+ *     instanceId: instance.id,
+ *     metadata: { userId: req.userId }
+ *   };
+ *
+ *   // Process request with instance context
+ *   await engine.processRequest(req, res, context);
  * });
- * 
+ *
  * // Health endpoint
  * app.get('/health', async (req, res) => {
  *   const health = await engine.healthCheck();
