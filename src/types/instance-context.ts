@@ -31,13 +31,54 @@ export interface InstanceContext {
 }
 
 /**
- * Validate URL format
+ * Validate URL format with enhanced checks
  */
 function isValidUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    // Only allow http and https protocols
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+
+    // Allow only http and https protocols
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+
+    // Check for reasonable hostname (not empty or invalid)
+    if (!parsed.hostname || parsed.hostname.length === 0) {
+      return false;
+    }
+
+    // Validate port if present
+    if (parsed.port && (isNaN(Number(parsed.port)) || Number(parsed.port) < 1 || Number(parsed.port) > 65535)) {
+      return false;
+    }
+
+    // Allow localhost, IP addresses, and domain names
+    const hostname = parsed.hostname.toLowerCase();
+
+    // Allow localhost for development
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return true;
+    }
+
+    // Basic IPv4 address validation
+    const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipv4Pattern.test(hostname)) {
+      const parts = hostname.split('.');
+      return parts.every(part => {
+        const num = parseInt(part, 10);
+        return num >= 0 && num <= 255;
+      });
+    }
+
+    // Basic IPv6 pattern check (simplified)
+    if (hostname.includes(':') || hostname.startsWith('[') && hostname.endsWith(']')) {
+      // Basic IPv6 validation - just checking it's not obviously wrong
+      return true;
+    }
+
+    // Domain name validation - allow subdomains and TLDs
+    const domainPattern = /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)*[a-zA-Z]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+    return domainPattern.test(hostname);
   } catch {
     return false;
   }

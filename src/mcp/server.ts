@@ -216,13 +216,30 @@ export class N8NDocumentationMCPServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async (request) => {
       // Combine documentation tools with management tools if API is configured
       let tools = [...n8nDocumentationToolsFinal];
-      const isConfigured = isN8nApiConfigured();
-      
-      if (isConfigured) {
+
+      // Check if n8n API tools should be available
+      // 1. Environment variables (backward compatibility)
+      // 2. Instance context (multi-tenant support)
+      // 3. Multi-tenant mode enabled (always show tools, runtime checks will handle auth)
+      const hasEnvConfig = isN8nApiConfigured();
+      const hasInstanceConfig = !!(this.instanceContext?.n8nApiUrl && this.instanceContext?.n8nApiKey);
+      const isMultiTenantEnabled = process.env.ENABLE_MULTI_TENANT === 'true';
+
+      const shouldIncludeManagementTools = hasEnvConfig || hasInstanceConfig || isMultiTenantEnabled;
+
+      if (shouldIncludeManagementTools) {
         tools.push(...n8nManagementTools);
-        logger.debug(`Tool listing: ${tools.length} tools available (${n8nDocumentationToolsFinal.length} documentation + ${n8nManagementTools.length} management)`);
+        logger.debug(`Tool listing: ${tools.length} tools available (${n8nDocumentationToolsFinal.length} documentation + ${n8nManagementTools.length} management)`, {
+          hasEnvConfig,
+          hasInstanceConfig,
+          isMultiTenantEnabled
+        });
       } else {
-        logger.debug(`Tool listing: ${tools.length} tools available (documentation only)`);
+        logger.debug(`Tool listing: ${tools.length} tools available (documentation only)`, {
+          hasEnvConfig,
+          hasInstanceConfig,
+          isMultiTenantEnabled
+        });
       }
       
       // Check if client is n8n (from initialization)
