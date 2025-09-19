@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.0] - 2025-09-19
+
+### Added
+- **Flexible Instance Configuration**: Complete multi-instance support for serving multiple n8n instances dynamically
+  - New `InstanceContext` interface for runtime configuration without multi-tenancy implications
+  - Dual-mode API client supporting both singleton (env vars) and instance-specific configurations
+  - LRU cache with SHA-256 hashing for secure client management (100 instances, 30-min TTL)
+  - Comprehensive input validation preventing injection attacks and invalid configurations
+  - Session context management in HTTP server for per-session instance configuration
+  - 100% backward compatibility - existing deployments work unchanged
+  - Full test coverage with 83 new tests covering security, caching, and validation
+
+### Security
+- **SHA-256 Cache Key Hashing**: All instance identifiers are hashed before caching
+- **Input Validation**: Comprehensive validation for URLs, API keys, and numeric parameters
+- **Secure Logging**: Sensitive data never logged, only partial hashes for debugging
+- **Memory Management**: LRU eviction and TTL prevent unbounded growth
+- **URL Validation**: Blocks dangerous protocols (file://, javascript://, etc.)
+
+### Performance
+- **Efficient Caching**: LRU cache with automatic cleanup reduces API client creation
+- **Fast Lookups**: SHA-256 hashed keys for O(1) cache access
+- **Memory Optimized**: Maximum 100 concurrent instances with 30-minute TTL
+- **Token Savings**: Reuses existing clients instead of recreating
+
+### Documentation
+- Added comprehensive [Flexible Instance Configuration Guide](./FLEXIBLE_INSTANCE_CONFIGURATION.md)
+- Detailed architecture, usage examples, and security considerations
+- Migration guide for existing deployments
+- Complete API documentation for InstanceContext
+
 ## [2.11.3] - 2025-09-17
 
 ### Fixed
@@ -1319,6 +1350,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic n8n and MCP integration
 - Core workflow automation features
 
+[2.12.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.11.3...v2.12.0
+[2.11.3]: https://github.com/czlonkowski/n8n-mcp/compare/v2.11.2...v2.11.3
 [2.11.2]: https://github.com/czlonkowski/n8n-mcp/compare/v2.11.1...v2.11.2
 [2.11.1]: https://github.com/czlonkowski/n8n-mcp/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/czlonkowski/n8n-mcp/compare/v2.10.9...v2.11.0

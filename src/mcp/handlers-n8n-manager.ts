@@ -1,60 +1,192 @@
 import { N8nApiClient } from '../services/n8n-api-client';
-import { getN8nApiConfig } from '../config/n8n-api';
-import { 
-  Workflow, 
-  WorkflowNode, 
+import { getN8nApiConfig, getN8nApiConfigFromContext } from '../config/n8n-api';
+import {
+  Workflow,
+  WorkflowNode,
   WorkflowConnection,
   ExecutionStatus,
   WebhookRequest,
-  McpToolResponse 
+  McpToolResponse
 } from '../types/n8n-api';
-import { 
-  validateWorkflowStructure, 
+import {
+  validateWorkflowStructure,
   hasWebhookTrigger,
-  getWebhookUrl 
+  getWebhookUrl
 } from '../services/n8n-validation';
-import { 
-  N8nApiError, 
+import {
+  N8nApiError,
   N8nNotFoundError,
-  getUserFriendlyErrorMessage 
+  getUserFriendlyErrorMessage
 } from '../utils/n8n-errors';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
 import { WorkflowValidator } from '../services/workflow-validator';
 import { EnhancedConfigValidator } from '../services/enhanced-config-validator';
 import { NodeRepository } from '../database/node-repository';
+import { InstanceContext, validateInstanceContext } from '../types/instance-context';
+import {
+  createCacheKey,
+  createInstanceCache,
+  CacheMutex,
+  cacheMetrics,
+  withRetry,
+  getCacheStatistics
+} from '../utils/cache-utils';
 
-// Singleton n8n API client instance
-let apiClient: N8nApiClient | null = null;
-let lastConfigUrl: string | null = null;
+// Singleton n8n API client instance (backward compatibility)
+let defaultApiClient: N8nApiClient | null = null;
+let lastDefaultConfigUrl: string | null = null;
 
-// Get or create API client (with lazy config loading)
-export function getN8nApiClient(): N8nApiClient | null {
+// Mutex for cache operations to prevent race conditions
+const cacheMutex = new CacheMutex();
+
+// Instance-specific API clients cache with LRU eviction and TTL
+const instanceClients = createInstanceCache<N8nApiClient>((client, key) => {
+  // Clean up when evicting from cache
+  logger.debug('Evicting API client from cache', {
+    cacheKey: key.substring(0, 8) + '...' // Only log partial key for security
+  });
+});
+
+/**
+ * Get or create API client with flexible instance support
+ * Supports both singleton mode (using environment variables) and instance-specific mode.
+ * Uses LRU cache with mutex protection for thread-safe operations.
+ *
+ * @param context - Optional instance context for instance-specific configuration
+ * @returns API client configured for the instance or environment, or null if not configured
+ *
+ * @example
+ * // Using environment variables (singleton mode)
+ * const client = getN8nApiClient();
+ *
+ * @example
+ * // Using instance context
+ * const client = getN8nApiClient({
+ *   n8nApiUrl: 'https://customer.n8n.cloud',
+ *   n8nApiKey: 'api-key-123',
+ *   instanceId: 'customer-1'
+ * });
+ */
+/**
+ * Get cache statistics for monitoring
+ * @returns Formatted cache statistics string
+ */
+export function getInstanceCacheStatistics(): string {
+  return getCacheStatistics();
+}
+
+/**
+ * Get raw cache metrics for detailed monitoring
+ * @returns Raw cache metrics object
+ */
+export function getInstanceCacheMetrics() {
+  return cacheMetrics.getMetrics();
+}
+
+/**
+ * Clear the instance cache for testing or maintenance
+ */
+export function clearInstanceCache(): void {
+  instanceClients.clear();
+  cacheMetrics.recordClear();
+  cacheMetrics.updateSize(0, instanceClients.max);
+}
+
+export function getN8nApiClient(context?: InstanceContext): N8nApiClient | null {
+  // If context provided with n8n config, use instance-specific client
+  if (context?.n8nApiUrl && context?.n8nApiKey) {
+    // Validate context before using
+    const validation = validateInstanceContext(context);
+    if (!validation.valid) {
+      logger.warn('Invalid instance context provided', {
+        instanceId: context.instanceId,
+        errors: validation.errors
+      });
+      return null;
+    }
+    // Create secure hash of credentials for cache key using memoization
+    const cacheKey = createCacheKey(
+      `${context.n8nApiUrl}:${context.n8nApiKey}:${context.instanceId || ''}`
+    );
+
+    // Check cache first
+    if (instanceClients.has(cacheKey)) {
+      cacheMetrics.recordHit();
+      return instanceClients.get(cacheKey) || null;
+    }
+
+    cacheMetrics.recordMiss();
+
+    // Check if already being created (simple lock check)
+    if (cacheMutex.isLocked(cacheKey)) {
+      // Wait briefly and check again
+      const waitTime = 100; // 100ms
+      const start = Date.now();
+      while (cacheMutex.isLocked(cacheKey) && (Date.now() - start) < 1000) {
+        // Busy wait for up to 1 second
+      }
+      // Check if it was created while waiting
+      if (instanceClients.has(cacheKey)) {
+        cacheMetrics.recordHit();
+        return instanceClients.get(cacheKey) || null;
+      }
+    }
+
+    const config = getN8nApiConfigFromContext(context);
+    if (config) {
+      // Sanitized logging - never log API keys
+      logger.info('Creating instance-specific n8n API client', {
+        url: config.baseUrl.replace(/^(https?:\/\/[^\/]+).*/, '$1'), // Only log domain
+        instanceId: context.instanceId,
+        cacheKey: cacheKey.substring(0, 8) + '...' // Only log partial hash
+      });
+
+      const client = new N8nApiClient(config);
+      instanceClients.set(cacheKey, client);
+      cacheMetrics.recordSet();
+      cacheMetrics.updateSize(instanceClients.size, instanceClients.max);
+      return client;
+    }
+
+    return null;
+  }
+
+  // Fall back to default singleton from environment
+  logger.info('Falling back to environment configuration for n8n API client');
   const config = getN8nApiConfig();
-  
+
   if (!config) {
-    if (apiClient) {
-      logger.info('n8n API configuration removed, clearing client');
-      apiClient = null;
-      lastConfigUrl = null;
+    if (defaultApiClient) {
+      logger.info('n8n API configuration removed, clearing default client');
+      defaultApiClient = null;
+      lastDefaultConfigUrl = null;
     }
     return null;
   }
-  
+
   // Check if config has changed
-  if (!apiClient || lastConfigUrl !== config.baseUrl) {
-    logger.info('n8n API client initialized', { url: config.baseUrl });
-    apiClient = new N8nApiClient(config);
-    lastConfigUrl = config.baseUrl;
+  if (!defaultApiClient || lastDefaultConfigUrl !== config.baseUrl) {
+    logger.info('n8n API client initialized from environment', { url: config.baseUrl });
+    defaultApiClient = new N8nApiClient(config);
+    lastDefaultConfigUrl = config.baseUrl;
   }
-  
-  return apiClient;
+
+  return defaultApiClient;
 }
 
-// Helper to ensure API is configured
-function ensureApiConfigured(): N8nApiClient {
-  const client = getN8nApiClient();
+/**
+ * Helper to ensure API is configured
+ * @param context - Optional instance context
+ * @returns Configured API client
+ * @throws Error if API is not configured
+ */
+function ensureApiConfigured(context?: InstanceContext): N8nApiClient {
+  const client = getN8nApiClient(context);
   if (!client) {
+    if (context?.instanceId) {
+      throw new Error(`n8n API not configured for instance ${context.instanceId}. Please provide n8nApiUrl and n8nApiKey in the instance context.`);
+    }
     throw new Error('n8n API not configured. Please set N8N_API_URL and N8N_API_KEY environment variables.');
   }
   return client;
@@ -123,9 +255,9 @@ const listExecutionsSchema = z.object({
 
 // Workflow Management Handlers
 
-export async function handleCreateWorkflow(args: unknown): Promise<McpToolResponse> {
+export async function handleCreateWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const input = createWorkflowSchema.parse(args);
     
     // Validate workflow structure
@@ -171,9 +303,9 @@ export async function handleCreateWorkflow(args: unknown): Promise<McpToolRespon
   }
 }
 
-export async function handleGetWorkflow(args: unknown): Promise<McpToolResponse> {
+export async function handleGetWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const { id } = z.object({ id: z.string() }).parse(args);
     
     const workflow = await client.getWorkflow(id);
@@ -206,9 +338,9 @@ export async function handleGetWorkflow(args: unknown): Promise<McpToolResponse>
   }
 }
 
-export async function handleGetWorkflowDetails(args: unknown): Promise<McpToolResponse> {
+export async function handleGetWorkflowDetails(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const { id } = z.object({ id: z.string() }).parse(args);
     
     const workflow = await client.getWorkflow(id);
@@ -260,9 +392,9 @@ export async function handleGetWorkflowDetails(args: unknown): Promise<McpToolRe
   }
 }
 
-export async function handleGetWorkflowStructure(args: unknown): Promise<McpToolResponse> {
+export async function handleGetWorkflowStructure(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const { id } = z.object({ id: z.string() }).parse(args);
     
     const workflow = await client.getWorkflow(id);
@@ -313,9 +445,9 @@ export async function handleGetWorkflowStructure(args: unknown): Promise<McpTool
   }
 }
 
-export async function handleGetWorkflowMinimal(args: unknown): Promise<McpToolResponse> {
+export async function handleGetWorkflowMinimal(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const { id } = z.object({ id: z.string() }).parse(args);
     
     const workflow = await client.getWorkflow(id);
@@ -356,9 +488,9 @@ export async function handleGetWorkflowMinimal(args: unknown): Promise<McpToolRe
   }
 }
 
-export async function handleUpdateWorkflow(args: unknown): Promise<McpToolResponse> {
+export async function handleUpdateWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const input = updateWorkflowSchema.parse(args);
     const { id, ...updateData } = input;
     
@@ -418,9 +550,9 @@ export async function handleUpdateWorkflow(args: unknown): Promise<McpToolRespon
   }
 }
 
-export async function handleDeleteWorkflow(args: unknown): Promise<McpToolResponse> {
+export async function handleDeleteWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const { id } = z.object({ id: z.string() }).parse(args);
     
     await client.deleteWorkflow(id);
@@ -453,9 +585,9 @@ export async function handleDeleteWorkflow(args: unknown): Promise<McpToolRespon
   }
 }
 
-export async function handleListWorkflows(args: unknown): Promise<McpToolResponse> {
+export async function handleListWorkflows(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const input = listWorkflowsSchema.parse(args || {});
     
     const response = await client.listWorkflows({
@@ -516,11 +648,12 @@ export async function handleListWorkflows(args: unknown): Promise<McpToolRespons
 }
 
 export async function handleValidateWorkflow(
-  args: unknown, 
-  repository: NodeRepository
+  args: unknown,
+  repository: NodeRepository,
+  context?: InstanceContext
 ): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const input = validateWorkflowSchema.parse(args);
     
     // First, fetch the workflow from n8n
@@ -605,9 +738,9 @@ export async function handleValidateWorkflow(
 
 // Execution Management Handlers
 
-export async function handleTriggerWebhookWorkflow(args: unknown): Promise<McpToolResponse> {
+export async function handleTriggerWebhookWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const input = triggerWebhookSchema.parse(args);
     
     const webhookRequest: WebhookRequest = {
@@ -650,9 +783,9 @@ export async function handleTriggerWebhookWorkflow(args: unknown): Promise<McpTo
   }
 }
 
-export async function handleGetExecution(args: unknown): Promise<McpToolResponse> {
+export async function handleGetExecution(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const { id, includeData } = z.object({ 
       id: z.string(),
       includeData: z.boolean().optional()
@@ -688,9 +821,9 @@ export async function handleGetExecution(args: unknown): Promise<McpToolResponse
   }
 }
 
-export async function handleListExecutions(args: unknown): Promise<McpToolResponse> {
+export async function handleListExecutions(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const input = listExecutionsSchema.parse(args || {});
     
     const response = await client.listExecutions({
@@ -738,9 +871,9 @@ export async function handleListExecutions(args: unknown): Promise<McpToolRespon
   }
 }
 
-export async function handleDeleteExecution(args: unknown): Promise<McpToolResponse> {
+export async function handleDeleteExecution(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const { id } = z.object({ id: z.string() }).parse(args);
     
     await client.deleteExecution(id);
@@ -775,9 +908,9 @@ export async function handleDeleteExecution(args: unknown): Promise<McpToolRespo
 
 // System Tools Handlers
 
-export async function handleHealthCheck(): Promise<McpToolResponse> {
+export async function handleHealthCheck(context?: InstanceContext): Promise<McpToolResponse> {
   try {
-    const client = ensureApiConfigured();
+    const client = ensureApiConfigured(context);
     const health = await client.healthCheck();
     
     // Get MCP version from package.json
@@ -818,7 +951,7 @@ export async function handleHealthCheck(): Promise<McpToolResponse> {
   }
 }
 
-export async function handleListAvailableTools(): Promise<McpToolResponse> {
+export async function handleListAvailableTools(context?: InstanceContext): Promise<McpToolResponse> {
   const tools = [
     {
       category: 'Workflow Management',
@@ -876,7 +1009,7 @@ export async function handleListAvailableTools(): Promise<McpToolResponse> {
 }
 
 // Handler: n8n_diagnostic
-export async function handleDiagnostic(request: any): Promise<McpToolResponse> {
+export async function handleDiagnostic(request: any, context?: InstanceContext): Promise<McpToolResponse> {
   const verbose = request.params?.arguments?.verbose || false;
   
   // Check environment variables
@@ -890,7 +1023,7 @@ export async function handleDiagnostic(request: any): Promise<McpToolResponse> {
   // Check API configuration
   const apiConfig = getN8nApiConfig();
   const apiConfigured = apiConfig !== null;
-  const apiClient = getN8nApiClient();
+  const apiClient = getN8nApiClient(context);
   
   // Test API connectivity if configured
   let apiStatus = {
