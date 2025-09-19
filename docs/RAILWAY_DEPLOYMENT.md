@@ -180,6 +180,46 @@ Claude Desktop → mcp-remote → Railway (HTTPS) → n8n-MCP Server
 - Ensure the URL is correct and includes `https://`
 - Check Railway logs for any errors
 
+**Windows: "The filename, directory name, or volume label syntax is incorrect" or npx command not found:**
+
+This is a common Windows issue with spaces in Node.js installation paths. The error occurs because Claude Desktop can't properly execute npx.
+
+**Solution 1: Use node directly (Recommended)**
+```json
+{
+  "mcpServers": {
+    "n8n-railway": {
+      "command": "node",
+      "args": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
+        "-y",
+        "mcp-remote",
+        "https://your-app-name.up.railway.app/mcp",
+        "--header",
+        "Authorization: Bearer YOUR_SECURE_TOKEN_HERE"
+      ]
+    }
+  }
+}
+```
+
+**Solution 2: Use cmd wrapper**
+```json
+{
+  "mcpServers": {
+    "n8n-railway": {
+      "command": "cmd",
+      "args": [
+        "/C",
+        "\"C:\\Program Files\\nodejs\\npx\" -y mcp-remote https://your-app-name.up.railway.app/mcp --header \"Authorization: Bearer YOUR_SECURE_TOKEN_HERE\""
+      ]
+    }
+  }
+}
+```
+
+To find your exact npx path, open Command Prompt and run: `where npx`
+
 ### Railway-Specific Issues
 
 **Build failures:**
