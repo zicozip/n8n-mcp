@@ -84,6 +84,7 @@ export function isInstanceContext(obj: any): obj is InstanceContext {
 
 /**
  * Validate and sanitize InstanceContext
+ * Provides field-specific error messages for better debugging
  */
 export function validateInstanceContext(context: InstanceContext): {
   valid: boolean;
@@ -93,33 +94,58 @@ export function validateInstanceContext(context: InstanceContext): {
 
   // Validate URL if provided (even empty string should be validated)
   if (context.n8nApiUrl !== undefined) {
-    if (context.n8nApiUrl === '' || !isValidUrl(context.n8nApiUrl)) {
-      errors.push('Invalid n8nApiUrl format');
+    if (context.n8nApiUrl === '') {
+      errors.push(`Invalid n8nApiUrl: empty string - URL is required when field is provided`);
+    } else if (!isValidUrl(context.n8nApiUrl)) {
+      // Provide specific reason for URL invalidity
+      try {
+        const parsed = new URL(context.n8nApiUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          errors.push(`Invalid n8nApiUrl: ${context.n8nApiUrl} - URL must use HTTP or HTTPS protocol, got ${parsed.protocol}`);
+        }
+      } catch {
+        errors.push(`Invalid n8nApiUrl: ${context.n8nApiUrl} - URL format is malformed or incomplete`);
+      }
     }
   }
 
   // Validate API key if provided
   if (context.n8nApiKey !== undefined) {
-    if (context.n8nApiKey === '' || !isValidApiKey(context.n8nApiKey)) {
-      errors.push('Invalid n8nApiKey format');
+    if (context.n8nApiKey === '') {
+      errors.push(`Invalid n8nApiKey: empty string - API key is required when field is provided`);
+    } else if (!isValidApiKey(context.n8nApiKey)) {
+      // Provide specific reason for API key invalidity
+      if (context.n8nApiKey.toLowerCase().includes('your_api_key')) {
+        errors.push(`Invalid n8nApiKey: contains placeholder 'your_api_key' - Please provide actual API key`);
+      } else if (context.n8nApiKey.toLowerCase().includes('placeholder')) {
+        errors.push(`Invalid n8nApiKey: contains placeholder text - Please provide actual API key`);
+      } else if (context.n8nApiKey.toLowerCase().includes('example')) {
+        errors.push(`Invalid n8nApiKey: contains example text - Please provide actual API key`);
+      } else {
+        errors.push(`Invalid n8nApiKey: format validation failed - Ensure key is valid`);
+      }
     }
   }
 
   // Validate timeout
   if (context.n8nApiTimeout !== undefined) {
-    if (typeof context.n8nApiTimeout !== 'number' ||
-        context.n8nApiTimeout <= 0 ||
-        !isFinite(context.n8nApiTimeout)) {
-      errors.push('n8nApiTimeout must be a positive number');
+    if (typeof context.n8nApiTimeout !== 'number') {
+      errors.push(`Invalid n8nApiTimeout: ${context.n8nApiTimeout} - Must be a number, got ${typeof context.n8nApiTimeout}`);
+    } else if (context.n8nApiTimeout <= 0) {
+      errors.push(`Invalid n8nApiTimeout: ${context.n8nApiTimeout} - Must be positive (greater than 0)`);
+    } else if (!isFinite(context.n8nApiTimeout)) {
+      errors.push(`Invalid n8nApiTimeout: ${context.n8nApiTimeout} - Must be a finite number (not Infinity or NaN)`);
     }
   }
 
   // Validate retries
   if (context.n8nApiMaxRetries !== undefined) {
-    if (typeof context.n8nApiMaxRetries !== 'number' ||
-        context.n8nApiMaxRetries < 0 ||
-        !isFinite(context.n8nApiMaxRetries)) {
-      errors.push('n8nApiMaxRetries must be a non-negative number');
+    if (typeof context.n8nApiMaxRetries !== 'number') {
+      errors.push(`Invalid n8nApiMaxRetries: ${context.n8nApiMaxRetries} - Must be a number, got ${typeof context.n8nApiMaxRetries}`);
+    } else if (context.n8nApiMaxRetries < 0) {
+      errors.push(`Invalid n8nApiMaxRetries: ${context.n8nApiMaxRetries} - Must be non-negative (0 or greater)`);
+    } else if (!isFinite(context.n8nApiMaxRetries)) {
+      errors.push(`Invalid n8nApiMaxRetries: ${context.n8nApiMaxRetries} - Must be a finite number (not Infinity or NaN)`);
     }
   }
 

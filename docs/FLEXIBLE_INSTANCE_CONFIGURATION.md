@@ -31,6 +31,20 @@ The Flexible Instance Configuration feature enables n8n-mcp to serve multiple us
 
 ## Configuration
 
+### Environment Variables
+
+New environment variables for cache configuration:
+
+- `INSTANCE_CACHE_MAX` - Maximum number of cached instances (default: 100, min: 1, max: 10000)
+- `INSTANCE_CACHE_TTL_MINUTES` - Cache TTL in minutes (default: 30, min: 1, max: 1440/24 hours)
+
+Example:
+```bash
+# Increase cache size for high-volume deployments
+export INSTANCE_CACHE_MAX=500
+export INSTANCE_CACHE_TTL_MINUTES=60
+```
+
 ### InstanceContext Structure
 
 ```typescript
@@ -124,40 +138,65 @@ if (!validation.valid) {
 ## Security Features
 
 ### 1. Cache Key Hashing
-- All cache keys use SHA-256 hashing
+- All cache keys use SHA-256 hashing with memoization
 - Prevents sensitive data exposure in logs
 - Example: `sha256(url:key:instance)` → 64-char hex string
+- Memoization cache limited to 1000 entries
 
-### 2. Input Validation
-- Comprehensive validation before processing
+### 2. Enhanced Input Validation
+- Field-specific error messages with detailed reasons
 - URL protocol restrictions (HTTP/HTTPS only)
-- API key placeholder detection
-- Numeric range validation
+- API key placeholder detection (case-insensitive)
+- Numeric range validation with specific error messages
+- Example: "Invalid n8nApiUrl: ftp://example.com - URL must use HTTP or HTTPS protocol"
 
 ### 3. Secure Logging
 - Only first 8 characters of cache keys logged
 - No sensitive data in debug logs
 - URL sanitization (domain only, no paths)
+- Configuration fallback logging for debugging
 
 ### 4. Memory Management
-- LRU cache with automatic eviction
-- TTL-based expiration (30 minutes)
+- Configurable LRU cache with automatic eviction
+- TTL-based expiration (configurable, default 30 minutes)
 - Dispose callbacks for cleanup
-- Maximum cache size limits
+- Maximum cache size limits with bounds checking
+
+### 5. Concurrency Protection
+- Mutex-based locking for cache operations
+- Prevents duplicate client creation
+- Simple lock checking with timeout
+- Thread-safe cache operations
 
 ## Performance Optimization
 
 ### Cache Strategy
-- **Max Size**: 100 instances
-- **TTL**: 30 minutes
+- **Max Size**: Configurable via `INSTANCE_CACHE_MAX` (default: 100)
+- **TTL**: Configurable via `INSTANCE_CACHE_TTL_MINUTES` (default: 30)
 - **Update on Access**: Age refreshed on each use
-- **Eviction**: Least Recently Used policy
+- **Eviction**: Least Recently Used (LRU) policy
+- **Memoization**: Hash creation uses memoization for frequently used keys
+
+### Cache Metrics
+The system tracks comprehensive metrics:
+- Cache hits and misses
+- Hit rate percentage
+- Eviction count
+- Current size vs maximum size
+- Operation timing
+
+Retrieve metrics using:
+```typescript
+import { getInstanceCacheStatistics } from './mcp/handlers-n8n-manager';
+console.log(getInstanceCacheStatistics());
+```
 
 ### Benefits
-- ~12ms average response time
-- Minimal memory footprint per instance
-- Automatic cleanup of unused instances
-- No memory leaks with proper disposal
+- **Performance**: ~12ms average response time
+- **Memory Efficient**: Minimal footprint per instance
+- **Thread Safe**: Mutex protection for concurrent operations
+- **Auto Cleanup**: Unused instances automatically evicted
+- **No Memory Leaks**: Proper disposal callbacks
 
 ## Backward Compatibility
 

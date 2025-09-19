@@ -22,7 +22,8 @@ describe('instance-context Coverage Tests', () => {
       const result = validateInstanceContext(context);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Invalid n8nApiUrl format');
+      expect(result.errors?.[0]).toContain('Invalid n8nApiUrl:');
+      expect(result.errors?.[0]).toContain('empty string');
     });
 
     it('should handle empty string API key validation', () => {
@@ -34,7 +35,8 @@ describe('instance-context Coverage Tests', () => {
       const result = validateInstanceContext(context);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Invalid n8nApiKey format');
+      expect(result.errors?.[0]).toContain('Invalid n8nApiKey:');
+      expect(result.errors?.[0]).toContain('empty string');
     });
 
     it('should handle Infinity values for timeout', () => {
@@ -47,7 +49,8 @@ describe('instance-context Coverage Tests', () => {
       const result = validateInstanceContext(context);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('n8nApiTimeout must be a positive number');
+      expect(result.errors?.[0]).toContain('Invalid n8nApiTimeout:');
+      expect(result.errors?.[0]).toContain('Must be a finite number');
     });
 
     it('should handle -Infinity values for timeout', () => {
@@ -60,7 +63,8 @@ describe('instance-context Coverage Tests', () => {
       const result = validateInstanceContext(context);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('n8nApiTimeout must be a positive number');
+      expect(result.errors?.[0]).toContain('Invalid n8nApiTimeout:');
+      expect(result.errors?.[0]).toContain('Must be positive');
     });
 
     it('should handle Infinity values for retries', () => {
@@ -73,7 +77,8 @@ describe('instance-context Coverage Tests', () => {
       const result = validateInstanceContext(context);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('n8nApiMaxRetries must be a non-negative number');
+      expect(result.errors?.[0]).toContain('Invalid n8nApiMaxRetries:');
+      expect(result.errors?.[0]).toContain('Must be a finite number');
     });
 
     it('should handle -Infinity values for retries', () => {
@@ -86,7 +91,8 @@ describe('instance-context Coverage Tests', () => {
       const result = validateInstanceContext(context);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toContain('n8nApiMaxRetries must be a non-negative number');
+      expect(result.errors?.[0]).toContain('Invalid n8nApiMaxRetries:');
+      expect(result.errors?.[0]).toContain('Must be non-negative');
     });
 
     it('should handle multiple validation errors at once', () => {
@@ -101,10 +107,10 @@ describe('instance-context Coverage Tests', () => {
 
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(4);
-      expect(result.errors).toContain('Invalid n8nApiUrl format');
-      expect(result.errors).toContain('Invalid n8nApiKey format');
-      expect(result.errors).toContain('n8nApiTimeout must be a positive number');
-      expect(result.errors).toContain('n8nApiMaxRetries must be a non-negative number');
+      expect(result.errors?.some(err => err.includes('Invalid n8nApiUrl:'))).toBe(true);
+      expect(result.errors?.some(err => err.includes('Invalid n8nApiKey:'))).toBe(true);
+      expect(result.errors?.some(err => err.includes('Invalid n8nApiTimeout:'))).toBe(true);
+      expect(result.errors?.some(err => err.includes('Invalid n8nApiMaxRetries:'))).toBe(true);
     });
 
     it('should return no errors property when validation passes', () => {
@@ -288,7 +294,15 @@ describe('instance-context Coverage Tests', () => {
 
         const validation = validateInstanceContext(context);
         expect(validation.valid).toBe(false);
-        expect(validation.errors).toContain('Invalid n8nApiKey format');
+        // Check for any of the specific error messages
+        const hasValidError = validation.errors?.some(err =>
+          err.includes('Invalid n8nApiKey:') && (
+            err.includes('placeholder') ||
+            err.includes('example') ||
+            err.includes('your_api_key')
+          )
+        );
+        expect(hasValidError).toBe(true);
       });
     });
 

@@ -24,31 +24,75 @@ import { WorkflowValidator } from '../services/workflow-validator';
 import { EnhancedConfigValidator } from '../services/enhanced-config-validator';
 import { NodeRepository } from '../database/node-repository';
 import { InstanceContext, validateInstanceContext } from '../types/instance-context';
-import { createHash } from 'crypto';
-import { LRUCache } from 'lru-cache';
+import {
+  createCacheKey,
+  createInstanceCache,
+  CacheMutex,
+  cacheMetrics,
+  withRetry,
+  getCacheStatistics
+} from '../utils/cache-utils';
 
 // Singleton n8n API client instance (backward compatibility)
 let defaultApiClient: N8nApiClient | null = null;
 let lastDefaultConfigUrl: string | null = null;
 
+// Mutex for cache operations to prevent race conditions
+const cacheMutex = new CacheMutex();
+
 // Instance-specific API clients cache with LRU eviction and TTL
-const instanceClients = new LRUCache<string, N8nApiClient>({
-  max: 100, // Maximum 100 cached instances
-  ttl: 30 * 60 * 1000, // 30 minutes TTL
-  updateAgeOnGet: true, // Reset TTL on access
-  dispose: (client, key) => {
-    // Clean up when evicting from cache
-    logger.debug('Evicting API client from cache', {
-      cacheKey: key.substring(0, 8) + '...' // Only log partial key for security
-    });
-  }
+const instanceClients = createInstanceCache<N8nApiClient>((client, key) => {
+  // Clean up when evicting from cache
+  logger.debug('Evicting API client from cache', {
+    cacheKey: key.substring(0, 8) + '...' // Only log partial key for security
+  });
 });
 
 /**
  * Get or create API client with flexible instance support
+ * Supports both singleton mode (using environment variables) and instance-specific mode.
+ * Uses LRU cache with mutex protection for thread-safe operations.
+ *
  * @param context - Optional instance context for instance-specific configuration
- * @returns API client configured for the instance or environment
+ * @returns API client configured for the instance or environment, or null if not configured
+ *
+ * @example
+ * // Using environment variables (singleton mode)
+ * const client = getN8nApiClient();
+ *
+ * @example
+ * // Using instance context
+ * const client = getN8nApiClient({
+ *   n8nApiUrl: 'https://customer.n8n.cloud',
+ *   n8nApiKey: 'api-key-123',
+ *   instanceId: 'customer-1'
+ * });
  */
+/**
+ * Get cache statistics for monitoring
+ * @returns Formatted cache statistics string
+ */
+export function getInstanceCacheStatistics(): string {
+  return getCacheStatistics();
+}
+
+/**
+ * Get raw cache metrics for detailed monitoring
+ * @returns Raw cache metrics object
+ */
+export function getInstanceCacheMetrics() {
+  return cacheMetrics.getMetrics();
+}
+
+/**
+ * Clear the instance cache for testing or maintenance
+ */
+export function clearInstanceCache(): void {
+  instanceClients.clear();
+  cacheMetrics.recordClear();
+  cacheMetrics.updateSize(0, instanceClients.max);
+}
+
 export function getN8nApiClient(context?: InstanceContext): N8nApiClient | null {
   // If context provided with n8n config, use instance-specific client
   if (context?.n8nApiUrl && context?.n8nApiKey) {
@@ -61,28 +105,55 @@ export function getN8nApiClient(context?: InstanceContext): N8nApiClient | null 
       });
       return null;
     }
-    // Create secure hash of credentials for cache key
-    const cacheKey = createHash('sha256')
-      .update(`${context.n8nApiUrl}:${context.n8nApiKey}:${context.instanceId || ''}`)
-      .digest('hex');
+    // Create secure hash of credentials for cache key using memoization
+    const cacheKey = createCacheKey(
+      `${context.n8nApiUrl}:${context.n8nApiKey}:${context.instanceId || ''}`
+    );
 
-    if (!instanceClients.has(cacheKey)) {
-      const config = getN8nApiConfigFromContext(context);
-      if (config) {
-        // Sanitized logging - never log API keys
-        logger.info('Creating instance-specific n8n API client', {
-          url: config.baseUrl.replace(/^(https?:\/\/[^\/]+).*/, '$1'), // Only log domain
-          instanceId: context.instanceId,
-          cacheKey: cacheKey.substring(0, 8) + '...' // Only log partial hash
-        });
-        instanceClients.set(cacheKey, new N8nApiClient(config));
+    // Check cache first
+    if (instanceClients.has(cacheKey)) {
+      cacheMetrics.recordHit();
+      return instanceClients.get(cacheKey) || null;
+    }
+
+    cacheMetrics.recordMiss();
+
+    // Check if already being created (simple lock check)
+    if (cacheMutex.isLocked(cacheKey)) {
+      // Wait briefly and check again
+      const waitTime = 100; // 100ms
+      const start = Date.now();
+      while (cacheMutex.isLocked(cacheKey) && (Date.now() - start) < 1000) {
+        // Busy wait for up to 1 second
+      }
+      // Check if it was created while waiting
+      if (instanceClients.has(cacheKey)) {
+        cacheMetrics.recordHit();
+        return instanceClients.get(cacheKey) || null;
       }
     }
 
-    return instanceClients.get(cacheKey) || null;
+    const config = getN8nApiConfigFromContext(context);
+    if (config) {
+      // Sanitized logging - never log API keys
+      logger.info('Creating instance-specific n8n API client', {
+        url: config.baseUrl.replace(/^(https?:\/\/[^\/]+).*/, '$1'), // Only log domain
+        instanceId: context.instanceId,
+        cacheKey: cacheKey.substring(0, 8) + '...' // Only log partial hash
+      });
+
+      const client = new N8nApiClient(config);
+      instanceClients.set(cacheKey, client);
+      cacheMetrics.recordSet();
+      cacheMetrics.updateSize(instanceClients.size, instanceClients.max);
+      return client;
+    }
+
+    return null;
   }
 
   // Fall back to default singleton from environment
+  logger.info('Falling back to environment configuration for n8n API client');
   const config = getN8nApiConfig();
 
   if (!config) {
@@ -104,7 +175,12 @@ export function getN8nApiClient(context?: InstanceContext): N8nApiClient | null 
   return defaultApiClient;
 }
 
-// Helper to ensure API is configured
+/**
+ * Helper to ensure API is configured
+ * @param context - Optional instance context
+ * @returns Configured API client
+ * @throws Error if API is not configured
+ */
 function ensureApiConfigured(context?: InstanceContext): N8nApiClient {
   const client = getN8nApiClient(context);
   if (!client) {
