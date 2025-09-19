@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import { LRUCache } from 'lru-cache';
 import { createHash } from 'crypto';
 import { getN8nApiClient } from '../../../src/mcp/handlers-n8n-manager';
-import { InstanceContext } from '../../../src/types/instance-context';
+import { InstanceContext, validateInstanceContext } from '../../../src/types/instance-context';
 import { N8nApiClient } from '../../../src/services/n8n-api-client';
 import { getN8nApiConfigFromContext } from '../../../src/config/n8n-api';
 import { logger } from '../../../src/utils/logger';
@@ -17,19 +17,29 @@ import { logger } from '../../../src/utils/logger';
 vi.mock('../../../src/services/n8n-api-client');
 vi.mock('../../../src/config/n8n-api');
 vi.mock('../../../src/utils/logger');
+vi.mock('../../../src/types/instance-context', async () => {
+  const actual = await vi.importActual('../../../src/types/instance-context');
+  return {
+    ...actual,
+    validateInstanceContext: vi.fn()
+  };
+});
 
 describe('LRU Cache Behavior Tests', () => {
   let mockN8nApiClient: Mock;
   let mockGetN8nApiConfigFromContext: Mock;
   let mockLogger: Mock;
+  let mockValidateInstanceContext: Mock;
 
   beforeEach(() => {
     vi.resetAllMocks();
     vi.resetModules();
+    vi.clearAllMocks();
 
     mockN8nApiClient = vi.mocked(N8nApiClient);
     mockGetN8nApiConfigFromContext = vi.mocked(getN8nApiConfigFromContext);
     mockLogger = vi.mocked(logger);
+    mockValidateInstanceContext = vi.mocked(validateInstanceContext);
 
     // Default mock returns valid config
     mockGetN8nApiConfigFromContext.mockReturnValue({
@@ -38,6 +48,15 @@ describe('LRU Cache Behavior Tests', () => {
       timeout: 30000,
       maxRetries: 3
     });
+
+    // Default mock returns valid context validation
+    mockValidateInstanceContext.mockReturnValue({
+      valid: true,
+      errors: undefined
+    });
+
+    // Force re-import of the module to get fresh cache state
+    vi.resetModules();
   });
 
   afterEach(() => {
@@ -92,7 +111,7 @@ describe('LRU Cache Behavior Tests', () => {
     });
 
     it('should handle potential cache key collisions gracefully', () => {
-      // Create contexts that might produce similar hashes
+      // Create contexts that might produce similar hashes but are valid
       const contexts = [
         {
           n8nApiUrl: 'https://a.com',
@@ -106,7 +125,7 @@ describe('LRU Cache Behavior Tests', () => {
         },
         {
           n8nApiUrl: 'https://abc.com',
-          n8nApiKey: '',
+          n8nApiKey: 'differentkey',  // Fixed: empty string causes config creation to fail
           instanceId: 'key'
         }
       ];
@@ -353,6 +372,10 @@ describe('LRU Cache Behavior Tests', () => {
 
   describe('Cache Interaction with Validation', () => {
     it('should not cache when context validation fails', () => {
+      // Reset mocks to ensure clean state for this test
+      vi.clearAllMocks();
+      mockValidateInstanceContext.mockClear();
+
       const invalidContext: InstanceContext = {
         n8nApiUrl: 'invalid-url',
         n8nApiKey: 'test-key',
@@ -360,8 +383,7 @@ describe('LRU Cache Behavior Tests', () => {
       };
 
       // Mock validation failure
-      const { validateInstanceContext } = require('../../../src/types/instance-context');
-      vi.mocked(validateInstanceContext).mockReturnValue({
+      mockValidateInstanceContext.mockReturnValue({
         valid: false,
         errors: ['Invalid n8nApiUrl format']
       });
@@ -391,6 +413,16 @@ describe('LRU Cache Behavior Tests', () => {
 
   describe('Complex Cache Scenarios', () => {
     it('should handle mixed valid and invalid contexts', () => {
+      // Reset mocks to ensure clean state for this test
+      vi.clearAllMocks();
+      mockValidateInstanceContext.mockClear();
+
+      // First, set up default valid behavior
+      mockValidateInstanceContext.mockReturnValue({
+        valid: true,
+        errors: undefined
+      });
+
       const validContext: InstanceContext = {
         n8nApiUrl: 'https://api.n8n.cloud',
         n8nApiKey: 'valid-key',
@@ -407,15 +439,20 @@ describe('LRU Cache Behavior Tests', () => {
       const validClient = getN8nApiClient(validContext);
       expect(validClient).toBeDefined();
 
-      // Invalid context should return null
-      const { validateInstanceContext } = require('../../../src/types/instance-context');
-      vi.mocked(validateInstanceContext).mockReturnValue({
+      // Change mock for invalid context
+      mockValidateInstanceContext.mockReturnValueOnce({
         valid: false,
         errors: ['Invalid URL']
       });
 
       const invalidClient = getN8nApiClient(invalidContext);
       expect(invalidClient).toBeNull();
+
+      // Reset mock back to valid for subsequent calls
+      mockValidateInstanceContext.mockReturnValue({
+        valid: true,
+        errors: undefined
+      });
 
       // Valid context should still work (cache hit)
       const validClient2 = getN8nApiClient(validContext);
