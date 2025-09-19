@@ -999,8 +999,31 @@ export class SingleSessionHTTPServer {
         sessionType: this.session?.isSSE ? 'SSE' : 'StreamableHTTP',
         sessionInitialized: this.session?.initialized
       });
-      
-      await this.handleRequest(req, res);
+
+      // Extract instance context from headers if present (for multi-tenant support)
+      const instanceContext: InstanceContext | undefined =
+        (req.headers['x-n8n-url'] || req.headers['x-n8n-key']) ? {
+          n8nApiUrl: req.headers['x-n8n-url'] as string,
+          n8nApiKey: req.headers['x-n8n-key'] as string,
+          instanceId: req.headers['x-instance-id'] as string,
+          sessionId: req.headers['x-session-id'] as string,
+          metadata: {
+            userAgent: req.headers['user-agent'],
+            ip: req.ip
+          }
+        } : undefined;
+
+      // Log context extraction for debugging (only if context exists)
+      if (instanceContext) {
+        logger.debug('Instance context extracted from headers', {
+          hasUrl: !!instanceContext.n8nApiUrl,
+          hasKey: !!instanceContext.n8nApiKey,
+          instanceId: instanceContext.instanceId,
+          sessionId: instanceContext.sessionId
+        });
+      }
+
+      await this.handleRequest(req, res, instanceContext);
       
       logger.info('POST /mcp request completed - checking response status', {
         responseHeadersSent: res.headersSent,
