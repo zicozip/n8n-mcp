@@ -272,7 +272,7 @@ describe('Multi-Tenant Support Integration', () => {
     });
 
     it('should handle missing headers gracefully', () => {
-      const mockHeaders = {
+      const mockHeaders: any = {
         'authorization': 'Bearer token',
         'content-type': 'application/json'
         // No x-n8n-* headers

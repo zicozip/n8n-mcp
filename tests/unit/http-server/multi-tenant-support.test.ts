@@ -95,7 +95,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should extract all multi-tenant headers when present', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': 'https://tenant1.n8n.cloud',
         'x-n8n-key': 'tenant1-api-key',
         'x-instance-id': 'tenant1-instance',
@@ -116,7 +116,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should handle missing headers gracefully', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': 'https://tenant1.n8n.cloud'
         // Other headers missing
       };
@@ -132,7 +132,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should handle case-insensitive headers', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'X-N8N-URL': 'https://tenant1.n8n.cloud',
         'X-N8N-KEY': 'tenant1-api-key',
         'X-INSTANCE-ID': 'tenant1-instance',
@@ -147,7 +147,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should handle array header values', () => {
       // Arrange - Express can provide headers as arrays
-      const headers = {
+      const headers: any = {
         'x-n8n-url': ['https://tenant1.n8n.cloud'],
         'x-n8n-key': ['tenant1-api-key', 'duplicate-key'] // Multiple values
       };
@@ -161,7 +161,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should handle non-string header values', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': undefined,
         'x-n8n-key': null,
         'x-instance-id': 123,  // Should be string
@@ -179,7 +179,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
   describe('Instance Context Creation and Validation', () => {
     it('should create valid instance context from complete headers', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': 'https://tenant1.n8n.cloud',
         'x-n8n-key': 'valid-api-key-123',
         'x-instance-id': 'tenant1-instance',
@@ -203,7 +203,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should create partial instance context when some headers missing', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': 'https://tenant1.n8n.cloud'
         // Other headers missing
       };
@@ -225,7 +225,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should return undefined context when no relevant headers present', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'authorization': 'Bearer token',
         'content-type': 'application/json'
         // No x-n8n-* headers
@@ -262,7 +262,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should handle malformed URLs in headers', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': 'not-a-valid-url',
         'x-n8n-key': 'valid-key'
       };
@@ -279,7 +279,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
 
     it('should handle special characters in headers', () => {
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': 'https://tenant-with-special@chars.com',
         'x-n8n-key': 'key-with-special-chars!@#$%',
         'x-instance-id': 'instance_with_underscores',
@@ -407,7 +407,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
       expect(() => {
         const configString = JSON.stringify(config);
         mockHashInstance.update(configString);
-        const hash = mockHashInstance.digest('hex');
+        const hash = mockHashInstance.digest();
       }).not.toThrow();
 
       expect(mockHashInstance.update).toHaveBeenCalled();
@@ -700,7 +700,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
     it.skip('should handle invalid header types gracefully', () => {
       // TODO: Fix require() import issues
       // Arrange
-      const headers = {
+      const headers: any = {
         'x-n8n-url': ['array', 'of', 'values'],
         'x-n8n-key': 12345, // number instead of string
         'x-instance-id': null,
@@ -756,7 +756,7 @@ describe('HTTP Server Multi-Tenant Support', () => {
         if (!result.valid) {
           // Handle validation errors gracefully
           const errors = result.errors || [];
-          errors.forEach(error => {
+          errors.forEach((error: any) => {
             // Log error without throwing
             console.warn('Validation error:', error);
           });
