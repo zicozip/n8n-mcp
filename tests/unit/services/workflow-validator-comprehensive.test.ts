@@ -1934,8 +1934,10 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
             main: [[{ node: 'HTTP Request', type: 'main', index: 0 }]]
           },
           'HTTP Request': {
-            main: [[{ node: 'Process Data', type: 'main', index: 0 }]],
-            error: [[{ node: 'Error Handler', type: 'main', index: 0 }]]
+            main: [
+              [{ node: 'Process Data', type: 'main', index: 0 }],
+              [{ node: 'Error Handler', type: 'main', index: 0 }]
+            ]
           }
         }
       } as any;
