@@ -6,6 +6,7 @@
 import { NodeRepository } from '../database/node-repository';
 import { EnhancedConfigValidator } from './enhanced-config-validator';
 import { ExpressionValidator } from './expression-validator';
+import { ExpressionFormatValidator } from './expression-format-validator';
 import { Logger } from '../utils/logger';
 const logger = new Logger({ prefix: '[WorkflowValidator]' });
 
@@ -990,6 +991,39 @@ export class WorkflowValidator {
           nodeName: node.name,
           message: `Expression warning: ${warning}`
         });
+      });
+
+      // Validate expression format (check for missing = prefix and resource locator format)
+      const formatContext = {
+        nodeType: node.type,
+        nodeName: node.name,
+        nodeId: node.id
+      };
+
+      const formatIssues = ExpressionFormatValidator.validateNodeParameters(
+        node.parameters,
+        formatContext
+      );
+
+      // Add format errors and warnings
+      formatIssues.forEach(issue => {
+        const formattedMessage = ExpressionFormatValidator.formatErrorMessage(issue, formatContext);
+
+        if (issue.severity === 'error') {
+          result.errors.push({
+            type: 'error',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: formattedMessage
+          });
+        } else {
+          result.warnings.push({
+            type: 'warning',
+            nodeId: node.id,
+            nodeName: node.name,
+            message: formattedMessage
+          });
+        }
       });
     }
   }

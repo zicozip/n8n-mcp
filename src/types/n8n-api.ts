@@ -1,6 +1,16 @@
 // n8n API Types - Ported from n8n-manager-for-ai-agents
 // These types define the structure of n8n API requests and responses
 
+// Resource Locator Types
+export interface ResourceLocatorValue {
+  __rl: true;
+  value: string;
+  mode: 'id' | 'url' | 'expression' | string;
+}
+
+// Expression Format Types
+export type ExpressionValue = string | ResourceLocatorValue;
+
 // Workflow Node Types
 export interface WorkflowNode {
   id: string;

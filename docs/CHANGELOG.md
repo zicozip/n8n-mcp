@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Comprehensive Expression Format Validation System**: Three-tier validation strategy for n8n expressions
+  - **Universal Expression Validator**: 100% reliable detection of expression format issues
+    - Enforces required `=` prefix for all expressions `{{ }}`
+    - Validates expression syntax (bracket matching, empty expressions)
+    - Detects common mistakes (template literals, nested brackets, double prefixes)
+    - Provides confidence score of 1.0 for universal rules
+  - **Confidence-Based Node-Specific Recommendations**: Intelligent resource locator suggestions
+    - Confidence scoring system (0.0 to 1.0) for field-specific recommendations
+    - High confidence (≥0.8): Exact field matches for known nodes (GitHub owner/repository, Slack channels)
+    - Medium confidence (≥0.5): Field pattern matches (fields ending in Id, Key, Name)
+    - Factors: exact field match, field patterns, value patterns, node category
+  - **Resource Locator Format Detection**: Identifies fields needing `__rl` structure
+    - Validates resource locator mode (id, url, expression, name, list)
+    - Auto-fixes missing prefixes in resource locator values
+    - Provides clear JSON examples showing correct format
+  - **Enhanced Safety Features**:
+    - Recursion depth protection (MAX_RECURSION_DEPTH = 100) prevents infinite loops
+    - Pattern matching precision using exact/prefix matching instead of includes()
+    - Circular reference detection with WeakSet
+  - **Separation of Concerns**: Clean architecture for maintainability
+    - Universal rules separated from node-specific intelligence
+    - Confidence-based application of suggestions
+    - Future-proof design that works with any n8n node
+
 ## [2.12.1] - 2025-09-22
 
 ### Fixed
