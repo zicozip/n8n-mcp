@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.12.2] - 2025-01-22
+
+### Changed
+- Updated n8n dependencies to latest versions:
+  - n8n: 1.111.0 → 1.112.3
+  - n8n-core: 1.110.0 → 1.111.0
+  - n8n-workflow: 1.108.0 → 1.109.0
+  - @n8n/n8n-nodes-langchain: 1.110.0 → 1.111.1
+- Rebuilt node database with 536 nodes (438 from n8n-nodes-base, 98 from langchain)
+
+## [2.12.1] - 2025-01-21
 
 ### Added
 - **Comprehensive Expression Format Validation System**: Three-tier validation strategy for n8n expressions
