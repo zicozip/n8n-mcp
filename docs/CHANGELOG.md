@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.1] - 2025-09-22
+
+### Fixed
+- **Error Output Validation**: Enhanced workflow validator to detect incorrect error output configurations
+  - Detects when multiple nodes are incorrectly placed in the same output array (main[0])
+  - Validates that error handlers are properly connected to main[1] (error output) instead of main[0]
+  - Cross-validates onError property ('continueErrorOutput') matches actual connection structure
+  - Provides clear, actionable error messages with JSON examples showing correct configuration
+  - Uses heuristic detection for error handler nodes (names containing "error", "fail", "catch", etc.)
+  - Added comprehensive test coverage with 16+ test cases
+
+### Improved
+- **Validation Messages**: Error messages now include detailed JSON examples showing both incorrect and correct configurations
+- **Pattern Detection**: Fixed `checkWorkflowPatterns` to check main[1] for error outputs instead of non-existent outputs.error
+- **Test Coverage**: Added new test file `workflow-validator-error-outputs.test.ts` with extensive error output validation scenarios
+
 ## [2.12.0] - 2025-09-19
 
 ### Added

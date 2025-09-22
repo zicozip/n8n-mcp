@@ -7,7 +7,6 @@ import { NodeRepository } from '../database/node-repository';
 import { EnhancedConfigValidator } from './enhanced-config-validator';
 import { ExpressionValidator } from './expression-validator';
 import { Logger } from '../utils/logger';
-
 const logger = new Logger({ prefix: '[WorkflowValidator]' });
 
 interface WorkflowNode {
@@ -653,6 +652,11 @@ export class WorkflowValidator {
   ): void {
     // Get source node for special validation
     const sourceNode = nodeMap.get(sourceName);
+
+    // Special validation for main outputs with error handling
+    if (outputType === 'main' && sourceNode) {
+      this.validateErrorOutputConfiguration(sourceName, sourceNode, outputs, nodeMap, result);
+    }
     
     outputs.forEach((outputConnections, outputIndex) => {
       if (!outputConnections) return;
@@ -724,6 +728,90 @@ export class WorkflowValidator {
         }
       });
     });
+  }
+
+  /**
+   * Validate error output configuration
+   */
+  private validateErrorOutputConfiguration(
+    sourceName: string,
+    sourceNode: WorkflowNode,
+    outputs: Array<Array<{ node: string; type: string; index: number }>>,
+    nodeMap: Map<string, WorkflowNode>,
+    result: WorkflowValidationResult
+  ): void {
+    // Check if node has onError: 'continueErrorOutput'
+    const hasErrorOutputSetting = sourceNode.onError === 'continueErrorOutput';
+    const hasErrorConnections = outputs.length > 1 && outputs[1] && outputs[1].length > 0;
+
+    // Validate mismatch between onError setting and connections
+    if (hasErrorOutputSetting && !hasErrorConnections) {
+      result.errors.push({
+        type: 'error',
+        nodeId: sourceNode.id,
+        nodeName: sourceNode.name,
+        message: `Node has onError: 'continueErrorOutput' but no error output connections in main[1]. Add error handler connections to main[1] or change onError to 'continueRegularOutput' or 'stopWorkflow'.`
+      });
+    }
+
+    if (!hasErrorOutputSetting && hasErrorConnections) {
+      result.warnings.push({
+        type: 'warning',
+        nodeId: sourceNode.id,
+        nodeName: sourceNode.name,
+        message: `Node has error output connections in main[1] but missing onError: 'continueErrorOutput'. Add this property to properly handle errors.`
+      });
+    }
+
+    // Check for common mistake: multiple nodes in main[0] when error handling is intended
+    if (outputs.length >= 1 && outputs[0] && outputs[0].length > 1) {
+      // Check if any of the nodes in main[0] look like error handlers
+      const potentialErrorHandlers = outputs[0].filter(conn => {
+        const targetNode = nodeMap.get(conn.node);
+        if (!targetNode) return false;
+
+        const nodeName = targetNode.name.toLowerCase();
+        const nodeType = targetNode.type.toLowerCase();
+
+        // Common patterns for error handler nodes
+        return nodeName.includes('error') ||
+               nodeName.includes('fail') ||
+               nodeName.includes('catch') ||
+               nodeName.includes('exception') ||
+               nodeType.includes('respondtowebhook') ||
+               nodeType.includes('emailsend');
+      });
+
+      if (potentialErrorHandlers.length > 0) {
+        const errorHandlerNames = potentialErrorHandlers.map(conn => `"${conn.node}"`).join(', ');
+        result.errors.push({
+          type: 'error',
+          nodeId: sourceNode.id,
+          nodeName: sourceNode.name,
+          message: `Incorrect error output configuration. Nodes ${errorHandlerNames} appear to be error handlers but are in main[0] (success output) along with other nodes.\n\n` +
+                   `INCORRECT (current):\n` +
+                   `"${sourceName}": {\n` +
+                   `  "main": [\n` +
+                   `    [  // main[0] has multiple nodes mixed together\n` +
+                   outputs[0].map(conn => `      {"node": "${conn.node}", "type": "${conn.type}", "index": ${conn.index}}`).join(',\n') + '\n' +
+                   `    ]\n` +
+                   `  ]\n` +
+                   `}\n\n` +
+                   `CORRECT (should be):\n` +
+                   `"${sourceName}": {\n` +
+                   `  "main": [\n` +
+                   `    [  // main[0] = success output\n` +
+                   outputs[0].filter(conn => !potentialErrorHandlers.includes(conn)).map(conn => `      {"node": "${conn.node}", "type": "${conn.type}", "index": ${conn.index}}`).join(',\n') + '\n' +
+                   `    ],\n` +
+                   `    [  // main[1] = error output\n` +
+                   potentialErrorHandlers.map(conn => `      {"node": "${conn.node}", "type": "${conn.type}", "index": ${conn.index}}`).join(',\n') + '\n' +
+                   `    ]\n` +
+                   `  ]\n` +
+                   `}\n\n` +
+                   `Also add: "onError": "continueErrorOutput" to the "${sourceName}" node.`
+        });
+      }
+    }
   }
 
   /**
@@ -957,9 +1045,9 @@ export class WorkflowValidator {
     result: WorkflowValidationResult,
     profile: string = 'runtime'
   ): void {
-    // Check for error handling
+    // Check for error handling (n8n uses main[1] for error outputs, not outputs.error)
     const hasErrorHandling = Object.values(workflow.connections).some(
-      outputs => outputs.error && outputs.error.length > 0
+      outputs => outputs.main && outputs.main.length > 1 && outputs.main[1] && outputs.main[1].length > 0
     );
 
     // Only suggest error handling in stricter profiles
