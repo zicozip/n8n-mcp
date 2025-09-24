@@ -19,18 +19,25 @@ export interface SimilarityScore {
 }
 
 export interface CommonMistakePattern {
-  pattern: RegExp | string;
+  pattern: string;
   suggestion: string;
   confidence: number;
   reason: string;
 }
 
 export class NodeSimilarityService {
+  // Constants to avoid magic numbers
+  private static readonly SCORING_THRESHOLD = 50; // Minimum 50% confidence to suggest
+  private static readonly TYPO_EDIT_DISTANCE = 2; // Max 2 character differences for typo detection
+  private static readonly SHORT_SEARCH_LENGTH = 5; // Searches ≤5 chars need special handling
+  private static readonly CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  private static readonly AUTO_FIX_CONFIDENCE = 0.9; // 90% confidence for auto-fix
+
   private repository: NodeRepository;
   private commonMistakes: Map<string, CommonMistakePattern[]>;
   private nodeCache: any[] | null = null;
   private cacheExpiry: number = 0;
-  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private cacheVersion: number = 0; // Track cache version for invalidation
 
   constructor(repository: NodeRepository) {
     this.repository = repository;
@@ -39,51 +46,76 @@ export class NodeSimilarityService {
 
   /**
    * Initialize common mistake patterns
+   * Using safer string-based patterns instead of complex regex to avoid ReDoS
    */
   private initializeCommonMistakes(): Map<string, CommonMistakePattern[]> {
     const patterns = new Map<string, CommonMistakePattern[]>();
 
-    // Case variations
+    // Case variations - using exact string matching (case-insensitive)
     patterns.set('case_variations', [
-      { pattern: /^HttpRequest$/i, suggestion: 'nodes-base.httpRequest', confidence: 0.95, reason: 'Incorrect capitalization' },
-      { pattern: /^HTTPRequest$/i, suggestion: 'nodes-base.httpRequest', confidence: 0.95, reason: 'Common capitalization mistake' },
-      { pattern: /^Webhook$/i, suggestion: 'nodes-base.webhook', confidence: 0.95, reason: 'Incorrect capitalization' },
-      { pattern: /^WebHook$/i, suggestion: 'nodes-base.webhook', confidence: 0.95, reason: 'Common capitalization mistake' },
-      { pattern: /^Slack$/i, suggestion: 'nodes-base.slack', confidence: 0.9, reason: 'Missing package prefix' },
-      { pattern: /^Gmail$/i, suggestion: 'nodes-base.gmail', confidence: 0.9, reason: 'Missing package prefix' },
-      { pattern: /^GoogleSheets$/i, suggestion: 'nodes-base.googleSheets', confidence: 0.9, reason: 'Missing package prefix' },
+      { pattern: 'httprequest', suggestion: 'nodes-base.httpRequest', confidence: 0.95, reason: 'Incorrect capitalization' },
+      { pattern: 'webhook', suggestion: 'nodes-base.webhook', confidence: 0.95, reason: 'Incorrect capitalization' },
+      { pattern: 'slack', suggestion: 'nodes-base.slack', confidence: 0.9, reason: 'Missing package prefix' },
+      { pattern: 'gmail', suggestion: 'nodes-base.gmail', confidence: 0.9, reason: 'Missing package prefix' },
+      { pattern: 'googlesheets', suggestion: 'nodes-base.googleSheets', confidence: 0.9, reason: 'Missing package prefix' },
+      { pattern: 'telegram', suggestion: 'nodes-base.telegram', confidence: 0.9, reason: 'Missing package prefix' },
     ]);
 
-    // Missing prefixes
-    patterns.set('missing_prefix', [
-      { pattern: /^(httpRequest|webhook|slack|gmail|googleSheets|telegram|discord|notion|airtable|postgres|mysql|mongodb)$/i,
-        suggestion: '', confidence: 0.9, reason: 'Missing package prefix' },
+    // Specific case variations that are common
+    patterns.set('specific_variations', [
+      { pattern: 'HttpRequest', suggestion: 'nodes-base.httpRequest', confidence: 0.95, reason: 'Incorrect capitalization' },
+      { pattern: 'HTTPRequest', suggestion: 'nodes-base.httpRequest', confidence: 0.95, reason: 'Common capitalization mistake' },
+      { pattern: 'Webhook', suggestion: 'nodes-base.webhook', confidence: 0.95, reason: 'Incorrect capitalization' },
+      { pattern: 'WebHook', suggestion: 'nodes-base.webhook', confidence: 0.95, reason: 'Common capitalization mistake' },
     ]);
 
-    // Old versions or deprecated names
-    patterns.set('deprecated', [
-      { pattern: /^n8n-nodes-base\./i, suggestion: '', confidence: 0.95, reason: 'Full package name used instead of short form' },
-      { pattern: /^@n8n\/n8n-nodes-langchain\./i, suggestion: '', confidence: 0.95, reason: 'Full package name used instead of short form' },
+    // Deprecated package prefixes
+    patterns.set('deprecated_prefixes', [
+      { pattern: 'n8n-nodes-base.', suggestion: 'nodes-base.', confidence: 0.95, reason: 'Full package name used instead of short form' },
+      { pattern: '@n8n/n8n-nodes-langchain.', suggestion: 'nodes-langchain.', confidence: 0.95, reason: 'Full package name used instead of short form' },
     ]);
 
-    // Common typos
+    // Common typos - exact matches
     patterns.set('typos', [
-      { pattern: /^htpRequest$/i, suggestion: 'nodes-base.httpRequest', confidence: 0.8, reason: 'Likely typo' },
-      { pattern: /^httpReqest$/i, suggestion: 'nodes-base.httpRequest', confidence: 0.8, reason: 'Likely typo' },
-      { pattern: /^webook$/i, suggestion: 'nodes-base.webhook', confidence: 0.8, reason: 'Likely typo' },
-      { pattern: /^slak$/i, suggestion: 'nodes-base.slack', confidence: 0.8, reason: 'Likely typo' },
-      { pattern: /^goggleSheets$/i, suggestion: 'nodes-base.googleSheets', confidence: 0.8, reason: 'Likely typo' },
+      { pattern: 'htprequest', suggestion: 'nodes-base.httpRequest', confidence: 0.8, reason: 'Likely typo' },
+      { pattern: 'httpreqest', suggestion: 'nodes-base.httpRequest', confidence: 0.8, reason: 'Likely typo' },
+      { pattern: 'webook', suggestion: 'nodes-base.webhook', confidence: 0.8, reason: 'Likely typo' },
+      { pattern: 'slak', suggestion: 'nodes-base.slack', confidence: 0.8, reason: 'Likely typo' },
+      { pattern: 'googlesheets', suggestion: 'nodes-base.googleSheets', confidence: 0.8, reason: 'Likely typo' },
     ]);
 
     // AI/LangChain specific
     patterns.set('ai_nodes', [
-      { pattern: /^openai$/i, suggestion: 'nodes-langchain.openAi', confidence: 0.85, reason: 'AI node - incorrect package' },
-      { pattern: /^nodes-base\.openai$/i, suggestion: 'nodes-langchain.openAi', confidence: 0.9, reason: 'Wrong package - OpenAI is in LangChain package' },
-      { pattern: /^chatOpenAI$/i, suggestion: 'nodes-langchain.lmChatOpenAi', confidence: 0.85, reason: 'LangChain node naming convention' },
-      { pattern: /^vectorStore$/i, suggestion: 'nodes-langchain.vectorStoreInMemory', confidence: 0.7, reason: 'Generic vector store reference' },
+      { pattern: 'openai', suggestion: 'nodes-langchain.openAi', confidence: 0.85, reason: 'AI node - incorrect package' },
+      { pattern: 'nodes-base.openai', suggestion: 'nodes-langchain.openAi', confidence: 0.9, reason: 'Wrong package - OpenAI is in LangChain package' },
+      { pattern: 'chatopenai', suggestion: 'nodes-langchain.lmChatOpenAi', confidence: 0.85, reason: 'LangChain node naming convention' },
+      { pattern: 'vectorstore', suggestion: 'nodes-langchain.vectorStoreInMemory', confidence: 0.7, reason: 'Generic vector store reference' },
     ]);
 
     return patterns;
+  }
+
+  /**
+   * Check if a type is a common node name without prefix
+   */
+  private isCommonNodeWithoutPrefix(type: string): string | null {
+    const commonNodes: Record<string, string> = {
+      'httprequest': 'nodes-base.httpRequest',
+      'webhook': 'nodes-base.webhook',
+      'slack': 'nodes-base.slack',
+      'gmail': 'nodes-base.gmail',
+      'googlesheets': 'nodes-base.googleSheets',
+      'telegram': 'nodes-base.telegram',
+      'discord': 'nodes-base.discord',
+      'notion': 'nodes-base.notion',
+      'airtable': 'nodes-base.airtable',
+      'postgres': 'nodes-base.postgres',
+      'mysql': 'nodes-base.mySql',
+      'mongodb': 'nodes-base.mongoDb',
+    };
+
+    const normalized = type.toLowerCase();
+    return commonNodes[normalized] || null;
   }
 
   /**
@@ -120,7 +152,7 @@ export class NodeSimilarityService {
         continue;
       }
 
-      if (score.totalScore >= 50) {
+      if (score.totalScore >= NodeSimilarityService.SCORING_THRESHOLD) {
         suggestions.push(this.createSuggestion(node, score));
       }
 
@@ -133,38 +165,65 @@ export class NodeSimilarityService {
   }
 
   /**
-   * Check for common mistake patterns
+   * Check for common mistake patterns (ReDoS-safe implementation)
    */
   private checkCommonMistakes(invalidType: string): NodeSuggestion | null {
     const cleanType = invalidType.trim();
+    const lowerType = cleanType.toLowerCase();
 
-    // Check each category of patterns
+    // First check for common nodes without prefix
+    const commonNodeSuggestion = this.isCommonNodeWithoutPrefix(cleanType);
+    if (commonNodeSuggestion) {
+      const node = this.repository.getNode(commonNodeSuggestion);
+      if (node) {
+        return {
+          nodeType: commonNodeSuggestion,
+          displayName: node.displayName,
+          confidence: 0.9,
+          reason: 'Missing package prefix',
+          category: node.category,
+          description: node.description
+        };
+      }
+    }
+
+    // Check deprecated prefixes (string-based, no regex)
     for (const [category, patterns] of this.commonMistakes) {
-      for (const pattern of patterns) {
-        let match = false;
-        let actualSuggestion = pattern.suggestion;
-
-        if (pattern.pattern instanceof RegExp) {
-          match = pattern.pattern.test(cleanType);
-        } else {
-          match = cleanType === pattern.pattern;
-        }
-
-        if (match) {
-          // Handle dynamic suggestions (e.g., missing prefix)
-          if (category === 'missing_prefix' && !actualSuggestion) {
-            actualSuggestion = `nodes-base.${cleanType}`;
-          } else if (category === 'deprecated' && !actualSuggestion) {
-            // Remove package prefix
-            actualSuggestion = cleanType.replace(/^n8n-nodes-base\./, 'nodes-base.')
-                                       .replace(/^@n8n\/n8n-nodes-langchain\./, 'nodes-langchain.');
+      if (category === 'deprecated_prefixes') {
+        for (const pattern of patterns) {
+          if (cleanType.startsWith(pattern.pattern)) {
+            const actualSuggestion = cleanType.replace(pattern.pattern, pattern.suggestion);
+            const node = this.repository.getNode(actualSuggestion);
+            if (node) {
+              return {
+                nodeType: actualSuggestion,
+                displayName: node.displayName,
+                confidence: pattern.confidence,
+                reason: pattern.reason,
+                category: node.category,
+                description: node.description
+              };
+            }
           }
+        }
+      }
+    }
 
-          // Verify the suggestion exists
-          const node = this.repository.getNode(actualSuggestion);
+    // Check exact matches for typos and variations
+    for (const [category, patterns] of this.commonMistakes) {
+      if (category === 'deprecated_prefixes') continue; // Already handled
+
+      for (const pattern of patterns) {
+        // Simple string comparison (case-sensitive for specific_variations)
+        const match = category === 'specific_variations'
+          ? cleanType === pattern.pattern
+          : lowerType === pattern.pattern.toLowerCase();
+
+        if (match && pattern.suggestion) {
+          const node = this.repository.getNode(pattern.suggestion);
           if (node) {
             return {
-              nodeType: actualSuggestion,
+              nodeType: pattern.suggestion,
               displayName: node.displayName,
               confidence: pattern.confidence,
               reason: pattern.reason,
@@ -188,7 +247,7 @@ export class NodeSimilarityService {
     const displayNameClean = this.normalizeNodeType(node.displayName);
 
     // Special handling for very short search terms (e.g., "http", "sheet")
-    const isShortSearch = invalidType.length <= 5;
+    const isShortSearch = invalidType.length <= NodeSimilarityService.SHORT_SEARCH_LENGTH;
 
     // Name similarity (40% weight)
     let nameSimilarity = Math.max(
@@ -227,10 +286,10 @@ export class NodeSimilarityService {
       // Boost score significantly for short searches that are exact substring matches
       // Short searches need more boost to reach the 50 threshold
       patternMatch = isShortSearch ? 45 : 25;
-    } else if (this.getEditDistance(cleanInvalid, cleanValid) <= 2) {
+    } else if (this.getEditDistance(cleanInvalid, cleanValid) <= NodeSimilarityService.TYPO_EDIT_DISTANCE) {
       // Small edit distance indicates likely typo
       patternMatch = 20;
-    } else if (this.getEditDistance(cleanInvalid, displayNameClean) <= 2) {
+    } else if (this.getEditDistance(cleanInvalid, displayNameClean) <= NodeSimilarityService.TYPO_EDIT_DISTANCE) {
       patternMatch = 18;
     }
 
@@ -301,46 +360,109 @@ export class NodeSimilarityService {
   }
 
   /**
-   * Calculate Levenshtein distance
+   * Calculate Levenshtein distance with optimizations
+   * - Early termination when difference exceeds threshold
+   * - Space-optimized to use only two rows instead of full matrix
+   * - Fast path for identical or vastly different strings
    */
-  private getEditDistance(s1: string, s2: string): number {
+  private getEditDistance(s1: string, s2: string, maxDistance: number = 5): number {
+    // Fast path: identical strings
+    if (s1 === s2) return 0;
+
     const m = s1.length;
     const n = s2.length;
-    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
 
-    for (let i = 0; i <= m; i++) dp[i][0] = i;
-    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    // Fast path: length difference exceeds threshold
+    const lengthDiff = Math.abs(m - n);
+    if (lengthDiff > maxDistance) return maxDistance + 1;
+
+    // Fast path: empty strings
+    if (m === 0) return n;
+    if (n === 0) return m;
+
+    // Space optimization: only need previous and current row
+    let prev = Array(n + 1).fill(0).map((_, i) => i);
 
     for (let i = 1; i <= m; i++) {
+      const curr = [i];
+      let minInRow = i;
+
       for (let j = 1; j <= n; j++) {
-        if (s1[i - 1] === s2[j - 1]) {
-          dp[i][j] = dp[i - 1][j - 1];
-        } else {
-          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-        }
+        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+        const val = Math.min(
+          curr[j - 1] + 1,      // deletion
+          prev[j] + 1,          // insertion
+          prev[j - 1] + cost    // substitution
+        );
+        curr.push(val);
+        minInRow = Math.min(minInRow, val);
       }
+
+      // Early termination: if minimum in this row exceeds threshold
+      if (minInRow > maxDistance) {
+        return maxDistance + 1;
+      }
+
+      prev = curr;
     }
 
-    return dp[m][n];
+    return prev[n];
   }
 
   /**
    * Get cached nodes or fetch from repository
+   * Implements proper cache invalidation with version tracking
    */
   private async getCachedNodes(): Promise<any[]> {
     const now = Date.now();
 
     if (!this.nodeCache || now > this.cacheExpiry) {
       try {
-        this.nodeCache = this.repository.getAllNodes();
-        this.cacheExpiry = now + this.CACHE_DURATION;
+        const newNodes = this.repository.getAllNodes();
+
+        // Only update cache if we got valid data
+        if (newNodes && newNodes.length > 0) {
+          this.nodeCache = newNodes;
+          this.cacheExpiry = now + NodeSimilarityService.CACHE_DURATION_MS;
+          this.cacheVersion++;
+          logger.debug('Node cache refreshed', {
+            count: newNodes.length,
+            version: this.cacheVersion
+          });
+        } else if (this.nodeCache) {
+          // Return stale cache if new fetch returned empty
+          logger.warn('Node fetch returned empty, using stale cache');
+        }
       } catch (error) {
         logger.error('Failed to fetch nodes for similarity service', error);
+        // Return stale cache on error if available
+        if (this.nodeCache) {
+          logger.info('Using stale cache due to fetch error');
+          return this.nodeCache;
+        }
         return [];
       }
     }
 
     return this.nodeCache || [];
+  }
+
+  /**
+   * Invalidate the cache (e.g., after database updates)
+   */
+  public invalidateCache(): void {
+    this.nodeCache = null;
+    this.cacheExpiry = 0;
+    this.cacheVersion++;
+    logger.debug('Node cache invalidated', { version: this.cacheVersion });
+  }
+
+  /**
+   * Clear and refresh cache immediately
+   */
+  public async refreshCache(): Promise<void> {
+    this.invalidateCache();
+    await this.getCachedNodes();
   }
 
   /**
@@ -377,14 +499,14 @@ export class NodeSimilarityService {
    * Check if a suggestion is high confidence for auto-fixing
    */
   isAutoFixable(suggestion: NodeSuggestion): boolean {
-    return suggestion.confidence >= 0.9;
+    return suggestion.confidence >= NodeSimilarityService.AUTO_FIX_CONFIDENCE;
   }
 
   /**
    * Clear the node cache (useful after database updates)
+   * @deprecated Use invalidateCache() instead for proper version tracking
    */
   clearCache(): void {
-    this.nodeCache = null;
-    this.cacheExpiry = 0;
+    this.invalidateCache();
   }
 }

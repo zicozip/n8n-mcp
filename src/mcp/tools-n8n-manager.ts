@@ -270,6 +270,41 @@ export const n8nManagementTools: ToolDefinition[] = [
       required: ['id']
     }
   },
+  {
+    name: 'n8n_autofix_workflow',
+    description: `Automatically fix common workflow validation errors. Preview fixes or apply them. Fixes expression format, typeVersion, error output config, webhook paths.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'Workflow ID to fix'
+        },
+        applyFixes: {
+          type: 'boolean',
+          description: 'Apply fixes to workflow (default: false - preview mode)'
+        },
+        fixTypes: {
+          type: 'array',
+          description: 'Types of fixes to apply (default: all)',
+          items: {
+            type: 'string',
+            enum: ['expression-format', 'typeversion-correction', 'error-output-config', 'node-type-correction', 'webhook-missing-path']
+          }
+        },
+        confidenceThreshold: {
+          type: 'string',
+          enum: ['high', 'medium', 'low'],
+          description: 'Minimum confidence level for fixes (default: medium)'
+        },
+        maxFixes: {
+          type: 'number',
+          description: 'Maximum number of fixes to apply (default: 50)'
+        }
+      },
+      required: ['id']
+    }
+  },
 
   // Execution Management Tools
   {

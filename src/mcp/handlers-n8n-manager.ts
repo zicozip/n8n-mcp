@@ -246,8 +246,8 @@ const autofixWorkflowSchema = z.object({
     'expression-format',
     'typeversion-correction',
     'error-output-config',
-    'required-field',
-    'enum-value'
+    'node-type-correction',
+    'webhook-missing-path'
   ])).optional(),
   confidenceThreshold: z.enum(['high', 'medium', 'low']).optional().default('medium'),
   maxFixes: z.number().optional().default(50)

@@ -5,6 +5,7 @@
  * Converts validation results into diff operations that can be applied to fix the workflow.
  */
 
+import crypto from 'crypto';
 import { WorkflowValidationResult } from './workflow-validator';
 import { ExpressionFormatIssue } from './expression-format-validator';
 import { NodeSimilarityService } from './node-similarity-service';
@@ -23,9 +24,8 @@ export type FixType =
   | 'expression-format'
   | 'typeversion-correction'
   | 'error-output-config'
-  | 'required-field'
-  | 'enum-value'
-  | 'node-type-correction';
+  | 'node-type-correction'
+  | 'webhook-missing-path';
 
 export interface AutoFixConfig {
   applyFixes: boolean;
@@ -58,6 +58,30 @@ export interface AutoFixResult {
 export interface NodeFormatIssue extends ExpressionFormatIssue {
   nodeName: string;
   nodeId: string;
+}
+
+/**
+ * Type guard to check if an issue has node information
+ */
+export function isNodeFormatIssue(issue: ExpressionFormatIssue): issue is NodeFormatIssue {
+  return 'nodeName' in issue && 'nodeId' in issue &&
+         typeof (issue as any).nodeName === 'string' &&
+         typeof (issue as any).nodeId === 'string';
+}
+
+/**
+ * Error with suggestions for node type issues
+ */
+export interface NodeTypeError {
+  type: 'error';
+  nodeId?: string;
+  nodeName?: string;
+  message: string;
+  suggestions?: Array<{
+    nodeType: string;
+    confidence: number;
+    reason: string;
+  }>;
 }
 
 export class WorkflowAutoFixer {
@@ -114,6 +138,11 @@ export class WorkflowAutoFixer {
       this.processNodeTypeFixes(validationResult, nodeMap, operations, fixes);
     }
 
+    // Process webhook path fixes (HIGH confidence)
+    if (!fullConfig.fixTypes || fullConfig.fixTypes.includes('webhook-missing-path')) {
+      this.processWebhookPathFixes(validationResult, nodeMap, operations, fixes);
+    }
+
     // Filter by confidence threshold
     const filteredFixes = this.filterByConfidence(fixes, fullConfig.confidenceThreshold);
     const filteredOperations = this.filterOperationsByFixes(operations, filteredFixes, fixes);
@@ -149,14 +178,16 @@ export class WorkflowAutoFixer {
     for (const issue of formatIssues) {
       // Process both errors and warnings for missing-prefix issues
       if (issue.issueType === 'missing-prefix') {
-        // Check if the issue has node information
-        const nodeIssue = issue as any;
-        const nodeName = nodeIssue.nodeName;
-
-        if (!nodeName) {
-          // Skip if we can't identify the node
+        // Use type guard to ensure we have node information
+        if (!isNodeFormatIssue(issue)) {
+          logger.warn('Expression format issue missing node information', {
+            fieldPath: issue.fieldPath,
+            issueType: issue.issueType
+          });
           continue;
         }
+
+        const nodeName = issue.nodeName;
 
         if (!fixesByNode.has(nodeName)) {
           fixesByNode.set(nodeName, []);
@@ -304,15 +335,15 @@ export class WorkflowAutoFixer {
     }
 
     for (const error of validationResult.errors) {
-      // Look for unknown node type errors with suggestions
-      if (error.message?.includes('Unknown node type:') && (error as any).suggestions) {
-        const suggestions = (error as any).suggestions;
+      // Type-safe check for unknown node type errors with suggestions
+      const nodeError = error as NodeTypeError;
 
+      if (error.message?.includes('Unknown node type:') && nodeError.suggestions) {
         // Only auto-fix if we have a high-confidence suggestion (>= 0.9)
-        const highConfidenceSuggestion = suggestions.find((s: any) => s.confidence >= 0.9);
+        const highConfidenceSuggestion = nodeError.suggestions.find(s => s.confidence >= 0.9);
 
-        if (highConfidenceSuggestion && error.nodeId) {
-          const node = nodeMap.get(error.nodeId) || nodeMap.get(error.nodeName || '');
+        if (highConfidenceSuggestion && nodeError.nodeId) {
+          const node = nodeMap.get(nodeError.nodeId) || nodeMap.get(nodeError.nodeName || '');
 
           if (node) {
             fixes.push({
@@ -340,45 +371,164 @@ export class WorkflowAutoFixer {
   }
 
   /**
+   * Process webhook path fixes for webhook nodes missing path parameter
+   */
+  private processWebhookPathFixes(
+    validationResult: WorkflowValidationResult,
+    nodeMap: Map<string, WorkflowNode>,
+    operations: WorkflowDiffOperation[],
+    fixes: FixOperation[]
+  ): void {
+    for (const error of validationResult.errors) {
+      // Check for webhook path required error
+      if (error.message === 'Webhook path is required') {
+        const nodeName = error.nodeName || error.nodeId;
+        if (!nodeName) continue;
+
+        const node = nodeMap.get(nodeName);
+        if (!node) continue;
+
+        // Only fix webhook nodes
+        if (!node.type?.includes('webhook')) continue;
+
+        // Generate a unique UUID for both path and webhookId
+        const webhookId = crypto.randomUUID();
+
+        // Check if we need to update typeVersion
+        const currentTypeVersion = node.typeVersion || 1;
+        const needsVersionUpdate = currentTypeVersion < 2.1;
+
+        fixes.push({
+          node: nodeName,
+          field: 'path',
+          type: 'webhook-missing-path',
+          before: undefined,
+          after: webhookId,
+          confidence: 'high',
+          description: needsVersionUpdate
+            ? `Generated webhook path and ID: ${webhookId} (also updating typeVersion to 2.1)`
+            : `Generated webhook path and ID: ${webhookId}`
+        });
+
+        // Create update operation with both path and webhookId
+        // The updates object uses dot notation for nested properties
+        const updates: Record<string, any> = {
+          'parameters.path': webhookId,
+          'webhookId': webhookId
+        };
+
+        // Only update typeVersion if it's older than 2.1
+        if (needsVersionUpdate) {
+          updates['typeVersion'] = 2.1;
+        }
+
+        const operation: UpdateNodeOperation = {
+          type: 'updateNode',
+          nodeId: nodeName,
+          updates
+        };
+        operations.push(operation);
+      }
+    }
+  }
+
+  /**
    * Set a nested value in an object using a path array
+   * Includes validation to prevent silent failures
    */
   private setNestedValue(obj: any, path: string[], value: any): void {
-    if (path.length === 0) return;
+    if (!obj || typeof obj !== 'object') {
+      throw new Error('Cannot set value on non-object');
+    }
 
-    let current = obj;
-    for (let i = 0; i < path.length - 1; i++) {
-      const key = path[i];
+    if (path.length === 0) {
+      throw new Error('Cannot set value with empty path');
+    }
 
-      // Handle array indices
-      if (key.includes('[')) {
-        const [arrayKey, indexStr] = key.split('[');
-        const index = parseInt(indexStr.replace(']', ''));
+    try {
+      let current = obj;
+
+      for (let i = 0; i < path.length - 1; i++) {
+        const key = path[i];
+
+        // Handle array indices
+        if (key.includes('[')) {
+          const matches = key.match(/^([^[]+)\[(\d+)\]$/);
+          if (!matches) {
+            throw new Error(`Invalid array notation: ${key}`);
+          }
+
+          const [, arrayKey, indexStr] = matches;
+          const index = parseInt(indexStr, 10);
+
+          if (isNaN(index) || index < 0) {
+            throw new Error(`Invalid array index: ${indexStr}`);
+          }
+
+          if (!current[arrayKey]) {
+            current[arrayKey] = [];
+          }
+
+          if (!Array.isArray(current[arrayKey])) {
+            throw new Error(`Expected array at ${arrayKey}, got ${typeof current[arrayKey]}`);
+          }
+
+          while (current[arrayKey].length <= index) {
+            current[arrayKey].push({});
+          }
+
+          current = current[arrayKey][index];
+        } else {
+          if (current[key] === null || current[key] === undefined) {
+            current[key] = {};
+          }
+
+          if (typeof current[key] !== 'object' || Array.isArray(current[key])) {
+            throw new Error(`Cannot traverse through ${typeof current[key]} at ${key}`);
+          }
+
+          current = current[key];
+        }
+      }
+
+      // Set the final value
+      const lastKey = path[path.length - 1];
+
+      if (lastKey.includes('[')) {
+        const matches = lastKey.match(/^([^[]+)\[(\d+)\]$/);
+        if (!matches) {
+          throw new Error(`Invalid array notation: ${lastKey}`);
+        }
+
+        const [, arrayKey, indexStr] = matches;
+        const index = parseInt(indexStr, 10);
+
+        if (isNaN(index) || index < 0) {
+          throw new Error(`Invalid array index: ${indexStr}`);
+        }
 
         if (!current[arrayKey]) {
           current[arrayKey] = [];
         }
-        if (!current[arrayKey][index]) {
-          current[arrayKey][index] = {};
-        }
-        current = current[arrayKey][index];
-      } else {
-        if (!current[key]) {
-          current[key] = {};
-        }
-        current = current[key];
-      }
-    }
 
-    const lastKey = path[path.length - 1];
-    if (lastKey.includes('[')) {
-      const [arrayKey, indexStr] = lastKey.split('[');
-      const index = parseInt(indexStr.replace(']', ''));
-      if (!current[arrayKey]) {
-        current[arrayKey] = [];
+        if (!Array.isArray(current[arrayKey])) {
+          throw new Error(`Expected array at ${arrayKey}, got ${typeof current[arrayKey]}`);
+        }
+
+        while (current[arrayKey].length <= index) {
+          current[arrayKey].push(null);
+        }
+
+        current[arrayKey][index] = value;
+      } else {
+        current[lastKey] = value;
       }
-      current[arrayKey][index] = value;
-    } else {
-      current[lastKey] = value;
+    } catch (error) {
+      logger.error('Failed to set nested value', {
+        path: path.join('.'),
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
     }
   }
 
@@ -427,9 +577,8 @@ export class WorkflowAutoFixer {
         'expression-format': 0,
         'typeversion-correction': 0,
         'error-output-config': 0,
-        'required-field': 0,
-        'enum-value': 0,
-        'node-type-correction': 0
+        'node-type-correction': 0,
+        'webhook-missing-path': 0
       },
       byConfidence: {
         'high': 0,
@@ -465,11 +614,11 @@ export class WorkflowAutoFixer {
     if (stats.byType['error-output-config'] > 0) {
       parts.push(`${stats.byType['error-output-config']} error output ${stats.byType['error-output-config'] === 1 ? 'configuration' : 'configurations'}`);
     }
-    if (stats.byType['required-field'] > 0) {
-      parts.push(`${stats.byType['required-field']} required ${stats.byType['required-field'] === 1 ? 'field' : 'fields'}`);
+    if (stats.byType['node-type-correction'] > 0) {
+      parts.push(`${stats.byType['node-type-correction']} node type ${stats.byType['node-type-correction'] === 1 ? 'correction' : 'corrections'}`);
     }
-    if (stats.byType['enum-value'] > 0) {
-      parts.push(`${stats.byType['enum-value']} invalid ${stats.byType['enum-value'] === 1 ? 'value' : 'values'}`);
+    if (stats.byType['webhook-missing-path'] > 0) {
+      parts.push(`${stats.byType['webhook-missing-path']} webhook ${stats.byType['webhook-missing-path'] === 1 ? 'path' : 'paths'}`);
     }
 
     if (parts.length === 0) {
