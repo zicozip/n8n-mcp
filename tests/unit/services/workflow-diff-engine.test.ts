@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { WorkflowDiffEngine } from '@/services/workflow-diff-engine';
 import { createWorkflow, WorkflowBuilder } from '@tests/utils/builders/workflow.builder';
-import { 
+import {
   WorkflowDiffRequest,
+  WorkflowDiffOperation,
   AddNodeOperation,
   RemoveNodeOperation,
   UpdateNodeOperation,
@@ -60,9 +61,10 @@ describe('WorkflowDiffEngine', () => {
     baseWorkflow.connections = newConnections;
   });
 
-  describe('Operation Limits', () => {
-    it('should reject more than 5 operations', async () => {
-      const operations = Array(6).fill(null).map((_: any, i: number) => ({
+  describe('Large Operation Batches', () => {
+    it('should handle many operations successfully', async () => {
+      // Test with 50 operations
+      const operations = Array(50).fill(null).map((_: any, i: number) => ({
         type: 'updateName',
         name: `Name ${i}`
       } as UpdateNameOperation));
@@ -73,10 +75,47 @@ describe('WorkflowDiffEngine', () => {
       };
 
       const result = await diffEngine.applyDiff(baseWorkflow, request);
-      
-      expect(result.success).toBe(false);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors![0].message).toContain('Too many operations');
+
+      expect(result.success).toBe(true);
+      expect(result.operationsApplied).toBe(50);
+      expect(result.workflow!.name).toBe('Name 49'); // Last operation wins
+    });
+
+    it('should handle 100+ mixed operations', async () => {
+      const operations: WorkflowDiffOperation[] = [
+        // Add 30 nodes
+        ...Array(30).fill(null).map((_: any, i: number) => ({
+          type: 'addNode',
+          node: {
+            name: `Node${i}`,
+            type: 'n8n-nodes-base.code',
+            position: [i * 100, 300],
+            parameters: {}
+          }
+        } as AddNodeOperation)),
+        // Update names 30 times
+        ...Array(30).fill(null).map((_: any, i: number) => ({
+          type: 'updateName',
+          name: `Workflow Version ${i}`
+        } as UpdateNameOperation)),
+        // Add 40 tags
+        ...Array(40).fill(null).map((_: any, i: number) => ({
+          type: 'addTag',
+          tag: `tag${i}`
+        } as AddTagOperation))
+      ];
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.operationsApplied).toBe(100);
+      expect(result.workflow!.nodes.length).toBeGreaterThan(30);
+      expect(result.workflow!.name).toBe('Workflow Version 29');
     });
   });
 

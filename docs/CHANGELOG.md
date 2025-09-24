@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.1] - 2025-01-24
+
+### Changed
+- **Removed 5-operation limit from n8n_update_partial_workflow**: The workflow diff engine now supports unlimited operations per request
+  - Previously limited to 5 operations for "transactional integrity"
+  - Analysis revealed the limit was unnecessary - the clone-validate-apply pattern already ensures atomicity
+  - All operations are validated before any are applied, maintaining data integrity
+  - Enables complex workflow refactoring in single API calls
+  - Updated documentation and examples to demonstrate large batch operations (26+ operations)
+
 ## [2.13.0] - 2025-01-24
 
 ### Added

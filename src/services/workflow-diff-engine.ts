@@ -41,17 +41,6 @@ export class WorkflowDiffEngine {
     request: WorkflowDiffRequest
   ): Promise<WorkflowDiffResult> {
     try {
-      // Limit operations to keep complexity manageable
-      if (request.operations.length > 5) {
-        return {
-          success: false,
-          errors: [{
-            operation: -1,
-            message: 'Too many operations. Maximum 5 operations allowed per request to ensure transactional integrity.'
-          }]
-        };
-      }
-
       // Clone workflow to avoid modifying original
       const workflowCopy = JSON.parse(JSON.stringify(workflow));
       

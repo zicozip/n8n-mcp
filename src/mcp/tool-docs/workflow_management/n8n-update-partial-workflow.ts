@@ -4,18 +4,18 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
   name: 'n8n_update_partial_workflow',
   category: 'workflow_management',
   essentials: {
-    description: 'Update workflow incrementally with diff operations. Max 5 ops. Types: addNode, removeNode, updateNode, moveNode, enable/disableNode, addConnection, removeConnection, updateSettings, updateName, add/removeTag.',
+    description: 'Update workflow incrementally with diff operations. Types: addNode, removeNode, updateNode, moveNode, enable/disableNode, addConnection, removeConnection, updateSettings, updateName, add/removeTag.',
     keyParameters: ['id', 'operations'],
     example: 'n8n_update_partial_workflow({id: "wf_123", operations: [{type: "updateNode", ...}]})',
     performance: 'Fast (50-200ms)',
     tips: [
       'Use for targeted changes',
-      'Supports up to 5 operations',
+      'Supports multiple operations in one call',
       'Validate with validateOnly first'
     ]
   },
   full: {
-    description: `Updates workflows using surgical diff operations instead of full replacement. Supports 13 operation types for precise modifications. Operations are validated and applied atomically - all succeed or none are applied. Maximum 5 operations per call for safety.
+    description: `Updates workflows using surgical diff operations instead of full replacement. Supports 13 operation types for precise modifications. Operations are validated and applied atomically - all succeed or none are applied.
 
 ## Available Operations:
 
@@ -42,7 +42,7 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
       operations: { 
         type: 'array', 
         required: true, 
-        description: 'Array of diff operations. Each must have "type" field and operation-specific properties. Max 5 operations. Nodes can be referenced by ID or name.' 
+        description: 'Array of diff operations. Each must have "type" field and operation-specific properties. Nodes can be referenced by ID or name.' 
       },
       validateOnly: { type: 'boolean', description: 'If true, only validate operations without applying them' }
     },
@@ -64,12 +64,10 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
     bestPractices: [
       'Use validateOnly to test operations',
       'Group related changes in one call',
-      'Keep operations under 5 for clarity',
       'Check operation order for dependencies'
     ],
     pitfalls: [
       '**REQUIRES N8N_API_URL and N8N_API_KEY environment variables** - will not work without n8n API access',
-      'Maximum 5 operations per call - split larger updates',
       'Operations validated together - all must be valid',
       'Order matters for dependent operations (e.g., must add node before connecting to it)',
       'Node references accept ID or name, but name must be unique',
