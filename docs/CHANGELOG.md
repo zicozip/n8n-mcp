@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.0] - 2025-01-24
+
+### Added
+- **Webhook Path Autofixer**: Automatically generates UUIDs for webhook nodes missing path configuration
+  - Generates unique UUID for both `path` parameter and `webhookId` field
+  - Conditionally updates typeVersion to 2.1 only when < 2.1 to ensure compatibility
+  - High confidence fix (95%) as UUID generation is deterministic
+  - Resolves webhook nodes showing "?" in the n8n UI
+
+- **Enhanced Node Type Suggestions**: Intelligent node type correction with similarity matching
+  - Multi-factor scoring system: name similarity, category match, package match, pattern match
+  - Handles deprecated package prefixes (n8n-nodes-base. → nodes-base.)
+  - Corrects capitalization mistakes (HttpRequest → httpRequest)
+  - Suggests correct packages (nodes-base.openai → nodes-langchain.openAi)
+  - Only auto-fixes suggestions with ≥90% confidence
+  - 5-minute cache for performance optimization
+
+- **n8n_autofix_workflow Tool**: New MCP tool for automatic workflow error correction
+  - Comprehensive documentation with examples and best practices
+  - Supports 5 fix types: expression-format, typeversion-correction, error-output-config, node-type-correction, webhook-missing-path
+  - Confidence-based system (high/medium/low) for safe fixes
+  - Preview mode to review changes before applying
+  - Integrated with workflow validation pipeline
+
+### Fixed
+- **Security**: Eliminated ReDoS vulnerability in NodeSimilarityService
+  - Replaced all regex patterns with string-based matching
+  - No performance impact while maintaining accuracy
+
+- **Performance**: Optimized similarity matching algorithms
+  - Levenshtein distance algorithm optimized from O(m*n) space to O(n)
+  - Added early termination for performance improvement
+  - Cache invalidation with version tracking prevents memory leaks
+
+- **Code Quality**: Improved maintainability and type safety
+  - Extracted magic numbers into named constants
+  - Added proper type guards for runtime safety
+  - Created centralized node-type-utils for consistent type normalization
+  - Fixed silent failures in setNestedValue operations
+
+### Changed
+- Template sanitizer now includes defensive null checks for runtime safety
+- Workflow validator uses centralized type normalization utility
+
 ## [2.12.2] - 2025-01-22
 
 ### Changed

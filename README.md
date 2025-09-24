@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
-[![Version](https://img.shields.io/badge/version-2.12.2-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
+[![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![codecov](https://codecov.io/gh/czlonkowski/n8n-mcp/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/czlonkowski/n8n-mcp)
 [![Tests](https://img.shields.io/badge/tests-1728%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
@@ -360,7 +360,7 @@ You are an expert in n8n automation software using n8n-MCP tools. Your role is t
 2. **Template Discovery Phase** 
    - `search_templates_by_metadata({complexity: "simple"})` - Find skill-appropriate templates
    - `get_templates_for_task('webhook_processing')` - Get curated templates by task
-   - `search_templates('slack notification')` - Text search for specific needs
+   - `search_templates('slack notification')` - Text search for specific needs. Start by quickly searching with "id" and "name" to find the template you are looking for, only then dive deeper into the template details adding "description" to your search query.
    - `list_node_templates(['n8n-nodes-base.slack'])` - Find templates using specific nodes
    
    **Template filtering strategies**:
@@ -439,8 +439,9 @@ You are an expert in n8n automation software using n8n-MCP tools. Your role is t
 
 ### After Deployment:
 1. n8n_validate_workflow({id}) - Validate deployed workflow
-2. n8n_list_executions() - Monitor execution status
-3. n8n_update_partial_workflow() - Fix issues using diffs
+2. n8n_autofix_workflow({id}) - Auto-fix common errors (expressions, typeVersion, webhooks)
+3. n8n_list_executions() - Monitor execution status
+4. n8n_update_partial_workflow() - Fix issues using diffs
 
 ## Response Structure
 
@@ -610,6 +611,7 @@ These powerful tools allow you to manage n8n workflows directly from Claude. The
 - **`n8n_delete_workflow`** - Delete workflows permanently
 - **`n8n_list_workflows`** - List workflows with filtering and pagination
 - **`n8n_validate_workflow`** - Validate workflows already in n8n by ID (NEW in v2.6.3)
+- **`n8n_autofix_workflow`** - Automatically fix common workflow errors (NEW in v2.13.0!)
 
 #### Execution Management
 - **`n8n_trigger_webhook_workflow`** - Trigger workflows via webhook URL
