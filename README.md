@@ -346,6 +346,9 @@ Step-by-step tutorial for connecting n8n-MCP to Cursor IDE with custom rules.
 ### [Windsurf](./docs/WINDSURF_SETUP.md)
 Complete guide for integrating n8n-MCP with Windsurf using project rules.
 
+### [Codex](./docs/CODEX_SETUP.md)
+Complete guide for integrating n8n-MCP with Codex.
+
 ## 🤖 Claude Project Setup
 
 For the best results when using n8n-MCP with Claude Projects, use these enhanced system instructions:
