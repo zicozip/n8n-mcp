@@ -516,6 +516,7 @@ export class N8NDocumentationMCPServer {
       case 'n8n_update_full_workflow':
       case 'n8n_delete_workflow':
       case 'n8n_validate_workflow':
+      case 'n8n_autofix_workflow':
       case 'n8n_get_execution':
       case 'n8n_delete_execution':
         validationResult = ToolValidation.validateWorkflowId(args);
@@ -828,6 +829,11 @@ export class N8NDocumentationMCPServer {
         await this.ensureInitialized();
         if (!this.repository) throw new Error('Repository not initialized');
         return n8nHandlers.handleValidateWorkflow(args, this.repository, this.instanceContext);
+      case 'n8n_autofix_workflow':
+        this.validateToolParams(name, args, ['id']);
+        await this.ensureInitialized();
+        if (!this.repository) throw new Error('Repository not initialized');
+        return n8nHandlers.handleAutofixWorkflow(args, this.repository, this.instanceContext);
       case 'n8n_trigger_webhook_workflow':
         this.validateToolParams(name, args, ['webhookUrl']);
         return n8nHandlers.handleTriggerWebhookWorkflow(args, this.instanceContext);

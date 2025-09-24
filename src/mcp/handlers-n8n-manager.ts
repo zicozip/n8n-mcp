@@ -24,6 +24,9 @@ import { WorkflowValidator } from '../services/workflow-validator';
 import { EnhancedConfigValidator } from '../services/enhanced-config-validator';
 import { NodeRepository } from '../database/node-repository';
 import { InstanceContext, validateInstanceContext } from '../types/instance-context';
+import { WorkflowAutoFixer, AutoFixConfig } from '../services/workflow-auto-fixer';
+import { ExpressionFormatValidator } from '../services/expression-format-validator';
+import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import {
   createCacheKey,
   createInstanceCache,
@@ -234,6 +237,20 @@ const validateWorkflowSchema = z.object({
     validateExpressions: z.boolean().optional(),
     profile: z.enum(['minimal', 'runtime', 'ai-friendly', 'strict']).optional(),
   }).optional(),
+});
+
+const autofixWorkflowSchema = z.object({
+  id: z.string(),
+  applyFixes: z.boolean().optional().default(false),
+  fixTypes: z.array(z.enum([
+    'expression-format',
+    'typeversion-correction',
+    'error-output-config',
+    'node-type-correction',
+    'webhook-missing-path'
+  ])).optional(),
+  confidenceThreshold: z.enum(['high', 'medium', 'low']).optional().default('medium'),
+  maxFixes: z.number().optional().default(50)
 });
 
 const triggerWebhookSchema = z.object({
@@ -736,6 +753,174 @@ export async function handleValidateWorkflow(
   }
 }
 
+export async function handleAutofixWorkflow(
+  args: unknown,
+  repository: NodeRepository,
+  context?: InstanceContext
+): Promise<McpToolResponse> {
+  try {
+    const client = ensureApiConfigured(context);
+    const input = autofixWorkflowSchema.parse(args);
+
+    // First, fetch the workflow from n8n
+    const workflowResponse = await handleGetWorkflow({ id: input.id }, context);
+
+    if (!workflowResponse.success) {
+      return workflowResponse; // Return the error from fetching
+    }
+
+    const workflow = workflowResponse.data as Workflow;
+
+    // Create validator instance using the provided repository
+    const validator = new WorkflowValidator(repository, EnhancedConfigValidator);
+
+    // Run validation to identify issues
+    const validationResult = await validator.validateWorkflow(workflow, {
+      validateNodes: true,
+      validateConnections: true,
+      validateExpressions: true,
+      profile: 'ai-friendly'
+    });
+
+    // Check for expression format issues
+    const allFormatIssues: any[] = [];
+    for (const node of workflow.nodes) {
+      const formatContext = {
+        nodeType: node.type,
+        nodeName: node.name,
+        nodeId: node.id
+      };
+
+      const nodeFormatIssues = ExpressionFormatValidator.validateNodeParameters(
+        node.parameters,
+        formatContext
+      );
+
+      // Add node information to each format issue
+      const enrichedIssues = nodeFormatIssues.map(issue => ({
+        ...issue,
+        nodeName: node.name,
+        nodeId: node.id
+      }));
+
+      allFormatIssues.push(...enrichedIssues);
+    }
+
+    // Generate fixes using WorkflowAutoFixer
+    const autoFixer = new WorkflowAutoFixer(repository);
+    const fixResult = autoFixer.generateFixes(
+      workflow,
+      validationResult,
+      allFormatIssues,
+      {
+        applyFixes: input.applyFixes,
+        fixTypes: input.fixTypes,
+        confidenceThreshold: input.confidenceThreshold,
+        maxFixes: input.maxFixes
+      }
+    );
+
+    // If no fixes available
+    if (fixResult.fixes.length === 0) {
+      return {
+        success: true,
+        data: {
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          message: 'No automatic fixes available for this workflow',
+          validationSummary: {
+            errors: validationResult.errors.length,
+            warnings: validationResult.warnings.length
+          }
+        }
+      };
+    }
+
+    // If preview mode (applyFixes = false)
+    if (!input.applyFixes) {
+      return {
+        success: true,
+        data: {
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          preview: true,
+          fixesAvailable: fixResult.fixes.length,
+          fixes: fixResult.fixes,
+          summary: fixResult.summary,
+          stats: fixResult.stats,
+          message: `${fixResult.fixes.length} fixes available. Set applyFixes=true to apply them.`
+        }
+      };
+    }
+
+    // Apply fixes using the diff engine
+    if (fixResult.operations.length > 0) {
+      const updateResult = await handleUpdatePartialWorkflow(
+        {
+          id: workflow.id,
+          operations: fixResult.operations
+        },
+        context
+      );
+
+      if (!updateResult.success) {
+        return {
+          success: false,
+          error: 'Failed to apply fixes',
+          details: {
+            fixes: fixResult.fixes,
+            updateError: updateResult.error
+          }
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          workflowId: workflow.id,
+          workflowName: workflow.name,
+          fixesApplied: fixResult.fixes.length,
+          fixes: fixResult.fixes,
+          summary: fixResult.summary,
+          stats: fixResult.stats,
+          message: `Successfully applied ${fixResult.fixes.length} fixes to workflow "${workflow.name}"`
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        message: 'No fixes needed'
+      }
+    };
+
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid input',
+        details: { errors: error.errors }
+      };
+    }
+
+    if (error instanceof N8nApiError) {
+      return {
+        success: false,
+        error: getUserFriendlyErrorMessage(error),
+        code: error.code
+      };
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
 // Execution Management Handlers
 
 export async function handleTriggerWebhookWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
@@ -964,7 +1149,8 @@ export async function handleListAvailableTools(context?: InstanceContext): Promi
         { name: 'n8n_update_workflow', description: 'Update existing workflows' },
         { name: 'n8n_delete_workflow', description: 'Delete workflows' },
         { name: 'n8n_list_workflows', description: 'List workflows with filters' },
-        { name: 'n8n_validate_workflow', description: 'Validate workflow from n8n instance' }
+        { name: 'n8n_validate_workflow', description: 'Validate workflow from n8n instance' },
+        { name: 'n8n_autofix_workflow', description: 'Automatically fix common workflow errors' }
       ]
     },
     {

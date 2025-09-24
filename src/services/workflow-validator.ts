@@ -7,6 +7,8 @@ import { NodeRepository } from '../database/node-repository';
 import { EnhancedConfigValidator } from './enhanced-config-validator';
 import { ExpressionValidator } from './expression-validator';
 import { ExpressionFormatValidator } from './expression-format-validator';
+import { NodeSimilarityService, NodeSuggestion } from './node-similarity-service';
+import { normalizeNodeType } from '../utils/node-type-utils';
 import { Logger } from '../utils/logger';
 const logger = new Logger({ prefix: '[WorkflowValidator]' });
 
@@ -73,11 +75,14 @@ export interface WorkflowValidationResult {
 
 export class WorkflowValidator {
   private currentWorkflow: WorkflowJson | null = null;
+  private similarityService: NodeSimilarityService;
 
   constructor(
     private nodeRepository: NodeRepository,
     private nodeValidator: typeof EnhancedConfigValidator
-  ) {}
+  ) {
+    this.similarityService = new NodeSimilarityService(nodeRepository);
+  }
 
   /**
    * Check if a node is a Sticky Note or other non-executable node
@@ -242,8 +247,8 @@ export class WorkflowValidator {
     // Check for minimum viable workflow
     if (workflow.nodes.length === 1) {
       const singleNode = workflow.nodes[0];
-      const normalizedType = singleNode.type.replace('n8n-nodes-base.', 'nodes-base.');
-      const isWebhook = normalizedType === 'nodes-base.webhook' || 
+      const normalizedType = normalizeNodeType(singleNode.type);
+      const isWebhook = normalizedType === 'nodes-base.webhook' ||
                        normalizedType === 'nodes-base.webhookTrigger';
       
       if (!isWebhook) {
@@ -299,8 +304,8 @@ export class WorkflowValidator {
 
     // Count trigger nodes - normalize type names first
     const triggerNodes = workflow.nodes.filter(n => {
-      const normalizedType = n.type.replace('n8n-nodes-base.', 'nodes-base.');
-      return normalizedType.toLowerCase().includes('trigger') || 
+      const normalizedType = normalizeNodeType(n.type);
+      return normalizedType.toLowerCase().includes('trigger') ||
              normalizedType.toLowerCase().includes('webhook') ||
              normalizedType === 'nodes-base.start' ||
              normalizedType === 'nodes-base.manualTrigger' ||
@@ -374,63 +379,55 @@ export class WorkflowValidator {
         
         // Get node definition - try multiple formats
         let nodeInfo = this.nodeRepository.getNode(node.type);
-        
+
         // If not found, try with normalized type
         if (!nodeInfo) {
-          let normalizedType = node.type;
-          
-          // Handle n8n-nodes-base -> nodes-base
-          if (node.type.startsWith('n8n-nodes-base.')) {
-            normalizedType = node.type.replace('n8n-nodes-base.', 'nodes-base.');
-            nodeInfo = this.nodeRepository.getNode(normalizedType);
-          }
-          // Handle @n8n/n8n-nodes-langchain -> nodes-langchain
-          else if (node.type.startsWith('@n8n/n8n-nodes-langchain.')) {
-            normalizedType = node.type.replace('@n8n/n8n-nodes-langchain.', 'nodes-langchain.');
+          const normalizedType = normalizeNodeType(node.type);
+          if (normalizedType !== node.type) {
             nodeInfo = this.nodeRepository.getNode(normalizedType);
           }
         }
         
         if (!nodeInfo) {
-          // Check for common mistakes
-          let suggestion = '';
-          
-          // Missing package prefix
-          if (node.type.startsWith('nodes-base.')) {
-            const withPrefix = node.type.replace('nodes-base.', 'n8n-nodes-base.');
-            const exists = this.nodeRepository.getNode(withPrefix) || 
-                          this.nodeRepository.getNode(withPrefix.replace('n8n-nodes-base.', 'nodes-base.'));
-            if (exists) {
-              suggestion = ` Did you mean "n8n-nodes-base.${node.type.substring(11)}"?`;
+          // Use NodeSimilarityService to find suggestions
+          const suggestions = await this.similarityService.findSimilarNodes(node.type, 3);
+
+          let message = `Unknown node type: "${node.type}".`;
+
+          if (suggestions.length > 0) {
+            message += '\n\nDid you mean one of these?';
+            for (const suggestion of suggestions) {
+              const confidence = Math.round(suggestion.confidence * 100);
+              message += `\n• ${suggestion.nodeType} (${confidence}% match)`;
+              if (suggestion.displayName) {
+                message += ` - ${suggestion.displayName}`;
+              }
+              message += `\n  → ${suggestion.reason}`;
+              if (suggestion.confidence >= 0.9) {
+                message += ' (can be auto-fixed)';
+              }
             }
+          } else {
+            message += ' No similar nodes found. Node types must include the package prefix (e.g., "n8n-nodes-base.webhook").';
           }
-          // Check if it's just the node name without package
-          else if (!node.type.includes('.')) {
-            // Try common node names
-            const commonNodes = [
-              'webhook', 'httpRequest', 'set', 'code', 'manualTrigger', 
-              'scheduleTrigger', 'emailSend', 'slack', 'discord'
-            ];
-            
-            if (commonNodes.includes(node.type)) {
-              suggestion = ` Did you mean "n8n-nodes-base.${node.type}"?`;
-            }
-          }
-          
-          // If no specific suggestion, try to find similar nodes
-          if (!suggestion) {
-            const similarNodes = this.findSimilarNodeTypes(node.type);
-            if (similarNodes.length > 0) {
-              suggestion = ` Did you mean: ${similarNodes.map(n => `"${n}"`).join(', ')}?`;
-            }
-          }
-          
-          result.errors.push({
+
+          const error: any = {
             type: 'error',
             nodeId: node.id,
             nodeName: node.name,
-            message: `Unknown node type: "${node.type}".${suggestion} Node types must include the package prefix (e.g., "n8n-nodes-base.webhook", not "webhook" or "nodes-base.webhook").`
-          });
+            message
+          };
+
+          // Add suggestions as metadata for programmatic access
+          if (suggestions.length > 0) {
+            error.suggestions = suggestions.map(s => ({
+              nodeType: s.nodeType,
+              confidence: s.confidence,
+              reason: s.reason
+            }));
+          }
+
+          result.errors.push(error);
           continue;
         }
 
@@ -614,8 +611,8 @@ export class WorkflowValidator {
     for (const node of workflow.nodes) {
       if (node.disabled || this.isStickyNote(node)) continue;
       
-      const normalizedType = node.type.replace('n8n-nodes-base.', 'nodes-base.');
-      const isTrigger = normalizedType.toLowerCase().includes('trigger') || 
+      const normalizedType = normalizeNodeType(node.type);
+      const isTrigger = normalizedType.toLowerCase().includes('trigger') ||
                        normalizedType.toLowerCase().includes('webhook') ||
                        normalizedType === 'nodes-base.start' ||
                        normalizedType === 'nodes-base.manualTrigger' ||
@@ -831,16 +828,8 @@ export class WorkflowValidator {
     
     // Try normalized type if not found
     if (!targetNodeInfo) {
-      let normalizedType = targetNode.type;
-      
-      // Handle n8n-nodes-base -> nodes-base
-      if (targetNode.type.startsWith('n8n-nodes-base.')) {
-        normalizedType = targetNode.type.replace('n8n-nodes-base.', 'nodes-base.');
-        targetNodeInfo = this.nodeRepository.getNode(normalizedType);
-      }
-      // Handle @n8n/n8n-nodes-langchain -> nodes-langchain
-      else if (targetNode.type.startsWith('@n8n/n8n-nodes-langchain.')) {
-        normalizedType = targetNode.type.replace('@n8n/n8n-nodes-langchain.', 'nodes-langchain.');
+      const normalizedType = normalizeNodeType(targetNode.type);
+      if (normalizedType !== targetNode.type) {
         targetNodeInfo = this.nodeRepository.getNode(normalizedType);
       }
     }
@@ -1205,65 +1194,6 @@ export class WorkflowValidator {
     return maxChain;
   }
 
-  /**
-   * Find similar node types for suggestions
-   */
-  private findSimilarNodeTypes(invalidType: string): string[] {
-    // Since we don't have a method to list all nodes, we'll use a predefined list
-    // of common node types that users might be looking for
-    const suggestions: string[] = [];
-    const nodeName = invalidType.includes('.') ? invalidType.split('.').pop()! : invalidType;
-    
-    const commonNodeMappings: Record<string, string[]> = {
-      'webhook': ['nodes-base.webhook'],
-      'httpRequest': ['nodes-base.httpRequest'],
-      'http': ['nodes-base.httpRequest'],
-      'set': ['nodes-base.set'],
-      'code': ['nodes-base.code'],
-      'manualTrigger': ['nodes-base.manualTrigger'],
-      'manual': ['nodes-base.manualTrigger'],
-      'scheduleTrigger': ['nodes-base.scheduleTrigger'],
-      'schedule': ['nodes-base.scheduleTrigger'],
-      'cron': ['nodes-base.scheduleTrigger'],
-      'emailSend': ['nodes-base.emailSend'],
-      'email': ['nodes-base.emailSend'],
-      'slack': ['nodes-base.slack'],
-      'discord': ['nodes-base.discord'],
-      'postgres': ['nodes-base.postgres'],
-      'mysql': ['nodes-base.mySql'],
-      'mongodb': ['nodes-base.mongoDb'],
-      'redis': ['nodes-base.redis'],
-      'if': ['nodes-base.if'],
-      'switch': ['nodes-base.switch'],
-      'merge': ['nodes-base.merge'],
-      'splitInBatches': ['nodes-base.splitInBatches'],
-      'loop': ['nodes-base.splitInBatches'],
-      'googleSheets': ['nodes-base.googleSheets'],
-      'sheets': ['nodes-base.googleSheets'],
-      'airtable': ['nodes-base.airtable'],
-      'github': ['nodes-base.github'],
-      'git': ['nodes-base.github'],
-    };
-    
-    // Check for exact match
-    const lowerNodeName = nodeName.toLowerCase();
-    if (commonNodeMappings[lowerNodeName]) {
-      suggestions.push(...commonNodeMappings[lowerNodeName]);
-    }
-    
-    // Check for partial matches
-    Object.entries(commonNodeMappings).forEach(([key, values]) => {
-      if (key.includes(lowerNodeName) || lowerNodeName.includes(key)) {
-        values.forEach(v => {
-          if (!suggestions.includes(v)) {
-            suggestions.push(v);
-          }
-        });
-      }
-    });
-    
-    return suggestions.slice(0, 3); // Return top 3 suggestions
-  }
 
   /**
    * Generate suggestions based on validation results
