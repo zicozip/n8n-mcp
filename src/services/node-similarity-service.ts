@@ -62,8 +62,8 @@ export class NodeSimilarityService {
 
     // Old versions or deprecated names
     patterns.set('deprecated', [
-      { pattern: /^n8n-nodes-base\./i, suggestion: '', confidence: 0.85, reason: 'Full package name used instead of short form' },
-      { pattern: /^@n8n\/n8n-nodes-langchain\./i, suggestion: '', confidence: 0.85, reason: 'Full package name used instead of short form' },
+      { pattern: /^n8n-nodes-base\./i, suggestion: '', confidence: 0.95, reason: 'Full package name used instead of short form' },
+      { pattern: /^@n8n\/n8n-nodes-langchain\./i, suggestion: '', confidence: 0.95, reason: 'Full package name used instead of short form' },
     ]);
 
     // Common typos
@@ -78,6 +78,7 @@ export class NodeSimilarityService {
     // AI/LangChain specific
     patterns.set('ai_nodes', [
       { pattern: /^openai$/i, suggestion: 'nodes-langchain.openAi', confidence: 0.85, reason: 'AI node - incorrect package' },
+      { pattern: /^nodes-base\.openai$/i, suggestion: 'nodes-langchain.openAi', confidence: 0.9, reason: 'Wrong package - OpenAI is in LangChain package' },
       { pattern: /^chatOpenAI$/i, suggestion: 'nodes-langchain.lmChatOpenAi', confidence: 0.85, reason: 'LangChain node naming convention' },
       { pattern: /^vectorStore$/i, suggestion: 'nodes-langchain.vectorStoreInMemory', confidence: 0.7, reason: 'Generic vector store reference' },
     ]);
@@ -186,11 +187,19 @@ export class NodeSimilarityService {
     const cleanValid = this.normalizeNodeType(node.nodeType);
     const displayNameClean = this.normalizeNodeType(node.displayName);
 
+    // Special handling for very short search terms (e.g., "http", "sheet")
+    const isShortSearch = invalidType.length <= 5;
+
     // Name similarity (40% weight)
-    const nameSimilarity = Math.max(
+    let nameSimilarity = Math.max(
       this.getStringSimilarity(cleanInvalid, cleanValid),
       this.getStringSimilarity(cleanInvalid, displayNameClean)
     ) * 40;
+
+    // For short searches that are substrings, give a small name similarity boost
+    if (isShortSearch && (cleanValid.includes(cleanInvalid) || displayNameClean.includes(cleanInvalid))) {
+      nameSimilarity = Math.max(nameSimilarity, 10);
+    }
 
     // Category match (20% weight)
     let categoryMatch = 0;
@@ -215,12 +224,19 @@ export class NodeSimilarityService {
 
     // Check if it's a substring match
     if (cleanValid.includes(cleanInvalid) || displayNameClean.includes(cleanInvalid)) {
-      patternMatch = 25;
+      // Boost score significantly for short searches that are exact substring matches
+      // Short searches need more boost to reach the 50 threshold
+      patternMatch = isShortSearch ? 45 : 25;
     } else if (this.getEditDistance(cleanInvalid, cleanValid) <= 2) {
       // Small edit distance indicates likely typo
       patternMatch = 20;
     } else if (this.getEditDistance(cleanInvalid, displayNameClean) <= 2) {
       patternMatch = 18;
+    }
+
+    // For very short searches, also check if the search term appears at the start
+    if (isShortSearch && (cleanValid.startsWith(cleanInvalid) || displayNameClean.startsWith(cleanInvalid))) {
+      patternMatch = Math.max(patternMatch, 40);
     }
 
     const totalScore = nameSimilarity + categoryMatch + packageMatch + patternMatch;
