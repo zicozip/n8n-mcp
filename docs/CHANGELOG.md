@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.2] - 2025-01-24
+
+### Added
+- **Operation and Resource Validation with Intelligent Suggestions**: New similarity services for n8n node configuration validation
+  - `OperationSimilarityService`: Validates operations and suggests similar alternatives using Levenshtein distance and pattern matching
+  - `ResourceSimilarityService`: Validates resources with automatic plural/singular conversion and typo detection
+  - Provides "Did you mean...?" suggestions when invalid operations or resources are used
+  - Example: `operation: "listFiles"` suggests `"search"` for Google Drive nodes
+  - Example: `resource: "files"` suggests singular `"file"` with 95% confidence
+  - Confidence-based suggestions (minimum 30% threshold) with contextual fix messages
+  - Resource-aware operation filtering ensures suggestions are contextually appropriate
+  - 5-minute cache duration for performance optimization
+  - Integrated into `EnhancedConfigValidator` for seamless validation flow
+
+- **Custom Error Handling**: New `ValidationServiceError` class for better error management
+  - Proper error chaining with cause tracking
+  - Specialized factory methods for common error scenarios
+  - Type-safe error propagation throughout the validation pipeline
+
+### Enhanced
+- **Code Quality and Security Improvements** (based on code review feedback):
+  - Safe JSON parsing with try-catch error boundaries
+  - Type guards for safe property access (`getOperationValue`, `getResourceValue`)
+  - Memory leak prevention with periodic cache cleanup
+  - Performance optimization with early termination for exact matches
+  - Replaced magic numbers with named constants for better maintainability
+  - Comprehensive JSDoc documentation for all public methods
+  - Improved confidence calculation for typos and transpositions
+
+### Fixed
+- **Test Compatibility**: Updated test expectations to correctly handle exact match scenarios
+- **Cache Management**: Fixed cache cleanup to prevent unbounded memory growth
+- **Validation Deduplication**: Enhanced config validator now properly replaces base validator errors with detailed suggestions
+
+### Testing
+- Added comprehensive test coverage for similarity services (37 new tests)
+- All unit tests passing with proper edge case handling
+- Integration confirmed via n8n-mcp-tester agent validation
+
 ## [2.13.1] - 2025-01-24
 
 ### Changed

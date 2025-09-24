@@ -134,6 +134,10 @@ export class N8NDocumentationMCPServer {
       
       this.repository = new NodeRepository(this.db);
       this.templateService = new TemplateService(this.db);
+
+      // Initialize similarity services for enhanced validation
+      EnhancedConfigValidator.initializeSimilarityServices(this.repository);
+
       logger.info(`Initialized database from: ${dbPath}`);
     } catch (error) {
       logger.error('Failed to initialize database:', error);
