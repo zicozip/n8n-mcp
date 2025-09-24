@@ -25,12 +25,12 @@ describe('EnhancedConfigValidator - Operation and Resource Validation', () => {
       displayName: 'Google Drive',
       description: 'Access Google Drive',
       category: 'transform',
-      style: 'declarative',
+      style: 'declarative' as const,
       isAITool: false,
       isTrigger: false,
       isWebhook: false,
       isVersioned: true,
-      version: 1,
+      version: '1',
       properties: [
         {
           name: 'resource',
@@ -103,12 +103,12 @@ describe('EnhancedConfigValidator - Operation and Resource Validation', () => {
       displayName: 'Slack',
       description: 'Send messages to Slack',
       category: 'communication',
-      style: 'declarative',
+      style: 'declarative' as const,
       isAITool: false,
       isTrigger: false,
       isWebhook: false,
       isVersioned: true,
-      version: 2,
+      version: '2',
       properties: [
         {
           name: 'resource',

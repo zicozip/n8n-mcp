@@ -24,12 +24,12 @@ describe('OperationSimilarityService', () => {
       displayName: 'Google Drive',
       description: 'Access Google Drive',
       category: 'transform',
-      style: 'declarative',
+      style: 'declarative' as const,
       isAITool: false,
       isTrigger: false,
       isWebhook: false,
       isVersioned: true,
-      version: 1,
+      version: '1',
       properties: [
         {
           name: 'resource',
