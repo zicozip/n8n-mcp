@@ -18,9 +18,20 @@ async function sanitizeTemplates() {
     const problematicTemplates: any[] = [];
     
     for (const template of templates) {
-      const originalWorkflow = JSON.parse(template.workflow_json);
+      if (!template.workflow_json) {
+        continue; // Skip templates without workflow data
+      }
+
+      let originalWorkflow;
+      try {
+        originalWorkflow = JSON.parse(template.workflow_json);
+      } catch (e) {
+        console.log(`⚠️ Skipping template ${template.id}: Invalid JSON`);
+        continue;
+      }
+
       const { sanitized: sanitizedWorkflow, wasModified } = sanitizer.sanitizeWorkflow(originalWorkflow);
-      
+
       if (wasModified) {
         // Get detected tokens for reporting
         const detectedTokens = sanitizer.detectTokens(originalWorkflow);

@@ -8,6 +8,7 @@ import { EnhancedConfigValidator } from './enhanced-config-validator';
 import { ExpressionValidator } from './expression-validator';
 import { ExpressionFormatValidator } from './expression-format-validator';
 import { NodeSimilarityService, NodeSuggestion } from './node-similarity-service';
+import { normalizeNodeType } from '../utils/node-type-utils';
 import { Logger } from '../utils/logger';
 const logger = new Logger({ prefix: '[WorkflowValidator]' });
 
@@ -246,8 +247,8 @@ export class WorkflowValidator {
     // Check for minimum viable workflow
     if (workflow.nodes.length === 1) {
       const singleNode = workflow.nodes[0];
-      const normalizedType = singleNode.type.replace('n8n-nodes-base.', 'nodes-base.');
-      const isWebhook = normalizedType === 'nodes-base.webhook' || 
+      const normalizedType = normalizeNodeType(singleNode.type);
+      const isWebhook = normalizedType === 'nodes-base.webhook' ||
                        normalizedType === 'nodes-base.webhookTrigger';
       
       if (!isWebhook) {
@@ -303,8 +304,8 @@ export class WorkflowValidator {
 
     // Count trigger nodes - normalize type names first
     const triggerNodes = workflow.nodes.filter(n => {
-      const normalizedType = n.type.replace('n8n-nodes-base.', 'nodes-base.');
-      return normalizedType.toLowerCase().includes('trigger') || 
+      const normalizedType = normalizeNodeType(n.type);
+      return normalizedType.toLowerCase().includes('trigger') ||
              normalizedType.toLowerCase().includes('webhook') ||
              normalizedType === 'nodes-base.start' ||
              normalizedType === 'nodes-base.manualTrigger' ||
@@ -378,19 +379,11 @@ export class WorkflowValidator {
         
         // Get node definition - try multiple formats
         let nodeInfo = this.nodeRepository.getNode(node.type);
-        
+
         // If not found, try with normalized type
         if (!nodeInfo) {
-          let normalizedType = node.type;
-          
-          // Handle n8n-nodes-base -> nodes-base
-          if (node.type.startsWith('n8n-nodes-base.')) {
-            normalizedType = node.type.replace('n8n-nodes-base.', 'nodes-base.');
-            nodeInfo = this.nodeRepository.getNode(normalizedType);
-          }
-          // Handle @n8n/n8n-nodes-langchain -> nodes-langchain
-          else if (node.type.startsWith('@n8n/n8n-nodes-langchain.')) {
-            normalizedType = node.type.replace('@n8n/n8n-nodes-langchain.', 'nodes-langchain.');
+          const normalizedType = normalizeNodeType(node.type);
+          if (normalizedType !== node.type) {
             nodeInfo = this.nodeRepository.getNode(normalizedType);
           }
         }
@@ -618,8 +611,8 @@ export class WorkflowValidator {
     for (const node of workflow.nodes) {
       if (node.disabled || this.isStickyNote(node)) continue;
       
-      const normalizedType = node.type.replace('n8n-nodes-base.', 'nodes-base.');
-      const isTrigger = normalizedType.toLowerCase().includes('trigger') || 
+      const normalizedType = normalizeNodeType(node.type);
+      const isTrigger = normalizedType.toLowerCase().includes('trigger') ||
                        normalizedType.toLowerCase().includes('webhook') ||
                        normalizedType === 'nodes-base.start' ||
                        normalizedType === 'nodes-base.manualTrigger' ||
@@ -835,16 +828,8 @@ export class WorkflowValidator {
     
     // Try normalized type if not found
     if (!targetNodeInfo) {
-      let normalizedType = targetNode.type;
-      
-      // Handle n8n-nodes-base -> nodes-base
-      if (targetNode.type.startsWith('n8n-nodes-base.')) {
-        normalizedType = targetNode.type.replace('n8n-nodes-base.', 'nodes-base.');
-        targetNodeInfo = this.nodeRepository.getNode(normalizedType);
-      }
-      // Handle @n8n/n8n-nodes-langchain -> nodes-langchain
-      else if (targetNode.type.startsWith('@n8n/n8n-nodes-langchain.')) {
-        normalizedType = targetNode.type.replace('@n8n/n8n-nodes-langchain.', 'nodes-langchain.');
+      const normalizedType = normalizeNodeType(targetNode.type);
+      if (normalizedType !== targetNode.type) {
         targetNodeInfo = this.nodeRepository.getNode(normalizedType);
       }
     }
