@@ -19,7 +19,9 @@ export interface ValidationError {
   type: 'missing_required' | 'invalid_type' | 'invalid_value' | 'incompatible' | 'invalid_configuration' | 'syntax_error';
   property: string;
   message: string;
-  fix?: string;}
+  fix?: string;
+  suggestion?: string;
+}
 
 export interface ValidationWarning {
   type: 'missing_common' | 'deprecated' | 'inefficient' | 'security' | 'best_practice' | 'invalid_value';

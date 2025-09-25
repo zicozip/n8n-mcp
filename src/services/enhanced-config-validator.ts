@@ -8,6 +8,10 @@
 import { ConfigValidator, ValidationResult, ValidationError, ValidationWarning } from './config-validator';
 import { NodeSpecificValidators, NodeValidationContext } from './node-specific-validators';
 import { FixedCollectionValidator } from '../utils/fixed-collection-validator';
+import { OperationSimilarityService } from './operation-similarity-service';
+import { ResourceSimilarityService } from './resource-similarity-service';
+import { NodeRepository } from '../database/node-repository';
+import { DatabaseAdapter } from '../database/database-adapter';
 
 export type ValidationMode = 'full' | 'operation' | 'minimal';
 export type ValidationProfile = 'strict' | 'runtime' | 'ai-friendly' | 'minimal';
@@ -35,6 +39,18 @@ export interface OperationContext {
 }
 
 export class EnhancedConfigValidator extends ConfigValidator {
+  private static operationSimilarityService: OperationSimilarityService | null = null;
+  private static resourceSimilarityService: ResourceSimilarityService | null = null;
+  private static nodeRepository: NodeRepository | null = null;
+
+  /**
+   * Initialize similarity services (called once at startup)
+   */
+  static initializeSimilarityServices(repository: NodeRepository): void {
+    this.nodeRepository = repository;
+    this.operationSimilarityService = new OperationSimilarityService(repository);
+    this.resourceSimilarityService = new ResourceSimilarityService(repository);
+  }
   /**
    * Validate with operation awareness
    */
@@ -213,7 +229,10 @@ export class EnhancedConfigValidator extends ConfigValidator {
       });
       return;
     }
-    
+
+    // Validate resource and operation using similarity services
+    this.validateResourceAndOperation(nodeType, config, result);
+
     // First, validate fixedCollection properties for known problematic nodes
     this.validateFixedCollectionStructures(nodeType, config, result);
     
@@ -641,5 +660,172 @@ export class EnhancedConfigValidator extends ConfigValidator {
     if (hasFixedCollectionError) return;
     
     // Add any Filter-node-specific validation here in the future
+  }
+
+  /**
+   * Validate resource and operation values using similarity services
+   */
+  private static validateResourceAndOperation(
+    nodeType: string,
+    config: Record<string, any>,
+    result: EnhancedValidationResult
+  ): void {
+    // Skip if similarity services not initialized
+    if (!this.operationSimilarityService || !this.resourceSimilarityService || !this.nodeRepository) {
+      return;
+    }
+
+    // Validate resource field if present
+    if (config.resource !== undefined) {
+      // Remove any existing resource error from base validator to replace with our enhanced version
+      result.errors = result.errors.filter(e => e.property !== 'resource');
+      const validResources = this.nodeRepository.getNodeResources(nodeType);
+      const resourceIsValid = validResources.some(r => {
+        const resourceValue = typeof r === 'string' ? r : r.value;
+        return resourceValue === config.resource;
+      });
+
+      if (!resourceIsValid && config.resource !== '') {
+        // Find similar resources
+        let suggestions: any[] = [];
+        try {
+          suggestions = this.resourceSimilarityService.findSimilarResources(
+            nodeType,
+            config.resource,
+            3
+          );
+        } catch (error) {
+          // If similarity service fails, continue with validation without suggestions
+          console.error('Resource similarity service error:', error);
+        }
+
+        // Build error message with suggestions
+        let errorMessage = `Invalid resource "${config.resource}" for node ${nodeType}.`;
+        let fix = '';
+
+        if (suggestions.length > 0) {
+          const topSuggestion = suggestions[0];
+          // Always use "Did you mean" for the top suggestion
+          errorMessage += ` Did you mean "${topSuggestion.value}"?`;
+          if (topSuggestion.confidence >= 0.8) {
+            fix = `Change resource to "${topSuggestion.value}". ${topSuggestion.reason}`;
+          } else {
+            // For lower confidence, still show valid resources in the fix
+            fix = `Valid resources: ${validResources.slice(0, 5).map(r => {
+              const val = typeof r === 'string' ? r : r.value;
+              return `"${val}"`;
+            }).join(', ')}${validResources.length > 5 ? '...' : ''}`;
+          }
+        } else {
+          // No similar resources found, list valid ones
+          fix = `Valid resources: ${validResources.slice(0, 5).map(r => {
+            const val = typeof r === 'string' ? r : r.value;
+            return `"${val}"`;
+          }).join(', ')}${validResources.length > 5 ? '...' : ''}`;
+        }
+
+        const error: any = {
+          type: 'invalid_value',
+          property: 'resource',
+          message: errorMessage,
+          fix
+        };
+
+        // Add suggestion property if we have high confidence suggestions
+        if (suggestions.length > 0 && suggestions[0].confidence >= 0.5) {
+          error.suggestion = `Did you mean "${suggestions[0].value}"? ${suggestions[0].reason}`;
+        }
+
+        result.errors.push(error);
+
+        // Add suggestions to result.suggestions array
+        if (suggestions.length > 0) {
+          for (const suggestion of suggestions) {
+            result.suggestions.push(
+              `Resource "${config.resource}" not found. Did you mean "${suggestion.value}"? ${suggestion.reason}`
+            );
+          }
+        }
+      }
+    }
+
+    // Validate operation field if present
+    if (config.operation !== undefined) {
+      // Remove any existing operation error from base validator to replace with our enhanced version
+      result.errors = result.errors.filter(e => e.property !== 'operation');
+      const validOperations = this.nodeRepository.getNodeOperations(nodeType, config.resource);
+      const operationIsValid = validOperations.some(op => {
+        const opValue = op.operation || op.value || op;
+        return opValue === config.operation;
+      });
+
+      if (!operationIsValid && config.operation !== '') {
+        // Find similar operations
+        let suggestions: any[] = [];
+        try {
+          suggestions = this.operationSimilarityService.findSimilarOperations(
+            nodeType,
+            config.operation,
+            config.resource,
+            3
+          );
+        } catch (error) {
+          // If similarity service fails, continue with validation without suggestions
+          console.error('Operation similarity service error:', error);
+        }
+
+        // Build error message with suggestions
+        let errorMessage = `Invalid operation "${config.operation}" for node ${nodeType}`;
+        if (config.resource) {
+          errorMessage += ` with resource "${config.resource}"`;
+        }
+        errorMessage += '.';
+
+        let fix = '';
+
+        if (suggestions.length > 0) {
+          const topSuggestion = suggestions[0];
+          if (topSuggestion.confidence >= 0.8) {
+            errorMessage += ` Did you mean "${topSuggestion.value}"?`;
+            fix = `Change operation to "${topSuggestion.value}". ${topSuggestion.reason}`;
+          } else {
+            errorMessage += ` Similar operations: ${suggestions.map(s => `"${s.value}"`).join(', ')}`;
+            fix = `Valid operations${config.resource ? ` for resource "${config.resource}"` : ''}: ${validOperations.slice(0, 5).map(op => {
+              const val = op.operation || op.value || op;
+              return `"${val}"`;
+            }).join(', ')}${validOperations.length > 5 ? '...' : ''}`;
+          }
+        } else {
+          // No similar operations found, list valid ones
+          fix = `Valid operations${config.resource ? ` for resource "${config.resource}"` : ''}: ${validOperations.slice(0, 5).map(op => {
+            const val = op.operation || op.value || op;
+            return `"${val}"`;
+          }).join(', ')}${validOperations.length > 5 ? '...' : ''}`;
+        }
+
+        const error: any = {
+          type: 'invalid_value',
+          property: 'operation',
+          message: errorMessage,
+          fix
+        };
+
+        // Add suggestion property if we have high confidence suggestions
+        if (suggestions.length > 0 && suggestions[0].confidence >= 0.5) {
+          error.suggestion = `Did you mean "${suggestions[0].value}"? ${suggestions[0].reason}`;
+        }
+
+        result.errors.push(error);
+
+        // Add suggestions to result.suggestions array
+        if (suggestions.length > 0) {
+          for (const suggestion of suggestions) {
+            result.suggestions.push(
+              `Operation "${config.operation}" not found. Did you mean "${suggestion.value}"? ${suggestion.reason}`
+            );
+          }
+        }
+      }
+    }
   }
 }

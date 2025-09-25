@@ -248,4 +248,133 @@ export class NodeRepository {
       outputNames: row.output_names ? this.safeJsonParse(row.output_names, null) : null
     };
   }
+
+  /**
+   * Get operations for a specific node, optionally filtered by resource
+   */
+  getNodeOperations(nodeType: string, resource?: string): any[] {
+    const node = this.getNode(nodeType);
+    if (!node) return [];
+
+    const operations: any[] = [];
+
+    // Parse operations field
+    if (node.operations) {
+      if (Array.isArray(node.operations)) {
+        operations.push(...node.operations);
+      } else if (typeof node.operations === 'object') {
+        // Operations might be grouped by resource
+        if (resource && node.operations[resource]) {
+          return node.operations[resource];
+        } else {
+          // Return all operations
+          Object.values(node.operations).forEach(ops => {
+            if (Array.isArray(ops)) {
+              operations.push(...ops);
+            }
+          });
+        }
+      }
+    }
+
+    // Also check properties for operation fields
+    if (node.properties && Array.isArray(node.properties)) {
+      for (const prop of node.properties) {
+        if (prop.name === 'operation' && prop.options) {
+          // If resource is specified, filter by displayOptions
+          if (resource && prop.displayOptions?.show?.resource) {
+            const allowedResources = Array.isArray(prop.displayOptions.show.resource)
+              ? prop.displayOptions.show.resource
+              : [prop.displayOptions.show.resource];
+            if (!allowedResources.includes(resource)) {
+              continue;
+            }
+          }
+
+          // Add operations from this property
+          operations.push(...prop.options);
+        }
+      }
+    }
+
+    return operations;
+  }
+
+  /**
+   * Get all resources defined for a node
+   */
+  getNodeResources(nodeType: string): any[] {
+    const node = this.getNode(nodeType);
+    if (!node || !node.properties) return [];
+
+    const resources: any[] = [];
+
+    // Look for resource property
+    for (const prop of node.properties) {
+      if (prop.name === 'resource' && prop.options) {
+        resources.push(...prop.options);
+      }
+    }
+
+    return resources;
+  }
+
+  /**
+   * Get operations that are valid for a specific resource
+   */
+  getOperationsForResource(nodeType: string, resource: string): any[] {
+    const node = this.getNode(nodeType);
+    if (!node || !node.properties) return [];
+
+    const operations: any[] = [];
+
+    // Find operation properties that are visible for this resource
+    for (const prop of node.properties) {
+      if (prop.name === 'operation' && prop.displayOptions?.show?.resource) {
+        const allowedResources = Array.isArray(prop.displayOptions.show.resource)
+          ? prop.displayOptions.show.resource
+          : [prop.displayOptions.show.resource];
+
+        if (allowedResources.includes(resource) && prop.options) {
+          operations.push(...prop.options);
+        }
+      }
+    }
+
+    return operations;
+  }
+
+  /**
+   * Get all operations across all nodes (for analysis)
+   */
+  getAllOperations(): Map<string, any[]> {
+    const allOperations = new Map<string, any[]>();
+    const nodes = this.getAllNodes();
+
+    for (const node of nodes) {
+      const operations = this.getNodeOperations(node.nodeType);
+      if (operations.length > 0) {
+        allOperations.set(node.nodeType, operations);
+      }
+    }
+
+    return allOperations;
+  }
+
+  /**
+   * Get all resources across all nodes (for analysis)
+   */
+  getAllResources(): Map<string, any[]> {
+    const allResources = new Map<string, any[]>();
+    const nodes = this.getAllNodes();
+
+    for (const node of nodes) {
+      const resources = this.getNodeResources(node.nodeType);
+      if (resources.length > 0) {
+        allResources.set(node.nodeType, resources);
+      }
+    }
+
+    return allResources;
+  }
 }
