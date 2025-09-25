@@ -49,7 +49,7 @@ describe('WorkflowSanitizer', () => {
 
       const sanitized = WorkflowSanitizer.sanitizeWorkflow(workflow);
 
-      expect(sanitized.nodes[0].parameters.webhookUrl).toBe('https://[webhook-url]');
+      expect(sanitized.nodes[0].parameters.webhookUrl).toBe('[REDACTED]');
       expect(sanitized.nodes[0].parameters.method).toBe('POST'); // Method should remain
       expect(sanitized.nodes[0].parameters.path).toBe('my-webhook'); // Path should remain
     });
@@ -104,9 +104,9 @@ describe('WorkflowSanitizer', () => {
 
       const sanitized = WorkflowSanitizer.sanitizeWorkflow(workflow);
 
-      expect(sanitized.nodes[0].parameters.url).toBe('https://[domain]/endpoint');
+      expect(sanitized.nodes[0].parameters.url).toBe('[REDACTED]');
       expect(sanitized.nodes[0].parameters.endpoint).toBe('[REDACTED]');
-      expect(sanitized.nodes[0].parameters.baseUrl).toBe('https://[domain]');
+      expect(sanitized.nodes[0].parameters.baseUrl).toBe('[REDACTED]');
     });
 
     it('should calculate workflow metrics correctly', () => {
@@ -288,19 +288,23 @@ describe('WorkflowSanitizer', () => {
 
       const sanitized = WorkflowSanitizer.sanitizeWorkflow(workflow);
 
-      // These should be removed
-      expect(sanitized.settings?.errorWorkflow).toBeUndefined();
-      expect(sanitized.staticData).toBeUndefined();
-      expect(sanitized.pinData).toBeUndefined();
-      expect(sanitized.credentials).toBeUndefined();
-      expect(sanitized.sharedWorkflows).toBeUndefined();
-      expect(sanitized.ownedBy).toBeUndefined();
-      expect(sanitized.createdBy).toBeUndefined();
-      expect(sanitized.updatedBy).toBeUndefined();
-
-      // These should be preserved
+      // Verify that sensitive workflow-level properties are not in the sanitized output
+      // The sanitized workflow should only have specific fields as defined in SanitizedWorkflow interface
       expect(sanitized.nodes).toEqual([]);
       expect(sanitized.connections).toEqual({});
+      expect(sanitized.nodeCount).toBe(0);
+      expect(sanitized.nodeTypes).toEqual([]);
+
+      // Verify these fields don't exist in the sanitized output
+      const sanitizedAsAny = sanitized as any;
+      expect(sanitizedAsAny.settings).toBeUndefined();
+      expect(sanitizedAsAny.staticData).toBeUndefined();
+      expect(sanitizedAsAny.pinData).toBeUndefined();
+      expect(sanitizedAsAny.credentials).toBeUndefined();
+      expect(sanitizedAsAny.sharedWorkflows).toBeUndefined();
+      expect(sanitizedAsAny.ownedBy).toBeUndefined();
+      expect(sanitizedAsAny.createdBy).toBeUndefined();
+      expect(sanitizedAsAny.updatedBy).toBeUndefined();
     });
   });
 });

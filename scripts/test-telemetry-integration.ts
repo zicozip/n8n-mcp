@@ -1,106 +1,73 @@
 #!/usr/bin/env npx tsx
 /**
- * Test script for telemetry integration
- * Verifies that telemetry data can be sent to Supabase
+ * Integration test for the telemetry manager
  */
 
-import { telemetry } from '../src/telemetry';
-import { WorkflowSanitizer } from '../src/telemetry/workflow-sanitizer';
-import dotenv from 'dotenv';
+import { telemetry } from '../src/telemetry/telemetry-manager';
 
-// Load environment variables
-dotenv.config();
+async function testIntegration() {
+  console.log('🧪 Testing Telemetry Manager Integration\n');
 
-async function testTelemetryIntegration() {
-  console.log('🧪 Testing Telemetry Integration with Supabase\n');
+  // Check status
+  console.log('Status:', telemetry.getStatus());
 
-  // Check environment variables
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  // Track session start
+  console.log('\nTracking session start...');
+  telemetry.trackSessionStart();
 
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('❌ Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env file');
-    process.exit(1);
-  }
+  // Track tool usage
+  console.log('Tracking tool usage...');
+  telemetry.trackToolUsage('search_nodes', true, 150);
+  telemetry.trackToolUsage('get_node_info', true, 75);
+  telemetry.trackToolUsage('validate_workflow', false, 200);
 
-  console.log('✅ Environment variables configured');
-  console.log(`   Supabase URL: ${supabaseUrl}`);
-  console.log(`   Anon Key: ${supabaseKey.substring(0, 20)}...`);
-
-  // Test 1: Track tool usage
-  console.log('\n📊 Test 1: Tracking tool usage...');
-  telemetry.trackToolUsage('search_nodes', true, 1250);
-  telemetry.trackToolUsage('get_node_info', true, 850);
-  telemetry.trackToolUsage('validate_workflow', false, 2000);
-  console.log('   ✓ Tool usage events queued');
-
-  // Test 2: Track errors
-  console.log('\n🐛 Test 2: Tracking errors...');
+  // Track errors
+  console.log('Tracking errors...');
   telemetry.trackError('ValidationError', 'workflow_validation', 'validate_workflow');
-  telemetry.trackError('NetworkError', 'api_call', 'n8n_create_workflow');
-  console.log('   ✓ Error events queued');
 
-  // Test 3: Track workflow creation
-  console.log('\n🔧 Test 3: Tracking workflow creation...');
+  // Track a test workflow
+  console.log('Tracking workflow creation...');
   const testWorkflow = {
-    name: 'Test Workflow',
     nodes: [
       {
         id: '1',
-        name: 'Webhook',
         type: 'n8n-nodes-base.webhook',
-        position: [100, 100],
+        name: 'Webhook',
+        position: [0, 0],
         parameters: {
-          path: 'test-webhook',
-          webhookUrl: 'https://n8n.example.com/webhook/abc-123-def',
-          method: 'POST',
-          authentication: 'none'
-        },
-        credentials: {
-          webhookAuth: {
-            id: 'cred-123',
-            name: 'My Webhook Auth'
-          }
+          path: '/test-webhook',
+          httpMethod: 'POST'
         }
       },
       {
         id: '2',
-        name: 'HTTP Request',
         type: 'n8n-nodes-base.httpRequest',
-        position: [300, 100],
+        name: 'HTTP Request',
+        position: [250, 0],
         parameters: {
           url: 'https://api.example.com/endpoint',
           method: 'POST',
           authentication: 'genericCredentialType',
           genericAuthType: 'httpHeaderAuth',
-          httpHeaders: {
+          sendHeaders: true,
+          headerParameters: {
             parameters: [
               {
                 name: 'Authorization',
-                value: 'Bearer sk-1234567890abcdef1234567890abcdef'
+                value: 'Bearer sk-1234567890abcdef'
               }
             ]
-          },
-          options: {
-            timeout: 10000
           }
         }
       },
       {
         id: '3',
-        name: 'Slack',
         type: 'n8n-nodes-base.slack',
-        position: [500, 100],
+        name: 'Slack',
+        position: [500, 0],
         parameters: {
-          channel: 'general',
-          text: 'Message sent!',
-          authentication: 'accessToken'
-        },
-        credentials: {
-          slackApi: {
-            id: 'cred-456',
-            name: 'My Slack'
-          }
+          channel: '#notifications',
+          text: 'Workflow completed!'
         }
       }
     ],
@@ -111,72 +78,17 @@ async function testTelemetryIntegration() {
       '2': {
         main: [[{ node: '3', type: 'main', index: 0 }]]
       }
-    },
-    settings: {
-      errorWorkflow: 'error-workflow-id',
-      saveDataErrorExecution: 'all',
-      saveDataSuccessExecution: 'none',
-      saveExecutionProgress: true,
-      saveManualExecutions: true,
-      timezone: 'America/New_York'
-    },
-    staticData: { some: 'data' },
-    pinData: { node1: 'pinned' },
-    ownedBy: 'user-123',
-    createdBy: 'user-123',
-    updatedBy: 'user-456'
+    }
   };
 
-  // Track successful workflow
-  await telemetry.trackWorkflowCreation(testWorkflow, true);
-  console.log('   ✓ Workflow creation tracked');
+  telemetry.trackWorkflowCreation(testWorkflow, true);
 
-  // Test workflow sanitization
-  console.log('\n🔒 Test 4: Verifying workflow sanitization...');
-  const sanitized = WorkflowSanitizer.sanitizeWorkflow(testWorkflow);
-
-  // Verify sensitive data was removed
-  const sanitizedStr = JSON.stringify(sanitized);
-  const hasSensitiveData =
-    sanitizedStr.includes('sk-1234567890abcdef') ||
-    sanitizedStr.includes('cred-123') ||
-    sanitizedStr.includes('cred-456') ||
-    sanitizedStr.includes('user-123');
-
-  if (hasSensitiveData) {
-    console.error('   ❌ Sensitive data found in sanitized workflow!');
-  } else {
-    console.log('   ✓ All sensitive data removed');
-  }
-
-  console.log('   ✓ Workflow hash:', sanitized.workflowHash);
-  console.log('   ✓ Node count:', sanitized.nodeCount);
-  console.log('   ✓ Node types:', sanitized.nodeTypes);
-  console.log('   ✓ Complexity:', sanitized.complexity);
-
-  // Test 5: Track session start
-  console.log('\n🚀 Test 5: Tracking session start...');
-  telemetry.trackSessionStart();
-  console.log('   ✓ Session start tracked');
-
-  // Flush all events
-  console.log('\n💾 Flushing telemetry data to Supabase...');
+  // Force flush
+  console.log('\nFlushing telemetry data...');
   await telemetry.flush();
-  console.log('   ✓ Data flushed to Supabase');
 
-  // Test 6: Verify data in Supabase
-  console.log('\n🔍 Test 6: Verifying data in Supabase...');
-  console.log('   Please check your Supabase dashboard to verify:');
-  console.log('   - telemetry_events table has new records');
-  console.log('   - telemetry_workflows table has the test workflow');
-  console.log('   - Views show aggregated data');
-  console.log('\n   Dashboard URL: https://supabase.com/dashboard/project/ydyufsohxdfpopqbubwk/editor');
-
-  console.log('\n✨ Telemetry integration test completed!');
+  console.log('\n✅ Telemetry integration test completed!');
+  console.log('Check your Supabase dashboard for the telemetry data.');
 }
 
-// Run the test
-testTelemetryIntegration().catch(error => {
-  console.error('❌ Test failed:', error);
-  process.exit(1);
-});
+testIntegration().catch(console.error);

@@ -50,7 +50,7 @@ Commands:
   disable  Disable anonymous telemetry
   status   Show current telemetry status
 
-Learn more: https://github.com/czlonkowski/n8n-mcp/privacy
+Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
 `);
         process.exit(args[1] ? 1 : 0);
     }

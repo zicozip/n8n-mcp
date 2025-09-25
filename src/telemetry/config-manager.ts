@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, dirname } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
 import { hostname, platform, arch } from 'os';
@@ -53,15 +53,24 @@ export class TelemetryConfigManager {
 
     if (!existsSync(this.configPath)) {
       // First run - create default config
+      const version = this.getPackageVersion();
+
+      // Check if telemetry is disabled via environment variable
+      const envDisabled = this.isDisabledByEnvironment();
+
       this.config = {
-        enabled: true,
+        enabled: !envDisabled, // Respect env var on first run
         userId: this.generateUserId(),
         firstRun: new Date().toISOString(),
-        version: require('../../package.json').version
+        version
       };
 
       this.saveConfig();
-      this.showFirstRunNotice();
+
+      // Only show notice if not disabled via environment
+      if (!envDisabled) {
+        this.showFirstRunNotice();
+      }
 
       return this.config;
     }
@@ -107,10 +116,49 @@ export class TelemetryConfigManager {
 
   /**
    * Check if telemetry is enabled
+   * Priority: Environment variable > Config file > Default (true)
    */
   isEnabled(): boolean {
+    // Check environment variables first (for Docker users)
+    if (this.isDisabledByEnvironment()) {
+      return false;
+    }
+
     const config = this.loadConfig();
     return config.enabled;
+  }
+
+  /**
+   * Check if telemetry is disabled via environment variable
+   */
+  private isDisabledByEnvironment(): boolean {
+    const envVars = [
+      'N8N_MCP_TELEMETRY_DISABLED',
+      'TELEMETRY_DISABLED',
+      'DISABLE_TELEMETRY'
+    ];
+
+    for (const varName of envVars) {
+      const value = process.env[varName];
+      if (value !== undefined) {
+        const normalized = value.toLowerCase().trim();
+
+        // Warn about invalid values
+        if (!['true', 'false', '1', '0', ''].includes(normalized)) {
+          console.warn(
+            `⚠️  Invalid telemetry environment variable value: ${varName}="${value}"\n` +
+            `   Use "true" to disable or "false" to enable telemetry.`
+          );
+        }
+
+        // Accept common truthy values
+        if (normalized === 'true' || normalized === '1') {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -155,14 +203,25 @@ export class TelemetryConfigManager {
    */
   getStatus(): string {
     const config = this.loadConfig();
+
+    // Check if disabled by environment
+    const envDisabled = this.isDisabledByEnvironment();
+
+    let status = config.enabled ? 'ENABLED' : 'DISABLED';
+    if (envDisabled) {
+      status = 'DISABLED (via environment variable)';
+    }
+
     return `
-Telemetry Status: ${config.enabled ? 'ENABLED' : 'DISABLED'}
+Telemetry Status: ${status}
 Anonymous ID: ${config.userId}
 First Run: ${config.firstRun || 'Unknown'}
 Config Path: ${this.configPath}
 
 To opt-out: npx n8n-mcp telemetry disable
 To opt-in:  npx n8n-mcp telemetry enable
+
+For Docker: Set N8N_MCP_TELEMETRY_DISABLED=true
 `;
   }
 
@@ -199,9 +258,44 @@ To opt-in:  npx n8n-mcp telemetry enable
 ║  npx n8n-mcp telemetry disable                            ║
 ║                                                             ║
 ║  Learn more:                                               ║
-║  https://github.com/czlonkowski/n8n-mcp/privacy           ║
+║  https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md ║
 ║                                                             ║
 ╚════════════════════════════════════════════════════════════╝
 `);
+  }
+
+  /**
+   * Get package version safely
+   */
+  private getPackageVersion(): string {
+    try {
+      // Try multiple approaches to find package.json
+      const possiblePaths = [
+        resolve(__dirname, '..', '..', 'package.json'),
+        resolve(process.cwd(), 'package.json'),
+        resolve(__dirname, '..', '..', '..', 'package.json')
+      ];
+
+      for (const packagePath of possiblePaths) {
+        if (existsSync(packagePath)) {
+          const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8'));
+          if (packageJson.version) {
+            return packageJson.version;
+          }
+        }
+      }
+
+      // Fallback: try require (works in some environments)
+      try {
+        const packageJson = require('../../package.json');
+        return packageJson.version || 'unknown';
+      } catch {
+        // Ignore require error
+      }
+
+      return 'unknown';
+    } catch (error) {
+      return 'unknown';
+    }
   }
 }

@@ -74,6 +74,10 @@ USER nodejs
 # Set Docker environment flag
 ENV IS_DOCKER=true
 
+# Telemetry: Anonymous usage statistics are ENABLED by default
+# To opt-out, uncomment the following line:
+# ENV N8N_MCP_TELEMETRY_DISABLED=true
+
 # Expose HTTP port
 EXPOSE 3000
 
