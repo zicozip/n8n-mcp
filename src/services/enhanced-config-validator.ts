@@ -687,11 +687,17 @@ export class EnhancedConfigValidator extends ConfigValidator {
 
       if (!resourceIsValid && config.resource !== '') {
         // Find similar resources
-        const suggestions = this.resourceSimilarityService.findSimilarResources(
-          nodeType,
-          config.resource,
-          3
-        );
+        let suggestions: any[] = [];
+        try {
+          suggestions = this.resourceSimilarityService.findSimilarResources(
+            nodeType,
+            config.resource,
+            3
+          );
+        } catch (error) {
+          // If similarity service fails, continue with validation without suggestions
+          console.error('Resource similarity service error:', error);
+        }
 
         // Build error message with suggestions
         let errorMessage = `Invalid resource "${config.resource}" for node ${nodeType}.`;
@@ -718,12 +724,28 @@ export class EnhancedConfigValidator extends ConfigValidator {
           }).join(', ')}${validResources.length > 5 ? '...' : ''}`;
         }
 
-        result.errors.push({
+        const error: any = {
           type: 'invalid_value',
           property: 'resource',
           message: errorMessage,
           fix
-        });
+        };
+
+        // Add suggestion property if we have high confidence suggestions
+        if (suggestions.length > 0 && suggestions[0].confidence >= 0.5) {
+          error.suggestion = `Did you mean "${suggestions[0].value}"? ${suggestions[0].reason}`;
+        }
+
+        result.errors.push(error);
+
+        // Add suggestions to result.suggestions array
+        if (suggestions.length > 0) {
+          for (const suggestion of suggestions) {
+            result.suggestions.push(
+              `Resource "${config.resource}" not found. Did you mean "${suggestion.value}"? ${suggestion.reason}`
+            );
+          }
+        }
       }
     }
 
@@ -739,12 +761,18 @@ export class EnhancedConfigValidator extends ConfigValidator {
 
       if (!operationIsValid && config.operation !== '') {
         // Find similar operations
-        const suggestions = this.operationSimilarityService.findSimilarOperations(
-          nodeType,
-          config.operation,
-          config.resource,
-          3
-        );
+        let suggestions: any[] = [];
+        try {
+          suggestions = this.operationSimilarityService.findSimilarOperations(
+            nodeType,
+            config.operation,
+            config.resource,
+            3
+          );
+        } catch (error) {
+          // If similarity service fails, continue with validation without suggestions
+          console.error('Operation similarity service error:', error);
+        }
 
         // Build error message with suggestions
         let errorMessage = `Invalid operation "${config.operation}" for node ${nodeType}`;
@@ -775,12 +803,28 @@ export class EnhancedConfigValidator extends ConfigValidator {
           }).join(', ')}${validOperations.length > 5 ? '...' : ''}`;
         }
 
-        result.errors.push({
+        const error: any = {
           type: 'invalid_value',
           property: 'operation',
           message: errorMessage,
           fix
-        });
+        };
+
+        // Add suggestion property if we have high confidence suggestions
+        if (suggestions.length > 0 && suggestions[0].confidence >= 0.5) {
+          error.suggestion = `Did you mean "${suggestions[0].value}"? ${suggestions[0].reason}`;
+        }
+
+        result.errors.push(error);
+
+        // Add suggestions to result.suggestions array
+        if (suggestions.length > 0) {
+          for (const suggestion of suggestions) {
+            result.suggestions.push(
+              `Operation "${config.operation}" not found. Did you mean "${suggestion.value}"? ${suggestion.reason}`
+            );
+          }
+        }
       }
     }
   }
