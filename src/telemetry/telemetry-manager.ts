@@ -227,10 +227,12 @@ export class TelemetryManager {
       try {
         const { error } = await this.supabase
           .from('telemetry_events')
-          .insert(events);
+          .insert(events);  // No .select() - we don't need the response
 
         if (error) {
           logger.debug('Failed to flush telemetry events:', error.message);
+        } else {
+          logger.debug(`Flushed ${events.length} telemetry events`);
         }
       } catch (error) {
         logger.debug('Error flushing telemetry events:', error);
@@ -249,10 +251,12 @@ export class TelemetryManager {
           .upsert(workflows, {
             onConflict: 'workflow_hash',
             ignoreDuplicates: true,
-          });
+          });  // No .select() - we don't need the response
 
         if (error) {
           logger.debug('Failed to flush telemetry workflows:', error.message);
+        } else {
+          logger.debug(`Flushed ${workflows.length} telemetry workflows`);
         }
       } catch (error) {
         logger.debug('Error flushing telemetry workflows:', error);
