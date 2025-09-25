@@ -27,6 +27,7 @@ import { InstanceContext, validateInstanceContext } from '../types/instance-cont
 import { WorkflowAutoFixer, AutoFixConfig } from '../services/workflow-auto-fixer';
 import { ExpressionFormatValidator } from '../services/expression-format-validator';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
+import { telemetry } from '../telemetry';
 import {
   createCacheKey,
   createInstanceCache,
@@ -280,16 +281,22 @@ export async function handleCreateWorkflow(args: unknown, context?: InstanceCont
     // Validate workflow structure
     const errors = validateWorkflowStructure(input);
     if (errors.length > 0) {
+      // Track validation failure
+      telemetry.trackWorkflowCreation(input, false);
+
       return {
         success: false,
         error: 'Workflow validation failed',
         details: { errors }
       };
     }
-    
+
     // Create workflow
     const workflow = await client.createWorkflow(input);
-    
+
+    // Track successful workflow creation
+    telemetry.trackWorkflowCreation(workflow, true);
+
     return {
       success: true,
       data: workflow,

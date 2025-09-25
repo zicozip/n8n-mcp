@@ -35,6 +35,7 @@ import {
   STANDARD_PROTOCOL_VERSION
 } from '../utils/protocol-version';
 import { InstanceContext } from '../types/instance-context';
+import { telemetry } from '../telemetry';
 
 interface NodeRow {
   node_type: string;
@@ -180,7 +181,10 @@ export class N8NDocumentationMCPServer {
         clientCapabilities,
         clientInfo
       });
-      
+
+      // Track session start
+      telemetry.trackSessionStart();
+
       // Store client info for later use
       this.clientInfo = clientInfo;
       
@@ -322,8 +326,13 @@ export class N8NDocumentationMCPServer {
       
       try {
         logger.debug(`Executing tool: ${name}`, { args: processedArgs });
+        const startTime = Date.now();
         const result = await this.executeTool(name, processedArgs);
+        const duration = Date.now() - startTime;
         logger.debug(`Tool ${name} executed successfully`);
+
+        // Track tool usage
+        telemetry.trackToolUsage(name, true, duration);
         
         // Ensure the result is properly formatted for MCP
         let responseText: string;
@@ -370,7 +379,15 @@ export class N8NDocumentationMCPServer {
       } catch (error) {
         logger.error(`Error executing tool ${name}`, error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        
+
+        // Track tool error
+        telemetry.trackToolUsage(name, false);
+        telemetry.trackError(
+          error instanceof Error ? error.constructor.name : 'UnknownError',
+          `tool_execution`,
+          name
+        );
+
         // Provide more helpful error messages for common n8n issues
         let helpfulMessage = `Error executing tool ${name}: ${errorMessage}`;
         
