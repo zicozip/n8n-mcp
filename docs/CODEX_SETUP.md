@@ -14,8 +14,6 @@ args = ["n8n-mcp"]
 env = { "MCP_MODE" = "stdio", "LOG_LEVEL" = "error", "DISABLE_CONSOLE_OUTPUT" = "true" }
 ```
 
-![Adding n8n-MCP server in Claude Code](./img/cc_command.png)
-
 ### Full configuration (with n8n management tools):
 ```toml
 [mcp_servers.n8n]
