@@ -155,8 +155,14 @@ export class OperationSimilarityService {
     const suggestions: OperationSuggestion[] = [];
 
     // Get valid operations for the node
-    const nodeInfo = this.repository.getNode(nodeType);
-    if (!nodeInfo) {
+    let nodeInfo;
+    try {
+      nodeInfo = this.repository.getNode(nodeType);
+      if (!nodeInfo) {
+        return [];
+      }
+    } catch (error) {
+      logger.warn(`Error getting node ${nodeType}:`, error);
       return [];
     }
 
@@ -423,6 +429,11 @@ export class OperationSimilarityService {
    * Check if two strings are common variations
    */
   private areCommonVariations(str1: string, str2: string): boolean {
+    // Handle edge cases first
+    if (str1 === '' || str2 === '' || str1 === str2) {
+      return false;
+    }
+
     // Check for common prefixes/suffixes
     const commonPrefixes = ['get', 'set', 'create', 'delete', 'update', 'send', 'fetch'];
     const commonSuffixes = ['data', 'item', 'record', 'message', 'file', 'folder'];
@@ -430,10 +441,13 @@ export class OperationSimilarityService {
     for (const prefix of commonPrefixes) {
       if ((str1.startsWith(prefix) && !str2.startsWith(prefix)) ||
           (!str1.startsWith(prefix) && str2.startsWith(prefix))) {
-        const s1Clean = str1.replace(prefix, '');
-        const s2Clean = str2.replace(prefix, '');
-        if (s1Clean === s2Clean || this.levenshteinDistance(s1Clean, s2Clean) <= 2) {
-          return true;
+        const s1Clean = str1.startsWith(prefix) ? str1.slice(prefix.length) : str1;
+        const s2Clean = str2.startsWith(prefix) ? str2.slice(prefix.length) : str2;
+        // Only return true if at least one string was actually cleaned (not empty after cleaning)
+        if ((str1.startsWith(prefix) && s1Clean !== str1) || (str2.startsWith(prefix) && s2Clean !== str2)) {
+          if (s1Clean === s2Clean || this.levenshteinDistance(s1Clean, s2Clean) <= 2) {
+            return true;
+          }
         }
       }
     }
@@ -441,10 +455,13 @@ export class OperationSimilarityService {
     for (const suffix of commonSuffixes) {
       if ((str1.endsWith(suffix) && !str2.endsWith(suffix)) ||
           (!str1.endsWith(suffix) && str2.endsWith(suffix))) {
-        const s1Clean = str1.replace(suffix, '');
-        const s2Clean = str2.replace(suffix, '');
-        if (s1Clean === s2Clean || this.levenshteinDistance(s1Clean, s2Clean) <= 2) {
-          return true;
+        const s1Clean = str1.endsWith(suffix) ? str1.slice(0, -suffix.length) : str1;
+        const s2Clean = str2.endsWith(suffix) ? str2.slice(0, -suffix.length) : str2;
+        // Only return true if at least one string was actually cleaned (not empty after cleaning)
+        if ((str1.endsWith(suffix) && s1Clean !== str1) || (str2.endsWith(suffix) && s2Clean !== str2)) {
+          if (s1Clean === s2Clean || this.levenshteinDistance(s1Clean, s2Clean) <= 2) {
+            return true;
+          }
         }
       }
     }
