@@ -419,7 +419,7 @@ describe('TelemetryConfigManager', () => {
       const config = manager.loadConfig();
 
       expect(config.firstRun).toBeDefined();
-      expect(new Date(config.firstRun).getTime()).toBeGreaterThan(0);
+      expect(new Date(config.firstRun as string).getTime()).toBeGreaterThan(0);
     });
 
     it('should handle config updates during runtime', () => {
