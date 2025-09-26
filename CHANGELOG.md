@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.1] - 2025-09-26
+
+### Fixed
+- Fixed TypeScript lint errors in telemetry test files
+  - Corrected variable name conflicts in integration tests
+  - Fixed process.exit mock implementation in batch-processor tests
+  - Fixed tuple type annotations for workflow node positions
+  - Resolved MockInstance type import issues
+- Fixed test failures in CI pipeline for telemetry system
+  - Tests now pass with 90.75% coverage for telemetry module
+  - All unit and integration tests passing successfully
+
 ## [2.14.0] - 2025-09-26
 
 ### Added
