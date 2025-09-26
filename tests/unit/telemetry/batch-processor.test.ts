@@ -39,9 +39,9 @@ describe('TelemetryBatchProcessor', () => {
     } as any;
 
     // Mock process events to prevent actual exit
-    mockProcessExit = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('Process.exit called');
-    });
+    mockProcessExit = vi.spyOn(process, 'exit').mockImplementation((() => {
+      // Do nothing - just prevent actual exit
+    }) as any);
 
     vi.clearAllMocks();
 
