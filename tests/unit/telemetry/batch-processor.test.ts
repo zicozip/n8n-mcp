@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, afterEach, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach, beforeAll, afterAll, type MockInstance } from 'vitest';
 import { TelemetryBatchProcessor } from '../../../src/telemetry/batch-processor';
 import { TelemetryEvent, WorkflowTelemetry, TELEMETRY_CONFIG } from '../../../src/telemetry/telemetry-types';
 import { TelemetryError, TelemetryErrorType } from '../../../src/telemetry/telemetry-error';
@@ -17,14 +17,15 @@ vi.mock('../../../src/utils/logger', () => ({
 describe('TelemetryBatchProcessor', () => {
   let batchProcessor: TelemetryBatchProcessor;
   let mockSupabase: SupabaseClient;
-  let mockIsEnabled: vi.Mock;
-  let mockProcessExit: vi.SpyInstance;
+  let mockIsEnabled: ReturnType<typeof vi.fn>;
+  let mockProcessExit: MockInstance;
 
   const createMockSupabaseResponse = (error: any = null) => ({
     data: null,
     error,
     status: error ? 400 : 200,
-    statusText: error ? 'Bad Request' : 'OK'
+    statusText: error ? 'Bad Request' : 'OK',
+    count: null
   });
 
   beforeEach(() => {
@@ -38,7 +39,9 @@ describe('TelemetryBatchProcessor', () => {
     } as any;
 
     // Mock process events to prevent actual exit
-    mockProcessExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    mockProcessExit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('Process.exit called');
+    });
 
     vi.clearAllMocks();
 
@@ -431,8 +434,14 @@ describe('TelemetryBatchProcessor', () => {
       const error = new Error('Mixed error');
       const errorResponse = createMockSupabaseResponse(error);
       vi.mocked(mockSupabase.from).mockImplementation((table) => ({
-        insert: vi.fn().mockResolvedValue(errorResponse)
-      }));
+        insert: vi.fn().mockResolvedValue(errorResponse),
+        url: { href: '' },
+        headers: {},
+        select: vi.fn(),
+        upsert: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn()
+      } as any));
 
       const events: TelemetryEvent[] = [
         { user_id: 'user1', event: 'event1', properties: {} }
@@ -457,8 +466,14 @@ describe('TelemetryBatchProcessor', () => {
 
       // Mock successful operations for dead letter queue processing
       vi.mocked(mockSupabase.from).mockImplementation((table) => ({
-        insert: vi.fn().mockResolvedValue(createMockSupabaseResponse())
-      }));
+        insert: vi.fn().mockResolvedValue(createMockSupabaseResponse()),
+        url: { href: '' },
+        headers: {},
+        select: vi.fn(),
+        upsert: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn()
+      } as any));
 
       await batchProcessor.flush([]);
       expect(batchProcessor.getMetrics().deadLetterQueueSize).toBe(0);

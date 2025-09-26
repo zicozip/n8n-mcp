@@ -21,8 +21,8 @@ vi.mock('path');
 
 describe('TelemetryEventTracker', () => {
   let eventTracker: TelemetryEventTracker;
-  let mockGetUserId: vi.Mock;
-  let mockIsEnabled: vi.Mock;
+  let mockGetUserId: ReturnType<typeof vi.fn>;
+  let mockIsEnabled: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockGetUserId = vi.fn().mockReturnValue('test-user-123');
@@ -107,9 +107,9 @@ describe('TelemetryEventTracker', () => {
   describe('trackWorkflowCreation()', () => {
     const mockWorkflow = {
       nodes: [
-        { id: '1', type: 'webhook', name: 'Webhook' },
-        { id: '2', type: 'httpRequest', name: 'HTTP Request' },
-        { id: '3', type: 'set', name: 'Set' }
+        { id: '1', type: 'webhook', name: 'Webhook', position: [0, 0] as [number, number], parameters: {} },
+        { id: '2', type: 'httpRequest', name: 'HTTP Request', position: [100, 0] as [number, number], parameters: {} },
+        { id: '3', type: 'set', name: 'Set', position: [200, 0] as [number, number], parameters: {} }
       ],
       connections: {
         '1': { main: [[{ node: '2', type: 'main', index: 0 }]] }

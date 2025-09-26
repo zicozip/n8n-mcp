@@ -310,14 +310,14 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(searchRequest.params);
       }
 
       expect(telemetry.trackSearchQuery).toHaveBeenCalledWith('webhook', 2, 'OR');
     });
 
     it('should track zero-result searches', async () => {
-      const searchRequest: CallToolRequest = {
+      const zeroResultRequest: CallToolRequest = {
         method: 'tools/call',
         params: {
           name: 'search_nodes',
@@ -334,14 +334,14 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(zeroResultRequest.params);
       }
 
       expect(telemetry.trackSearchQuery).toHaveBeenCalledWith('nonexistent', 0, 'AND');
     });
 
     it('should track fallback search queries', async () => {
-      const searchRequest: CallToolRequest = {
+      const fallbackRequest: CallToolRequest = {
         method: 'tools/call',
         params: {
           name: 'search_nodes',
@@ -360,7 +360,7 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(fallbackRequest.params);
       }
 
       // Should track both main query and fallback
@@ -400,7 +400,7 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(validateRequest.params);
       }
 
       expect(telemetry.trackWorkflowCreation).toHaveBeenCalledWith(workflow, true);
@@ -444,7 +444,7 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(validateRequest.params);
       }
 
       expect(telemetry.trackValidationDetails).toHaveBeenCalledWith(
@@ -482,7 +482,7 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(validateNodeRequest.params);
       }
 
       // Should track the validation attempt
@@ -514,7 +514,7 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(slowToolRequest.params);
       }
 
       expect(telemetry.trackToolUsage).toHaveBeenCalledWith(
@@ -680,7 +680,7 @@ describe.skip('MCP Telemetry Integration', () => {
       const callToolHandler = server.requestHandlers.get('tools/call');
 
       if (callToolHandler) {
-        await callToolHandler(callToolRequest.params);
+        await callToolHandler(validateRequest.params);
       }
 
       expect(telemetry.trackWorkflowCreation).toHaveBeenCalledWith(complexWorkflow, true);
