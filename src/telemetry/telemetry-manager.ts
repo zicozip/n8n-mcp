@@ -262,6 +262,102 @@ export class TelemetryManager {
   }
 
   /**
+   * Track search queries to identify documentation gaps
+   */
+  trackSearchQuery(query: string, resultsFound: number, searchType: string): void {
+    if (!this.isEnabled()) return;
+
+    this.trackEvent('search_query', {
+      query: this.sanitizeString(query).substring(0, 100),
+      resultsFound,
+      searchType,
+      hasResults: resultsFound > 0,
+      isZeroResults: resultsFound === 0
+    });
+  }
+
+  /**
+   * Track validation failure details for improvement insights
+   */
+  trackValidationDetails(nodeType: string, errorType: string, details: Record<string, any>): void {
+    if (!this.isEnabled()) return;
+
+    this.trackEvent('validation_details', {
+      nodeType: nodeType.replace(/[^a-zA-Z0-9_.-]/g, '_'),
+      errorType: this.sanitizeErrorType(errorType),
+      errorCategory: this.categorizeError(errorType),
+      details: this.sanitizeProperties(details)
+    });
+  }
+
+  /**
+   * Track tool usage sequences to understand workflows
+   */
+  trackToolSequence(previousTool: string, currentTool: string, timeDelta: number): void {
+    if (!this.isEnabled()) return;
+
+    this.trackEvent('tool_sequence', {
+      previousTool: previousTool.replace(/[^a-zA-Z0-9_-]/g, '_'),
+      currentTool: currentTool.replace(/[^a-zA-Z0-9_-]/g, '_'),
+      timeDelta: Math.min(timeDelta, 300000), // Cap at 5 minutes
+      isSlowTransition: timeDelta > 10000, // More than 10 seconds
+      sequence: `${previousTool}->${currentTool}`
+    });
+  }
+
+  /**
+   * Track node configuration patterns
+   */
+  trackNodeConfiguration(nodeType: string, propertiesSet: number, usedDefaults: boolean): void {
+    if (!this.isEnabled()) return;
+
+    this.trackEvent('node_configuration', {
+      nodeType: nodeType.replace(/[^a-zA-Z0-9_.-]/g, '_'),
+      propertiesSet,
+      usedDefaults,
+      complexity: this.categorizeConfigComplexity(propertiesSet)
+    });
+  }
+
+  /**
+   * Track performance metrics for optimization
+   */
+  trackPerformanceMetric(operation: string, duration: number, metadata?: Record<string, any>): void {
+    if (!this.isEnabled()) return;
+
+    this.trackEvent('performance_metric', {
+      operation: operation.replace(/[^a-zA-Z0-9_-]/g, '_'),
+      duration,
+      isSlow: duration > 1000,
+      isVerySlow: duration > 5000,
+      metadata: metadata ? this.sanitizeProperties(metadata) : undefined
+    });
+  }
+
+  /**
+   * Categorize error types for better analysis
+   */
+  private categorizeError(errorType: string): string {
+    const lowerError = errorType.toLowerCase();
+    if (lowerError.includes('type')) return 'type_error';
+    if (lowerError.includes('validation')) return 'validation_error';
+    if (lowerError.includes('required')) return 'required_field_error';
+    if (lowerError.includes('connection')) return 'connection_error';
+    if (lowerError.includes('expression')) return 'expression_error';
+    return 'other_error';
+  }
+
+  /**
+   * Categorize configuration complexity
+   */
+  private categorizeConfigComplexity(propertiesSet: number): string {
+    if (propertiesSet === 0) return 'defaults_only';
+    if (propertiesSet <= 3) return 'simple';
+    if (propertiesSet <= 10) return 'moderate';
+    return 'complex';
+  }
+
+  /**
    * Get package version safely
    */
   private getPackageVersion(): string {

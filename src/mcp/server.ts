@@ -64,6 +64,8 @@ export class N8NDocumentationMCPServer {
   private cache = new SimpleCache();
   private clientInfo: any = null;
   private instanceContext?: InstanceContext;
+  private previousTool: string | null = null;
+  private previousToolTimestamp: number = Date.now();
 
   constructor(instanceContext?: InstanceContext) {
     this.instanceContext = instanceContext;
@@ -331,8 +333,18 @@ export class N8NDocumentationMCPServer {
         const duration = Date.now() - startTime;
         logger.debug(`Tool ${name} executed successfully`);
 
-        // Track tool usage
+        // Track tool usage and sequence
         telemetry.trackToolUsage(name, true, duration);
+
+        // Track tool sequence if there was a previous tool
+        if (this.previousTool) {
+          const timeDelta = Date.now() - this.previousToolTimestamp;
+          telemetry.trackToolSequence(this.previousTool, name, timeDelta);
+        }
+
+        // Update previous tool tracking
+        this.previousTool = name;
+        this.previousToolTimestamp = Date.now();
         
         // Ensure the result is properly formatted for MCP
         let responseText: string;
@@ -387,6 +399,16 @@ export class N8NDocumentationMCPServer {
           `tool_execution`,
           name
         );
+
+        // Track tool sequence even for errors
+        if (this.previousTool) {
+          const timeDelta = Date.now() - this.previousToolTimestamp;
+          telemetry.trackToolSequence(this.previousTool, name, timeDelta);
+        }
+
+        // Update previous tool tracking (even for failed tools)
+        this.previousTool = name;
+        this.previousToolTimestamp = Date.now();
 
         // Provide more helpful error messages for common n8n issues
         let helpfulMessage = `Error executing tool ${name}: ${errorMessage}`;
@@ -971,36 +993,36 @@ export class N8NDocumentationMCPServer {
       throw new Error(`Node ${nodeType} not found`);
     }
     
-    // Add AI tool capabilities information
+    // Add AI tool capabilities information with null safety
     const aiToolCapabilities = {
       canBeUsedAsTool: true, // Any node can be used as a tool in n8n
-      hasUsableAsToolProperty: node.isAITool,
-      requiresEnvironmentVariable: !node.isAITool && node.package !== 'n8n-nodes-base',
+      hasUsableAsToolProperty: node.isAITool ?? false,
+      requiresEnvironmentVariable: !(node.isAITool ?? false) && node.package !== 'n8n-nodes-base',
       toolConnectionType: 'ai_tool',
       commonToolUseCases: this.getCommonAIToolUseCases(node.nodeType),
-      environmentRequirement: node.package !== 'n8n-nodes-base' ? 
-        'N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true' : 
+      environmentRequirement: node.package && node.package !== 'n8n-nodes-base' ?
+        'N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true' :
         null
     };
-    
-    // Process outputs to provide clear mapping
+
+    // Process outputs to provide clear mapping with null safety
     let outputs = undefined;
-    if (node.outputNames && node.outputNames.length > 0) {
+    if (node.outputNames && Array.isArray(node.outputNames) && node.outputNames.length > 0) {
       outputs = node.outputNames.map((name: string, index: number) => {
         // Special handling for loop nodes like SplitInBatches
         const descriptions = this.getOutputDescriptions(node.nodeType, name, index);
         return {
           index,
           name,
-          description: descriptions.description,
-          connectionGuidance: descriptions.connectionGuidance
+          description: descriptions?.description ?? '',
+          connectionGuidance: descriptions?.connectionGuidance ?? ''
         };
       });
     }
-    
+
     return {
       ...node,
-      workflowNodeType: getWorkflowNodeType(node.package, node.nodeType),
+      workflowNodeType: getWorkflowNodeType(node.package ?? 'n8n-nodes-base', node.nodeType),
       aiToolCapabilities,
       outputs
     };
@@ -1150,7 +1172,10 @@ export class N8NDocumentationMCPServer {
       if (mode !== 'OR') {
         result.mode = mode;
       }
-      
+
+      // Track search query telemetry
+      telemetry.trackSearchQuery(query, scoredNodes.length, mode ?? 'OR');
+
       return result;
       
     } catch (error: any) {
@@ -1163,6 +1188,10 @@ export class N8NDocumentationMCPServer {
         
         // For problematic queries, use LIKE search with mode info
         const likeResult = await this.searchNodesLIKE(query, limit);
+
+        // Track search query telemetry for fallback
+        telemetry.trackSearchQuery(query, likeResult.results?.length ?? 0, `${mode}_LIKE_FALLBACK`);
+
         return {
           ...likeResult,
           mode
@@ -1612,23 +1641,25 @@ export class N8NDocumentationMCPServer {
       throw new Error(`Node ${nodeType} not found`);
     }
     
-    // If no documentation, generate fallback
+    // If no documentation, generate fallback with null safety
     if (!node.documentation) {
       const essentials = await this.getNodeEssentials(nodeType);
-      
+
       return {
         nodeType: node.node_type,
-        displayName: node.display_name,
+        displayName: node.display_name || 'Unknown Node',
         documentation: `
-# ${node.display_name}
+# ${node.display_name || 'Unknown Node'}
 
 ${node.description || 'No description available.'}
 
 ## Common Properties
 
-${essentials.commonProperties.map((p: any) => 
-  `### ${p.displayName}\n${p.description || `Type: ${p.type}`}`
-).join('\n\n')}
+${essentials?.commonProperties?.length > 0 ?
+  essentials.commonProperties.map((p: any) =>
+    `### ${p.displayName || 'Property'}\n${p.description || `Type: ${p.type || 'unknown'}`}`
+  ).join('\n\n') :
+  'No common properties available.'}
 
 ## Note
 Full documentation is being prepared. For now, use get_node_essentials for configuration help.
@@ -1636,10 +1667,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         hasDocumentation: false
       };
     }
-    
+
     return {
       nodeType: node.node_type,
-      displayName: node.display_name,
+      displayName: node.display_name || 'Unknown Node',
       documentation: node.documentation,
       hasDocumentation: true,
     };
@@ -1748,12 +1779,12 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     const result = {
       nodeType: node.nodeType,
-      workflowNodeType: getWorkflowNodeType(node.package, node.nodeType),
+      workflowNodeType: getWorkflowNodeType(node.package ?? 'n8n-nodes-base', node.nodeType),
       displayName: node.displayName,
       description: node.description,
       category: node.category,
-      version: node.version || '1',
-      isVersioned: node.isVersioned || false,
+      version: node.version ?? '1',
+      isVersioned: node.isVersioned ?? false,
       requiredProperties: essentials.required,
       commonProperties: essentials.common,
       operations: operations.map((op: any) => ({
@@ -1765,12 +1796,12 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
       // Examples removed - use validate_node_operation for working configurations
       metadata: {
         totalProperties: allProperties.length,
-        isAITool: node.isAITool,
-        isTrigger: node.isTrigger,
-        isWebhook: node.isWebhook,
+        isAITool: node.isAITool ?? false,
+        isTrigger: node.isTrigger ?? false,
+        isWebhook: node.isWebhook ?? false,
         hasCredentials: node.credentials ? true : false,
-        package: node.package,
-        developmentStyle: node.developmentStyle || 'programmatic'
+        package: node.package ?? 'n8n-nodes-base',
+        developmentStyle: node.developmentStyle ?? 'programmatic'
       }
     };
     
@@ -2650,7 +2681,28 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
       if (result.suggestions.length > 0) {
         response.suggestions = result.suggestions;
       }
-      
+
+      // Track validation details in telemetry
+      if (!result.valid && result.errors.length > 0) {
+        // Track each validation error for analysis
+        result.errors.forEach(error => {
+          telemetry.trackValidationDetails(
+            error.nodeName || 'workflow',
+            error.type || 'validation_error',
+            {
+              message: error.message,
+              nodeCount: workflow.nodes?.length ?? 0,
+              hasConnections: Object.keys(workflow.connections || {}).length > 0
+            }
+          );
+        });
+      }
+
+      // Track successfully validated workflows in telemetry
+      if (result.valid) {
+        telemetry.trackWorkflowCreation(workflow, true);
+      }
+
       return response;
     } catch (error) {
       logger.error('Error validating workflow:', error);

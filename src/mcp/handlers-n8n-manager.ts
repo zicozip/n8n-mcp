@@ -731,7 +731,12 @@ export async function handleValidateWorkflow(
     if (validationResult.suggestions.length > 0) {
       response.suggestions = validationResult.suggestions;
     }
-    
+
+    // Track successfully validated workflows in telemetry
+    if (validationResult.valid) {
+      telemetry.trackWorkflowCreation(workflow, true);
+    }
+
     return {
       success: true,
       data: response
