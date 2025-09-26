@@ -5,8 +5,13 @@ describe('TelemetryRateLimiter', () => {
   let rateLimiter: TelemetryRateLimiter;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     rateLimiter = new TelemetryRateLimiter(1000, 5); // 5 events per second
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('allow()', () => {
@@ -26,7 +31,7 @@ describe('TelemetryRateLimiter', () => {
       expect(rateLimiter.allow()).toBe(false);
     });
 
-    it('should allow events again after the window expires', async () => {
+    it('should allow events again after the window expires', () => {
       // Fill up the limit
       for (let i = 0; i < 5; i++) {
         rateLimiter.allow();
@@ -35,8 +40,8 @@ describe('TelemetryRateLimiter', () => {
       // Should be blocked
       expect(rateLimiter.allow()).toBe(false);
 
-      // Wait for window to expire
-      await new Promise(resolve => setTimeout(resolve, 1100));
+      // Advance time to expire the window
+      vi.advanceTimersByTime(1100);
 
       // Should allow events again
       expect(rateLimiter.allow()).toBe(true);
@@ -148,25 +153,25 @@ describe('TelemetryRateLimiter', () => {
   });
 
   describe('sliding window behavior', () => {
-    it('should correctly implement sliding window', async () => {
+    it('should correctly implement sliding window', () => {
       const timestamps: number[] = [];
 
       // Add events at different times
       for (let i = 0; i < 3; i++) {
         expect(rateLimiter.allow()).toBe(true);
         timestamps.push(Date.now());
-        await new Promise(resolve => setTimeout(resolve, 300));
+        vi.advanceTimersByTime(300);
       }
 
-      // Should still have capacity
+      // Should still have capacity (3 events used, 2 slots remaining)
       expect(rateLimiter.allow()).toBe(true);
       expect(rateLimiter.allow()).toBe(true);
 
-      // Should be at limit
+      // Should be at limit (5 events used)
       expect(rateLimiter.allow()).toBe(false);
 
-      // Wait for first event to expire
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Advance time for first event to expire
+      vi.advanceTimersByTime(200);
 
       // Should have capacity again as first event is outside window
       expect(rateLimiter.allow()).toBe(true);
