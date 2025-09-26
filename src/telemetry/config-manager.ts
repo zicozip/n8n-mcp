@@ -257,6 +257,9 @@ For Docker: Set N8N_MCP_TELEMETRY_DISABLED=true
 ║  To opt-out at any time:                                   ║
 ║  npx n8n-mcp telemetry disable                            ║
 ║                                                             ║
+║  Data deletion requests:                                   ║
+║  Email romuald@n8n-mcp.com with your anonymous ID          ║
+║                                                             ║
 ║  Learn more:                                               ║
 ║  https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md ║
 ║                                                             ║
