@@ -121,7 +121,7 @@ function isSensitiveKey(key: string): boolean {
     // Core sensitive terms
     'password', 'passwd', 'pwd',
     'token', 'jwt', 'bearer',
-    'key', 'apikey', 'api_key', 'api-key',
+    'apikey', 'api_key', 'api-key',
     'secret', 'private',
     'credential', 'cred', 'auth',
 
@@ -141,6 +141,15 @@ function isSensitiveKey(key: string): boolean {
   // Check for exact matches first (most efficient)
   if (sensitivePatterns.includes(lowerKey)) {
     return true;
+  }
+
+  // Check for compound key terms specifically
+  if (lowerKey.includes('key') && lowerKey !== 'key') {
+    // Check if it's a compound term like apikey, api_key, etc.
+    const keyPatterns = ['apikey', 'api_key', 'api-key', 'secretkey', 'secret_key', 'privatekey', 'private_key'];
+    if (keyPatterns.some(pattern => lowerKey.includes(pattern))) {
+      return true;
+    }
   }
 
   // Check for substring matches with word boundaries

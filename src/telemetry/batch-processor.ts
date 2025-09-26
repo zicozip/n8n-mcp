@@ -236,17 +236,10 @@ export class TelemetryBatchProcessor {
 
     for (let attempt = 1; attempt <= TELEMETRY_CONFIG.MAX_RETRIES; attempt++) {
       try {
-        // Skip timeout in test environment when using fake timers
+        // In test environment, execute without timeout but still handle errors
         if (process.env.NODE_ENV === 'test' && process.env.VITEST) {
-          try {
-            const result = await operation();
-            return result;
-          } catch (testError) {
-            // In test mode, still handle errors properly
-            lastError = testError as Error;
-            logger.debug(`${operationName} failed in test:`, testError);
-            // Don't retry in test mode, just continue to handle the error
-          }
+          const result = await operation();
+          return result;
         }
 
         // Create a timeout promise
@@ -270,6 +263,7 @@ export class TelemetryBatchProcessor {
             await new Promise(resolve => setTimeout(resolve, waitTime));
             delay *= 2; // Double the delay for next attempt
           }
+          // In test mode, continue to next retry attempt without delay
         }
       }
     }

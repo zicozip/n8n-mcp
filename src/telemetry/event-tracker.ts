@@ -411,9 +411,21 @@ export class TelemetryEventTracker {
    * Sanitize context
    */
   private sanitizeContext(context: string): string {
-    return context
-      .replace(/https?:\/\/[^\s]+/gi, '[URL]')
-      .replace(/[a-zA-Z0-9_-]{32,}/g, '[KEY]')
-      .substring(0, 100);
+    // Sanitize in a specific order to preserve some structure
+    let sanitized = context
+      // First replace emails (before URLs eat them)
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL]')
+      // Then replace long keys (32+ chars to match validator)
+      .replace(/\b[a-zA-Z0-9_-]{32,}/g, '[KEY]')
+      // Finally replace URLs but keep the path structure
+      .replace(/(https?:\/\/)([^\s\/]+)(\/[^\s]*)?/gi, (match, protocol, domain, path) => {
+        return '[URL]' + (path || '');
+      });
+
+    // Then truncate if needed
+    if (sanitized.length > 100) {
+      sanitized = sanitized.substring(0, 100);
+    }
+    return sanitized;
   }
 }
