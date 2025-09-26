@@ -211,6 +211,51 @@ Add to Claude Desktop config:
 
 **Restart Claude Desktop after updating configuration** - That's it! 🎉
 
+## 🔐 Privacy & Telemetry
+
+n8n-mcp collects anonymous usage statistics to improve the tool. [View our privacy policy](./PRIVACY.md).
+
+### Opting Out
+
+**For npx users:**
+```bash
+npx n8n-mcp telemetry disable
+```
+
+**For Docker users:**
+Add the following environment variable to your Docker configuration:
+```json
+"-e", "N8N_MCP_TELEMETRY_DISABLED=true"
+```
+
+Example in Claude Desktop config:
+```json
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--init",
+        "-e", "MCP_MODE=stdio",
+        "-e", "LOG_LEVEL=error",
+        "-e", "N8N_MCP_TELEMETRY_DISABLED=true",
+        "ghcr.io/czlonkowski/n8n-mcp:latest"
+      ]
+    }
+  }
+}
+```
+
+**For docker-compose users:**
+Set in your environment file or docker-compose.yml:
+```yaml
+environment:
+  N8N_MCP_TELEMETRY_DISABLED: "true"
+```
+
 ## 💖 Support This Project
 
 <div align="center">

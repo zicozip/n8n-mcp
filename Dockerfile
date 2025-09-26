@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install --no-save typescript@^5.8.3 @types/node@^22.15.30 @types/express@^5.0.3 \
         @modelcontextprotocol/sdk@^1.12.1 dotenv@^16.5.0 express@^5.1.0 axios@^1.10.0 \
         n8n-workflow@^1.96.0 uuid@^11.0.5 @types/uuid@^10.0.0 \
-        openai@^4.77.0 zod@^3.24.1 lru-cache@^11.2.1
+        openai@^4.77.0 zod@^3.24.1 lru-cache@^11.2.1 @supabase/supabase-js@^2.57.4
 
 # Copy source and build
 COPY src ./src
@@ -73,6 +73,10 @@ USER nodejs
 
 # Set Docker environment flag
 ENV IS_DOCKER=true
+
+# Telemetry: Anonymous usage statistics are ENABLED by default
+# To opt-out, uncomment the following line:
+# ENV N8N_MCP_TELEMETRY_DISABLED=true
 
 # Expose HTTP port
 EXPOSE 3000

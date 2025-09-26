@@ -2,6 +2,7 @@
 
 import { N8NDocumentationMCPServer } from './server';
 import { logger } from '../utils/logger';
+import { TelemetryConfigManager } from '../telemetry/config-manager';
 
 // Add error details to stderr for Claude Desktop debugging
 process.on('uncaughtException', (error) => {
@@ -21,8 +22,42 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function main() {
+  // Handle telemetry CLI commands
+  const args = process.argv.slice(2);
+  if (args.length > 0 && args[0] === 'telemetry') {
+    const telemetryConfig = TelemetryConfigManager.getInstance();
+    const action = args[1];
+
+    switch (action) {
+      case 'enable':
+        telemetryConfig.enable();
+        process.exit(0);
+        break;
+      case 'disable':
+        telemetryConfig.disable();
+        process.exit(0);
+        break;
+      case 'status':
+        console.log(telemetryConfig.getStatus());
+        process.exit(0);
+        break;
+      default:
+        console.log(`
+Usage: n8n-mcp telemetry [command]
+
+Commands:
+  enable   Enable anonymous telemetry
+  disable  Disable anonymous telemetry
+  status   Show current telemetry status
+
+Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
+`);
+        process.exit(args[1] ? 1 : 0);
+    }
+  }
+
   const mode = process.env.MCP_MODE || 'stdio';
-  
+
   try {
     // Only show debug messages in HTTP mode to avoid corrupting stdio communication
     if (mode === 'http') {

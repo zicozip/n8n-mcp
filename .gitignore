@@ -130,3 +130,6 @@ n8n-mcp-wrapper.sh
 
 # MCP configuration files
 .mcp.json
+
+# Telemetry configuration (user-specific)
+~/.n8n-mcp/
