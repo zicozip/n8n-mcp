@@ -108,16 +108,16 @@ export class ConfigValidator {
    * Check for missing required properties
    */
   private static checkRequiredProperties(
-    properties: any[], 
-    config: Record<string, any>, 
+    properties: any[],
+    config: Record<string, any>,
     errors: ValidationError[]
   ): void {
     for (const prop of properties) {
       if (!prop || !prop.name) continue; // Skip invalid properties
-      
+
       if (prop.required) {
         const value = config[prop.name];
-        
+
         // Check if property is missing or has null/undefined value
         if (!(prop.name in config)) {
           errors.push({
@@ -131,6 +131,14 @@ export class ConfigValidator {
             type: 'invalid_type',
             property: prop.name,
             message: `Required property '${prop.displayName || prop.name}' cannot be null or undefined`,
+            fix: `Provide a valid value for ${prop.name}`
+          });
+        } else if (typeof value === 'string' && value.trim() === '') {
+          // Check for empty strings which are invalid for required string properties
+          errors.push({
+            type: 'missing_required',
+            property: prop.name,
+            message: `Required property '${prop.displayName || prop.name}' cannot be empty`,
             fix: `Provide a valid value for ${prop.name}`
           });
         }
