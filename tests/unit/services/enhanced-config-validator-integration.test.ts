@@ -18,7 +18,9 @@ describe('EnhancedConfigValidator - Integration Tests', () => {
       getNode: vi.fn(),
       getNodeOperations: vi.fn().mockReturnValue([]),
       getNodeResources: vi.fn().mockReturnValue([]),
-      getOperationsForResource: vi.fn().mockReturnValue([])
+      getOperationsForResource: vi.fn().mockReturnValue([]),
+      getDefaultOperationForResource: vi.fn().mockReturnValue(undefined),
+      getNodePropertyDefaults: vi.fn().mockReturnValue({})
     };
 
     mockResourceService = {

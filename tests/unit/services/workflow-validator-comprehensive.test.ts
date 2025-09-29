@@ -507,13 +507,14 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
       expect(mockNodeRepository.getNode).not.toHaveBeenCalled();
     });
 
-    it('should error for invalid node type starting with nodes-base', async () => {
+    it('should accept both nodes-base and n8n-nodes-base prefixes as valid', async () => {
+      // This test verifies the fix for false positives - both prefixes are valid
       const workflow = {
         nodes: [
           {
             id: '1',
             name: 'Webhook',
-            type: 'nodes-base.webhook', // Missing n8n- prefix
+            type: 'nodes-base.webhook', // This is now valid (normalized internally)
             position: [100, 100],
             parameters: {}
           }
@@ -521,11 +522,24 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
         connections: {}
       } as any;
 
+      // Mock the normalized node lookup
+      mockNodeRepository.getNode.mockImplementation((type: string) => {
+        if (type === 'nodes-base.webhook') {
+          return {
+            nodeType: 'nodes-base.webhook',
+            displayName: 'Webhook',
+            properties: [],
+            isVersioned: false
+          };
+        }
+        return null;
+      });
+
       const result = await validator.validateWorkflow(workflow as any);
 
-      expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.message.includes('Invalid node type: "nodes-base.webhook"'))).toBe(true);
-      expect(result.errors.some(e => e.message.includes('Use "n8n-nodes-base.webhook" instead'))).toBe(true);
+      // Should NOT error for nodes-base prefix - it's valid!
+      expect(result.valid).toBe(true);
+      expect(result.errors.some(e => e.message.includes('Invalid node type'))).toBe(false);
     });
 
     it.skip('should handle unknown node types with suggestions', async () => {
@@ -1826,11 +1840,11 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
             parameters: {},
             typeVersion: 2
           },
-          // Node with wrong type format
+          // Node with valid alternative prefix (no longer an error)
           {
             id: '2',
             name: 'HTTP1',
-            type: 'nodes-base.httpRequest', // Wrong prefix
+            type: 'nodes-base.httpRequest', // Valid prefix (normalized internally)
             position: [300, 100],
             parameters: {}
           },
@@ -1900,12 +1914,11 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const result = await validator.validateWorkflow(workflow as any);
 
-      // Should have multiple errors
+      // Should have multiple errors (but not for the nodes-base prefix)
       expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(3);
+      expect(result.errors.length).toBeGreaterThan(2); // Reduced by 1 since nodes-base prefix is now valid
 
-      // Specific errors
-      expect(result.errors.some(e => e.message.includes('Invalid node type: "nodes-base.httpRequest"'))).toBe(true);
+      // Specific errors (removed the invalid node type error as it's no longer invalid)
       expect(result.errors.some(e => e.message.includes('Missing required property \'typeVersion\''))).toBe(true);
       expect(result.errors.some(e => e.message.includes('Node-level properties onError are in the wrong location'))).toBe(true);
       expect(result.errors.some(e => e.message.includes('Connection uses node ID \'5\' instead of node name'))).toBe(true);
