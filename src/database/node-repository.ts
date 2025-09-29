@@ -377,4 +377,59 @@ export class NodeRepository {
 
     return allResources;
   }
+
+  /**
+   * Get default values for node properties
+   */
+  getNodePropertyDefaults(nodeType: string): Record<string, any> {
+    const node = this.getNode(nodeType);
+    if (!node || !node.properties) return {};
+
+    const defaults: Record<string, any> = {};
+
+    for (const prop of node.properties) {
+      if (prop.default !== undefined) {
+        defaults[prop.name] = prop.default;
+      }
+    }
+
+    return defaults;
+  }
+
+  /**
+   * Get the default operation for a specific resource
+   */
+  getDefaultOperationForResource(nodeType: string, resource?: string): string | undefined {
+    const node = this.getNode(nodeType);
+    if (!node || !node.properties) return undefined;
+
+    // Find operation property that's visible for this resource
+    for (const prop of node.properties) {
+      if (prop.name === 'operation') {
+        // If there's a resource dependency, check if it matches
+        if (resource && prop.displayOptions?.show?.resource) {
+          const allowedResources = Array.isArray(prop.displayOptions.show.resource)
+            ? prop.displayOptions.show.resource
+            : [prop.displayOptions.show.resource];
+
+          if (!allowedResources.includes(resource)) {
+            continue; // This operation property doesn't apply to our resource
+          }
+        }
+
+        // Return the default value if it exists
+        if (prop.default !== undefined) {
+          return prop.default;
+        }
+
+        // If no default but has options, return the first option's value
+        if (prop.options && prop.options.length > 0) {
+          const firstOption = prop.options[0];
+          return typeof firstOption === 'string' ? firstOption : firstOption.value;
+        }
+      }
+    }
+
+    return undefined;
+  }
 }
