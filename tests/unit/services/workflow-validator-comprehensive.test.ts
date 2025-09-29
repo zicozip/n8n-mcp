@@ -523,7 +523,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
       } as any;
 
       // Mock the normalized node lookup
-      mockNodeRepository.getNode.mockImplementation((type: string) => {
+      (mockNodeRepository.getNode as any) = vi.fn((type: string) => {
         if (type === 'nodes-base.webhook') {
           return {
             nodeType: 'nodes-base.webhook',
