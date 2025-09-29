@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.2] - 2025-09-29
+
+### Fixed
+- Validation false positives for Google Drive nodes with 'fileFolder' resource
+  - Added node type normalization to handle both `n8n-nodes-base.` and `nodes-base.` prefixes correctly
+  - Fixed resource validation to properly recognize all valid resource types
+  - Default operations are now properly applied when not specified
+  - Property visibility is now correctly checked with defaults applied
+- Code node validation incorrectly flagging valid n8n expressions as syntax errors
+  - Removed overly aggressive regex pattern `/\)\s*\)\s*{/` that flagged valid expressions
+  - Valid patterns like `$('NodeName').first().json` are now correctly recognized
+  - Function chaining and method chaining no longer trigger false positives
+- Enhanced error handling in repository methods based on code review feedback
+  - Added try-catch blocks to `getNodePropertyDefaults` and `getDefaultOperationForResource`
+  - Validates data structures before accessing to prevent crashes with malformed node data
+  - Returns safe defaults on errors to ensure validation continues
+
+### Added
+- Comprehensive test coverage for validation fixes in `tests/unit/services/validation-fixes.test.ts`
+- New repository methods for better default value handling:
+  - `getNodePropertyDefaults()` - retrieves default values for node properties
+  - `getDefaultOperationForResource()` - gets default operation for a specific resource
+
+### Changed
+- Enhanced `filterPropertiesByMode` to return both filtered properties and config with defaults applied
+- Improved node type validation to accept both valid prefix formats
+
 ## [2.14.1] - 2025-09-26
 
 ### Changed
