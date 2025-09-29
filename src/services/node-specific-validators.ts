@@ -1132,8 +1132,11 @@ export class NodeSpecificValidators {
     const syntaxPatterns = [
       { pattern: /const\s+const/, message: 'Duplicate const declaration' },
       { pattern: /let\s+let/, message: 'Duplicate let declaration' },
-      { pattern: /\)\s*\)\s*{/, message: 'Extra closing parenthesis before {' },
-      { pattern: /}\s*}$/, message: 'Extra closing brace at end' }
+      // Removed overly simplistic parenthesis check - it was causing false positives
+      // for valid patterns like $('NodeName').first().json or func()()
+      // { pattern: /\)\s*\)\s*{/, message: 'Extra closing parenthesis before {' },
+      // Only check for multiple closing braces at the very end (more likely to be an error)
+      { pattern: /}\s*}\s*}\s*}$/, message: 'Multiple closing braces at end - check your nesting' }
     ];
     
     syntaxPatterns.forEach(({ pattern, message }) => {

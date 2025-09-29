@@ -2659,24 +2659,19 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           expressionsValidated: result.statistics.expressionsValidated,
           errorCount: result.errors.length,
           warningCount: result.warnings.length
-        }
-      };
-      
-      if (result.errors.length > 0) {
-        response.errors = result.errors.map(e => ({
+        },
+        // Always include errors and warnings arrays for consistent API response
+        errors: result.errors.map(e => ({
           node: e.nodeName || 'workflow',
           message: e.message,
           details: e.details
-        }));
-      }
-      
-      if (result.warnings.length > 0) {
-        response.warnings = result.warnings.map(w => ({
+        })),
+        warnings: result.warnings.map(w => ({
           node: w.nodeName || 'workflow',
           message: w.message,
           details: w.details
-        }));
-      }
+        }))
+      };
       
       if (result.suggestions.length > 0) {
         response.suggestions = result.suggestions;

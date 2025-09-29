@@ -4,7 +4,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![codecov](https://codecov.io/gh/czlonkowski/n8n-mcp/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/czlonkowski/n8n-mcp)
-[![Tests](https://img.shields.io/badge/tests-1728%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
+[![Tests](https://img.shields.io/badge/tests-2883%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
 [![n8n version](https://img.shields.io/badge/n8n-^1.112.3-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/n8n-mcp?referralCode=n8n-mcp)
@@ -817,7 +817,7 @@ docker run --rm ghcr.io/czlonkowski/n8n-mcp:latest --version
 
 ## 🧪 Testing
 
-The project includes a comprehensive test suite with **1,356 tests** ensuring code quality and reliability:
+The project includes a comprehensive test suite with **2,883 tests** ensuring code quality and reliability:
 
 ```bash
 # Run all tests
@@ -837,9 +837,9 @@ npm run test:bench          # Performance benchmarks
 
 ### Test Suite Overview
 
-- **Total Tests**: 1,356 (100% passing)
-  - **Unit Tests**: 1,107 tests across 44 files
-  - **Integration Tests**: 249 tests across 14 files
+- **Total Tests**: 2,883 (100% passing)
+  - **Unit Tests**: 2,526 tests across 99 files
+  - **Integration Tests**: 357 tests across 20 files
 - **Execution Time**: ~2.5 minutes in CI
 - **Test Framework**: Vitest (for speed and TypeScript support)
 - **Mocking**: MSW for API mocking, custom mocks for databases

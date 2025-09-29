@@ -99,15 +99,15 @@ describe('EnhancedConfigValidator', () => {
       // Mock isPropertyVisible to return true
       vi.spyOn(EnhancedConfigValidator as any, 'isPropertyVisible').mockReturnValue(true);
 
-      const filtered = EnhancedConfigValidator['filterPropertiesByMode'](
+      const result = EnhancedConfigValidator['filterPropertiesByMode'](
         properties,
         { resource: 'message', operation: 'send' },
         'operation',
         { resource: 'message', operation: 'send' }
       );
 
-      expect(filtered).toHaveLength(1);
-      expect(filtered[0].name).toBe('channel');
+      expect(result.properties).toHaveLength(1);
+      expect(result.properties[0].name).toBe('channel');
     });
 
     it('should handle minimal validation mode', () => {
@@ -459,7 +459,7 @@ describe('EnhancedConfigValidator', () => {
       // Remove the mock to test real implementation
       vi.restoreAllMocks();
 
-      const filtered = EnhancedConfigValidator['filterPropertiesByMode'](
+      const result = EnhancedConfigValidator['filterPropertiesByMode'](
         properties,
         { resource: 'message', operation: 'send' },
         'operation',
@@ -467,9 +467,9 @@ describe('EnhancedConfigValidator', () => {
       );
 
       // Should include messageChannel and sharedProperty, but not userEmail
-      expect(filtered).toHaveLength(2);
-      expect(filtered.map(p => p.name)).toContain('messageChannel');
-      expect(filtered.map(p => p.name)).toContain('sharedProperty');
+      expect(result.properties).toHaveLength(2);
+      expect(result.properties.map(p => p.name)).toContain('messageChannel');
+      expect(result.properties.map(p => p.name)).toContain('sharedProperty');
     });
 
     it('should handle properties without displayOptions in operation mode', () => {
@@ -487,7 +487,7 @@ describe('EnhancedConfigValidator', () => {
 
       vi.restoreAllMocks();
 
-      const filtered = EnhancedConfigValidator['filterPropertiesByMode'](
+      const result = EnhancedConfigValidator['filterPropertiesByMode'](
         properties,
         { resource: 'user' },
         'operation',
@@ -495,9 +495,9 @@ describe('EnhancedConfigValidator', () => {
       );
 
       // Should include property without displayOptions
-      expect(filtered.map(p => p.name)).toContain('alwaysVisible');
+      expect(result.properties.map(p => p.name)).toContain('alwaysVisible');
       // Should not include conditionalProperty (wrong resource)
-      expect(filtered.map(p => p.name)).not.toContain('conditionalProperty');
+      expect(result.properties.map(p => p.name)).not.toContain('conditionalProperty');
     });
   });
 

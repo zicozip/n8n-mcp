@@ -12,6 +12,7 @@ import { OperationSimilarityService } from './operation-similarity-service';
 import { ResourceSimilarityService } from './resource-similarity-service';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter } from '../database/database-adapter';
+import { normalizeNodeType } from '../utils/node-type-utils';
 
 export type ValidationMode = 'full' | 'operation' | 'minimal';
 export type ValidationProfile = 'strict' | 'runtime' | 'ai-friendly' | 'minimal';
@@ -76,17 +77,17 @@ export class EnhancedConfigValidator extends ConfigValidator {
     
     // Extract operation context from config
     const operationContext = this.extractOperationContext(config);
-    
-    // Filter properties based on mode and operation
-    const filteredProperties = this.filterPropertiesByMode(
+
+    // Filter properties based on mode and operation, and get config with defaults
+    const { properties: filteredProperties, configWithDefaults } = this.filterPropertiesByMode(
       properties,
       config,
       mode,
       operationContext
     );
-    
-    // Perform base validation on filtered properties
-    const baseResult = super.validate(nodeType, config, filteredProperties);
+
+    // Perform base validation on filtered properties with defaults applied
+    const baseResult = super.validate(nodeType, configWithDefaults, filteredProperties);
     
     // Enhance the result
     const enhancedResult: EnhancedValidationResult = {
@@ -136,31 +137,56 @@ export class EnhancedConfigValidator extends ConfigValidator {
   
   /**
    * Filter properties based on validation mode and operation
+   * Returns both filtered properties and config with defaults
    */
   private static filterPropertiesByMode(
     properties: any[],
     config: Record<string, any>,
     mode: ValidationMode,
     operation: OperationContext
-  ): any[] {
+  ): { properties: any[], configWithDefaults: Record<string, any> } {
+    // Apply defaults for visibility checking
+    const configWithDefaults = this.applyNodeDefaults(properties, config);
+
+    let filteredProperties: any[];
     switch (mode) {
       case 'minimal':
         // Only required properties that are visible
-        return properties.filter(prop => 
-          prop.required && this.isPropertyVisible(prop, config)
+        filteredProperties = properties.filter(prop =>
+          prop.required && this.isPropertyVisible(prop, configWithDefaults)
         );
-        
+        break;
+
       case 'operation':
         // Only properties relevant to the current operation
-        return properties.filter(prop => 
-          this.isPropertyRelevantToOperation(prop, config, operation)
+        filteredProperties = properties.filter(prop =>
+          this.isPropertyRelevantToOperation(prop, configWithDefaults, operation)
         );
-        
+        break;
+
       case 'full':
       default:
         // All properties (current behavior)
-        return properties;
+        filteredProperties = properties;
+        break;
     }
+
+    return { properties: filteredProperties, configWithDefaults };
+  }
+
+  /**
+   * Apply node defaults to configuration for accurate visibility checking
+   */
+  private static applyNodeDefaults(properties: any[], config: Record<string, any>): Record<string, any> {
+    const result = { ...config };
+
+    for (const prop of properties) {
+      if (prop.name && prop.default !== undefined && result[prop.name] === undefined) {
+        result[prop.name] = prop.default;
+      }
+    }
+
+    return result;
   }
   
   /**
@@ -675,11 +701,25 @@ export class EnhancedConfigValidator extends ConfigValidator {
       return;
     }
 
+    // Normalize the node type for repository lookups
+    const normalizedNodeType = normalizeNodeType(nodeType);
+
+    // Apply defaults for validation
+    const configWithDefaults = { ...config };
+
+    // If operation is undefined but resource is set, get the default operation for that resource
+    if (configWithDefaults.operation === undefined && configWithDefaults.resource !== undefined) {
+      const defaultOperation = this.nodeRepository.getDefaultOperationForResource(normalizedNodeType, configWithDefaults.resource);
+      if (defaultOperation !== undefined) {
+        configWithDefaults.operation = defaultOperation;
+      }
+    }
+
     // Validate resource field if present
     if (config.resource !== undefined) {
       // Remove any existing resource error from base validator to replace with our enhanced version
       result.errors = result.errors.filter(e => e.property !== 'resource');
-      const validResources = this.nodeRepository.getNodeResources(nodeType);
+      const validResources = this.nodeRepository.getNodeResources(normalizedNodeType);
       const resourceIsValid = validResources.some(r => {
         const resourceValue = typeof r === 'string' ? r : r.value;
         return resourceValue === config.resource;
@@ -690,7 +730,7 @@ export class EnhancedConfigValidator extends ConfigValidator {
         let suggestions: any[] = [];
         try {
           suggestions = this.resourceSimilarityService.findSimilarResources(
-            nodeType,
+            normalizedNodeType,
             config.resource,
             3
           );
@@ -749,22 +789,27 @@ export class EnhancedConfigValidator extends ConfigValidator {
       }
     }
 
-    // Validate operation field if present
-    if (config.operation !== undefined) {
+    // Validate operation field - now we check configWithDefaults which has defaults applied
+    // Only validate if operation was explicitly set (not undefined) OR if we're using a default
+    if (config.operation !== undefined || configWithDefaults.operation !== undefined) {
       // Remove any existing operation error from base validator to replace with our enhanced version
       result.errors = result.errors.filter(e => e.property !== 'operation');
-      const validOperations = this.nodeRepository.getNodeOperations(nodeType, config.resource);
+
+      // Use the operation from configWithDefaults for validation (which includes the default if applied)
+      const operationToValidate = configWithDefaults.operation || config.operation;
+      const validOperations = this.nodeRepository.getNodeOperations(normalizedNodeType, config.resource);
       const operationIsValid = validOperations.some(op => {
         const opValue = op.operation || op.value || op;
-        return opValue === config.operation;
+        return opValue === operationToValidate;
       });
 
-      if (!operationIsValid && config.operation !== '') {
+      // Only report error if the explicit operation is invalid (not for defaults)
+      if (!operationIsValid && config.operation !== undefined && config.operation !== '') {
         // Find similar operations
         let suggestions: any[] = [];
         try {
           suggestions = this.operationSimilarityService.findSimilarOperations(
-            nodeType,
+            normalizedNodeType,
             config.operation,
             config.resource,
             3

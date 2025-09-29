@@ -141,10 +141,19 @@ export class ExpressionValidator {
     const jsonPattern = new RegExp(this.VARIABLE_PATTERNS.json.source, this.VARIABLE_PATTERNS.json.flags);
     while ((match = jsonPattern.exec(expr)) !== null) {
       result.usedVariables.add('$json');
-      
+
       if (!context.hasInputData && !context.isInLoop) {
         result.warnings.push(
           'Using $json but node might not have input data'
+        );
+      }
+
+      // Check for suspicious property names that might be test/invalid data
+      const fullMatch = match[0];
+      if (fullMatch.includes('.invalid') || fullMatch.includes('.undefined') ||
+          fullMatch.includes('.null') || fullMatch.includes('.test')) {
+        result.warnings.push(
+          `Property access '${fullMatch}' looks suspicious - verify this property exists in your data`
         );
       }
     }

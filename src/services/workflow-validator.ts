@@ -364,19 +364,6 @@ export class WorkflowValidator {
             });
           }
         }
-        // FIRST: Check for common invalid patterns before database lookup
-        if (node.type.startsWith('nodes-base.')) {
-          // This is ALWAYS invalid in workflows - must use n8n-nodes-base prefix
-          const correctType = node.type.replace('nodes-base.', 'n8n-nodes-base.');
-          result.errors.push({
-            type: 'error',
-            nodeId: node.id,
-            nodeName: node.name,
-            message: `Invalid node type: "${node.type}". Use "${correctType}" instead. Node types in workflows must use the full package name.`
-          });
-          continue;
-        }
-        
         // Get node definition - try multiple formats
         let nodeInfo = this.nodeRepository.getNode(node.type);
 
