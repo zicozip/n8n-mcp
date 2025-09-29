@@ -382,52 +382,71 @@ export class NodeRepository {
    * Get default values for node properties
    */
   getNodePropertyDefaults(nodeType: string): Record<string, any> {
-    const node = this.getNode(nodeType);
-    if (!node || !node.properties) return {};
+    try {
+      const node = this.getNode(nodeType);
+      if (!node || !node.properties) return {};
 
-    const defaults: Record<string, any> = {};
+      const defaults: Record<string, any> = {};
 
-    for (const prop of node.properties) {
-      if (prop.default !== undefined) {
-        defaults[prop.name] = prop.default;
+      for (const prop of node.properties) {
+        if (prop.name && prop.default !== undefined) {
+          defaults[prop.name] = prop.default;
+        }
       }
-    }
 
-    return defaults;
+      return defaults;
+    } catch (error) {
+      // Log error and return empty defaults rather than throwing
+      console.error(`Error getting property defaults for ${nodeType}:`, error);
+      return {};
+    }
   }
 
   /**
    * Get the default operation for a specific resource
    */
   getDefaultOperationForResource(nodeType: string, resource?: string): string | undefined {
-    const node = this.getNode(nodeType);
-    if (!node || !node.properties) return undefined;
+    try {
+      const node = this.getNode(nodeType);
+      if (!node || !node.properties) return undefined;
 
-    // Find operation property that's visible for this resource
-    for (const prop of node.properties) {
-      if (prop.name === 'operation') {
-        // If there's a resource dependency, check if it matches
-        if (resource && prop.displayOptions?.show?.resource) {
-          const allowedResources = Array.isArray(prop.displayOptions.show.resource)
-            ? prop.displayOptions.show.resource
-            : [prop.displayOptions.show.resource];
+      // Find operation property that's visible for this resource
+      for (const prop of node.properties) {
+        if (prop.name === 'operation') {
+          // If there's a resource dependency, check if it matches
+          if (resource && prop.displayOptions?.show?.resource) {
+            // Validate displayOptions structure
+            const resourceDep = prop.displayOptions.show.resource;
+            if (!Array.isArray(resourceDep) && typeof resourceDep !== 'string') {
+              continue; // Skip malformed displayOptions
+            }
 
-          if (!allowedResources.includes(resource)) {
-            continue; // This operation property doesn't apply to our resource
+            const allowedResources = Array.isArray(resourceDep)
+              ? resourceDep
+              : [resourceDep];
+
+            if (!allowedResources.includes(resource)) {
+              continue; // This operation property doesn't apply to our resource
+            }
+          }
+
+          // Return the default value if it exists
+          if (prop.default !== undefined) {
+            return prop.default;
+          }
+
+          // If no default but has options, return the first option's value
+          if (prop.options && Array.isArray(prop.options) && prop.options.length > 0) {
+            const firstOption = prop.options[0];
+            return typeof firstOption === 'string' ? firstOption : firstOption.value;
           }
         }
-
-        // Return the default value if it exists
-        if (prop.default !== undefined) {
-          return prop.default;
-        }
-
-        // If no default but has options, return the first option's value
-        if (prop.options && prop.options.length > 0) {
-          const firstOption = prop.options[0];
-          return typeof firstOption === 'string' ? firstOption : firstOption.value;
-        }
       }
+    } catch (error) {
+      // Log error and return undefined rather than throwing
+      // This ensures validation continues even with malformed node data
+      console.error(`Error getting default operation for ${nodeType}:`, error);
+      return undefined;
     }
 
     return undefined;
