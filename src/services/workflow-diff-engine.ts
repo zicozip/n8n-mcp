@@ -4,7 +4,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { 
+import {
   WorkflowDiffOperation,
   WorkflowDiffRequest,
   WorkflowDiffResult,
@@ -24,7 +24,9 @@ import {
   UpdateSettingsOperation,
   UpdateNameOperation,
   AddTagOperation,
-  RemoveTagOperation
+  RemoveTagOperation,
+  CleanStaleConnectionsOperation,
+  ReplaceConnectionsOperation
 } from '../types/workflow-diff';
 import { Workflow, WorkflowNode, WorkflowConnection } from '../types/n8n-api';
 import { Logger } from '../utils/logger';
@@ -37,18 +39,18 @@ export class WorkflowDiffEngine {
    * Apply diff operations to a workflow
    */
   async applyDiff(
-    workflow: Workflow, 
+    workflow: Workflow,
     request: WorkflowDiffRequest
   ): Promise<WorkflowDiffResult> {
     try {
       // Clone workflow to avoid modifying original
       const workflowCopy = JSON.parse(JSON.stringify(workflow));
-      
+
       // Group operations by type for two-pass processing
       const nodeOperationTypes = ['addNode', 'removeNode', 'updateNode', 'moveNode', 'enableNode', 'disableNode'];
       const nodeOperations: Array<{ operation: WorkflowDiffOperation; index: number }> = [];
       const otherOperations: Array<{ operation: WorkflowDiffOperation; index: number }> = [];
-      
+
       request.operations.forEach((operation, index) => {
         if (nodeOperationTypes.includes(operation.type)) {
           nodeOperations.push({ operation, index });
@@ -57,79 +59,137 @@ export class WorkflowDiffEngine {
         }
       });
 
-      // Pass 1: Validate and apply node operations first
-      for (const { operation, index } of nodeOperations) {
-        const error = this.validateOperation(workflowCopy, operation);
-        if (error) {
-          return {
-            success: false,
-            errors: [{
+      const allOperations = [...nodeOperations, ...otherOperations];
+      const errors: WorkflowDiffValidationError[] = [];
+      const appliedIndices: number[] = [];
+      const failedIndices: number[] = [];
+
+      // Process based on mode
+      if (request.continueOnError) {
+        // Best-effort mode: continue even if some operations fail
+        for (const { operation, index } of allOperations) {
+          const error = this.validateOperation(workflowCopy, operation);
+          if (error) {
+            errors.push({
               operation: index,
               message: error,
               details: operation
-            }]
-          };
-        }
-        
-        // Always apply to working copy for proper validation of subsequent operations
-        try {
-          this.applyOperation(workflowCopy, operation);
-        } catch (error) {
-          return {
-            success: false,
-            errors: [{
-              operation: index,
-              message: `Failed to apply operation: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              details: operation
-            }]
-          };
-        }
-      }
+            });
+            failedIndices.push(index);
+            continue;
+          }
 
-      // Pass 2: Validate and apply other operations (connections, metadata)
-      for (const { operation, index } of otherOperations) {
-        const error = this.validateOperation(workflowCopy, operation);
-        if (error) {
-          return {
-            success: false,
-            errors: [{
+          try {
+            this.applyOperation(workflowCopy, operation);
+            appliedIndices.push(index);
+          } catch (error) {
+            const errorMsg = `Failed to apply operation: ${error instanceof Error ? error.message : 'Unknown error'}`;
+            errors.push({
               operation: index,
-              message: error,
+              message: errorMsg,
               details: operation
-            }]
-          };
+            });
+            failedIndices.push(index);
+          }
         }
-        
-        // Always apply to working copy for proper validation of subsequent operations
-        try {
-          this.applyOperation(workflowCopy, operation);
-        } catch (error) {
-          return {
-            success: false,
-            errors: [{
-              operation: index,
-              message: `Failed to apply operation: ${error instanceof Error ? error.message : 'Unknown error'}`,
-              details: operation
-            }]
-          };
-        }
-      }
 
-      // If validateOnly flag is set, return success without applying
-      if (request.validateOnly) {
+        // If validateOnly flag is set, return success without applying
+        if (request.validateOnly) {
+          return {
+            success: errors.length === 0,
+            message: errors.length === 0
+              ? 'Validation successful. All operations are valid.'
+              : `Validation completed with ${errors.length} errors.`,
+            errors: errors.length > 0 ? errors : undefined,
+            applied: appliedIndices,
+            failed: failedIndices
+          };
+        }
+
+        const success = appliedIndices.length > 0;
+        return {
+          success,
+          workflow: workflowCopy,
+          operationsApplied: appliedIndices.length,
+          message: `Applied ${appliedIndices.length} operations, ${failedIndices.length} failed (continueOnError mode)`,
+          errors: errors.length > 0 ? errors : undefined,
+          applied: appliedIndices,
+          failed: failedIndices
+        };
+      } else {
+        // Atomic mode: all operations must succeed
+        // Pass 1: Validate and apply node operations first
+        for (const { operation, index } of nodeOperations) {
+          const error = this.validateOperation(workflowCopy, operation);
+          if (error) {
+            return {
+              success: false,
+              errors: [{
+                operation: index,
+                message: error,
+                details: operation
+              }]
+            };
+          }
+
+          try {
+            this.applyOperation(workflowCopy, operation);
+          } catch (error) {
+            return {
+              success: false,
+              errors: [{
+                operation: index,
+                message: `Failed to apply operation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                details: operation
+              }]
+            };
+          }
+        }
+
+        // Pass 2: Validate and apply other operations (connections, metadata)
+        for (const { operation, index } of otherOperations) {
+          const error = this.validateOperation(workflowCopy, operation);
+          if (error) {
+            return {
+              success: false,
+              errors: [{
+                operation: index,
+                message: error,
+                details: operation
+              }]
+            };
+          }
+
+          try {
+            this.applyOperation(workflowCopy, operation);
+          } catch (error) {
+            return {
+              success: false,
+              errors: [{
+                operation: index,
+                message: `Failed to apply operation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                details: operation
+              }]
+            };
+          }
+        }
+
+        // If validateOnly flag is set, return success without applying
+        if (request.validateOnly) {
+          return {
+            success: true,
+            message: 'Validation successful. Operations are valid but not applied.'
+          };
+        }
+
+        const operationsApplied = request.operations.length;
         return {
           success: true,
-          message: 'Validation successful. Operations are valid but not applied.'
+          workflow: workflowCopy,
+          operationsApplied,
+          message: `Successfully applied ${operationsApplied} operations (${nodeOperations.length} node ops, ${otherOperations.length} other ops)`
         };
       }
-
-      const operationsApplied = request.operations.length;
-      return {
-        success: true,
-        workflow: workflowCopy,
-        operationsApplied,
-        message: `Successfully applied ${operationsApplied} operations (${nodeOperations.length} node ops, ${otherOperations.length} other ops)`
-      };
     } catch (error) {
       logger.error('Failed to apply diff', error);
       return {
@@ -170,6 +230,10 @@ export class WorkflowDiffEngine {
       case 'addTag':
       case 'removeTag':
         return null; // These are always valid
+      case 'cleanStaleConnections':
+        return this.validateCleanStaleConnections(workflow, operation);
+      case 'replaceConnections':
+        return this.validateReplaceConnections(workflow, operation);
       default:
         return `Unknown operation type: ${(operation as any).type}`;
     }
@@ -218,6 +282,12 @@ export class WorkflowDiffEngine {
         break;
       case 'removeTag':
         this.applyRemoveTag(workflow, operation);
+        break;
+      case 'cleanStaleConnections':
+        this.applyCleanStaleConnections(workflow, operation);
+        break;
+      case 'replaceConnections':
+        this.applyReplaceConnections(workflow, operation);
         break;
     }
   }
@@ -318,30 +388,35 @@ export class WorkflowDiffEngine {
   }
 
   private validateRemoveConnection(workflow: Workflow, operation: RemoveConnectionOperation): string | null {
+    // If ignoreErrors is true, don't validate - operation will silently succeed even if connection doesn't exist
+    if (operation.ignoreErrors) {
+      return null;
+    }
+
     const sourceNode = this.findNode(workflow, operation.source, operation.source);
     const targetNode = this.findNode(workflow, operation.target, operation.target);
-    
+
     if (!sourceNode) {
       return `Source node not found: ${operation.source}`;
     }
     if (!targetNode) {
       return `Target node not found: ${operation.target}`;
     }
-    
+
     const sourceOutput = operation.sourceOutput || 'main';
     const connections = workflow.connections[sourceNode.name]?.[sourceOutput];
     if (!connections) {
       return `No connections found from "${sourceNode.name}"`;
     }
-    
+
     const hasConnection = connections.some(conns =>
       conns.some(c => c.node === targetNode.name)
     );
-    
+
     if (!hasConnection) {
       return `No connection exists from "${sourceNode.name}" to "${targetNode.name}"`;
     }
-    
+
     return null;
   }
 
@@ -504,7 +579,13 @@ export class WorkflowDiffEngine {
   private applyRemoveConnection(workflow: Workflow, operation: RemoveConnectionOperation): void {
     const sourceNode = this.findNode(workflow, operation.source, operation.source);
     const targetNode = this.findNode(workflow, operation.target, operation.target);
-    if (!sourceNode || !targetNode) return;
+    // If ignoreErrors is true, silently succeed even if nodes don't exist
+    if (!sourceNode || !targetNode) {
+      if (operation.ignoreErrors) {
+        return; // Gracefully handle missing nodes
+      }
+      return; // Should never reach here if validation passed, but safety check
+    }
     
     const sourceOutput = operation.sourceOutput || 'main';
     const connections = workflow.connections[sourceNode.name]?.[sourceOutput];
@@ -577,6 +658,116 @@ export class WorkflowDiffEngine {
     if (index !== -1) {
       workflow.tags.splice(index, 1);
     }
+  }
+
+  // Connection cleanup operation validators
+  private validateCleanStaleConnections(workflow: Workflow, operation: CleanStaleConnectionsOperation): string | null {
+    // This operation is always valid - it just cleans up what it finds
+    return null;
+  }
+
+  private validateReplaceConnections(workflow: Workflow, operation: ReplaceConnectionsOperation): string | null {
+    // Validate that all referenced nodes exist
+    const nodeNames = new Set(workflow.nodes.map(n => n.name));
+
+    for (const [sourceName, outputs] of Object.entries(operation.connections)) {
+      if (!nodeNames.has(sourceName)) {
+        return `Source node not found in connections: ${sourceName}`;
+      }
+
+      // outputs is the value from Object.entries, need to iterate its keys
+      for (const outputName of Object.keys(outputs)) {
+        const connections = outputs[outputName];
+        for (const conns of connections) {
+          for (const conn of conns) {
+            if (!nodeNames.has(conn.node)) {
+              return `Target node not found in connections: ${conn.node}`;
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Connection cleanup operation appliers
+  private applyCleanStaleConnections(workflow: Workflow, operation: CleanStaleConnectionsOperation): void {
+    const nodeNames = new Set(workflow.nodes.map(n => n.name));
+    const staleConnections: Array<{ from: string; to: string }> = [];
+
+    // If dryRun, only identify stale connections without removing them
+    if (operation.dryRun) {
+      for (const [sourceName, outputs] of Object.entries(workflow.connections)) {
+        if (!nodeNames.has(sourceName)) {
+          for (const [outputName, connections] of Object.entries(outputs)) {
+            for (const conns of connections) {
+              for (const conn of conns) {
+                staleConnections.push({ from: sourceName, to: conn.node });
+              }
+            }
+          }
+        } else {
+          for (const [outputName, connections] of Object.entries(outputs)) {
+            for (const conns of connections) {
+              for (const conn of conns) {
+                if (!nodeNames.has(conn.node)) {
+                  staleConnections.push({ from: sourceName, to: conn.node });
+                }
+              }
+            }
+          }
+        }
+      }
+      logger.info(`[DryRun] Would remove ${staleConnections.length} stale connections:`, staleConnections);
+      return;
+    }
+
+    // Actually remove stale connections
+    for (const [sourceName, outputs] of Object.entries(workflow.connections)) {
+      // If source node doesn't exist, mark all connections as stale
+      if (!nodeNames.has(sourceName)) {
+        for (const [outputName, connections] of Object.entries(outputs)) {
+          for (const conns of connections) {
+            for (const conn of conns) {
+              staleConnections.push({ from: sourceName, to: conn.node });
+            }
+          }
+        }
+        delete workflow.connections[sourceName];
+        continue;
+      }
+
+      // Check each connection
+      for (const [outputName, connections] of Object.entries(outputs)) {
+        const filteredConnections = connections.map(conns =>
+          conns.filter(conn => {
+            if (!nodeNames.has(conn.node)) {
+              staleConnections.push({ from: sourceName, to: conn.node });
+              return false;
+            }
+            return true;
+          })
+        ).filter(conns => conns.length > 0);
+
+        if (filteredConnections.length === 0) {
+          delete outputs[outputName];
+        } else {
+          outputs[outputName] = filteredConnections;
+        }
+      }
+
+      // Clean up empty output objects
+      if (Object.keys(outputs).length === 0) {
+        delete workflow.connections[sourceName];
+      }
+    }
+
+    logger.info(`Removed ${staleConnections.length} stale connections`);
+  }
+
+  private applyReplaceConnections(workflow: Workflow, operation: ReplaceConnectionsOperation): void {
+    workflow.connections = operation.connections;
   }
 
   // Helper methods
