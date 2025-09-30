@@ -344,17 +344,41 @@ export const n8nManagementTools: ToolDefinition[] = [
   },
   {
     name: 'n8n_get_execution',
-    description: `Get details of a specific execution by ID.`,
+    description: `Get execution details with smart filtering. RECOMMENDED: Use mode='preview' first to assess data size.
+Examples:
+- {id, mode:'preview'} - Structure & counts (fast, no data)
+- {id, mode:'summary'} - 2 samples per node (default)
+- {id, mode:'filtered', itemsLimit:5} - 5 items per node
+- {id, nodeNames:['HTTP Request']} - Specific node only
+- {id, mode:'full'} - Complete data (use with caution)`,
     inputSchema: {
       type: 'object',
       properties: {
-        id: { 
-          type: 'string', 
-          description: 'Execution ID' 
+        id: {
+          type: 'string',
+          description: 'Execution ID'
         },
-        includeData: { 
-          type: 'boolean', 
-          description: 'Include full execution data (default: false)' 
+        mode: {
+          type: 'string',
+          enum: ['preview', 'summary', 'filtered', 'full'],
+          description: 'Data retrieval mode: preview=structure only, summary=2 items, filtered=custom, full=all data'
+        },
+        nodeNames: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Filter to specific nodes by name (for filtered mode)'
+        },
+        itemsLimit: {
+          type: 'number',
+          description: 'Items per node: 0=structure only, 2=default, -1=unlimited (for filtered mode)'
+        },
+        includeInputData: {
+          type: 'boolean',
+          description: 'Include input data in addition to output (default: false)'
+        },
+        includeData: {
+          type: 'boolean',
+          description: 'Legacy: Include execution data. Maps to mode=summary if true (deprecated, use mode instead)'
         }
       },
       required: ['id']

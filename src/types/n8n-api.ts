@@ -291,3 +291,83 @@ export interface McpToolResponse {
   code?: string;
   details?: Record<string, unknown>;
 }
+
+// Execution Filtering Types
+export type ExecutionMode = 'preview' | 'summary' | 'filtered' | 'full';
+
+export interface ExecutionPreview {
+  totalNodes: number;
+  executedNodes: number;
+  estimatedSizeKB: number;
+  nodes: Record<string, NodePreview>;
+}
+
+export interface NodePreview {
+  status: 'success' | 'error';
+  itemCounts: {
+    input: number;
+    output: number;
+  };
+  dataStructure: Record<string, any>;
+  estimatedSizeKB: number;
+  error?: string;
+}
+
+export interface ExecutionRecommendation {
+  canFetchFull: boolean;
+  suggestedMode: ExecutionMode;
+  suggestedItemsLimit?: number;
+  reason: string;
+}
+
+export interface ExecutionFilterOptions {
+  mode?: ExecutionMode;
+  nodeNames?: string[];
+  itemsLimit?: number;
+  includeInputData?: boolean;
+  fieldsToInclude?: string[];
+}
+
+export interface FilteredExecutionResponse {
+  id: string;
+  workflowId: string;
+  status: ExecutionStatus;
+  mode: ExecutionMode;
+  startedAt: string;
+  stoppedAt?: string;
+  duration?: number;
+  finished: boolean;
+
+  // Preview-specific data
+  preview?: ExecutionPreview;
+  recommendation?: ExecutionRecommendation;
+
+  // Summary/Filtered data
+  summary?: {
+    totalNodes: number;
+    executedNodes: number;
+    totalItems: number;
+    hasMoreData: boolean;
+  };
+  nodes?: Record<string, FilteredNodeData>;
+
+  // Error information
+  error?: Record<string, unknown>;
+}
+
+export interface FilteredNodeData {
+  executionTime?: number;
+  itemsInput: number;
+  itemsOutput: number;
+  status: 'success' | 'error';
+  error?: string;
+  data?: {
+    input?: any[][];
+    output?: any[][];
+    metadata: {
+      totalItems: number;
+      itemsShown: number;
+      truncated: boolean;
+    };
+  };
+}

@@ -6,7 +6,9 @@ import {
   WorkflowConnection,
   ExecutionStatus,
   WebhookRequest,
-  McpToolResponse
+  McpToolResponse,
+  ExecutionFilterOptions,
+  ExecutionMode
 } from '../types/n8n-api';
 import {
   validateWorkflowStructure,
@@ -36,6 +38,7 @@ import {
   withRetry,
   getCacheStatistics
 } from '../utils/cache-utils';
+import { processExecution } from '../services/execution-processor';
 
 // Singleton n8n API client instance (backward compatibility)
 let defaultApiClient: N8nApiClient | null = null;
@@ -983,16 +986,72 @@ export async function handleTriggerWebhookWorkflow(args: unknown, context?: Inst
 export async function handleGetExecution(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
   try {
     const client = ensureApiConfigured(context);
-    const { id, includeData } = z.object({ 
+
+    // Parse and validate input with new parameters
+    const schema = z.object({
       id: z.string(),
+      // New filtering parameters
+      mode: z.enum(['preview', 'summary', 'filtered', 'full']).optional(),
+      nodeNames: z.array(z.string()).optional(),
+      itemsLimit: z.number().optional(),
+      includeInputData: z.boolean().optional(),
+      // Legacy parameter (backward compatibility)
       includeData: z.boolean().optional()
-    }).parse(args);
-    
-    const execution = await client.getExecution(id, includeData || false);
-    
+    });
+
+    const params = schema.parse(args);
+    const { id, mode, nodeNames, itemsLimit, includeInputData, includeData } = params;
+
+    /**
+     * Map legacy includeData parameter to mode for backward compatibility
+     *
+     * Legacy behavior:
+     * - includeData: undefined -> minimal execution summary (no data)
+     * - includeData: false -> minimal execution summary (no data)
+     * - includeData: true -> full execution data
+     *
+     * New behavior mapping:
+     * - includeData: undefined -> no mode (minimal)
+     * - includeData: false -> no mode (minimal)
+     * - includeData: true -> mode: 'summary' (2 items per node, not full)
+     *
+     * Note: Legacy true behavior returned ALL data, which could exceed token limits.
+     * New behavior caps at 2 items for safety. Users can use mode: 'full' for old behavior.
+     */
+    let effectiveMode = mode;
+    if (!effectiveMode && includeData !== undefined) {
+      effectiveMode = includeData ? 'summary' : undefined;
+    }
+
+    // Determine if we need to fetch full data from API
+    // We fetch full data if any mode is specified (including preview) or legacy includeData is true
+    // Preview mode needs the data to analyze structure and generate recommendations
+    const fetchFullData = effectiveMode !== undefined || includeData === true;
+
+    // Fetch execution from n8n API
+    const execution = await client.getExecution(id, fetchFullData);
+
+    // If no filtering options specified, return original execution (backward compatibility)
+    if (!effectiveMode && !nodeNames && itemsLimit === undefined) {
+      return {
+        success: true,
+        data: execution
+      };
+    }
+
+    // Apply filtering using ExecutionProcessor
+    const filterOptions: ExecutionFilterOptions = {
+      mode: effectiveMode,
+      nodeNames,
+      itemsLimit,
+      includeInputData
+    };
+
+    const processedExecution = processExecution(execution, filterOptions);
+
     return {
       success: true,
-      data: execution
+      data: processedExecution
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -1002,7 +1061,7 @@ export async function handleGetExecution(args: unknown, context?: InstanceContex
         details: { errors: error.errors }
       };
     }
-    
+
     if (error instanceof N8nApiError) {
       return {
         success: false,
@@ -1010,7 +1069,7 @@ export async function handleGetExecution(args: unknown, context?: InstanceContex
         code: error.code
       };
     }
-    
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
