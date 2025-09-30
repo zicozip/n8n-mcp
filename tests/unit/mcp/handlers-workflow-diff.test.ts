@@ -130,6 +130,8 @@ describe('handlers-workflow-diff', () => {
         operationsApplied: 1,
         message: 'Successfully applied 1 operation',
         errors: [],
+        applied: [0],
+        failed: [],
       });
       mockApiClient.updateWorkflow.mockResolvedValue(updatedWorkflow);
 
@@ -143,6 +145,9 @@ describe('handlers-workflow-diff', () => {
           operationsApplied: 1,
           workflowId: 'test-workflow-id',
           workflowName: 'Test Workflow',
+          applied: [0],
+          failed: [],
+          errors: [],
         },
       });
 
@@ -226,6 +231,8 @@ describe('handlers-workflow-diff', () => {
         operationsApplied: 3,
         message: 'Successfully applied 3 operations',
         errors: [],
+        applied: [0, 1, 2],
+        failed: [],
       });
       mockApiClient.updateWorkflow.mockResolvedValue({ ...testWorkflow });
 
@@ -255,6 +262,8 @@ describe('handlers-workflow-diff', () => {
         operationsApplied: 0,
         message: 'Failed to apply operations',
         errors: ['Node "non-existent-node" not found'],
+        applied: [],
+        failed: [0],
       });
 
       const result = await handleUpdatePartialWorkflow(diffRequest);
@@ -265,6 +274,8 @@ describe('handlers-workflow-diff', () => {
         details: {
           errors: ['Node "non-existent-node" not found'],
           operationsApplied: 0,
+          applied: [],
+          failed: [0],
         },
       });
 
