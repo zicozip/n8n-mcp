@@ -130,9 +130,15 @@ sqlite3 data/nodes.db "SELECT COUNT(*) FROM templates"
 
 # 4. Generate AI metadata for new templates (optional, requires OPENAI_API_KEY)
 npm run fetch:templates -- --metadata-only
+
+# 5. IMPORTANT: Sanitize templates before pushing database
+npm run build
+npm run sanitize:templates
 ```
 
 Templates are independent of n8n version - they're just workflow JSON data.
+
+**CRITICAL**: Always run `npm run sanitize:templates` before pushing the database to remove API tokens from template workflows.
 
 **Note**: New templates fetched via `--update` mode will NOT have AI-generated metadata by default. You need to run `--metadata-only` separately to generate metadata for templates that don't have it yet.
 
