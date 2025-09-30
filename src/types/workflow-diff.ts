@@ -72,6 +72,7 @@ export interface RemoveConnectionOperation extends DiffOperation {
   target: string; // Node name or ID
   sourceOutput?: string; // Default: 'main'
   targetInput?: string; // Default: 'main'
+  ignoreErrors?: boolean; // If true, don't fail when connection doesn't exist (useful for cleanup)
 }
 
 export interface UpdateConnectionOperation extends DiffOperation {
@@ -109,6 +110,25 @@ export interface RemoveTagOperation extends DiffOperation {
   tag: string;
 }
 
+// Connection Cleanup Operations
+export interface CleanStaleConnectionsOperation extends DiffOperation {
+  type: 'cleanStaleConnections';
+  dryRun?: boolean; // If true, return what would be removed without applying changes
+}
+
+export interface ReplaceConnectionsOperation extends DiffOperation {
+  type: 'replaceConnections';
+  connections: {
+    [nodeName: string]: {
+      [outputName: string]: Array<Array<{
+        node: string;
+        type: string;
+        index: number;
+      }>>;
+    };
+  };
+}
+
 // Union type for all operations
 export type WorkflowDiffOperation =
   | AddNodeOperation
@@ -123,13 +143,16 @@ export type WorkflowDiffOperation =
   | UpdateSettingsOperation
   | UpdateNameOperation
   | AddTagOperation
-  | RemoveTagOperation;
+  | RemoveTagOperation
+  | CleanStaleConnectionsOperation
+  | ReplaceConnectionsOperation;
 
 // Main diff request structure
 export interface WorkflowDiffRequest {
   id: string; // Workflow ID
   operations: WorkflowDiffOperation[];
   validateOnly?: boolean; // If true, only validate without applying
+  continueOnError?: boolean; // If true, apply valid operations even if some fail (default: false for atomic behavior)
 }
 
 // Response types
@@ -145,6 +168,9 @@ export interface WorkflowDiffResult {
   errors?: WorkflowDiffValidationError[];
   operationsApplied?: number;
   message?: string;
+  applied?: number[]; // Indices of successfully applied operations (when continueOnError is true)
+  failed?: number[]; // Indices of failed operations (when continueOnError is true)
+  staleConnectionsRemoved?: Array<{ from: string; to: string }>; // For cleanStaleConnections operation
 }
 
 // Helper type for node reference (supports both ID and name)
@@ -160,9 +186,9 @@ export function isNodeOperation(op: WorkflowDiffOperation): op is
   return ['addNode', 'removeNode', 'updateNode', 'moveNode', 'enableNode', 'disableNode'].includes(op.type);
 }
 
-export function isConnectionOperation(op: WorkflowDiffOperation): op is 
-  AddConnectionOperation | RemoveConnectionOperation | UpdateConnectionOperation {
-  return ['addConnection', 'removeConnection', 'updateConnection'].includes(op.type);
+export function isConnectionOperation(op: WorkflowDiffOperation): op is
+  AddConnectionOperation | RemoveConnectionOperation | UpdateConnectionOperation | CleanStaleConnectionsOperation | ReplaceConnectionsOperation {
+  return ['addConnection', 'removeConnection', 'updateConnection', 'cleanStaleConnections', 'replaceConnections'].includes(op.type);
 }
 
 export function isMetadataOperation(op: WorkflowDiffOperation): op is 

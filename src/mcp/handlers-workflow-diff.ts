@@ -31,12 +31,17 @@ const workflowDiffSchema = z.object({
     targetInput: z.string().optional(),
     sourceIndex: z.number().optional(),
     targetIndex: z.number().optional(),
+    ignoreErrors: z.boolean().optional(),
+    // Connection cleanup operations
+    dryRun: z.boolean().optional(),
+    connections: z.any().optional(),
     // Metadata operations
     settings: z.any().optional(),
     name: z.string().optional(),
     tag: z.string().optional(),
   })),
   validateOnly: z.boolean().optional(),
+  continueOnError: z.boolean().optional(),
 });
 
 export async function handleUpdatePartialWorkflow(args: unknown, context?: InstanceContext): Promise<McpToolResponse> {
@@ -80,17 +85,28 @@ export async function handleUpdatePartialWorkflow(args: unknown, context?: Insta
     
     // Apply diff operations
     const diffEngine = new WorkflowDiffEngine();
-    const diffResult = await diffEngine.applyDiff(workflow, input as WorkflowDiffRequest);
-    
+    const diffRequest = input as WorkflowDiffRequest;
+    const diffResult = await diffEngine.applyDiff(workflow, diffRequest);
+
+    // Check if this is a complete failure or partial success in continueOnError mode
     if (!diffResult.success) {
-      return {
-        success: false,
-        error: 'Failed to apply diff operations',
-        details: {
-          errors: diffResult.errors,
-          operationsApplied: diffResult.operationsApplied
-        }
-      };
+      // In continueOnError mode, partial success is still valuable
+      if (diffRequest.continueOnError && diffResult.workflow && diffResult.operationsApplied && diffResult.operationsApplied > 0) {
+        logger.info(`continueOnError mode: Applying ${diffResult.operationsApplied} successful operations despite ${diffResult.failed?.length || 0} failures`);
+        // Continue to update workflow with partial changes
+      } else {
+        // Complete failure - return error
+        return {
+          success: false,
+          error: 'Failed to apply diff operations',
+          details: {
+            errors: diffResult.errors,
+            operationsApplied: diffResult.operationsApplied,
+            applied: diffResult.applied,
+            failed: diffResult.failed
+          }
+        };
+      }
     }
     
     // If validateOnly, return validation result
@@ -116,7 +132,10 @@ export async function handleUpdatePartialWorkflow(args: unknown, context?: Insta
         details: {
           operationsApplied: diffResult.operationsApplied,
           workflowId: updatedWorkflow.id,
-          workflowName: updatedWorkflow.name
+          workflowName: updatedWorkflow.name,
+          applied: diffResult.applied,
+          failed: diffResult.failed,
+          errors: diffResult.errors
         }
       };
     } catch (error) {

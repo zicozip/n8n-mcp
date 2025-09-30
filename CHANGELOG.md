@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.4] - 2025-09-30
+
+### Added
+- **Workflow Cleanup Operations**: Two new operations for `n8n_update_partial_workflow`
+  - `cleanStaleConnections`: Automatically removes connections referencing non-existent nodes
+  - `replaceConnections`: Replace entire connections object in a single operation
+- **Graceful Error Handling**: Enhanced `removeConnection` with `ignoreErrors` flag
+- **Best-Effort Mode**: New `continueOnError` mode for `WorkflowDiffRequest`
+  - Apply valid operations even if some fail
+  - Returns detailed results with `applied` and `failed` operation indices
+  - Maintains atomic mode as default for safety
+
+### Enhanced
+- Tool documentation for workflow cleanup scenarios
+- Type system with new operation interfaces
+- 15 new tests covering all new features
+
+### Impact
+- Reduces broken workflow fix time from 10-15 minutes to 30 seconds
+- Token efficiency: `cleanStaleConnections` is 1 operation vs 10+ manual operations
+- 100% backwards compatibility maintained
+
+## [2.14.3] - 2025-09-30
+
+### Added
+- Incremental template updates with `npm run fetch:templates:update`
+- Smart filtering for new templates (5-10 min vs 30-40 min full rebuild)
+- 48 new templates (2,598 → 2,646 total)
+
+### Fixed
+- Template metadata generation: Updated to `gpt-4o-mini-2025-08-07` model
+- Removed unsupported `temperature` parameter from OpenAI Batch API
+- Template sanitization: Added Airtable PAT and GitHub token detection
+- Sanitized 24 templates removing API tokens
+
+### Updated
+- n8n: 1.112.3 → 1.113.3
+- n8n-core: 1.111.0 → 1.112.1
+- n8n-workflow: 1.109.0 → 1.110.0
+- @n8n/n8n-nodes-langchain: 1.111.1 → 1.112.2
+- Node database rebuilt with 536 nodes from n8n v1.113.3
+
 ## [2.14.2] - 2025-09-29
 
 ### Fixed

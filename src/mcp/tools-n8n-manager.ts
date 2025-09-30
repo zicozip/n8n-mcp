@@ -180,6 +180,10 @@ export const n8nManagementTools: ToolDefinition[] = [
         validateOnly: {
           type: 'boolean',
           description: 'If true, only validate operations without applying them'
+        },
+        continueOnError: {
+          type: 'boolean',
+          description: 'If true, apply valid operations even if some fail (best-effort mode). Returns applied and failed operation indices. Default: false (atomic)'
         }
       },
       required: ['id', 'operations']

@@ -16,7 +16,9 @@ import {
   UpdateSettingsOperation,
   UpdateNameOperation,
   AddTagOperation,
-  RemoveTagOperation
+  RemoveTagOperation,
+  CleanStaleConnectionsOperation,
+  ReplaceConnectionsOperation
 } from '@/types/workflow-diff';
 import { Workflow } from '@/types/n8n-api';
 
@@ -1128,6 +1130,332 @@ describe('WorkflowDiffEngine', () => {
       expect(result.message).toContain('Successfully applied 3 operations');
       expect(result.message).toContain('1 node ops');
       expect(result.message).toContain('2 other ops');
+    });
+  });
+
+  describe('New Features - v2.14.4', () => {
+    describe('cleanStaleConnections operation', () => {
+      it('should remove connections referencing non-existent nodes', async () => {
+        // Create a workflow with a stale connection
+        const workflow = builder.build() as Workflow;
+
+        // Add a connection to a non-existent node manually
+        if (!workflow.connections['Webhook']) {
+          workflow.connections['Webhook'] = {};
+        }
+        workflow.connections['Webhook']['main'] = [[
+          { node: 'HTTP Request', type: 'main', index: 0 },
+          { node: 'NonExistentNode', type: 'main', index: 0 }
+        ]];
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['Webhook']['main'][0]).toHaveLength(1);
+        expect(result.workflow.connections['Webhook']['main'][0][0].node).toBe('HTTP Request');
+      });
+
+      it('should remove entire source connection if source node does not exist', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Add connections from non-existent node
+        workflow.connections['GhostNode'] = {
+          'main': [[
+            { node: 'HTTP Request', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['GhostNode']).toBeUndefined();
+      });
+
+      it('should support dryRun mode', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Add a stale connection
+        if (!workflow.connections['Webhook']) {
+          workflow.connections['Webhook'] = {};
+        }
+        workflow.connections['Webhook']['main'] = [[
+          { node: 'HTTP Request', type: 'main', index: 0 },
+          { node: 'NonExistentNode', type: 'main', index: 0 }
+        ]];
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections',
+          dryRun: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // In dryRun, stale connection should still be present (not actually removed)
+        expect(result.workflow.connections['Webhook']['main'][0]).toHaveLength(2);
+      });
+    });
+
+    describe('replaceConnections operation', () => {
+      it('should replace entire connections object', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const newConnections = {
+          'Webhook': {
+            'main': [[
+              { node: 'Slack', type: 'main', index: 0 }
+            ]]
+          }
+        };
+
+        const operations: ReplaceConnectionsOperation[] = [{
+          type: 'replaceConnections',
+          connections: newConnections
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections).toEqual(newConnections);
+        expect(result.workflow.connections['HTTP Request']).toBeUndefined();
+      });
+
+      it('should fail if referenced nodes do not exist', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const newConnections = {
+          'Webhook': {
+            'main': [[
+              { node: 'NonExistentNode', type: 'main', index: 0 }
+            ]]
+          }
+        };
+
+        const operations: ReplaceConnectionsOperation[] = [{
+          type: 'replaceConnections',
+          connections: newConnections
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toBeDefined();
+        expect(result.errors![0].message).toContain('Target node not found');
+      });
+    });
+
+    describe('removeConnection with ignoreErrors flag', () => {
+      it('should succeed when connection does not exist if ignoreErrors is true', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'Webhook',
+          target: 'NonExistentNode',
+          ignoreErrors: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+      });
+
+      it('should fail when connection does not exist if ignoreErrors is false', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'Webhook',
+          target: 'NonExistentNode',
+          ignoreErrors: false
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toBeDefined();
+      });
+
+      it('should default to atomic behavior when ignoreErrors is not specified', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'Webhook',
+          target: 'NonExistentNode'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toBeDefined();
+      });
+    });
+
+    describe('continueOnError mode', () => {
+      it('should apply valid operations and report failed ones', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateName',
+            name: 'New Workflow Name'
+          } as UpdateNameOperation,
+          {
+            type: 'removeConnection',
+            source: 'Webhook',
+            target: 'NonExistentNode'
+          } as RemoveConnectionOperation,
+          {
+            type: 'addTag',
+            tag: 'production'
+          } as AddTagOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.applied).toEqual([0, 2]); // Operations 0 and 2 succeeded
+        expect(result.failed).toEqual([1]); // Operation 1 failed
+        expect(result.errors).toHaveLength(1);
+        expect(result.workflow.name).toBe('New Workflow Name');
+        expect(result.workflow.tags).toContain('production');
+      });
+
+      it('should return success false if all operations fail in continueOnError mode', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'removeConnection',
+            source: 'Webhook',
+            target: 'Node1'
+          } as RemoveConnectionOperation,
+          {
+            type: 'removeConnection',
+            source: 'Webhook',
+            target: 'Node2'
+          } as RemoveConnectionOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.applied).toHaveLength(0);
+        expect(result.failed).toEqual([0, 1]);
+      });
+
+      it('should use atomic mode by default when continueOnError is not specified', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateName',
+            name: 'New Name'
+          } as UpdateNameOperation,
+          {
+            type: 'removeConnection',
+            source: 'Webhook',
+            target: 'NonExistent'
+          } as RemoveConnectionOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.applied).toBeUndefined();
+        expect(result.failed).toBeUndefined();
+        // Name should not have been updated due to atomic behavior
+        expect(result.workflow).toBeUndefined();
+      });
+    });
+
+    describe('Backwards compatibility', () => {
+      it('should maintain existing behavior for all previous operation types', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          { type: 'updateName', name: 'Test' } as UpdateNameOperation,
+          { type: 'addTag', tag: 'test' } as AddTagOperation,
+          { type: 'removeTag', tag: 'automation' } as RemoveTagOperation,
+          { type: 'updateSettings', settings: { timezone: 'UTC' } } as UpdateSettingsOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.operationsApplied).toBe(4);
+      });
     });
   });
 });
