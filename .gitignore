@@ -89,6 +89,10 @@ docker-compose.override.yml
 temp/
 tmp/
 
+# Batch processing error files (may contain API tokens from templates)
+docs/batch_*.jsonl
+**/batch_*_error.jsonl
+
 # Database files
 # Database files - nodes.db is now tracked directly
 # data/*.db

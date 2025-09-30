@@ -34,7 +34,7 @@ export class MetadataGenerator {
   private client: OpenAI;
   private model: string;
   
-  constructor(apiKey: string, model: string = 'gpt-4o-mini') {
+  constructor(apiKey: string, model: string = 'gpt-5-mini-2025-08-07') {
     this.client = new OpenAI({ apiKey });
     this.model = model;
   }
@@ -131,8 +131,8 @@ export class MetadataGenerator {
       url: '/v1/chat/completions',
       body: {
         model: this.model,
-        temperature: 0.3,  // Lower temperature for more consistent structured outputs
-        max_completion_tokens: 1000,
+        // temperature removed - batch API only supports default (1.0) for this model
+        max_completion_tokens: 3000,
         response_format: {
           type: 'json_schema',
           json_schema: this.getJsonSchema()
@@ -288,8 +288,8 @@ export class MetadataGenerator {
     try {
       const completion = await this.client.chat.completions.create({
         model: this.model,
-        temperature: 0.3,  // Lower temperature for more consistent structured outputs
-        max_completion_tokens: 1000,
+        // temperature removed - not supported in batch API for this model
+        max_completion_tokens: 3000,
         response_format: {
           type: 'json_schema',
           json_schema: this.getJsonSchema()

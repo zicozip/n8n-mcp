@@ -18,7 +18,7 @@ describe('MetadataGenerator', () => {
   let generator: MetadataGenerator;
   
   beforeEach(() => {
-    generator = new MetadataGenerator('test-api-key', 'gpt-4o-mini');
+    generator = new MetadataGenerator('test-api-key', 'gpt-5-mini-2025-08-07');
   });
   
   describe('createBatchRequest', () => {
@@ -35,7 +35,7 @@ describe('MetadataGenerator', () => {
       expect(request.custom_id).toBe('template-123');
       expect(request.method).toBe('POST');
       expect(request.url).toBe('/v1/chat/completions');
-      expect(request.body.model).toBe('gpt-4o-mini');
+      expect(request.body.model).toBe('gpt-5-mini-2025-08-07');
       expect(request.body.response_format.type).toBe('json_schema');
       expect(request.body.response_format.json_schema.strict).toBe(true);
       expect(request.body.messages).toHaveLength(2);
@@ -217,7 +217,7 @@ describe('MetadataGenerator', () => {
       // but should not cause any injection in our code
       expect(userMessage).toContain('<script>alert("xss")</script>');
       expect(userMessage).toContain('javascript:alert(1)');
-      expect(request.body.model).toBe('gpt-4o-mini');
+      expect(request.body.model).toBe('gpt-5-mini-2025-08-07');
     });
 
     it('should handle extremely long template names', () => {

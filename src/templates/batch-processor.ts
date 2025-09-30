@@ -258,85 +258,132 @@ export class BatchProcessor {
   }
   
   /**
-   * Monitor batch job with exponential backoff
+   * Monitor batch job with fixed 1-minute polling interval
    */
   private async monitorBatchJob(batchId: string): Promise<any> {
-    // Start with shorter wait times for better UX
-    const waitTimes = [30, 60, 120, 300, 600, 900, 1800]; // Progressive wait times in seconds
-    let waitIndex = 0;
+    const pollInterval = 60; // Check every 60 seconds (1 minute)
     let attempts = 0;
-    const maxAttempts = 100; // Safety limit
+    const maxAttempts = 120; // 120 minutes max (2 hours)
     const startTime = Date.now();
     let lastStatus = '';
-    
+
     while (attempts < maxAttempts) {
       const batchJob = await this.client.batches.retrieve(batchId);
-      
-      // Only log if status changed
+      const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
+
+      // Log status on every check (not just on change)
+      const statusSymbol = batchJob.status === 'in_progress' ? '⚙️' :
+                          batchJob.status === 'finalizing' ? '📦' :
+                          batchJob.status === 'validating' ? '🔍' :
+                          batchJob.status === 'completed' ? '✅' :
+                          batchJob.status === 'failed' ? '❌' : '⏳';
+
+      console.log(`   ${statusSymbol} Batch ${batchId.slice(-8)}: ${batchJob.status} (${elapsedMinutes} min, check ${attempts + 1})`);
+
       if (batchJob.status !== lastStatus) {
-        const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
-        const statusSymbol = batchJob.status === 'in_progress' ? '⚙️' : 
-                            batchJob.status === 'finalizing' ? '📦' :
-                            batchJob.status === 'validating' ? '🔍' : '⏳';
-        
-        console.log(`   ${statusSymbol} Batch ${batchId.slice(-8)}: ${batchJob.status} (${elapsedMinutes} min)`);
+        logger.info(`Batch ${batchId} status changed: ${lastStatus} -> ${batchJob.status}`);
         lastStatus = batchJob.status;
       }
-      
-      logger.debug(`Batch ${batchId} status: ${batchJob.status} (attempt ${attempts + 1})`);
-      
+
       if (batchJob.status === 'completed') {
-        const elapsedMinutes = Math.floor((Date.now() - startTime) / 60000);
-        console.log(`   ✅ Batch ${batchId.slice(-8)} completed in ${elapsedMinutes} minutes`);
+        console.log(`   ✅ Batch ${batchId.slice(-8)} completed successfully in ${elapsedMinutes} minutes`);
         logger.info(`Batch job ${batchId} completed successfully`);
         return batchJob;
       }
-      
+
       if (['failed', 'expired', 'cancelled'].includes(batchJob.status)) {
+        logger.error(`Batch job ${batchId} failed with status: ${batchJob.status}`);
         throw new Error(`Batch job failed with status: ${batchJob.status}`);
       }
-      
-      // Wait before next check
-      const waitTime = waitTimes[Math.min(waitIndex, waitTimes.length - 1)];
-      logger.debug(`Waiting ${waitTime} seconds before next check...`);
-      await this.sleep(waitTime * 1000);
-      
-      waitIndex = Math.min(waitIndex + 1, waitTimes.length - 1);
+
+      // Wait before next check (always 1 minute)
+      logger.debug(`Waiting ${pollInterval} seconds before next check...`);
+      await this.sleep(pollInterval * 1000);
+
       attempts++;
     }
-    
-    throw new Error(`Batch job monitoring timed out after ${maxAttempts} attempts`);
+
+    throw new Error(`Batch job monitoring timed out after ${maxAttempts} minutes`);
   }
   
   /**
    * Retrieve and parse results
    */
   private async retrieveResults(batchJob: any): Promise<MetadataResult[]> {
-    if (!batchJob.output_file_id) {
-      throw new Error('No output file available for batch job');
-    }
-    
-    // Download result file
-    const fileResponse = await this.client.files.content(batchJob.output_file_id);
-    const fileContent = await fileResponse.text();
-    
-    // Parse JSONL results
     const results: MetadataResult[] = [];
-    const lines = fileContent.trim().split('\n');
-    
-    for (const line of lines) {
-      if (!line) continue;
-      
+
+    // Check if we have an output file (successful results)
+    if (batchJob.output_file_id) {
+      const fileResponse = await this.client.files.content(batchJob.output_file_id);
+      const fileContent = await fileResponse.text();
+
+      const lines = fileContent.trim().split('\n');
+      for (const line of lines) {
+        if (!line) continue;
+        try {
+          const result = JSON.parse(line);
+          const parsed = this.generator.parseResult(result);
+          results.push(parsed);
+        } catch (error) {
+          logger.error('Error parsing result line:', error);
+        }
+      }
+      logger.info(`Retrieved ${results.length} successful results from batch job`);
+    }
+
+    // Check if we have an error file (failed results)
+    if (batchJob.error_file_id) {
+      logger.warn(`Batch job has error file: ${batchJob.error_file_id}`);
+
       try {
-        const result = JSON.parse(line);
-        const parsed = this.generator.parseResult(result);
-        results.push(parsed);
+        const errorResponse = await this.client.files.content(batchJob.error_file_id);
+        const errorContent = await errorResponse.text();
+
+        // Save error file locally for debugging
+        const errorFilePath = path.join(this.outputDir, `batch_${batchJob.id}_error.jsonl`);
+        fs.writeFileSync(errorFilePath, errorContent);
+        logger.warn(`Error file saved to: ${errorFilePath}`);
+
+        // Parse errors and create default metadata for failed templates
+        const errorLines = errorContent.trim().split('\n');
+        logger.warn(`Found ${errorLines.length} failed requests in error file`);
+
+        for (const line of errorLines) {
+          if (!line) continue;
+          try {
+            const errorResult = JSON.parse(line);
+            const templateId = parseInt(errorResult.custom_id?.replace('template-', '') || '0');
+
+            if (templateId > 0) {
+              const errorMessage = errorResult.response?.body?.error?.message ||
+                                  errorResult.error?.message ||
+                                  'Unknown error';
+
+              logger.debug(`Template ${templateId} failed: ${errorMessage}`);
+
+              // Use getDefaultMetadata() from generator (it's private but accessible via bracket notation)
+              const defaultMeta = (this.generator as any).getDefaultMetadata();
+              results.push({
+                templateId,
+                metadata: defaultMeta,
+                error: errorMessage
+              });
+            }
+          } catch (parseError) {
+            logger.error('Error parsing error line:', parseError);
+          }
+        }
       } catch (error) {
-        logger.error('Error parsing result line:', error);
+        logger.error('Failed to process error file:', error);
       }
     }
-    
-    logger.info(`Retrieved ${results.length} results from batch job`);
+
+    // If we have no results at all, something is very wrong
+    if (results.length === 0 && !batchJob.output_file_id && !batchJob.error_file_id) {
+      throw new Error('No output file or error file available for batch job');
+    }
+
+    logger.info(`Total results (successful + failed): ${results.length}`);
     return results;
   }
   

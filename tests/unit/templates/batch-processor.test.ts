@@ -71,7 +71,7 @@ describe('BatchProcessor', () => {
     
     options = {
       apiKey: 'test-api-key',
-      model: 'gpt-4o-mini',
+      model: 'gpt-5-mini-2025-08-07',
       batchSize: 3,
       outputDir: './test-temp'
     };
@@ -177,11 +177,36 @@ describe('BatchProcessor', () => {
 
     it('should handle batch submission errors gracefully', async () => {
       mockClient.files.create.mockRejectedValue(new Error('Upload failed'));
-      
+
       const results = await processor.processTemplates([mockTemplates[0]]);
-      
+
       // Should not throw, should return empty results
       expect(results.size).toBe(0);
+    });
+
+    it('should log submission errors to console and logger', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error');
+      const { logger } = await import('../../../src/utils/logger');
+      const loggerErrorSpy = vi.spyOn(logger, 'error');
+
+      mockClient.files.create.mockRejectedValue(new Error('Network error'));
+
+      await processor.processTemplates([mockTemplates[0]]);
+
+      // Should log error to console (actual format from line 95: "   ❌ Batch N failed:", error)
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Batch'),
+        expect.objectContaining({ message: 'Network error' })
+      );
+
+      // Should also log to logger (line 94)
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/Error processing batch/),
+        expect.objectContaining({ message: 'Network error' })
+      );
+
+      consoleErrorSpy.mockRestore();
+      loggerErrorSpy.mockRestore();
     });
 
     // Skipping: Parallel batch processing creates unhandled promise rejections in tests
@@ -368,7 +393,7 @@ describe('BatchProcessor', () => {
     it('should download and parse results correctly', async () => {
       const batchJob = { output_file_id: 'output-123' };
       const fileContent = '{"custom_id": "template-1"}\n{"custom_id": "template-2"}';
-      
+
       mockClient.files.content.mockResolvedValue({
         text: () => Promise.resolve(fileContent)
       });
@@ -377,7 +402,7 @@ describe('BatchProcessor', () => {
         { templateId: 1, metadata: { categories: ['test'] } },
         { templateId: 2, metadata: { categories: ['test2'] } }
       ];
-      
+
       mockGenerator.parseResult.mockReturnValueOnce(mockResults[0])
                                 .mockReturnValueOnce(mockResults[1]);
 
@@ -389,17 +414,17 @@ describe('BatchProcessor', () => {
     });
 
     it('should throw error when no output file available', async () => {
-      const batchJob = { output_file_id: null };
+      const batchJob = { output_file_id: null, error_file_id: null };
 
       await expect(
         (processor as any).retrieveResults(batchJob)
-      ).rejects.toThrow('No output file available for batch job');
+      ).rejects.toThrow('No output file or error file available for batch job');
     });
 
     it('should handle malformed result lines gracefully', async () => {
       const batchJob = { output_file_id: 'output-123' };
       const fileContent = '{"valid": "json"}\ninvalid json line\n{"another": "valid"}';
-      
+
       mockClient.files.content.mockResolvedValue({
         text: () => Promise.resolve(fileContent)
       });
@@ -421,6 +446,227 @@ describe('BatchProcessor', () => {
       await expect(
         (processor as any).retrieveResults(batchJob)
       ).rejects.toThrow('Download failed');
+    });
+
+    it('should process error file when present', async () => {
+      const batchJob = {
+        id: 'batch-123',
+        output_file_id: 'output-123',
+        error_file_id: 'error-456'
+      };
+
+      const outputContent = '{"custom_id": "template-1"}';
+      const errorContent = '{"custom_id": "template-2", "error": {"message": "Rate limit exceeded"}}\n{"custom_id": "template-3", "response": {"body": {"error": {"message": "Invalid request"}}}}';
+
+      mockClient.files.content
+        .mockResolvedValueOnce({ text: () => Promise.resolve(outputContent) })
+        .mockResolvedValueOnce({ text: () => Promise.resolve(errorContent) });
+
+      mockedFs.writeFileSync = vi.fn();
+
+      const successResult = { templateId: 1, metadata: { categories: ['success'] } };
+      mockGenerator.parseResult.mockReturnValue(successResult);
+
+      // Mock getDefaultMetadata
+      const defaultMetadata = {
+        categories: ['General'],
+        complexity: 'medium',
+        estimatedSetupMinutes: 15,
+        useCases: [],
+        requiredServices: [],
+        targetAudience: []
+      };
+      (processor as any).generator.getDefaultMetadata = vi.fn().mockReturnValue(defaultMetadata);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      // Should have 1 successful + 2 failed results
+      expect(results).toHaveLength(3);
+      expect(mockClient.files.content).toHaveBeenCalledWith('output-123');
+      expect(mockClient.files.content).toHaveBeenCalledWith('error-456');
+      expect(mockedFs.writeFileSync).toHaveBeenCalled();
+
+      // Check error file was saved
+      const savedPath = (mockedFs.writeFileSync as any).mock.calls[0][0];
+      expect(savedPath).toContain('batch_batch-123_error.jsonl');
+    });
+
+    it('should handle error file with empty lines', async () => {
+      const batchJob = {
+        id: 'batch-789',
+        error_file_id: 'error-789'
+      };
+
+      const errorContent = '\n{"custom_id": "template-1", "error": {"message": "Failed"}}\n\n{"custom_id": "template-2", "error": {"message": "Error"}}\n';
+
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve(errorContent)
+      });
+
+      mockedFs.writeFileSync = vi.fn();
+
+      const defaultMetadata = {
+        categories: ['General'],
+        complexity: 'medium',
+        estimatedSetupMinutes: 15,
+        useCases: [],
+        requiredServices: [],
+        targetAudience: []
+      };
+      (processor as any).generator.getDefaultMetadata = vi.fn().mockReturnValue(defaultMetadata);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      // Should skip empty lines and process only valid ones
+      expect(results).toHaveLength(2);
+      expect(results[0].templateId).toBe(1);
+      expect(results[0].error).toBe('Failed');
+      expect(results[1].templateId).toBe(2);
+      expect(results[1].error).toBe('Error');
+    });
+
+    it('should assign default metadata to failed templates', async () => {
+      const batchJob = {
+        error_file_id: 'error-456'
+      };
+
+      const errorContent = '{"custom_id": "template-42", "error": {"message": "Timeout"}}';
+
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve(errorContent)
+      });
+
+      mockedFs.writeFileSync = vi.fn();
+
+      const defaultMetadata = {
+        categories: ['General'],
+        complexity: 'medium',
+        estimatedSetupMinutes: 15,
+        useCases: ['General automation'],
+        requiredServices: [],
+        targetAudience: ['Developers']
+      };
+      (processor as any).generator.getDefaultMetadata = vi.fn().mockReturnValue(defaultMetadata);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].templateId).toBe(42);
+      expect(results[0].metadata).toEqual(defaultMetadata);
+      expect(results[0].error).toBe('Timeout');
+    });
+
+    it('should handle malformed error lines gracefully', async () => {
+      const batchJob = {
+        error_file_id: 'error-999'
+      };
+
+      const errorContent = '{"custom_id": "template-1", "error": {"message": "Valid error"}}\ninvalid json\n{"invalid": "no custom_id"}\n{"custom_id": "template-2", "error": {"message": "Another valid"}}';
+
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve(errorContent)
+      });
+
+      mockedFs.writeFileSync = vi.fn();
+
+      const defaultMetadata = { categories: ['General'] };
+      (processor as any).generator.getDefaultMetadata = vi.fn().mockReturnValue(defaultMetadata);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      // Should only process valid error lines with template IDs
+      expect(results).toHaveLength(2);
+      expect(results[0].templateId).toBe(1);
+      expect(results[1].templateId).toBe(2);
+    });
+
+    it('should extract error message from response body', async () => {
+      const batchJob = {
+        error_file_id: 'error-123'
+      };
+
+      const errorContent = '{"custom_id": "template-5", "response": {"body": {"error": {"message": "API error from response body"}}}}';
+
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve(errorContent)
+      });
+
+      mockedFs.writeFileSync = vi.fn();
+
+      const defaultMetadata = { categories: ['General'] };
+      (processor as any).generator.getDefaultMetadata = vi.fn().mockReturnValue(defaultMetadata);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].error).toBe('API error from response body');
+    });
+
+    it('should use unknown error when no error message found', async () => {
+      const batchJob = {
+        error_file_id: 'error-000'
+      };
+
+      const errorContent = '{"custom_id": "template-10"}';
+
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve(errorContent)
+      });
+
+      mockedFs.writeFileSync = vi.fn();
+
+      const defaultMetadata = { categories: ['General'] };
+      (processor as any).generator.getDefaultMetadata = vi.fn().mockReturnValue(defaultMetadata);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].error).toBe('Unknown error');
+    });
+
+    it('should handle error file download failure gracefully', async () => {
+      const batchJob = {
+        output_file_id: 'output-123',
+        error_file_id: 'error-failed'
+      };
+
+      const outputContent = '{"custom_id": "template-1"}';
+
+      mockClient.files.content
+        .mockResolvedValueOnce({ text: () => Promise.resolve(outputContent) })
+        .mockRejectedValueOnce(new Error('Error file download failed'));
+
+      const successResult = { templateId: 1, metadata: { categories: ['success'] } };
+      mockGenerator.parseResult.mockReturnValue(successResult);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      // Should still return successful results even if error file fails
+      expect(results).toHaveLength(1);
+      expect(results[0].templateId).toBe(1);
+    });
+
+    it('should skip templates with invalid or zero ID in error file', async () => {
+      const batchJob = {
+        error_file_id: 'error-invalid'
+      };
+
+      const errorContent = '{"custom_id": "template-0", "error": {"message": "Zero ID"}}\n{"custom_id": "invalid-id", "error": {"message": "Invalid"}}\n{"custom_id": "template-5", "error": {"message": "Valid ID"}}';
+
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve(errorContent)
+      });
+
+      mockedFs.writeFileSync = vi.fn();
+
+      const defaultMetadata = { categories: ['General'] };
+      (processor as any).generator.getDefaultMetadata = vi.fn().mockReturnValue(defaultMetadata);
+
+      const results = await (processor as any).retrieveResults(batchJob);
+
+      // Should only include template with valid ID > 0
+      expect(results).toHaveLength(1);
+      expect(results[0].templateId).toBe(5);
     });
   });
 
@@ -526,7 +772,7 @@ describe('BatchProcessor', () => {
       mockClient.files.create.mockRejectedValue(new Error('Upload failed'));
 
       const submitBatch = (processor as any).submitBatch.bind(processor);
-      
+
       await expect(
         submitBatch(templates, 'error_test')
       ).rejects.toThrow('Upload failed');
@@ -544,7 +790,7 @@ describe('BatchProcessor', () => {
 
       // Mock successful processing
       mockClient.files.create.mockResolvedValue({ id: 'file-123' });
-      const completedJob = { 
+      const completedJob = {
         id: 'batch-123',
         status: 'completed',
         output_file_id: 'output-123'
@@ -563,6 +809,393 @@ describe('BatchProcessor', () => {
 
       expect(results.size).toBeGreaterThan(0);
       expect(mockClient.batches.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('submitBatch', () => {
+    it('should clean up input file immediately after upload', async () => {
+      const templates = [{ templateId: 1, name: 'Test', nodes: ['node1'] }];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed',
+        output_file_id: 'output-123'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+
+      // Mock sleep to speed up test
+      (processor as any).sleep = vi.fn().mockResolvedValue(undefined);
+
+      const promise = (processor as any).submitBatch(templates, 'test_batch');
+
+      // Wait a bit for synchronous cleanup
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Input file should be deleted immediately
+      expect(mockedFs.unlinkSync).toHaveBeenCalled();
+
+      await promise;
+    });
+
+    it('should clean up OpenAI files after batch completion', async () => {
+      const templates = [{ templateId: 1, name: 'Test', nodes: ['node1'] }];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-upload-123' });
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed',
+        output_file_id: 'output-123'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+
+      // Mock sleep to speed up test
+      (processor as any).sleep = vi.fn().mockResolvedValue(undefined);
+
+      await (processor as any).submitBatch(templates, 'cleanup_test');
+
+      // Wait for promise chain to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Should have attempted to delete the input file
+      expect(mockClient.files.del).toHaveBeenCalledWith('file-upload-123');
+    });
+
+    it('should handle cleanup errors gracefully', async () => {
+      const templates = [{ templateId: 1, name: 'Test', nodes: ['node1'] }];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      mockClient.files.del.mockRejectedValue(new Error('Delete failed'));
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+
+      // Mock sleep to speed up test
+      (processor as any).sleep = vi.fn().mockResolvedValue(undefined);
+
+      // Should not throw even if cleanup fails
+      await expect(
+        (processor as any).submitBatch(templates, 'error_cleanup')
+      ).resolves.toBeDefined();
+    });
+
+    it('should handle local file cleanup errors silently', async () => {
+      const templates = [{ templateId: 1, name: 'Test', nodes: ['node1'] }];
+
+      mockedFs.unlinkSync = vi.fn().mockImplementation(() => {
+        throw new Error('Cannot delete file');
+      });
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+
+      // Mock sleep to speed up test
+      (processor as any).sleep = vi.fn().mockResolvedValue(undefined);
+
+      // Should not throw even if local cleanup fails
+      await expect(
+        (processor as any).submitBatch(templates, 'local_cleanup_error')
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('progress callback', () => {
+    it('should call progress callback during batch submission', async () => {
+      const templates = [
+        { templateId: 1, name: 'T1', nodes: ['node1'] },
+        { templateId: 2, name: 'T2', nodes: ['node2'] },
+        { templateId: 3, name: 'T3', nodes: ['node3'] },
+        { templateId: 4, name: 'T4', nodes: ['node4'] }
+      ];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed',
+        output_file_id: 'output-123'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve('{"custom_id": "template-1"}')
+      });
+      mockGenerator.parseResult.mockReturnValue({
+        templateId: 1,
+        metadata: { categories: ['test'] }
+      });
+
+      const progressCallback = vi.fn();
+
+      await processor.processTemplates(templates, progressCallback);
+
+      // Should be called during submission and retrieval
+      expect(progressCallback).toHaveBeenCalled();
+      expect(progressCallback.mock.calls.some((call: any) =>
+        call[0].includes('Submitting')
+      )).toBe(true);
+    });
+
+    it('should work without progress callback', async () => {
+      const templates = [{ templateId: 1, name: 'T1', nodes: ['node1'] }];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed',
+        output_file_id: 'output-123'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve('{"custom_id": "template-1"}')
+      });
+      mockGenerator.parseResult.mockReturnValue({
+        templateId: 1,
+        metadata: { categories: ['test'] }
+      });
+
+      // Should not throw without callback
+      await expect(
+        processor.processTemplates(templates)
+      ).resolves.toBeDefined();
+    });
+
+    it('should call progress callback with correct parameters', async () => {
+      const templates = [
+        { templateId: 1, name: 'T1', nodes: ['node1'] },
+        { templateId: 2, name: 'T2', nodes: ['node2'] }
+      ];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed',
+        output_file_id: 'output-123'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve('{"custom_id": "template-1"}')
+      });
+      mockGenerator.parseResult.mockReturnValue({
+        templateId: 1,
+        metadata: { categories: ['test'] }
+      });
+
+      const progressCallback = vi.fn();
+
+      await processor.processTemplates(templates, progressCallback);
+
+      // Check that callback was called with proper arguments
+      const submissionCall = progressCallback.mock.calls.find((call: any) =>
+        call[0].includes('Submitting')
+      );
+      expect(submissionCall).toBeDefined();
+      if (submissionCall) {
+        expect(submissionCall[1]).toBeGreaterThanOrEqual(0);
+        expect(submissionCall[2]).toBe(2);
+      }
+    });
+  });
+
+  describe('batch result merging', () => {
+    it('should merge results from multiple batches', async () => {
+      const templates = Array.from({ length: 6 }, (_, i) => ({
+        templateId: i + 1,
+        name: `T${i + 1}`,
+        nodes: ['node']
+      }));
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+
+      // Create different completed jobs for each batch
+      let batchCounter = 0;
+      mockClient.batches.create.mockImplementation(() => {
+        batchCounter++;
+        return Promise.resolve({
+          id: `batch-${batchCounter}`,
+          status: 'completed',
+          output_file_id: `output-${batchCounter}`
+        });
+      });
+
+      mockClient.batches.retrieve.mockImplementation((id: string) => {
+        return Promise.resolve({
+          id,
+          status: 'completed',
+          output_file_id: `output-${id.split('-')[1]}`
+        });
+      });
+
+      let fileCounter = 0;
+      mockClient.files.content.mockImplementation(() => {
+        fileCounter++;
+        return Promise.resolve({
+          text: () => Promise.resolve(`{"custom_id": "template-${fileCounter}"}`)
+        });
+      });
+
+      mockGenerator.parseResult.mockImplementation((result: any) => {
+        const id = parseInt(result.custom_id.split('-')[1]);
+        return {
+          templateId: id,
+          metadata: { categories: [`batch-${Math.ceil(id / 3)}`] }
+        };
+      });
+
+      const results = await processor.processTemplates(templates);
+
+      // Should have results from both batches (6 templates, batchSize=3)
+      expect(results.size).toBeGreaterThan(0);
+      expect(mockClient.batches.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle empty batch results', async () => {
+      const templates = [
+        { templateId: 1, name: 'T1', nodes: ['node'] },
+        { templateId: 2, name: 'T2', nodes: ['node'] }
+      ];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      const completedJob = {
+        id: 'batch-123',
+        status: 'completed',
+        output_file_id: 'output-123'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+
+      // Return empty content
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve('')
+      });
+
+      const results = await processor.processTemplates(templates);
+
+      // Should handle empty results gracefully
+      expect(results.size).toBe(0);
+    });
+  });
+
+  describe('sleep', () => {
+    it('should delay for specified milliseconds', async () => {
+      const start = Date.now();
+      await (processor as any).sleep(100);
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeGreaterThanOrEqual(95);
+      expect(elapsed).toBeLessThan(150);
+    });
+  });
+
+  describe('processBatch (legacy method)', () => {
+    it('should process a single batch synchronously', async () => {
+      const templates = [
+        { templateId: 1, name: 'Test1', nodes: ['node1'] },
+        { templateId: 2, name: 'Test2', nodes: ['node2'] }
+      ];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-abc' });
+      const completedJob = {
+        id: 'batch-xyz',
+        status: 'completed',
+        output_file_id: 'output-xyz'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+
+      const fileContent = '{"custom_id": "template-1"}\n{"custom_id": "template-2"}';
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve(fileContent)
+      });
+
+      const mockResults = [
+        { templateId: 1, metadata: { categories: ['test1'] } },
+        { templateId: 2, metadata: { categories: ['test2'] } }
+      ];
+      mockGenerator.parseResult.mockReturnValueOnce(mockResults[0])
+                                .mockReturnValueOnce(mockResults[1]);
+
+      // Mock sleep to speed up test
+      (processor as any).sleep = vi.fn().mockResolvedValue(undefined);
+
+      const results = await (processor as any).processBatch(templates, 'legacy_test');
+
+      expect(results).toHaveLength(2);
+      expect(results[0].templateId).toBe(1);
+      expect(results[1].templateId).toBe(2);
+      expect(mockClient.batches.create).toHaveBeenCalled();
+    });
+
+    it('should clean up files after processing', async () => {
+      const templates = [{ templateId: 1, name: 'Test', nodes: ['node1'] }];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-clean' });
+      const completedJob = {
+        id: 'batch-clean',
+        status: 'completed',
+        output_file_id: 'output-clean'
+      };
+      mockClient.batches.create.mockResolvedValue(completedJob);
+      mockClient.batches.retrieve.mockResolvedValue(completedJob);
+      mockClient.files.content.mockResolvedValue({
+        text: () => Promise.resolve('{"custom_id": "template-1"}')
+      });
+      mockGenerator.parseResult.mockReturnValue({
+        templateId: 1,
+        metadata: { categories: ['test'] }
+      });
+
+      // Mock sleep to speed up test
+      (processor as any).sleep = vi.fn().mockResolvedValue(undefined);
+
+      await (processor as any).processBatch(templates, 'cleanup_test');
+
+      // Should clean up all files
+      expect(mockedFs.unlinkSync).toHaveBeenCalled();
+      expect(mockClient.files.del).toHaveBeenCalledWith('file-clean');
+      expect(mockClient.files.del).toHaveBeenCalledWith('output-clean');
+    });
+
+    it('should clean up local file on error', async () => {
+      const templates = [{ templateId: 1, name: 'Test', nodes: ['node1'] }];
+
+      mockClient.files.create.mockRejectedValue(new Error('Upload failed'));
+
+      await expect(
+        (processor as any).processBatch(templates, 'error_test')
+      ).rejects.toThrow('Upload failed');
+
+      // Should clean up local file even on error
+      expect(mockedFs.unlinkSync).toHaveBeenCalled();
+    });
+
+    it('should handle batch job monitoring errors', async () => {
+      const templates = [{ templateId: 1, name: 'Test', nodes: ['node1'] }];
+
+      mockClient.files.create.mockResolvedValue({ id: 'file-123' });
+      mockClient.batches.create.mockResolvedValue({ id: 'batch-123' });
+      mockClient.batches.retrieve.mockResolvedValue({
+        id: 'batch-123',
+        status: 'failed'
+      });
+
+      await expect(
+        (processor as any).processBatch(templates, 'failed_batch')
+      ).rejects.toThrow('Batch job failed with status: failed');
+
+      // Should still attempt cleanup
+      expect(mockedFs.unlinkSync).toHaveBeenCalled();
     });
   });
 });
