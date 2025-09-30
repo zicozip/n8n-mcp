@@ -312,31 +312,80 @@ export class BatchProcessor {
    * Retrieve and parse results
    */
   private async retrieveResults(batchJob: any): Promise<MetadataResult[]> {
-    if (!batchJob.output_file_id) {
-      throw new Error('No output file available for batch job');
-    }
-    
-    // Download result file
-    const fileResponse = await this.client.files.content(batchJob.output_file_id);
-    const fileContent = await fileResponse.text();
-    
-    // Parse JSONL results
     const results: MetadataResult[] = [];
-    const lines = fileContent.trim().split('\n');
-    
-    for (const line of lines) {
-      if (!line) continue;
-      
+
+    // Check if we have an output file (successful results)
+    if (batchJob.output_file_id) {
+      const fileResponse = await this.client.files.content(batchJob.output_file_id);
+      const fileContent = await fileResponse.text();
+
+      const lines = fileContent.trim().split('\n');
+      for (const line of lines) {
+        if (!line) continue;
+        try {
+          const result = JSON.parse(line);
+          const parsed = this.generator.parseResult(result);
+          results.push(parsed);
+        } catch (error) {
+          logger.error('Error parsing result line:', error);
+        }
+      }
+      logger.info(`Retrieved ${results.length} successful results from batch job`);
+    }
+
+    // Check if we have an error file (failed results)
+    if (batchJob.error_file_id) {
+      logger.warn(`Batch job has error file: ${batchJob.error_file_id}`);
+
       try {
-        const result = JSON.parse(line);
-        const parsed = this.generator.parseResult(result);
-        results.push(parsed);
+        const errorResponse = await this.client.files.content(batchJob.error_file_id);
+        const errorContent = await errorResponse.text();
+
+        // Save error file locally for debugging
+        const errorFilePath = path.join(this.outputDir, `batch_${batchJob.id}_error.jsonl`);
+        fs.writeFileSync(errorFilePath, errorContent);
+        logger.warn(`Error file saved to: ${errorFilePath}`);
+
+        // Parse errors and create default metadata for failed templates
+        const errorLines = errorContent.trim().split('\n');
+        logger.warn(`Found ${errorLines.length} failed requests in error file`);
+
+        for (const line of errorLines) {
+          if (!line) continue;
+          try {
+            const errorResult = JSON.parse(line);
+            const templateId = parseInt(errorResult.custom_id?.replace('template-', '') || '0');
+
+            if (templateId > 0) {
+              const errorMessage = errorResult.response?.body?.error?.message ||
+                                  errorResult.error?.message ||
+                                  'Unknown error';
+
+              logger.debug(`Template ${templateId} failed: ${errorMessage}`);
+
+              // Use getDefaultMetadata() from generator (it's private but accessible via bracket notation)
+              const defaultMeta = (this.generator as any).getDefaultMetadata();
+              results.push({
+                templateId,
+                metadata: defaultMeta,
+                error: errorMessage
+              });
+            }
+          } catch (parseError) {
+            logger.error('Error parsing error line:', parseError);
+          }
+        }
       } catch (error) {
-        logger.error('Error parsing result line:', error);
+        logger.error('Failed to process error file:', error);
       }
     }
-    
-    logger.info(`Retrieved ${results.length} results from batch job`);
+
+    // If we have no results at all, something is very wrong
+    if (results.length === 0 && !batchJob.output_file_id && !batchJob.error_file_id) {
+      throw new Error('No output file or error file available for batch job');
+    }
+
+    logger.info(`Total results (successful + failed): ${results.length}`);
     return results;
   }
   
