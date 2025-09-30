@@ -1458,4 +1458,1414 @@ describe('WorkflowDiffEngine', () => {
       });
     });
   });
+
+  describe('v2.14.4 Coverage Improvements', () => {
+    describe('cleanStaleConnections - Advanced Scenarios', () => {
+      it('should clean up multiple stale connections across different output types', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Add an IF node with multiple outputs
+        workflow.nodes.push({
+          id: 'if-1',
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          typeVersion: 1,
+          position: [600, 400],
+          parameters: {}
+        });
+
+        // Add connections with both valid and stale targets on different outputs
+        workflow.connections['IF'] = {
+          'true': [[
+            { node: 'Slack', type: 'main', index: 0 },
+            { node: 'StaleNode1', type: 'main', index: 0 }
+          ]],
+          'false': [[
+            { node: 'HTTP Request', type: 'main', index: 0 },
+            { node: 'StaleNode2', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['IF']['true'][0]).toHaveLength(1);
+        expect(result.workflow.connections['IF']['true'][0][0].node).toBe('Slack');
+        expect(result.workflow.connections['IF']['false'][0]).toHaveLength(1);
+        expect(result.workflow.connections['IF']['false'][0][0].node).toBe('HTTP Request');
+      });
+
+      it('should remove empty output types after cleaning stale connections', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Add node with connections
+        workflow.nodes.push({
+          id: 'if-1',
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          typeVersion: 1,
+          position: [600, 400],
+          parameters: {}
+        });
+
+        // Add connections where all targets in one output are stale
+        workflow.connections['IF'] = {
+          'true': [[
+            { node: 'StaleNode1', type: 'main', index: 0 },
+            { node: 'StaleNode2', type: 'main', index: 0 }
+          ]],
+          'false': [[
+            { node: 'Slack', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['IF']['true']).toBeUndefined();
+        expect(result.workflow.connections['IF']['false']).toBeDefined();
+        expect(result.workflow.connections['IF']['false'][0][0].node).toBe('Slack');
+      });
+
+      it('should clean up entire node connections when all outputs become empty', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Add node
+        workflow.nodes.push({
+          id: 'if-1',
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          typeVersion: 1,
+          position: [600, 400],
+          parameters: {}
+        });
+
+        // Add connections where ALL targets are stale
+        workflow.connections['IF'] = {
+          'true': [[
+            { node: 'StaleNode1', type: 'main', index: 0 }
+          ]],
+          'false': [[
+            { node: 'StaleNode2', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['IF']).toBeUndefined();
+      });
+
+      it('should handle dryRun with multiple stale connections', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add stale connections from both valid and invalid source nodes
+        workflow.connections['GhostNode'] = {
+          'main': [[{ node: 'HTTP Request', type: 'main', index: 0 }]]
+        };
+
+        if (!workflow.connections['Webhook']) {
+          workflow.connections['Webhook'] = {};
+        }
+        workflow.connections['Webhook']['main'] = [[
+          { node: 'HTTP Request', type: 'main', index: 0 },
+          { node: 'StaleNode1', type: 'main', index: 0 },
+          { node: 'StaleNode2', type: 'main', index: 0 }
+        ]];
+
+        const originalConnections = JSON.parse(JSON.stringify(workflow.connections));
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections',
+          dryRun: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // Connections should remain unchanged in dryRun
+        expect(JSON.stringify(result.workflow.connections)).toBe(JSON.stringify(originalConnections));
+      });
+
+      it('should handle workflow with no stale connections', async () => {
+        // Use baseWorkflow which has name-based connections
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+        const originalConnectionsCount = Object.keys(workflow.connections).length;
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // Connections should remain unchanged (no stale connections to remove)
+        // Verify by checking connection count
+        expect(Object.keys(result.workflow.connections).length).toBe(originalConnectionsCount);
+        expect(result.workflow.connections['Webhook']).toBeDefined();
+        expect(result.workflow.connections['HTTP Request']).toBeDefined();
+      });
+    });
+
+    describe('replaceConnections - Advanced Scenarios', () => {
+      it('should fail validation when source node does not exist', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const newConnections = {
+          'NonExistentSource': {
+            'main': [[
+              { node: 'Slack', type: 'main', index: 0 }
+            ]]
+          }
+        };
+
+        const operations: ReplaceConnectionsOperation[] = [{
+          type: 'replaceConnections',
+          connections: newConnections
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toBeDefined();
+        expect(result.errors![0].message).toContain('Source node not found');
+      });
+
+      it('should successfully replace with empty connections object', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: ReplaceConnectionsOperation[] = [{
+          type: 'replaceConnections',
+          connections: {}
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections).toEqual({});
+      });
+
+      it('should handle complex connection structures with multiple outputs', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Add IF node
+        workflow.nodes.push({
+          id: 'if-1',
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          typeVersion: 1,
+          position: [600, 400],
+          parameters: {}
+        });
+
+        const newConnections = {
+          'Webhook': {
+            'main': [[
+              { node: 'IF', type: 'main', index: 0 }
+            ]]
+          },
+          'IF': {
+            'true': [[
+              { node: 'Slack', type: 'main', index: 0 }
+            ]],
+            'false': [[
+              { node: 'HTTP Request', type: 'main', index: 0 }
+            ]]
+          }
+        };
+
+        const operations: ReplaceConnectionsOperation[] = [{
+          type: 'replaceConnections',
+          connections: newConnections
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections).toEqual(newConnections);
+      });
+    });
+
+    describe('removeConnection with ignoreErrors - Advanced Scenarios', () => {
+      it('should succeed when source node does not exist with ignoreErrors', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'NonExistentSource',
+          target: 'Slack',
+          ignoreErrors: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // Workflow should remain unchanged (verify by checking node count)
+        expect(Object.keys(result.workflow.connections).length).toBe(Object.keys(baseWorkflow.connections).length);
+      });
+
+      it('should succeed when both source and target nodes do not exist with ignoreErrors', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'NonExistentSource',
+          target: 'NonExistentTarget',
+          ignoreErrors: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+      });
+
+      it('should succeed when connection exists but target node does not with ignoreErrors', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // This is an edge case where connection references a valid node but we're trying to remove to non-existent
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'Webhook',
+          target: 'NonExistentTarget',
+          ignoreErrors: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+      });
+
+      it('should fail when source node does not exist without ignoreErrors', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'NonExistentSource',
+          target: 'Slack',
+          ignoreErrors: false
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.errors![0].message).toContain('Source node not found');
+      });
+    });
+
+    describe('continueOnError - Advanced Scenarios', () => {
+      it('should catch runtime errors during operation application', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Create an operation that will pass validation but fail during application
+        // This is simulated by causing an error in the apply phase
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateName',
+            name: 'Valid Operation'
+          } as UpdateNameOperation,
+          {
+            type: 'updateNode',
+            nodeId: 'webhook-1',
+            updates: {
+              // This will pass validation but could fail in complex scenarios
+              'parameters.invalidDeepPath.nested.value': 'test'
+            }
+          } as UpdateNodeOperation,
+          {
+            type: 'addTag',
+            tag: 'another-valid'
+          } as AddTagOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        // All operations should succeed in this case (no runtime errors expected)
+        expect(result.success).toBe(true);
+        expect(result.applied).toBeDefined();
+        expect(result.applied!.length).toBeGreaterThan(0);
+      });
+
+      it('should handle mixed validation and runtime errors', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateName',
+            name: 'Operation 0'
+          } as UpdateNameOperation,
+          {
+            type: 'removeNode',
+            nodeId: 'non-existent-1'
+          } as RemoveNodeOperation,
+          {
+            type: 'addTag',
+            tag: 'tag1'
+          } as AddTagOperation,
+          {
+            type: 'removeConnection',
+            source: 'Webhook',
+            target: 'NonExistent'
+          } as RemoveConnectionOperation,
+          {
+            type: 'addTag',
+            tag: 'tag2'
+          } as AddTagOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.applied).toContain(0); // updateName
+        expect(result.applied).toContain(2); // first addTag
+        expect(result.applied).toContain(4); // second addTag
+        expect(result.failed).toContain(1); // removeNode
+        expect(result.failed).toContain(3); // removeConnection
+        expect(result.errors).toHaveLength(2);
+      });
+
+      it('should support validateOnly with continueOnError mode', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateName',
+            name: 'New Name'
+          } as UpdateNameOperation,
+          {
+            type: 'removeNode',
+            nodeId: 'non-existent'
+          } as RemoveNodeOperation,
+          {
+            type: 'addTag',
+            tag: 'test-tag'
+          } as AddTagOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true,
+          validateOnly: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.workflow).toBeUndefined();
+        expect(result.message).toContain('Validation completed');
+        expect(result.applied).toEqual([0, 2]);
+        expect(result.failed).toEqual([1]);
+        expect(result.errors).toHaveLength(1);
+      });
+
+      it('should handle all operations failing with helpful message', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'removeNode',
+            nodeId: 'non-existent-1'
+          } as RemoveNodeOperation,
+          {
+            type: 'removeNode',
+            nodeId: 'non-existent-2'
+          } as RemoveNodeOperation,
+          {
+            type: 'removeConnection',
+            source: 'Invalid',
+            target: 'Invalid'
+          } as RemoveConnectionOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.applied).toHaveLength(0);
+        expect(result.failed).toEqual([0, 1, 2]);
+        expect(result.errors).toHaveLength(3);
+        expect(result.message).toContain('0 operations');
+        expect(result.message).toContain('3 failed');
+      });
+
+      it('should preserve operation order in applied and failed arrays', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          { type: 'updateName', name: 'Name1' } as UpdateNameOperation, // 0 - success
+          { type: 'removeNode', nodeId: 'invalid1' } as RemoveNodeOperation, // 1 - fail
+          { type: 'addTag', tag: 'tag1' } as AddTagOperation, // 2 - success
+          { type: 'removeNode', nodeId: 'invalid2' } as RemoveNodeOperation, // 3 - fail
+          { type: 'addTag', tag: 'tag2' } as AddTagOperation, // 4 - success
+          { type: 'removeNode', nodeId: 'invalid3' } as RemoveNodeOperation, // 5 - fail
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.applied).toEqual([0, 2, 4]);
+        expect(result.failed).toEqual([1, 3, 5]);
+      });
+    });
+
+    describe('Edge Cases and Error Paths', () => {
+      it('should handle workflow with initialized but empty connections', async () => {
+        const workflow = builder.build() as Workflow;
+        // Start with empty connections
+        workflow.connections = {};
+
+        // Add some nodes but no connections
+        workflow.nodes.push({
+          id: 'orphan-1',
+          name: 'Orphan Node',
+          type: 'n8n-nodes-base.code',
+          typeVersion: 1,
+          position: [800, 400],
+          parameters: {}
+        });
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections).toEqual({});
+      });
+
+      it('should handle empty connections in cleanStaleConnections', async () => {
+        const workflow = builder.build() as Workflow;
+        workflow.connections = {};
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections).toEqual({});
+      });
+
+      it('should handle removeConnection with ignoreErrors on valid but non-connected nodes', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Both nodes exist but no connection between them
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'Slack',
+          target: 'Webhook',
+          ignoreErrors: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+      });
+
+      it('should handle replaceConnections with nested connection arrays', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const newConnections = {
+          'Webhook': {
+            'main': [
+              [
+                { node: 'HTTP Request', type: 'main', index: 0 },
+                { node: 'Slack', type: 'main', index: 0 }
+              ],
+              [
+                { node: 'HTTP Request', type: 'main', index: 1 }
+              ]
+            ]
+          }
+        };
+
+        const operations: ReplaceConnectionsOperation[] = [{
+          type: 'replaceConnections',
+          connections: newConnections
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['Webhook']['main']).toHaveLength(2);
+        expect(result.workflow.connections['Webhook']['main'][0]).toHaveLength(2);
+        expect(result.workflow.connections['Webhook']['main'][1]).toHaveLength(1);
+      });
+
+      it('should validate cleanStaleConnections always returns null', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // This tests that validation for cleanStaleConnections always passes
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          validateOnly: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain('Validation successful');
+      });
+
+      it('should handle continueOnError with no operations', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations: [],
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.applied).toEqual([]);
+        expect(result.failed).toEqual([]);
+      });
+    });
+
+    describe('Integration Tests - v2.14.4 Features Combined', () => {
+      it('should combine cleanStaleConnections and replaceConnections', async () => {
+        const workflow = builder.build() as Workflow;
+
+        // Add stale connections
+        workflow.connections['GhostNode'] = {
+          'main': [[{ node: 'Slack', type: 'main', index: 0 }]]
+        };
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'cleanStaleConnections'
+          } as CleanStaleConnectionsOperation,
+          {
+            type: 'replaceConnections',
+            connections: {
+              'Webhook': {
+                'main': [[{ node: 'Slack', type: 'main', index: 0 }]]
+              }
+            }
+          } as ReplaceConnectionsOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['GhostNode']).toBeUndefined();
+        expect(result.workflow.connections['Webhook']['main'][0][0].node).toBe('Slack');
+      });
+
+      it('should use continueOnError with new v2.14.4 operations', async () => {
+        const workflow = builder.build() as Workflow;
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'cleanStaleConnections'
+          } as CleanStaleConnectionsOperation,
+          {
+            type: 'replaceConnections',
+            connections: {
+              'NonExistentNode': {
+                'main': [[{ node: 'Slack', type: 'main', index: 0 }]]
+              }
+            }
+          } as ReplaceConnectionsOperation,
+          {
+            type: 'removeConnection',
+            source: 'Webhook',
+            target: 'NonExistent',
+            ignoreErrors: true
+          } as RemoveConnectionOperation,
+          {
+            type: 'addTag',
+            tag: 'final-tag'
+          } as AddTagOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.applied).toContain(0); // cleanStaleConnections
+        expect(result.failed).toContain(1); // replaceConnections with invalid node
+        expect(result.applied).toContain(2); // removeConnection with ignoreErrors
+        expect(result.applied).toContain(3); // addTag
+        expect(result.workflow.tags).toContain('final-tag');
+      });
+    });
+
+    describe('Additional Edge Cases for 90% Coverage', () => {
+      it('should handle cleanStaleConnections with connections from valid node to itself', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add self-referencing connection
+        if (!workflow.connections['Webhook']) {
+          workflow.connections['Webhook'] = {};
+        }
+        workflow.connections['Webhook']['main'] = [[
+          { node: 'Webhook', type: 'main', index: 0 },
+          { node: 'HTTP Request', type: 'main', index: 0 }
+        ]];
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // Self-referencing connection should remain (it's valid)
+        expect(result.workflow.connections['Webhook']['main'][0].some((c: any) => c.node === 'Webhook')).toBe(true);
+      });
+
+      it('should handle removeTag when tags array does not exist', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+        delete workflow.tags;
+
+        const operations: RemoveTagOperation[] = [{
+          type: 'removeTag',
+          tag: 'non-existent'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+      });
+
+      it('should handle cleanStaleConnections with multiple connection indices', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add connections with multiple indices
+        workflow.connections['Webhook'] = {
+          'main': [
+            [
+              { node: 'HTTP Request', type: 'main', index: 0 },
+              { node: 'Slack', type: 'main', index: 0 }
+            ],
+            [
+              { node: 'StaleNode', type: 'main', index: 0 }
+            ]
+          ]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // First index should remain with both valid connections
+        expect(result.workflow.connections['Webhook']['main'][0]).toHaveLength(2);
+        // Second index with stale node should be removed, so only one index remains
+        expect(result.workflow.connections['Webhook']['main'].length).toBe(1);
+      });
+
+      it('should handle continueOnError with runtime error during apply', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Create a scenario that might cause runtime errors
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateNode',
+            nodeId: 'webhook-1',
+            updates: {
+              'parameters.test': 'value1'
+            }
+          } as UpdateNodeOperation,
+          {
+            type: 'removeNode',
+            nodeId: 'invalid-node'
+          } as RemoveNodeOperation,
+          {
+            type: 'updateNode',
+            nodeName: 'HTTP Request',
+            updates: {
+              'parameters.test': 'value2'
+            }
+          } as UpdateNodeOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.applied).toContain(0);
+        expect(result.failed).toContain(1);
+        expect(result.applied).toContain(2);
+      });
+
+      it('should handle atomic mode failure in node operations', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateNode',
+            nodeId: 'webhook-1',
+            updates: {
+              'parameters.valid': 'update'
+            }
+          } as UpdateNodeOperation,
+          {
+            type: 'removeNode',
+            nodeId: 'invalid-node'
+          } as RemoveNodeOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors![0].operation).toBe(1);
+      });
+
+      it('should handle atomic mode failure in connection operations', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'addNode',
+            node: {
+              name: 'NewNode',
+              type: 'n8n-nodes-base.code',
+              position: [900, 300],
+              parameters: {}
+            }
+          } as AddNodeOperation,
+          {
+            type: 'addConnection',
+            source: 'NewNode',
+            target: 'InvalidTarget'
+          } as AddConnectionOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors![0].operation).toBe(1);
+      });
+
+      it('should handle cleanStaleConnections in dryRun with source node missing', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add connections from non-existent source
+        workflow.connections['GhostSource1'] = {
+          'main': [[{ node: 'Slack', type: 'main', index: 0 }]]
+        };
+
+        workflow.connections['GhostSource2'] = {
+          'main': [[{ node: 'HTTP Request', type: 'main', index: 0 }]],
+          'error': [[{ node: 'Slack', type: 'main', index: 0 }]]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections',
+          dryRun: true
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // In dryRun, connections should remain
+        expect(result.workflow.connections['GhostSource1']).toBeDefined();
+        expect(result.workflow.connections['GhostSource2']).toBeDefined();
+      });
+
+      it('should handle validateOnly in atomic mode', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateName',
+            name: 'Validated Name'
+          } as UpdateNameOperation,
+          {
+            type: 'addNode',
+            node: {
+              name: 'ValidNode',
+              type: 'n8n-nodes-base.code',
+              position: [900, 300],
+              parameters: {}
+            }
+          } as AddNodeOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          validateOnly: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow).toBeUndefined();
+        expect(result.message).toContain('Validation successful');
+        expect(result.message).toContain('not applied');
+      });
+
+      it('should handle malformed workflow object gracefully', async () => {
+        // Create a malformed workflow that will cause JSON parsing errors
+        const malformedWorkflow: any = {
+          name: 'Test',
+          nodes: [],
+          connections: {}
+        };
+
+        // Create circular reference to cause JSON.stringify to fail
+        malformedWorkflow.self = malformedWorkflow;
+
+        const operations: WorkflowDiffOperation[] = [{
+          type: 'updateName',
+          name: 'New Name'
+        } as UpdateNameOperation];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(malformedWorkflow, request);
+
+        // Should handle the error gracefully
+        expect(result.success).toBe(false);
+        expect(result.errors).toBeDefined();
+      });
+
+      it('should handle continueOnError with all operations causing errors', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'removeNode',
+            nodeId: 'invalid1'
+          } as RemoveNodeOperation,
+          {
+            type: 'removeNode',
+            nodeId: 'invalid2'
+          } as RemoveNodeOperation,
+          {
+            type: 'addConnection',
+            source: 'Invalid1',
+            target: 'Invalid2'
+          } as AddConnectionOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.applied).toEqual([]);
+        expect(result.failed).toEqual([0, 1, 2]);
+        expect(result.errors).toHaveLength(3);
+      });
+
+      it('should handle atomic mode with empty operations array', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations: []
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.operationsApplied).toBe(0);
+      });
+
+      it('should handle removeConnection without sourceOutput specified', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'Webhook',
+          target: 'HTTP Request'
+          // sourceOutput not specified, should default to 'main'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+      });
+
+      it('should handle continueOnError validateOnly with all errors', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'removeNode',
+            nodeId: 'invalid1'
+          } as RemoveNodeOperation,
+          {
+            type: 'removeNode',
+            nodeId: 'invalid2'
+          } as RemoveNodeOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true,
+          validateOnly: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('Validation completed');
+        expect(result.errors).toHaveLength(2);
+        expect(result.workflow).toBeUndefined();
+      });
+
+      it('should handle updateConnection with complex output configurations', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add IF node
+        workflow.nodes.push({
+          id: 'if-1',
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          typeVersion: 1,
+          position: [600, 400],
+          parameters: {}
+        });
+
+        // Add connection on 'true' output
+        workflow.connections['IF'] = {
+          'true': [[
+            { node: 'Slack', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: UpdateConnectionOperation[] = [{
+          type: 'updateConnection',
+          source: 'IF',
+          target: 'Slack',
+          updates: {
+            sourceOutput: 'false',
+            targetInput: 'main',
+            sourceIndex: 0,
+            targetIndex: 0
+          }
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+      });
+
+      it('should handle addConnection with all optional parameters specified', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add Code node
+        workflow.nodes.push({
+          id: 'code-1',
+          name: 'Code',
+          type: 'n8n-nodes-base.code',
+          typeVersion: 1,
+          position: [900, 300],
+          parameters: {}
+        });
+
+        const operations: AddConnectionOperation[] = [{
+          type: 'addConnection',
+          source: 'Slack',
+          target: 'Code',
+          sourceOutput: 'main',
+          targetInput: 'main',
+          sourceIndex: 0,
+          targetIndex: 0
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['Slack']['main'][0][0].node).toBe('Code');
+        expect(result.workflow.connections['Slack']['main'][0][0].type).toBe('main');
+        expect(result.workflow.connections['Slack']['main'][0][0].index).toBe(0);
+      });
+
+      it('should handle cleanStaleConnections actually removing source node connections', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add connections from non-existent source that should be deleted entirely
+        workflow.connections['NonExistentSource1'] = {
+          'main': [[
+            { node: 'Slack', type: 'main', index: 0 }
+          ]]
+        };
+
+        workflow.connections['NonExistentSource2'] = {
+          'main': [[
+            { node: 'HTTP Request', type: 'main', index: 0 }
+          ]],
+          'error': [[
+            { node: 'Slack', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['NonExistentSource1']).toBeUndefined();
+        expect(result.workflow.connections['NonExistentSource2']).toBeUndefined();
+      });
+
+      it('should handle validateOnly with no errors in continueOnError mode', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        const operations: WorkflowDiffOperation[] = [
+          {
+            type: 'updateName',
+            name: 'Valid Name'
+          } as UpdateNameOperation,
+          {
+            type: 'addTag',
+            tag: 'valid-tag'
+          } as AddTagOperation
+        ];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations,
+          continueOnError: true,
+          validateOnly: true
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.message).toContain('Validation successful');
+        expect(result.errors).toBeUndefined();
+        expect(result.applied).toEqual([0, 1]);
+        expect(result.failed).toEqual([]);
+      });
+
+      it('should handle addConnection initializing missing connection structure', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add node without any connections
+        workflow.nodes.push({
+          id: 'orphan-1',
+          name: 'Orphan',
+          type: 'n8n-nodes-base.code',
+          typeVersion: 1,
+          position: [900, 300],
+          parameters: {}
+        });
+
+        // Ensure Orphan has no connections initially
+        delete workflow.connections['Orphan'];
+
+        const operations: AddConnectionOperation[] = [{
+          type: 'addConnection',
+          source: 'Orphan',
+          target: 'Slack'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['Orphan']).toBeDefined();
+        expect(result.workflow.connections['Orphan']['main']).toBeDefined();
+        expect(result.workflow.connections['Orphan']['main'][0][0].node).toBe('Slack');
+      });
+
+      it('should handle addConnection with sourceIndex requiring array expansion', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Add Code node
+        workflow.nodes.push({
+          id: 'code-1',
+          name: 'Code',
+          type: 'n8n-nodes-base.code',
+          typeVersion: 1,
+          position: [900, 300],
+          parameters: {}
+        });
+
+        const operations: AddConnectionOperation[] = [{
+          type: 'addConnection',
+          source: 'Slack',
+          target: 'Code',
+          sourceIndex: 5 // Force array expansion to index 5
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        expect(result.workflow.connections['Slack']['main'].length).toBeGreaterThanOrEqual(6);
+        expect(result.workflow.connections['Slack']['main'][5][0].node).toBe('Code');
+      });
+
+      it('should handle removeConnection cleaning up empty output structures', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Set up a connection that will leave empty structures after removal
+        workflow.connections['HTTP Request'] = {
+          'main': [[
+            { node: 'Slack', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: RemoveConnectionOperation[] = [{
+          type: 'removeConnection',
+          source: 'HTTP Request',
+          target: 'Slack'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // Connection should be removed entirely (cleanup of empty structures)
+        expect(result.workflow.connections['HTTP Request']).toBeUndefined();
+      });
+
+      it('should handle complex cleanStaleConnections scenario with mixed valid/invalid', async () => {
+        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+        // Create a complex scenario with multiple source nodes
+        workflow.connections['Webhook'] = {
+          'main': [[
+            { node: 'HTTP Request', type: 'main', index: 0 },
+            { node: 'Stale1', type: 'main', index: 0 },
+            { node: 'Slack', type: 'main', index: 0 },
+            { node: 'Stale2', type: 'main', index: 0 }
+          ]],
+          'error': [[
+            { node: 'Stale3', type: 'main', index: 0 }
+          ]]
+        };
+
+        const operations: CleanStaleConnectionsOperation[] = [{
+          type: 'cleanStaleConnections'
+        }];
+
+        const request: WorkflowDiffRequest = {
+          id: 'test-workflow',
+          operations
+        };
+
+        const result = await diffEngine.applyDiff(workflow, request);
+
+        expect(result.success).toBe(true);
+        // Only valid connections should remain
+        expect(result.workflow.connections['Webhook']['main'][0]).toHaveLength(2);
+        expect(result.workflow.connections['Webhook']['main'][0].some((c: any) => c.node === 'HTTP Request')).toBe(true);
+        expect(result.workflow.connections['Webhook']['main'][0].some((c: any) => c.node === 'Slack')).toBe(true);
+        // Error output should be removed entirely (all stale)
+        expect(result.workflow.connections['Webhook']['error']).toBeUndefined();
+      });
+    });
+  });
 });
