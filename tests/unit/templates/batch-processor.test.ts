@@ -389,11 +389,11 @@ describe('BatchProcessor', () => {
     });
 
     it('should throw error when no output file available', async () => {
-      const batchJob = { output_file_id: null };
+      const batchJob = { output_file_id: null, error_file_id: null };
 
       await expect(
         (processor as any).retrieveResults(batchJob)
-      ).rejects.toThrow('No output file available for batch job');
+      ).rejects.toThrow('No output file or error file available for batch job');
     });
 
     it('should handle malformed result lines gracefully', async () => {
