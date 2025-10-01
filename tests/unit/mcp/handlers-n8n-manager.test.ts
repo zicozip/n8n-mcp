@@ -542,7 +542,7 @@ describe('handlers-n8n-manager', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'n8n server error. Please try again later or contact support.',
+        error: 'Service unavailable',
         code: 'SERVER_ERROR',
         details: {
           apiUrl: 'https://n8n.test.com',
@@ -640,6 +640,181 @@ describe('handlers-n8n-manager', () => {
         success: false,
         error: 'Something went wrong',
       });
+    });
+  });
+
+  describe('handleTriggerWebhookWorkflow', () => {
+    it('should trigger webhook successfully', async () => {
+      const webhookResponse = {
+        status: 200,
+        statusText: 'OK',
+        data: { result: 'success' },
+        headers: {}
+      };
+
+      mockApiClient.triggerWebhook.mockResolvedValue(webhookResponse);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test-123',
+        httpMethod: 'POST',
+        data: { test: 'data' }
+      });
+
+      expect(result).toEqual({
+        success: true,
+        data: webhookResponse,
+        message: 'Webhook triggered successfully'
+      });
+    });
+
+    it('should extract execution ID from webhook error response', async () => {
+      const apiError = new N8nServerError('Workflow execution failed');
+      apiError.details = {
+        executionId: 'exec_abc123',
+        workflowId: 'wf_xyz789'
+      };
+
+      mockApiClient.triggerWebhook.mockRejectedValue(apiError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test-123',
+        httpMethod: 'POST'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Workflow wf_xyz789 execution exec_abc123 failed');
+      expect(result.error).toContain('n8n_get_execution');
+      expect(result.error).toContain("mode: 'preview'");
+      expect(result.executionId).toBe('exec_abc123');
+      expect(result.workflowId).toBe('wf_xyz789');
+    });
+
+    it('should extract execution ID without workflow ID', async () => {
+      const apiError = new N8nServerError('Execution failed');
+      apiError.details = {
+        executionId: 'exec_only_123'
+      };
+
+      mockApiClient.triggerWebhook.mockRejectedValue(apiError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test-123',
+        httpMethod: 'GET'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Execution exec_only_123 failed');
+      expect(result.error).toContain('n8n_get_execution');
+      expect(result.error).toContain("mode: 'preview'");
+      expect(result.executionId).toBe('exec_only_123');
+      expect(result.workflowId).toBeUndefined();
+    });
+
+    it('should handle execution ID as "id" field', async () => {
+      const apiError = new N8nServerError('Error');
+      apiError.details = {
+        id: 'exec_from_id_field',
+        workflowId: 'wf_test'
+      };
+
+      mockApiClient.triggerWebhook.mockRejectedValue(apiError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test',
+        httpMethod: 'POST'
+      });
+
+      expect(result.error).toContain('exec_from_id_field');
+      expect(result.executionId).toBe('exec_from_id_field');
+    });
+
+    it('should provide generic guidance when no execution ID is available', async () => {
+      const apiError = new N8nServerError('Server error without execution context');
+      apiError.details = {}; // No execution ID
+
+      mockApiClient.triggerWebhook.mockRejectedValue(apiError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test',
+        httpMethod: 'POST'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Workflow failed to execute');
+      expect(result.error).toContain('n8n_list_executions');
+      expect(result.error).toContain('n8n_get_execution');
+      expect(result.error).toContain("mode='preview'");
+      expect(result.executionId).toBeUndefined();
+    });
+
+    it('should use standard error message for authentication errors', async () => {
+      const authError = new N8nAuthenticationError('Invalid API key');
+      mockApiClient.triggerWebhook.mockRejectedValue(authError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test',
+        httpMethod: 'POST'
+      });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to authenticate with n8n. Please check your API key.',
+        code: 'AUTHENTICATION_ERROR',
+        details: undefined
+      });
+    });
+
+    it('should use standard error message for validation errors', async () => {
+      const validationError = new N8nValidationError('Invalid webhook URL');
+      mockApiClient.triggerWebhook.mockRejectedValue(validationError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test',
+        httpMethod: 'POST'
+      });
+
+      expect(result.error).toBe('Invalid request: Invalid webhook URL');
+      expect(result.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('should handle invalid input with Zod validation error', async () => {
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'not-a-url',
+        httpMethod: 'INVALID_METHOD'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Invalid input');
+      expect(result.details).toHaveProperty('errors');
+    });
+
+    it('should not include "contact support" in error messages', async () => {
+      const apiError = new N8nServerError('Test error');
+      apiError.details = { executionId: 'test_exec' };
+
+      mockApiClient.triggerWebhook.mockRejectedValue(apiError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test',
+        httpMethod: 'POST'
+      });
+
+      expect(result.error?.toLowerCase()).not.toContain('contact support');
+      expect(result.error?.toLowerCase()).not.toContain('try again later');
+    });
+
+    it('should always recommend preview mode in error messages', async () => {
+      const apiError = new N8nServerError('Error');
+      apiError.details = { executionId: 'test_123' };
+
+      mockApiClient.triggerWebhook.mockRejectedValue(apiError);
+
+      const result = await handlers.handleTriggerWebhookWorkflow({
+        webhookUrl: 'https://n8n.test.com/webhook/test',
+        httpMethod: 'POST'
+      });
+
+      expect(result.error).toMatch(/mode:\s*'preview'/);
     });
   });
 });

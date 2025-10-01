@@ -95,6 +95,25 @@ export function handleN8nApiError(error: unknown): N8nApiError {
   return new N8nApiError('Unknown error occurred', undefined, 'UNKNOWN_ERROR', error);
 }
 
+/**
+ * Format execution error message with guidance to use n8n_get_execution
+ * @param executionId - The execution ID from the failed execution
+ * @param workflowId - Optional workflow ID
+ * @returns Formatted error message with n8n_get_execution guidance
+ */
+export function formatExecutionError(executionId: string, workflowId?: string): string {
+  const workflowPrefix = workflowId ? `Workflow ${workflowId} execution ` : 'Execution ';
+  return `${workflowPrefix}${executionId} failed. Use n8n_get_execution({id: '${executionId}', mode: 'preview'}) to investigate the error.`;
+}
+
+/**
+ * Format error message when no execution ID is available
+ * @returns Generic guidance to check executions
+ */
+export function formatNoExecutionError(): string {
+  return "Workflow failed to execute. Use n8n_list_executions to find recent executions, then n8n_get_execution with mode='preview' to investigate.";
+}
+
 // Utility to extract user-friendly error messages
 export function getUserFriendlyErrorMessage(error: N8nApiError): string {
   switch (error.code) {
@@ -109,7 +128,9 @@ export function getUserFriendlyErrorMessage(error: N8nApiError): string {
     case 'NO_RESPONSE':
       return 'Unable to connect to n8n. Please check the server URL and ensure n8n is running.';
     case 'SERVER_ERROR':
-      return 'n8n server error. Please try again later or contact support.';
+      // For server errors, we should not show generic message
+      // Callers should check for execution context and use formatExecutionError instead
+      return error.message || 'n8n server error occurred';
     default:
       return error.message || 'An unexpected error occurred';
   }

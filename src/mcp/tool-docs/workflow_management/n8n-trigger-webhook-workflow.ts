@@ -59,19 +59,59 @@ export const n8nTriggerWebhookWorkflowDoc: ToolDocumentation = {
       'Implement event-driven architectures with n8n'
     ],
     performance: `Performance varies based on workflow complexity and waitForResponse setting. Synchronous calls (waitForResponse: true) block until workflow completes. For long-running workflows, use async mode (waitForResponse: false) and monitor execution separately.`,
+    errorHandling: `**Enhanced Error Messages with Execution Guidance**
+
+When a webhook trigger fails, the error response now includes specific guidance to help debug the issue:
+
+**Error with Execution ID** (workflow started but failed):
+- Format: "Workflow {workflowId} execution {executionId} failed. Use n8n_get_execution({id: '{executionId}', mode: 'preview'}) to investigate the error."
+- Response includes: executionId and workflowId fields for direct access
+- Recommended action: Use n8n_get_execution with mode='preview' for fast, efficient error inspection
+
+**Error without Execution ID** (workflow didn't start):
+- Format: "Workflow failed to execute. Use n8n_list_executions to find recent executions, then n8n_get_execution with mode='preview' to investigate."
+- Recommended action: Check recent executions with n8n_list_executions
+
+**Why mode='preview'?**
+- Fast: <50ms response time
+- Efficient: ~500 tokens (vs 50K+ for full mode)
+- Safe: No timeout or token limit risks
+- Informative: Shows structure, counts, and error details
+- Provides recommendations for fetching more data if needed
+
+**Example Error Responses**:
+\`\`\`json
+{
+  "success": false,
+  "error": "Workflow wf_123 execution exec_456 failed. Use n8n_get_execution({id: 'exec_456', mode: 'preview'}) to investigate the error.",
+  "executionId": "exec_456",
+  "workflowId": "wf_123",
+  "code": "SERVER_ERROR"
+}
+\`\`\`
+
+**Investigation Workflow**:
+1. Trigger returns error with execution ID
+2. Call n8n_get_execution({id: executionId, mode: 'preview'}) to see structure and error
+3. Based on preview recommendation, fetch more data if needed
+4. Fix issues in workflow and retry`,
     bestPractices: [
       'Always verify workflow is active before attempting webhook triggers',
       'Match HTTP method exactly with webhook node configuration',
       'Use async mode (waitForResponse: false) for long-running workflows',
       'Include authentication headers when webhook requires them',
-      'Test webhook URL manually first to ensure it works'
+      'Test webhook URL manually first to ensure it works',
+      'When errors occur, use n8n_get_execution with mode="preview" first for efficient debugging',
+      'Store execution IDs from error responses for later investigation'
     ],
     pitfalls: [
       'Workflow must be ACTIVE - inactive workflows cannot be triggered',
       'HTTP method mismatch returns 404 even if URL is correct',
       'Webhook node must be the trigger node in the workflow',
       'Timeout errors occur with long workflows in sync mode',
-      'Data format must match webhook node expectations'
+      'Data format must match webhook node expectations',
+      'Error messages always include n8n_get_execution guidance - follow the suggested steps for efficient debugging',
+      'Execution IDs in error responses are crucial for debugging - always check for and use them'
     ],
     relatedTools: ['n8n_get_execution', 'n8n_list_executions', 'n8n_get_workflow', 'n8n_create_workflow']
   }
