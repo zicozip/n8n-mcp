@@ -499,7 +499,7 @@ describe('handlers-workflow-diff', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'n8n server error. Please try again later or contact support.',
+        error: 'Internal server error',
         code: 'SERVER_ERROR',
       });
     });
