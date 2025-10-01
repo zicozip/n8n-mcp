@@ -22,6 +22,7 @@ export interface ToolDocumentation {
     examples: string[];
     useCases: string[];
     performance: string;
+    errorHandling?: string; // Optional: Documentation on error handling and debugging
     bestPractices: string[];
     pitfalls: string[];
     modeComparison?: string; // Optional: Comparison of different modes for tools with multiple modes

@@ -18,7 +18,9 @@ import {
 import {
   N8nApiError,
   N8nNotFoundError,
-  getUserFriendlyErrorMessage
+  getUserFriendlyErrorMessage,
+  formatExecutionError,
+  formatNoExecutionError
 } from '../utils/n8n-errors';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
@@ -942,7 +944,7 @@ export async function handleTriggerWebhookWorkflow(args: unknown, context?: Inst
   try {
     const client = ensureApiConfigured(context);
     const input = triggerWebhookSchema.parse(args);
-    
+
     const webhookRequest: WebhookRequest = {
       webhookUrl: input.webhookUrl,
       httpMethod: input.httpMethod || 'POST',
@@ -950,9 +952,9 @@ export async function handleTriggerWebhookWorkflow(args: unknown, context?: Inst
       headers: input.headers,
       waitForResponse: input.waitForResponse ?? true
     };
-    
+
     const response = await client.triggerWebhook(webhookRequest);
-    
+
     return {
       success: true,
       data: response,
@@ -966,8 +968,35 @@ export async function handleTriggerWebhookWorkflow(args: unknown, context?: Inst
         details: { errors: error.errors }
       };
     }
-    
+
     if (error instanceof N8nApiError) {
+      // Try to extract execution context from error response
+      const errorData = error.details as any;
+      const executionId = errorData?.executionId || errorData?.id || errorData?.execution?.id;
+      const workflowId = errorData?.workflowId || errorData?.workflow?.id;
+
+      // If we have execution ID, provide specific guidance with n8n_get_execution
+      if (executionId) {
+        return {
+          success: false,
+          error: formatExecutionError(executionId, workflowId),
+          code: error.code,
+          executionId,
+          workflowId: workflowId || undefined
+        };
+      }
+
+      // No execution ID available - workflow likely didn't start
+      // Provide guidance to check recent executions
+      if (error.code === 'SERVER_ERROR' || error.statusCode && error.statusCode >= 500) {
+        return {
+          success: false,
+          error: formatNoExecutionError(),
+          code: error.code
+        };
+      }
+
+      // For other errors (auth, validation, etc), use standard message
       return {
         success: false,
         error: getUserFriendlyErrorMessage(error),
@@ -975,7 +1004,7 @@ export async function handleTriggerWebhookWorkflow(args: unknown, context?: Inst
         details: error.details as Record<string, unknown> | undefined
       };
     }
-    
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

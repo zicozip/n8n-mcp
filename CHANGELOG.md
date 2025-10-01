@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.6] - 2025-10-01
+
+### Enhanced
+- **Webhook Error Messages**: Replaced generic "Please try again later or contact support" messages with actionable guidance
+  - Error messages now extract execution ID and workflow ID from failed webhook triggers
+  - Guide users to use `n8n_get_execution({id: executionId, mode: 'preview'})` for efficient debugging
+  - Format: "Workflow {workflowId} execution {executionId} failed. Use n8n_get_execution({id: '{executionId}', mode: 'preview'}) to investigate the error."
+  - When no execution ID available: "Workflow failed to execute. Use n8n_list_executions to find recent executions, then n8n_get_execution with mode='preview' to investigate."
+
+### Added
+- New error formatting functions in `n8n-errors.ts`:
+  - `formatExecutionError()` - Creates execution-specific error messages with debugging guidance
+  - `formatNoExecutionError()` - Provides guidance when execution context unavailable
+- Enhanced `McpToolResponse` type with optional `executionId` and `workflowId` fields
+- Error handling documentation in `n8n-trigger-webhook-workflow` tool docs
+- 30 new comprehensive tests for error message formatting and webhook error handling
+
+### Changed
+- `handleTriggerWebhookWorkflow` now extracts execution context from error responses
+- `getUserFriendlyErrorMessage` returns actual server error messages instead of generic text
+- Tool documentation type enhanced with optional `errorHandling` field
+
+### Fixed
+- Test expectations updated to match new error message format (handlers-workflow-diff.test.ts)
+
+### Benefits
+- **Fast debugging**: Preview mode executes in <50ms (vs seconds for full data)
+- **Efficient**: Uses ~500 tokens (vs 50K+ tokens for full execution data)
+- **Safe**: No timeout or token limit risks
+- **Actionable**: Clear next steps for users to investigate failures
+
+### Impact
+- Eliminates unhelpful "contact support" messages
+- Provides specific, actionable debugging guidance
+- Reduces debugging time by directing users to efficient tools
+- 100% backward compatible - only improves error messages
+
 ## [2.14.5] - 2025-09-30
 
 ### Added

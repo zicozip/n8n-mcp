@@ -290,6 +290,8 @@ export interface McpToolResponse {
   message?: string;
   code?: string;
   details?: Record<string, unknown>;
+  executionId?: string;
+  workflowId?: string;
 }
 
 // Execution Filtering Types
