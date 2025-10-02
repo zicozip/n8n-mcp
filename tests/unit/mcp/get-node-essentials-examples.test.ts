@@ -13,6 +13,82 @@ describe('get_node_essentials with includeExamples', () => {
     process.env.NODE_DB_PATH = ':memory:';
     server = new N8NDocumentationMCPServer();
     await (server as any).initialized;
+
+    // Populate in-memory database with test nodes
+    // NOTE: Database stores nodes in SHORT form (nodes-base.xxx, not n8n-nodes-base.xxx)
+    const testNodes = [
+      {
+        node_type: 'nodes-base.httpRequest',
+        package_name: 'n8n-nodes-base',
+        display_name: 'HTTP Request',
+        description: 'Makes an HTTP request',
+        category: 'Core Nodes',
+        is_ai_tool: 0,
+        is_trigger: 0,
+        is_webhook: 0,
+        is_versioned: 1,
+        version: '1',
+        properties_schema: JSON.stringify([]),
+        operations: JSON.stringify([])
+      },
+      {
+        node_type: 'nodes-base.webhook',
+        package_name: 'n8n-nodes-base',
+        display_name: 'Webhook',
+        description: 'Starts workflow on webhook call',
+        category: 'Core Nodes',
+        is_ai_tool: 0,
+        is_trigger: 1,
+        is_webhook: 1,
+        is_versioned: 1,
+        version: '1',
+        properties_schema: JSON.stringify([]),
+        operations: JSON.stringify([])
+      },
+      {
+        node_type: 'nodes-base.test',
+        package_name: 'n8n-nodes-base',
+        display_name: 'Test Node',
+        description: 'Test node for examples',
+        category: 'Core Nodes',
+        is_ai_tool: 0,
+        is_trigger: 0,
+        is_webhook: 0,
+        is_versioned: 1,
+        version: '1',
+        properties_schema: JSON.stringify([]),
+        operations: JSON.stringify([])
+      }
+    ];
+
+    // Insert test nodes into the in-memory database
+    const db = (server as any).db;
+    if (db) {
+      const insertStmt = db.prepare(`
+        INSERT INTO nodes (
+          node_type, package_name, display_name, description, category,
+          is_ai_tool, is_trigger, is_webhook, is_versioned, version,
+          properties_schema, operations
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const node of testNodes) {
+        insertStmt.run(
+          node.node_type,
+          node.package_name,
+          node.display_name,
+          node.description,
+          node.category,
+          node.is_ai_tool,
+          node.is_trigger,
+          node.is_webhook,
+          node.is_versioned,
+          node.version,
+          node.properties_schema,
+          node.operations
+        );
+      }
+    }
   });
 
   afterEach(() => {
@@ -295,8 +371,9 @@ describe('get_node_essentials with includeExamples', () => {
 
         expect(result).toBeDefined();
         expect(result.nodeType).toBeDefined();
-        // Examples should be undefined due to error
-        expect(result.examples).toBeUndefined();
+        // Examples should be empty array due to error (fallback behavior)
+        expect(result.examples).toEqual([]);
+        expect(result.examplesCount).toBe(0);
       }
     });
 
