@@ -8,7 +8,7 @@ import { EnhancedConfigValidator } from './enhanced-config-validator';
 import { ExpressionValidator } from './expression-validator';
 import { ExpressionFormatValidator } from './expression-format-validator';
 import { NodeSimilarityService, NodeSuggestion } from './node-similarity-service';
-import { normalizeNodeType } from '../utils/node-type-utils';
+import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 import { Logger } from '../utils/logger';
 const logger = new Logger({ prefix: '[WorkflowValidator]' });
 
@@ -247,7 +247,7 @@ export class WorkflowValidator {
     // Check for minimum viable workflow
     if (workflow.nodes.length === 1) {
       const singleNode = workflow.nodes[0];
-      const normalizedType = normalizeNodeType(singleNode.type);
+      const normalizedType = NodeTypeNormalizer.normalizeToFullForm(singleNode.type);
       const isWebhook = normalizedType === 'nodes-base.webhook' ||
                        normalizedType === 'nodes-base.webhookTrigger';
       
@@ -304,7 +304,7 @@ export class WorkflowValidator {
 
     // Count trigger nodes - normalize type names first
     const triggerNodes = workflow.nodes.filter(n => {
-      const normalizedType = normalizeNodeType(n.type);
+      const normalizedType = NodeTypeNormalizer.normalizeToFullForm(n.type);
       return normalizedType.toLowerCase().includes('trigger') ||
              normalizedType.toLowerCase().includes('webhook') ||
              normalizedType === 'nodes-base.start' ||
@@ -364,17 +364,17 @@ export class WorkflowValidator {
             });
           }
         }
-        // Get node definition - try multiple formats
-        let nodeInfo = this.nodeRepository.getNode(node.type);
+        // Normalize node type FIRST to ensure consistent lookup
+        const normalizedType = NodeTypeNormalizer.normalizeToFullForm(node.type);
 
-        // If not found, try with normalized type
-        if (!nodeInfo) {
-          const normalizedType = normalizeNodeType(node.type);
-          if (normalizedType !== node.type) {
-            nodeInfo = this.nodeRepository.getNode(normalizedType);
-          }
+        // Update node type in place if it was normalized
+        if (normalizedType !== node.type) {
+          node.type = normalizedType;
         }
-        
+
+        // Get node definition using normalized type
+        const nodeInfo = this.nodeRepository.getNode(normalizedType);
+
         if (!nodeInfo) {
           // Use NodeSimilarityService to find suggestions
           const suggestions = await this.similarityService.findSimilarNodes(node.type, 3);
@@ -597,8 +597,8 @@ export class WorkflowValidator {
     // Check for orphaned nodes (exclude sticky notes)
     for (const node of workflow.nodes) {
       if (node.disabled || this.isStickyNote(node)) continue;
-      
-      const normalizedType = normalizeNodeType(node.type);
+
+      const normalizedType = NodeTypeNormalizer.normalizeToFullForm(node.type);
       const isTrigger = normalizedType.toLowerCase().includes('trigger') ||
                        normalizedType.toLowerCase().includes('webhook') ||
                        normalizedType === 'nodes-base.start' ||
@@ -811,14 +811,12 @@ export class WorkflowValidator {
     // The source should be an AI Agent connecting to this target node as a tool
     
     // Get target node info to check if it can be used as a tool
-    let targetNodeInfo = this.nodeRepository.getNode(targetNode.type);
-    
-    // Try normalized type if not found
-    if (!targetNodeInfo) {
-      const normalizedType = normalizeNodeType(targetNode.type);
-      if (normalizedType !== targetNode.type) {
-        targetNodeInfo = this.nodeRepository.getNode(normalizedType);
-      }
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(targetNode.type);
+    let targetNodeInfo = this.nodeRepository.getNode(normalizedType);
+
+    // Try original type if normalization didn't help (fallback for edge cases)
+    if (!targetNodeInfo && normalizedType !== targetNode.type) {
+      targetNodeInfo = this.nodeRepository.getNode(targetNode.type);
     }
     
     if (targetNodeInfo && !targetNodeInfo.isAITool && targetNodeInfo.package !== 'n8n-nodes-base') {

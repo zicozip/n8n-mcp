@@ -1,6 +1,7 @@
 import { DatabaseAdapter } from './database-adapter';
 import { ParsedNode } from '../parsers/node-parser';
 import { SQLiteStorageService } from '../services/sqlite-storage-service';
+import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 
 export class NodeRepository {
   private db: DatabaseAdapter;
@@ -50,33 +51,30 @@ export class NodeRepository {
   
   /**
    * Get node with proper JSON deserialization
+   * Automatically normalizes node type to full form for consistent lookups
    */
   getNode(nodeType: string): any {
+    // Normalize to full form first for consistent lookups
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
+
     const row = this.db.prepare(`
       SELECT * FROM nodes WHERE node_type = ?
-    `).get(nodeType) as any;
-    
+    `).get(normalizedType) as any;
+
+    // Fallback: try original type if normalization didn't help (e.g., community nodes)
+    if (!row && normalizedType !== nodeType) {
+      const originalRow = this.db.prepare(`
+        SELECT * FROM nodes WHERE node_type = ?
+      `).get(nodeType) as any;
+
+      if (originalRow) {
+        return this.parseNodeRow(originalRow);
+      }
+    }
+
     if (!row) return null;
-    
-    return {
-      nodeType: row.node_type,
-      displayName: row.display_name,
-      description: row.description,
-      category: row.category,
-      developmentStyle: row.development_style,
-      package: row.package_name,
-      isAITool: Number(row.is_ai_tool) === 1,
-      isTrigger: Number(row.is_trigger) === 1,
-      isWebhook: Number(row.is_webhook) === 1,
-      isVersioned: Number(row.is_versioned) === 1,
-      version: row.version,
-      properties: this.safeJsonParse(row.properties_schema, []),
-      operations: this.safeJsonParse(row.operations, []),
-      credentials: this.safeJsonParse(row.credentials_required, []),
-      hasDocumentation: !!row.documentation,
-      outputs: row.outputs ? this.safeJsonParse(row.outputs, null) : null,
-      outputNames: row.output_names ? this.safeJsonParse(row.output_names, null) : null
-    };
+
+    return this.parseNodeRow(row);
   }
   
   /**

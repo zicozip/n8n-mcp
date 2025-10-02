@@ -27,7 +27,8 @@ import * as n8nHandlers from './handlers-n8n-manager';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { getToolDocumentation, getToolsOverview } from './tools-documentation';
 import { PROJECT_VERSION } from '../utils/version';
-import { normalizeNodeType, getNodeTypeAlternatives, getWorkflowNodeType } from '../utils/node-utils';
+import { getNodeTypeAlternatives, getWorkflowNodeType } from '../utils/node-utils';
+import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 import { ToolValidation, Validator, ValidationError } from '../utils/validation-schemas';
 import {
   negotiateProtocolVersion,
@@ -966,9 +967,9 @@ export class N8NDocumentationMCPServer {
   private async getNodeInfo(nodeType: string): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    
-    // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+
+    // First try with normalized type (repository will also normalize internally)
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.repository.getNode(normalizedType);
     
     if (!node && normalizedType !== nodeType) {
@@ -1604,9 +1605,9 @@ export class N8NDocumentationMCPServer {
   private async getNodeDocumentation(nodeType: string): Promise<any> {
     await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
-    
+
     // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.db!.prepare(`
       SELECT node_type, display_name, documentation, description 
       FROM nodes 
@@ -1743,7 +1744,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     
     // Get the full node information
     // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.repository.getNode(normalizedType);
     
     if (!node && normalizedType !== nodeType) {
@@ -1814,10 +1815,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   private async searchNodeProperties(nodeType: string, query: string, maxResults: number = 20): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    
+
     // Get the node
     // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.repository.getNode(normalizedType);
     
     if (!node && normalizedType !== nodeType) {
@@ -1972,17 +1973,17 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   ): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    
+
     // Get node info to access properties
     // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.repository.getNode(normalizedType);
-    
+
     if (!node && normalizedType !== nodeType) {
       // Try original if normalization changed it
       node = this.repository.getNode(nodeType);
     }
-    
+
     if (!node) {
       // Fallback to other alternatives for edge cases
       const alternatives = getNodeTypeAlternatives(normalizedType);
@@ -2030,10 +2031,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   private async getPropertyDependencies(nodeType: string, config?: Record<string, any>): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    
+
     // Get node info to access properties
     // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.repository.getNode(normalizedType);
     
     if (!node && normalizedType !== nodeType) {
@@ -2084,10 +2085,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   private async getNodeAsToolInfo(nodeType: string): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    
+
     // Get node info
     // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.repository.getNode(normalizedType);
     
     if (!node && normalizedType !== nodeType) {
@@ -2307,10 +2308,10 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
   private async validateNodeMinimal(nodeType: string, config: Record<string, any>): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    
+
     // Get node info
     // First try with normalized type
-    const normalizedType = normalizeNodeType(nodeType);
+    const normalizedType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
     let node = this.repository.getNode(normalizedType);
     
     if (!node && normalizedType !== nodeType) {
