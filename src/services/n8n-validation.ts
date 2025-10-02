@@ -133,28 +133,17 @@ export function cleanWorkflowForUpdate(workflow: Workflow): Partial<Workflow> {
     ...cleanedWorkflow
   } = workflow as any;
 
-  // Filter settings to only include valid properties (Issue #248 fix)
-  // Prevents "settings must NOT have additional properties" API errors
+  // CRITICAL FIX for Issue #248:
+  // The n8n API update endpoint has a strict schema that REJECTS settings updates.
+  // Properties like callerPolicy and executionOrder cannot be updated via the API
+  // (see: https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916)
+  //
+  // Solution: Remove settings entirely from update requests. The n8n API will
+  // preserve existing workflow settings when they are omitted from the update payload.
+  // This prevents "settings must NOT have additional properties" errors while
+  // ensuring workflow updates (name, nodes, connections) work correctly.
   if (cleanedWorkflow.settings) {
-    const allowedSettingsKeys = [
-      'executionOrder',
-      'timezone',
-      'saveDataErrorExecution',
-      'saveDataSuccessExecution',
-      'saveManualExecutions',
-      'saveExecutionProgress',
-      'executionTimeout',
-      'errorWorkflow',
-      'callerPolicy',
-    ];
-
-    const filteredSettings: any = {};
-    for (const key of allowedSettingsKeys) {
-      if (key in cleanedWorkflow.settings) {
-        filteredSettings[key] = cleanedWorkflow.settings[key];
-      }
-    }
-    cleanedWorkflow.settings = filteredSettings;
+    delete cleanedWorkflow.settings;
   }
 
   return cleanedWorkflow;

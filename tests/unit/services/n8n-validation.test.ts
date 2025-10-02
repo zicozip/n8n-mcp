@@ -344,9 +344,9 @@ describe('n8n-validation', () => {
         expect(cleaned).not.toHaveProperty('shared');
         expect(cleaned).not.toHaveProperty('active');
         
-        // Should keep these fields
+        // Should keep name but remove settings (n8n API limitation)
         expect(cleaned.name).toBe('Updated Workflow');
-        expect(cleaned.settings).toEqual({ executionOrder: 'v1' });
+        expect(cleaned).not.toHaveProperty('settings');
       });
 
       it('should not add default settings for update', () => {
@@ -360,31 +360,7 @@ describe('n8n-validation', () => {
         expect(cleaned).not.toHaveProperty('settings');
       });
 
-      it('should filter out UI-only settings properties like timeSavedPerExecution (Issue #248)', () => {
-        const workflow = {
-          name: 'Test Workflow',
-          nodes: [],
-          connections: {},
-          settings: {
-            executionOrder: 'v1' as const,
-            saveDataSuccessExecution: 'none' as const,
-            timeSavedPerExecution: 5, // UI-only property - should be removed
-            unknownProperty: 'test', // Unknown property - should be removed
-          },
-        } as any;
-
-        const cleaned = cleanWorkflowForUpdate(workflow);
-
-        // Should keep valid properties
-        expect(cleaned.settings).toHaveProperty('executionOrder', 'v1');
-        expect(cleaned.settings).toHaveProperty('saveDataSuccessExecution', 'none');
-
-        // Should remove invalid properties
-        expect(cleaned.settings).not.toHaveProperty('timeSavedPerExecution');
-        expect(cleaned.settings).not.toHaveProperty('unknownProperty');
-      });
-
-      it('should preserve callerPolicy property in settings (Issue #248)', () => {
+      it('should remove settings entirely to prevent API errors (Issue #248 - corrected fix)', () => {
         const workflow = {
           name: 'Test Workflow',
           nodes: [],
@@ -393,60 +369,35 @@ describe('n8n-validation', () => {
             executionOrder: 'v1' as const,
             saveDataSuccessExecution: 'none' as const,
             callerPolicy: 'workflowsFromSameOwner' as const,
-            errorWorkflow: 'N2O2nZy3aUiBRGFN',
+            timeSavedPerExecution: 5, // UI-only property
           },
         } as any;
 
         const cleaned = cleanWorkflowForUpdate(workflow);
 
-        // All these properties should be preserved
-        expect(cleaned.settings).toHaveProperty('executionOrder', 'v1');
-        expect(cleaned.settings).toHaveProperty('saveDataSuccessExecution', 'none');
-        expect(cleaned.settings).toHaveProperty('callerPolicy', 'workflowsFromSameOwner');
-        expect(cleaned.settings).toHaveProperty('errorWorkflow', 'N2O2nZy3aUiBRGFN');
+        // Settings should be removed entirely (n8n API doesn't support updating settings)
+        expect(cleaned).not.toHaveProperty('settings');
       });
 
-      it('should handle settings with both valid and invalid properties (Issue #248)', () => {
+      it('should remove settings with callerPolicy (Issue #248 - API limitation)', () => {
         const workflow = {
           name: 'Test Workflow',
           nodes: [],
           connections: {},
           settings: {
             executionOrder: 'v1' as const,
-            timezone: 'America/New_York',
-            timeSavedPerExecution: 10, // Invalid - should be removed
-            callerPolicy: 'any' as const, // Valid - should be kept
-            uiProperty: { nested: 'value' }, // Invalid - should be removed
-            saveExecutionProgress: true, // Valid - should be kept
+            callerPolicy: 'workflowsFromSameOwner' as const,
+            errorWorkflow: 'N2O2nZy3aUiBRGFN',
           },
         } as any;
 
         const cleaned = cleanWorkflowForUpdate(workflow);
 
-        // Valid properties should be kept
-        expect(cleaned.settings).toHaveProperty('executionOrder', 'v1');
-        expect(cleaned.settings).toHaveProperty('timezone', 'America/New_York');
-        expect(cleaned.settings).toHaveProperty('callerPolicy', 'any');
-        expect(cleaned.settings).toHaveProperty('saveExecutionProgress', true);
-
-        // Invalid properties should be removed
-        expect(cleaned.settings).not.toHaveProperty('timeSavedPerExecution');
-        expect(cleaned.settings).not.toHaveProperty('uiProperty');
+        // Settings must be removed (n8n API rejects updates with settings properties)
+        expect(cleaned).not.toHaveProperty('settings');
       });
 
-      it('should handle empty settings object', () => {
-        const workflow = {
-          name: 'Test Workflow',
-          nodes: [],
-          connections: {},
-          settings: {},
-        } as any;
-
-        const cleaned = cleanWorkflowForUpdate(workflow);
-        expect(cleaned.settings).toEqual({});
-      });
-
-      it('should preserve all whitelisted settings properties', () => {
+      it('should remove all settings regardless of content (Issue #248 - API design)', () => {
         const workflow = {
           name: 'Test Workflow',
           nodes: [],
@@ -466,18 +417,20 @@ describe('n8n-validation', () => {
 
         const cleaned = cleanWorkflowForUpdate(workflow);
 
-        // All whitelisted properties should be preserved
-        expect(cleaned.settings).toEqual({
-          executionOrder: 'v0',
-          timezone: 'UTC',
-          saveDataErrorExecution: 'all',
-          saveDataSuccessExecution: 'none',
-          saveManualExecutions: false,
-          saveExecutionProgress: false,
-          executionTimeout: 300,
-          errorWorkflow: 'error-workflow-id',
-          callerPolicy: 'workflowsFromAList',
-        });
+        // Settings removed due to n8n API limitation (cannot update settings via API)
+        // See: https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916
+        expect(cleaned).not.toHaveProperty('settings');
+      });
+
+      it('should handle workflows without settings gracefully', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+        expect(cleaned).not.toHaveProperty('settings');
       });
     });
   });
