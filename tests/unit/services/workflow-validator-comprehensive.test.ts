@@ -579,7 +579,6 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const result = await validator.validateWorkflow(workflow as any);
 
-      expect(mockNodeRepository.getNode).toHaveBeenCalledWith('n8n-nodes-base.webhook');
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-base.webhook');
     });
 
@@ -599,7 +598,6 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const result = await validator.validateWorkflow(workflow as any);
 
-      expect(mockNodeRepository.getNode).toHaveBeenCalledWith('@n8n/n8n-nodes-langchain.agent');
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-langchain.agent');
     });
 

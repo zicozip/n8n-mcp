@@ -230,8 +230,21 @@ describe('handlers-n8n-manager', () => {
         data: testWorkflow,
         message: 'Workflow "Test Workflow" created successfully with ID: test-workflow-id',
       });
-      expect(mockApiClient.createWorkflow).toHaveBeenCalledWith(input);
-      expect(n8nValidation.validateWorkflowStructure).toHaveBeenCalledWith(input);
+
+      const expectedNormalizedInput = {
+        name: 'Test Workflow',
+        nodes: [{
+          id: 'node1',
+          name: 'Start',
+          type: 'nodes-base.start',
+          typeVersion: 1,
+          position: [100, 100],
+          parameters: {},
+        }],
+        connections: testWorkflow.connections,
+      };
+      expect(mockApiClient.createWorkflow).toHaveBeenCalledWith(expectedNormalizedInput);
+      expect(n8nValidation.validateWorkflowStructure).toHaveBeenCalledWith(expectedNormalizedInput);
     });
 
     it('should handle validation errors', async () => {

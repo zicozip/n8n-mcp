@@ -658,7 +658,7 @@ export class WorkflowValidator {
         }
 
         // Special validation for SplitInBatches node
-        if (sourceNode && sourceNode.type === 'n8n-nodes-base.splitInBatches') {
+        if (sourceNode && sourceNode.type === 'nodes-base.splitInBatches') {
           this.validateSplitInBatchesConnection(
             sourceNode,
             outputIndex,
@@ -671,7 +671,7 @@ export class WorkflowValidator {
         // Check for self-referencing connections
         if (connection.node === sourceName) {
           // This is only a warning for non-loop nodes
-          if (sourceNode && sourceNode.type !== 'n8n-nodes-base.splitInBatches') {
+          if (sourceNode && sourceNode.type !== 'nodes-base.splitInBatches') {
             result.warnings.push({
               type: 'warning',
               message: `Node "${sourceName}" has a self-referencing connection. This can cause infinite loops.`
