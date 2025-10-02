@@ -45,6 +45,7 @@ export const workflowSettingsSchema = z.object({
   saveExecutionProgress: z.boolean().default(true),
   executionTimeout: z.number().optional(),
   errorWorkflow: z.string().optional(),
+  callerPolicy: z.enum(['any', 'workflowsFromSameOwner', 'workflowsFromAList']).optional(),
 });
 
 // Default settings for workflow creation
@@ -95,14 +96,17 @@ export function cleanWorkflowForCreate(workflow: Partial<Workflow>): Partial<Wor
 
 /**
  * Clean workflow data for update operations.
- * 
+ *
  * This function removes read-only and computed fields that should not be sent
  * in API update requests. It does NOT add any default values or new fields.
- * 
+ *
  * Note: Unlike cleanWorkflowForCreate, this function does not add default settings.
  * The n8n API will reject update requests that include properties not present in
  * the original workflow ("settings must NOT have additional properties" error).
- * 
+ *
+ * Settings are filtered to only include whitelisted properties to prevent API
+ * errors when workflows from n8n contain UI-only or deprecated properties.
+ *
  * @param workflow - The workflow object to clean
  * @returns A cleaned partial workflow suitable for API updates
  */
@@ -128,6 +132,30 @@ export function cleanWorkflowForUpdate(workflow: Workflow): Partial<Workflow> {
     // Keep everything else
     ...cleanedWorkflow
   } = workflow as any;
+
+  // Filter settings to only include valid properties (Issue #248 fix)
+  // Prevents "settings must NOT have additional properties" API errors
+  if (cleanedWorkflow.settings) {
+    const allowedSettingsKeys = [
+      'executionOrder',
+      'timezone',
+      'saveDataErrorExecution',
+      'saveDataSuccessExecution',
+      'saveManualExecutions',
+      'saveExecutionProgress',
+      'executionTimeout',
+      'errorWorkflow',
+      'callerPolicy',
+    ];
+
+    const filteredSettings: any = {};
+    for (const key of allowedSettingsKeys) {
+      if (key in cleanedWorkflow.settings) {
+        filteredSettings[key] = cleanedWorkflow.settings[key];
+      }
+    }
+    cleanedWorkflow.settings = filteredSettings;
+  }
 
   return cleanedWorkflow;
 }

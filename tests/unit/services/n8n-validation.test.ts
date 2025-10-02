@@ -359,6 +359,126 @@ describe('n8n-validation', () => {
         const cleaned = cleanWorkflowForUpdate(workflow);
         expect(cleaned).not.toHaveProperty('settings');
       });
+
+      it('should filter out UI-only settings properties like timeSavedPerExecution (Issue #248)', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {
+            executionOrder: 'v1' as const,
+            saveDataSuccessExecution: 'none' as const,
+            timeSavedPerExecution: 5, // UI-only property - should be removed
+            unknownProperty: 'test', // Unknown property - should be removed
+          },
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+
+        // Should keep valid properties
+        expect(cleaned.settings).toHaveProperty('executionOrder', 'v1');
+        expect(cleaned.settings).toHaveProperty('saveDataSuccessExecution', 'none');
+
+        // Should remove invalid properties
+        expect(cleaned.settings).not.toHaveProperty('timeSavedPerExecution');
+        expect(cleaned.settings).not.toHaveProperty('unknownProperty');
+      });
+
+      it('should preserve callerPolicy property in settings (Issue #248)', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {
+            executionOrder: 'v1' as const,
+            saveDataSuccessExecution: 'none' as const,
+            callerPolicy: 'workflowsFromSameOwner' as const,
+            errorWorkflow: 'N2O2nZy3aUiBRGFN',
+          },
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+
+        // All these properties should be preserved
+        expect(cleaned.settings).toHaveProperty('executionOrder', 'v1');
+        expect(cleaned.settings).toHaveProperty('saveDataSuccessExecution', 'none');
+        expect(cleaned.settings).toHaveProperty('callerPolicy', 'workflowsFromSameOwner');
+        expect(cleaned.settings).toHaveProperty('errorWorkflow', 'N2O2nZy3aUiBRGFN');
+      });
+
+      it('should handle settings with both valid and invalid properties (Issue #248)', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {
+            executionOrder: 'v1' as const,
+            timezone: 'America/New_York',
+            timeSavedPerExecution: 10, // Invalid - should be removed
+            callerPolicy: 'any' as const, // Valid - should be kept
+            uiProperty: { nested: 'value' }, // Invalid - should be removed
+            saveExecutionProgress: true, // Valid - should be kept
+          },
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+
+        // Valid properties should be kept
+        expect(cleaned.settings).toHaveProperty('executionOrder', 'v1');
+        expect(cleaned.settings).toHaveProperty('timezone', 'America/New_York');
+        expect(cleaned.settings).toHaveProperty('callerPolicy', 'any');
+        expect(cleaned.settings).toHaveProperty('saveExecutionProgress', true);
+
+        // Invalid properties should be removed
+        expect(cleaned.settings).not.toHaveProperty('timeSavedPerExecution');
+        expect(cleaned.settings).not.toHaveProperty('uiProperty');
+      });
+
+      it('should handle empty settings object', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {},
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+        expect(cleaned.settings).toEqual({});
+      });
+
+      it('should preserve all whitelisted settings properties', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {
+            executionOrder: 'v0' as const,
+            timezone: 'UTC',
+            saveDataErrorExecution: 'all' as const,
+            saveDataSuccessExecution: 'none' as const,
+            saveManualExecutions: false,
+            saveExecutionProgress: false,
+            executionTimeout: 300,
+            errorWorkflow: 'error-workflow-id',
+            callerPolicy: 'workflowsFromAList' as const,
+          },
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+
+        // All whitelisted properties should be preserved
+        expect(cleaned.settings).toEqual({
+          executionOrder: 'v0',
+          timezone: 'UTC',
+          saveDataErrorExecution: 'all',
+          saveDataSuccessExecution: 'none',
+          saveManualExecutions: false,
+          saveExecutionProgress: false,
+          executionTimeout: 300,
+          errorWorkflow: 'error-workflow-id',
+          callerPolicy: 'workflowsFromAList',
+        });
+      });
     });
   });
 
