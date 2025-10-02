@@ -645,9 +645,9 @@ describe('WorkflowValidator - Mock-based Unit Tests', () => {
 
       await validator.validateWorkflow(workflow as any);
 
-      // Should have called getNode for each node type
-      expect(mockGetNode).toHaveBeenCalledWith('n8n-nodes-base.httpRequest');
-      expect(mockGetNode).toHaveBeenCalledWith('n8n-nodes-base.set');
+      // Should have called getNode for each node type (normalized to short form)
+      expect(mockGetNode).toHaveBeenCalledWith('nodes-base.httpRequest');
+      expect(mockGetNode).toHaveBeenCalledWith('nodes-base.set');
       expect(mockGetNode).toHaveBeenCalledTimes(2);
     });
 
@@ -712,7 +712,7 @@ describe('WorkflowValidator - Mock-based Unit Tests', () => {
       // Should call getNode for the same type multiple times (current implementation)
       // Note: This test documents current behavior. Could be optimized in the future.
       const httpRequestCalls = mockGetNode.mock.calls.filter(
-        call => call[0] === 'n8n-nodes-base.httpRequest'
+        call => call[0] === 'nodes-base.httpRequest'
       );
       expect(httpRequestCalls.length).toBeGreaterThan(0);
     });
