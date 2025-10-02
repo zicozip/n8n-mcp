@@ -17,14 +17,13 @@ import {
   validateWorkflowConnectionsDoc,
   validateWorkflowExpressionsDoc
 } from './validation';
-import { 
-  listTasksDoc, 
-  getNodeForTaskDoc, 
-  listNodeTemplatesDoc, 
-  getTemplateDoc, 
+import {
+  listTasksDoc,
+  listNodeTemplatesDoc,
+  getTemplateDoc,
   searchTemplatesDoc,
-  searchTemplatesByMetadataDoc, 
-  getTemplatesForTaskDoc 
+  searchTemplatesByMetadataDoc,
+  getTemplatesForTaskDoc
 } from './templates';
 import { 
   toolsDocumentationDoc,
@@ -81,7 +80,6 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
   
   // Template tools
   list_tasks: listTasksDoc,
-  get_node_for_task: getNodeForTaskDoc,
   list_node_templates: listNodeTemplatesDoc,
   get_template: getTemplateDoc,
   search_templates: searchTemplatesDoc,

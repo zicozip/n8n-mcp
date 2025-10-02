@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.0] - 2025-10-02
+
+### 🚀 Major Features
+
+#### P0-R3: Pre-extracted Template Configurations
+- **Template-Based Configuration System** - 2,646 real-world node configurations from popular templates
+  - Pre-extracted node configurations from all workflow templates
+  - Ranked by template popularity (views)
+  - Includes metadata: complexity, use cases, credentials, expressions
+  - Query performance: <1ms (vs 30-60ms with previous system)
+  - Database size increase: ~513 KB for 2,000+ configurations
+
+### Breaking Changes
+
+#### Removed: `get_node_for_task` Tool
+- **Reason**: Only 31 hardcoded tasks, 28% failure rate in production
+- **Replacement**: Template-based examples with 2,646 real configurations
+
+#### Migration Guide
+
+**Before (v2.14.7):**
+```javascript
+// Get configuration for a task
+get_node_for_task({ task: "receive_webhook" })
+```
+
+**After (v2.15.0):**
+```javascript
+// Option 1: Search nodes with examples
+search_nodes({
+  query: "webhook",
+  includeExamples: true
+})
+// Returns: Top 2 real template configs per node
+
+// Option 2: Get node essentials with examples
+get_node_essentials({
+  nodeType: "nodes-base.webhook",
+  includeExamples: true
+})
+// Returns: Top 3 real template configs with full metadata
+```
+
+### Added
+
+- **Enhanced `search_nodes` Tool**
+  - New parameter: `includeExamples` (boolean, default: false)
+  - Returns top 2 real-world configurations per node from popular templates
+  - Includes: configuration, template name, view count
+
+- **Enhanced `get_node_essentials` Tool**
+  - New parameter: `includeExamples` (boolean, default: false)
+  - Returns top 3 real-world configurations with full metadata
+  - Includes: configuration, source template, complexity, use cases, credentials info
+
+- **Database Schema**
+  - New table: `template_node_configs` - Pre-extracted node configurations
+  - New view: `ranked_node_configs` - Easy access to top 5 configs per node
+  - Optimized indexes for fast queries (<1ms)
+
+- **Template Processing**
+  - Automatic config extraction during `npm run fetch:templates`
+  - Expression detection ({{...}}, $json, $node)
+  - Complexity analysis and use case extraction
+  - Ranking by template popularity
+
+### Removed
+
+- Tool: `get_node_for_task` (see Breaking Changes above)
+- Tool documentation: `get-node-for-task.ts`
+
+### Deprecated
+
+- `TaskTemplates` service marked for removal in v2.16.0
+- `list_tasks` tool marked for deprecation (use template search instead)
+
+### Performance
+
+- Query time: <1ms for pre-extracted configs (vs 30-60ms for on-demand generation)
+- 30-60x faster configuration lookups
+- 85x more configuration examples (2,646 vs 31)
+
 ## [2.14.7] - 2025-10-02
 
 ### Fixed

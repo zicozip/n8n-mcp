@@ -10,21 +10,240 @@ import type { MetadataRequest } from '../templates/metadata-generator';
 // Load environment variables
 dotenv.config();
 
-async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild', generateMetadata: boolean = false, metadataOnly: boolean = false) {
+/**
+ * Extract node configurations from a template workflow
+ */
+function extractNodeConfigs(
+  templateId: number,
+  templateName: string,
+  templateViews: number,
+  workflowCompressed: string,
+  metadata: any
+): Array<{
+  node_type: string;
+  template_id: number;
+  template_name: string;
+  template_views: number;
+  node_name: string;
+  parameters_json: string;
+  credentials_json: string | null;
+  has_credentials: number;
+  has_expressions: number;
+  complexity: string;
+  use_cases: string;
+}> {
+  try {
+    // Decompress workflow
+    const decompressed = zlib.gunzipSync(Buffer.from(workflowCompressed, 'base64'));
+    const workflow = JSON.parse(decompressed.toString('utf-8'));
+
+    const configs: any[] = [];
+
+    for (const node of workflow.nodes || []) {
+      // Skip UI-only nodes (sticky notes, etc.)
+      if (node.type.includes('stickyNote') || !node.parameters) {
+        continue;
+      }
+
+      configs.push({
+        node_type: node.type,
+        template_id: templateId,
+        template_name: templateName,
+        template_views: templateViews,
+        node_name: node.name,
+        parameters_json: JSON.stringify(node.parameters),
+        credentials_json: node.credentials ? JSON.stringify(node.credentials) : null,
+        has_credentials: node.credentials ? 1 : 0,
+        has_expressions: detectExpressions(node.parameters) ? 1 : 0,
+        complexity: metadata?.complexity || 'medium',
+        use_cases: JSON.stringify(metadata?.use_cases || [])
+      });
+    }
+
+    return configs;
+  } catch (error) {
+    console.error(`Error extracting configs from template ${templateId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Detect n8n expressions in parameters
+ */
+function detectExpressions(params: any): boolean {
+  if (!params) return false;
+  const json = JSON.stringify(params);
+  return json.includes('={{') || json.includes('$json') || json.includes('$node');
+}
+
+/**
+ * Insert extracted configs into database and rank them
+ */
+function insertAndRankConfigs(db: any, configs: any[]) {
+  if (configs.length === 0) {
+    console.log('No configs to insert');
+    return;
+  }
+
+  // Clear old configs for these templates
+  const templateIds = [...new Set(configs.map(c => c.template_id))];
+  const placeholders = templateIds.map(() => '?').join(',');
+  db.prepare(`DELETE FROM template_node_configs WHERE template_id IN (${placeholders})`).run(...templateIds);
+
+  // Insert new configs
+  const insertStmt = db.prepare(`
+    INSERT INTO template_node_configs (
+      node_type, template_id, template_name, template_views,
+      node_name, parameters_json, credentials_json,
+      has_credentials, has_expressions, complexity, use_cases
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (const config of configs) {
+    insertStmt.run(
+      config.node_type,
+      config.template_id,
+      config.template_name,
+      config.template_views,
+      config.node_name,
+      config.parameters_json,
+      config.credentials_json,
+      config.has_credentials,
+      config.has_expressions,
+      config.complexity,
+      config.use_cases
+    );
+  }
+
+  // Rank configs per node_type by template popularity
+  db.exec(`
+    UPDATE template_node_configs
+    SET rank = (
+      SELECT COUNT(*) + 1
+      FROM template_node_configs AS t2
+      WHERE t2.node_type = template_node_configs.node_type
+        AND t2.template_views > template_node_configs.template_views
+    )
+  `);
+
+  // Keep only top 10 per node_type
+  db.exec(`
+    DELETE FROM template_node_configs
+    WHERE id NOT IN (
+      SELECT id FROM template_node_configs
+      WHERE rank <= 10
+      ORDER BY node_type, rank
+    )
+  `);
+
+  console.log(`✅ Extracted and ranked ${configs.length} node configurations`);
+}
+
+/**
+ * Extract node configurations from existing templates
+ */
+async function extractTemplateConfigs(db: any, service: TemplateService) {
+  console.log('📦 Extracting node configurations from templates...');
+  const repository = (service as any).repository;
+  const allTemplates = repository.getAllTemplates();
+
+  const allConfigs: any[] = [];
+  let configsExtracted = 0;
+
+  for (const template of allTemplates) {
+    if (template.workflow_json_compressed) {
+      const metadata = template.metadata_json ? JSON.parse(template.metadata_json) : null;
+      const configs = extractNodeConfigs(
+        template.id,
+        template.name,
+        template.views,
+        template.workflow_json_compressed,
+        metadata
+      );
+      allConfigs.push(...configs);
+      configsExtracted += configs.length;
+    }
+  }
+
+  if (allConfigs.length > 0) {
+    insertAndRankConfigs(db, allConfigs);
+
+    // Show stats
+    const configStats = db.prepare(`
+      SELECT
+        COUNT(DISTINCT node_type) as node_types,
+        COUNT(*) as total_configs,
+        AVG(rank) as avg_rank
+      FROM template_node_configs
+    `).get() as any;
+
+    console.log(`📊 Node config stats:`);
+    console.log(`   - Unique node types: ${configStats.node_types}`);
+    console.log(`   - Total configs stored: ${configStats.total_configs}`);
+    console.log(`   - Average rank: ${configStats.avg_rank?.toFixed(1) || 'N/A'}`);
+  } else {
+    console.log('⚠️  No node configurations extracted');
+  }
+}
+
+async function fetchTemplates(
+  mode: 'rebuild' | 'update' = 'rebuild',
+  generateMetadata: boolean = false,
+  metadataOnly: boolean = false,
+  extractOnly: boolean = false
+) {
+  // If extract-only mode, skip template fetching and only extract configs
+  if (extractOnly) {
+    console.log('📦 Extract-only mode: Extracting node configurations from existing templates...\n');
+
+    const db = await createDatabaseAdapter('./data/nodes.db');
+
+    // Ensure template_node_configs table exists
+    try {
+      const tableExists = db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='template_node_configs'
+      `).get();
+
+      if (!tableExists) {
+        console.log('📋 Creating template_node_configs table...');
+        const migrationPath = path.join(__dirname, '../../src/database/migrations/add-template-node-configs.sql');
+        const migration = fs.readFileSync(migrationPath, 'utf8');
+        db.exec(migration);
+        console.log('✅ Table created successfully\n');
+      }
+    } catch (error) {
+      console.error('❌ Error checking/creating template_node_configs table:', error);
+      if ('close' in db && typeof db.close === 'function') {
+        db.close();
+      }
+      process.exit(1);
+    }
+
+    const service = new TemplateService(db);
+
+    await extractTemplateConfigs(db, service);
+
+    if ('close' in db && typeof db.close === 'function') {
+      db.close();
+    }
+    return;
+  }
+
   // If metadata-only mode, skip template fetching entirely
   if (metadataOnly) {
     console.log('🤖 Metadata-only mode: Generating metadata for existing templates...\n');
-    
+
     if (!process.env.OPENAI_API_KEY) {
       console.error('❌ OPENAI_API_KEY not set in environment');
       process.exit(1);
     }
-    
+
     const db = await createDatabaseAdapter('./data/nodes.db');
     const service = new TemplateService(db);
-    
+
     await generateTemplateMetadata(db, service);
-    
+
     if ('close' in db && typeof db.close === 'function') {
       db.close();
     }
@@ -125,7 +344,11 @@ async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild', generateMe
     stats.topUsedNodes.forEach((node: any, index: number) => {
       console.log(`   ${index + 1}. ${node.node} (${node.count} templates)`);
     });
-    
+
+    // Extract node configurations from templates
+    console.log('');
+    await extractTemplateConfigs(db, service);
+
     // Generate metadata if requested
     if (generateMetadata && process.env.OPENAI_API_KEY) {
       console.log('\n🤖 Generating metadata for templates...');
@@ -133,7 +356,7 @@ async function fetchTemplates(mode: 'rebuild' | 'update' = 'rebuild', generateMe
     } else if (generateMetadata && !process.env.OPENAI_API_KEY) {
       console.log('\n⚠️  Metadata generation requested but OPENAI_API_KEY not set');
     }
-    
+
   } catch (error) {
     console.error('\n❌ Error fetching templates:', error);
     process.exit(1);
@@ -237,39 +460,45 @@ async function generateTemplateMetadata(db: any, service: TemplateService) {
 }
 
 // Parse command line arguments
-function parseArgs(): { mode: 'rebuild' | 'update', generateMetadata: boolean, metadataOnly: boolean } {
+function parseArgs(): { mode: 'rebuild' | 'update', generateMetadata: boolean, metadataOnly: boolean, extractOnly: boolean } {
   const args = process.argv.slice(2);
-  
+
   let mode: 'rebuild' | 'update' = 'rebuild';
   let generateMetadata = false;
   let metadataOnly = false;
-  
+  let extractOnly = false;
+
   // Check for --mode flag
   const modeIndex = args.findIndex(arg => arg.startsWith('--mode'));
   if (modeIndex !== -1) {
     const modeArg = args[modeIndex];
     const modeValue = modeArg.includes('=') ? modeArg.split('=')[1] : args[modeIndex + 1];
-    
+
     if (modeValue === 'update') {
       mode = 'update';
     }
   }
-  
+
   // Check for --update flag as shorthand
   if (args.includes('--update')) {
     mode = 'update';
   }
-  
+
   // Check for --generate-metadata flag
   if (args.includes('--generate-metadata') || args.includes('--metadata')) {
     generateMetadata = true;
   }
-  
+
   // Check for --metadata-only flag
   if (args.includes('--metadata-only')) {
     metadataOnly = true;
   }
-  
+
+  // Check for --extract-only flag
+  if (args.includes('--extract-only') || args.includes('--extract')) {
+    extractOnly = true;
+  }
+
   // Show help if requested
   if (args.includes('--help') || args.includes('-h')) {
     console.log('Usage: npm run fetch:templates [options]\n');
@@ -279,17 +508,19 @@ function parseArgs(): { mode: 'rebuild' | 'update', generateMetadata: boolean, m
     console.log('  --generate-metadata    Generate AI metadata after fetching templates');
     console.log('  --metadata             Shorthand for --generate-metadata');
     console.log('  --metadata-only        Only generate metadata, skip template fetching');
+    console.log('  --extract-only         Only extract node configs, skip template fetching');
+    console.log('  --extract              Shorthand for --extract-only');
     console.log('  --help, -h             Show this help message');
     process.exit(0);
   }
-  
-  return { mode, generateMetadata, metadataOnly };
+
+  return { mode, generateMetadata, metadataOnly, extractOnly };
 }
 
 // Run if called directly
 if (require.main === module) {
-  const { mode, generateMetadata, metadataOnly } = parseArgs();
-  fetchTemplates(mode, generateMetadata, metadataOnly).catch(console.error);
+  const { mode, generateMetadata, metadataOnly, extractOnly } = parseArgs();
+  fetchTemplates(mode, generateMetadata, metadataOnly, extractOnly).catch(console.error);
 }
 
 export { fetchTemplates };

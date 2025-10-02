@@ -73,7 +73,7 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'search_nodes',
-    description: `Search n8n nodes by keyword. Pass query as string. Example: query="webhook" or query="database". Returns max 20 results.`,
+    description: `Search n8n nodes by keyword with optional real-world examples. Pass query as string. Example: query="webhook" or query="database". Returns max 20 results. Use includeExamples=true to get top 2 template configs per node.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,6 +91,11 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
           enum: ['OR', 'AND', 'FUZZY'],
           description: 'OR=any word, AND=all words, FUZZY=typo-tolerant',
           default: 'OR',
+        },
+        includeExamples: {
+          type: 'boolean',
+          description: 'Include top 2 real-world configuration examples from popular templates (default: false)',
+          default: false,
         },
       },
       required: ['query'],
@@ -128,13 +133,18 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
   },
   {
     name: 'get_node_essentials',
-    description: `Get node essential info. Pass nodeType as string with prefix. Example: nodeType="nodes-base.slack"`,
+    description: `Get node essential info with optional real-world examples from templates. Pass nodeType as string with prefix. Example: nodeType="nodes-base.slack". Use includeExamples=true to get top 3 template configs.`,
     inputSchema: {
       type: 'object',
       properties: {
         nodeType: {
           type: 'string',
           description: 'Full type: "nodes-base.httpRequest"',
+        },
+        includeExamples: {
+          type: 'boolean',
+          description: 'Include top 3 real-world configuration examples from popular templates (default: false)',
+          default: false,
         },
       },
       required: ['nodeType'],
@@ -161,20 +171,6 @@ export const n8nDocumentationToolsFinal: ToolDefinition[] = [
         },
       },
       required: ['nodeType', 'query'],
-    },
-  },
-  {
-    name: 'get_node_for_task',
-    description: `Get pre-configured node for tasks: post_json_request, receive_webhook, query_database, send_slack_message, etc. Use list_tasks for all.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        task: {
-          type: 'string',
-          description: 'Task name. See list_tasks for options.',
-        },
-      },
-      required: ['task'],
     },
   },
   {

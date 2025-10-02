@@ -38,6 +38,7 @@
     "update:n8n:check": "node scripts/update-n8n-deps.js --dry-run",
     "fetch:templates": "node dist/scripts/fetch-templates.js",
     "fetch:templates:update": "node dist/scripts/fetch-templates.js --update",
+    "fetch:templates:extract": "node dist/scripts/fetch-templates.js --extract-only",
     "fetch:templates:robust": "node dist/scripts/fetch-templates-robust.js",
     "prebuild:fts5": "npx tsx scripts/prebuild-fts5.ts",
     "test:templates": "node dist/scripts/test-templates.js",

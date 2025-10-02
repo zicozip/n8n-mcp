@@ -1,6 +1,14 @@
 /**
  * Task Templates Service
- * 
+ *
+ * @deprecated This module is deprecated as of v2.15.0 and will be removed in v2.16.0.
+ * The get_node_for_task tool has been removed in favor of template-based configuration examples.
+ *
+ * Migration:
+ * - Use `search_nodes({query: "webhook", includeExamples: true})` to find nodes with real template configs
+ * - Use `get_node_essentials({nodeType: "nodes-base.webhook", includeExamples: true})` for top 3 examples
+ * - New approach provides 2,646 real templates vs 31 hardcoded tasks
+ *
  * Provides pre-configured node settings for common tasks.
  * This helps AI agents quickly configure nodes for specific use cases.
  */
