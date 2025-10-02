@@ -134,17 +134,23 @@ export function cleanWorkflowForUpdate(workflow: Workflow): Partial<Workflow> {
   } = workflow as any;
 
   // CRITICAL FIX for Issue #248:
-  // The n8n API update endpoint has a strict schema that REJECTS settings updates.
-  // Properties like callerPolicy and executionOrder cannot be updated via the API
-  // (see: https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916)
+  // The n8n API has version-specific behavior for settings in workflow updates:
   //
-  // Solution: Remove settings entirely from update requests. The n8n API will
-  // preserve existing workflow settings when they are omitted from the update payload.
-  // This prevents "settings must NOT have additional properties" errors while
-  // ensuring workflow updates (name, nodes, connections) work correctly.
-  if (cleanedWorkflow.settings) {
-    delete cleanedWorkflow.settings;
-  }
+  // PROBLEM:
+  // - Some versions reject updates with settings properties (community forum reports)
+  // - Cloud versions REQUIRE settings property to be present (n8n.estyl.team)
+  // - Properties like callerPolicy and executionOrder cause "additional properties" errors
+  //
+  // SOLUTION:
+  // - ALWAYS set settings to empty object {}, regardless of whether it exists
+  // - Empty object satisfies "required property" validation (cloud API)
+  // - Empty object has no "additional properties" to trigger errors (self-hosted)
+  // - n8n API interprets empty settings as "no changes" and preserves existing settings
+  //
+  // References:
+  // - https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916
+  // - Tested on n8n.estyl.team (cloud) and localhost (self-hosted)
+  cleanedWorkflow.settings = {};
 
   return cleanedWorkflow;
 }
