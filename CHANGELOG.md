@@ -67,14 +67,24 @@ get_node_essentials({
 
 - **Template Processing**
   - Automatic config extraction during `npm run fetch:templates`
+  - Standalone extraction mode: `npm run fetch:templates:extract`
   - Expression detection ({{...}}, $json, $node)
   - Complexity analysis and use case extraction
   - Ranking by template popularity
+  - Auto-creates `template_node_configs` table if missing
 
 ### Removed
 
 - Tool: `get_node_for_task` (see Breaking Changes above)
 - Tool documentation: `get-node-for-task.ts`
+
+### Fixed
+
+- **`search_nodes` includeExamples Support**
+  - Fixed `includeExamples` parameter not working due to missing FTS5 table
+  - Added example support to `searchNodesLIKE` fallback method
+  - Now returns template-based examples in all search scenarios
+  - Affects 100% of search_nodes calls (database lacks nodes_fts table)
 
 ### Deprecated
 
