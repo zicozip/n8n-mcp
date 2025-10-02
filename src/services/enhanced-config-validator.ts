@@ -12,7 +12,7 @@ import { OperationSimilarityService } from './operation-similarity-service';
 import { ResourceSimilarityService } from './resource-similarity-service';
 import { NodeRepository } from '../database/node-repository';
 import { DatabaseAdapter } from '../database/database-adapter';
-import { normalizeNodeType } from '../utils/node-type-utils';
+import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 
 export type ValidationMode = 'full' | 'operation' | 'minimal';
 export type ValidationProfile = 'strict' | 'runtime' | 'ai-friendly' | 'minimal';
@@ -702,7 +702,7 @@ export class EnhancedConfigValidator extends ConfigValidator {
     }
 
     // Normalize the node type for repository lookups
-    const normalizedNodeType = normalizeNodeType(nodeType);
+    const normalizedNodeType = NodeTypeNormalizer.normalizeToFullForm(nodeType);
 
     // Apply defaults for validation
     const configWithDefaults = { ...config };

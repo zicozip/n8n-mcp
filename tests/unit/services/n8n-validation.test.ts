@@ -344,12 +344,12 @@ describe('n8n-validation', () => {
         expect(cleaned).not.toHaveProperty('shared');
         expect(cleaned).not.toHaveProperty('active');
         
-        // Should keep these fields
+        // Should keep name but replace settings with empty object (n8n API limitation)
         expect(cleaned.name).toBe('Updated Workflow');
-        expect(cleaned.settings).toEqual({ executionOrder: 'v1' });
+        expect(cleaned.settings).toEqual({});
       });
 
-      it('should not add default settings for update', () => {
+      it('should add empty settings object for cloud API compatibility', () => {
         const workflow = {
           name: 'Test Workflow',
           nodes: [],
@@ -357,7 +357,80 @@ describe('n8n-validation', () => {
         } as any;
 
         const cleaned = cleanWorkflowForUpdate(workflow);
-        expect(cleaned).not.toHaveProperty('settings');
+        expect(cleaned.settings).toEqual({});
+      });
+
+      it('should replace settings with empty object to prevent API errors (Issue #248 - final fix)', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {
+            executionOrder: 'v1' as const,
+            saveDataSuccessExecution: 'none' as const,
+            callerPolicy: 'workflowsFromSameOwner' as const,
+            timeSavedPerExecution: 5, // UI-only property
+          },
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+
+        // Settings replaced with empty object (satisfies both API versions)
+        expect(cleaned.settings).toEqual({});
+      });
+
+      it('should replace settings with callerPolicy (Issue #248 - API limitation)', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {
+            executionOrder: 'v1' as const,
+            callerPolicy: 'workflowsFromSameOwner' as const,
+            errorWorkflow: 'N2O2nZy3aUiBRGFN',
+          },
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+
+        // Settings replaced with empty object (n8n API rejects updates with settings properties)
+        expect(cleaned.settings).toEqual({});
+      });
+
+      it('should replace all settings regardless of content (Issue #248 - API design)', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+          settings: {
+            executionOrder: 'v0' as const,
+            timezone: 'UTC',
+            saveDataErrorExecution: 'all' as const,
+            saveDataSuccessExecution: 'none' as const,
+            saveManualExecutions: false,
+            saveExecutionProgress: false,
+            executionTimeout: 300,
+            errorWorkflow: 'error-workflow-id',
+            callerPolicy: 'workflowsFromAList' as const,
+          },
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+
+        // Settings replaced with empty object due to n8n API limitation (cannot update settings via API)
+        // See: https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916
+        expect(cleaned.settings).toEqual({});
+      });
+
+      it('should handle workflows without settings gracefully', () => {
+        const workflow = {
+          name: 'Test Workflow',
+          nodes: [],
+          connections: {},
+        } as any;
+
+        const cleaned = cleanWorkflowForUpdate(workflow);
+        expect(cleaned.settings).toEqual({});
       });
     });
   });
@@ -1236,7 +1309,7 @@ describe('n8n-validation', () => {
       expect(forUpdate).not.toHaveProperty('active');
       expect(forUpdate).not.toHaveProperty('tags');
       expect(forUpdate).not.toHaveProperty('meta');
-      expect(forUpdate).not.toHaveProperty('settings'); // Should not add defaults for update
+      expect(forUpdate.settings).toEqual({}); // Settings replaced with empty object for API compatibility
       expect(validateWorkflowStructure(forUpdate)).toEqual([]);
     });
   });

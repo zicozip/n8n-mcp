@@ -449,10 +449,10 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
     });
 
     it('should normalize and validate nodes-base prefix to find the node', async () => {
-      // Arrange - Test that nodes-base prefix is normalized to find the node
-      // The repository only has the node under the normalized key
+      // Arrange - Test that full-form types are normalized to short form to find the node
+      // The repository only has the node under the SHORT normalized key (database format)
       const nodeData = {
-        'nodes-base.webhook': {  // Repository has it under normalized form
+        'nodes-base.webhook': {  // Repository has it under SHORT form (database format)
           type: 'nodes-base.webhook',
           displayName: 'Webhook',
           isVersioned: true,
@@ -462,10 +462,11 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
       };
 
       // Mock repository that simulates the normalization behavior
+      // After our changes, getNode is called with the already-normalized type (short form)
       const mockRepository = {
         getNode: vi.fn((type: string) => {
-          // First call with original type returns null
-          // Second call with normalized type returns the node
+          // The validator now normalizes to short form before calling getNode
+          // So getNode receives 'nodes-base.webhook'
           if (type === 'nodes-base.webhook') {
             return nodeData['nodes-base.webhook'];
           }
@@ -489,7 +490,7 @@ describe('WorkflowValidator - Simple Unit Tests', () => {
           {
             id: '1',
             name: 'Webhook',
-            type: 'nodes-base.webhook', // Using the alternative prefix
+            type: 'n8n-nodes-base.webhook', // Using the full-form prefix (will be normalized to short)
             position: [250, 300] as [number, number],
             parameters: {},
             typeVersion: 2

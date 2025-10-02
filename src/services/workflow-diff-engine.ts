@@ -362,16 +362,36 @@ export class WorkflowDiffEngine {
 
   // Connection operation validators
   private validateAddConnection(workflow: Workflow, operation: AddConnectionOperation): string | null {
+    // Check for common parameter mistakes (Issue #249)
+    const operationAny = operation as any;
+    if (operationAny.sourceNodeId || operationAny.targetNodeId) {
+      const wrongParams: string[] = [];
+      if (operationAny.sourceNodeId) wrongParams.push('sourceNodeId');
+      if (operationAny.targetNodeId) wrongParams.push('targetNodeId');
+
+      return `Invalid parameter(s): ${wrongParams.join(', ')}. Use 'source' and 'target' instead. Example: {type: "addConnection", source: "Node Name", target: "Target Name"}`;
+    }
+
+    // Check for missing required parameters
+    if (!operation.source) {
+      return `Missing required parameter 'source'. The addConnection operation requires both 'source' and 'target' parameters. Check that you're using 'source' (not 'sourceNodeId').`;
+    }
+    if (!operation.target) {
+      return `Missing required parameter 'target'. The addConnection operation requires both 'source' and 'target' parameters. Check that you're using 'target' (not 'targetNodeId').`;
+    }
+
     const sourceNode = this.findNode(workflow, operation.source, operation.source);
     const targetNode = this.findNode(workflow, operation.target, operation.target);
-    
+
     if (!sourceNode) {
-      return `Source node not found: ${operation.source}`;
+      const availableNodes = workflow.nodes.map(n => n.name).join(', ');
+      return `Source node not found: "${operation.source}". Available nodes: ${availableNodes}`;
     }
     if (!targetNode) {
-      return `Target node not found: ${operation.target}`;
+      const availableNodes = workflow.nodes.map(n => n.name).join(', ');
+      return `Target node not found: "${operation.target}". Available nodes: ${availableNodes}`;
     }
-    
+
     // Check if connection already exists
     const sourceOutput = operation.sourceOutput || 'main';
     const existing = workflow.connections[sourceNode.name]?.[sourceOutput];
@@ -383,7 +403,7 @@ export class WorkflowDiffEngine {
         return `Connection already exists from "${sourceNode.name}" to "${targetNode.name}"`;
       }
     }
-    
+
     return null;
   }
 

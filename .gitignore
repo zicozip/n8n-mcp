@@ -93,6 +93,9 @@ tmp/
 docs/batch_*.jsonl
 **/batch_*_error.jsonl
 
+# Local documentation and analysis files
+docs/local/
+
 # Database files
 # Database files - nodes.db is now tracked directly
 # data/*.db

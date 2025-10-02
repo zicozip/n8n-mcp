@@ -45,6 +45,7 @@ export const workflowSettingsSchema = z.object({
   saveExecutionProgress: z.boolean().default(true),
   executionTimeout: z.number().optional(),
   errorWorkflow: z.string().optional(),
+  callerPolicy: z.enum(['any', 'workflowsFromSameOwner', 'workflowsFromAList']).optional(),
 });
 
 // Default settings for workflow creation
@@ -95,14 +96,17 @@ export function cleanWorkflowForCreate(workflow: Partial<Workflow>): Partial<Wor
 
 /**
  * Clean workflow data for update operations.
- * 
+ *
  * This function removes read-only and computed fields that should not be sent
  * in API update requests. It does NOT add any default values or new fields.
- * 
+ *
  * Note: Unlike cleanWorkflowForCreate, this function does not add default settings.
  * The n8n API will reject update requests that include properties not present in
  * the original workflow ("settings must NOT have additional properties" error).
- * 
+ *
+ * Settings are filtered to only include whitelisted properties to prevent API
+ * errors when workflows from n8n contain UI-only or deprecated properties.
+ *
  * @param workflow - The workflow object to clean
  * @returns A cleaned partial workflow suitable for API updates
  */
@@ -128,6 +132,25 @@ export function cleanWorkflowForUpdate(workflow: Workflow): Partial<Workflow> {
     // Keep everything else
     ...cleanedWorkflow
   } = workflow as any;
+
+  // CRITICAL FIX for Issue #248:
+  // The n8n API has version-specific behavior for settings in workflow updates:
+  //
+  // PROBLEM:
+  // - Some versions reject updates with settings properties (community forum reports)
+  // - Cloud versions REQUIRE settings property to be present (n8n.estyl.team)
+  // - Properties like callerPolicy and executionOrder cause "additional properties" errors
+  //
+  // SOLUTION:
+  // - ALWAYS set settings to empty object {}, regardless of whether it exists
+  // - Empty object satisfies "required property" validation (cloud API)
+  // - Empty object has no "additional properties" to trigger errors (self-hosted)
+  // - n8n API interprets empty settings as "no changes" and preserves existing settings
+  //
+  // References:
+  // - https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916
+  // - Tested on n8n.estyl.team (cloud) and localhost (self-hosted)
+  cleanedWorkflow.settings = {};
 
   return cleanedWorkflow;
 }

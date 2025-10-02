@@ -28,6 +28,7 @@ import { WorkflowValidator } from '../services/workflow-validator';
 import { EnhancedConfigValidator } from '../services/enhanced-config-validator';
 import { NodeRepository } from '../database/node-repository';
 import { InstanceContext, validateInstanceContext } from '../types/instance-context';
+import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 import { WorkflowAutoFixer, AutoFixConfig } from '../services/workflow-auto-fixer';
 import { ExpressionFormatValidator } from '../services/expression-format-validator';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
@@ -282,12 +283,15 @@ export async function handleCreateWorkflow(args: unknown, context?: InstanceCont
   try {
     const client = ensureApiConfigured(context);
     const input = createWorkflowSchema.parse(args);
-    
+
+    // Normalize all node types before validation
+    const normalizedInput = NodeTypeNormalizer.normalizeWorkflowNodeTypes(input);
+
     // Validate workflow structure
-    const errors = validateWorkflowStructure(input);
+    const errors = validateWorkflowStructure(normalizedInput);
     if (errors.length > 0) {
       // Track validation failure
-      telemetry.trackWorkflowCreation(input, false);
+      telemetry.trackWorkflowCreation(normalizedInput, false);
 
       return {
         success: false,
@@ -296,8 +300,8 @@ export async function handleCreateWorkflow(args: unknown, context?: InstanceCont
       };
     }
 
-    // Create workflow
-    const workflow = await client.createWorkflow(input);
+    // Create workflow with normalized node types
+    const workflow = await client.createWorkflow(normalizedInput);
 
     // Track successful workflow creation
     telemetry.trackWorkflowCreation(workflow, true);
@@ -522,12 +526,12 @@ export async function handleUpdateWorkflow(args: unknown, context?: InstanceCont
     const client = ensureApiConfigured(context);
     const input = updateWorkflowSchema.parse(args);
     const { id, ...updateData } = input;
-    
+
     // If nodes/connections are being updated, validate the structure
     if (updateData.nodes || updateData.connections) {
       // Fetch current workflow if only partial update
       let fullWorkflow = updateData as Partial<Workflow>;
-      
+
       if (!updateData.nodes || !updateData.connections) {
         const current = await client.getWorkflow(id);
         fullWorkflow = {
@@ -535,14 +539,22 @@ export async function handleUpdateWorkflow(args: unknown, context?: InstanceCont
           ...updateData
         };
       }
-      
-      const errors = validateWorkflowStructure(fullWorkflow);
+
+      // Normalize all node types before validation
+      const normalizedWorkflow = NodeTypeNormalizer.normalizeWorkflowNodeTypes(fullWorkflow);
+
+      const errors = validateWorkflowStructure(normalizedWorkflow);
       if (errors.length > 0) {
         return {
           success: false,
           error: 'Workflow validation failed',
           details: { errors }
         };
+      }
+
+      // Update updateData with normalized nodes if they were modified
+      if (updateData.nodes) {
+        updateData.nodes = normalizedWorkflow.nodes;
       }
     }
     

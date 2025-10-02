@@ -580,10 +580,149 @@ describe('WorkflowDiffEngine', () => {
       };
 
       const result = await diffEngine.applyDiff(baseWorkflow, request);
-      
+
       expect(result.success).toBe(true);
       expect(result.workflow!.connections['IF'].false).toBeDefined();
       expect(result.workflow!.connections['IF'].false[0][0].node).toBe('Slack');
+    });
+
+    it('should reject addConnection with wrong parameter sourceNodeId instead of source (Issue #249)', async () => {
+      const operation: any = {
+        type: 'addConnection',
+        sourceNodeId: 'webhook-1', // Wrong parameter name!
+        target: 'http-1'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors![0].message).toContain('Invalid parameter(s): sourceNodeId');
+      expect(result.errors![0].message).toContain("Use 'source' and 'target' instead");
+    });
+
+    it('should reject addConnection with wrong parameter targetNodeId instead of target (Issue #249)', async () => {
+      const operation: any = {
+        type: 'addConnection',
+        source: 'webhook-1',
+        targetNodeId: 'http-1' // Wrong parameter name!
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors![0].message).toContain('Invalid parameter(s): targetNodeId');
+      expect(result.errors![0].message).toContain("Use 'source' and 'target' instead");
+    });
+
+    it('should reject addConnection with both wrong parameters (Issue #249)', async () => {
+      const operation: any = {
+        type: 'addConnection',
+        sourceNodeId: 'webhook-1', // Wrong!
+        targetNodeId: 'http-1' // Wrong!
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors![0].message).toContain('Invalid parameter(s): sourceNodeId, targetNodeId');
+      expect(result.errors![0].message).toContain("Use 'source' and 'target' instead");
+    });
+
+    it('should show helpful error with available nodes when source is missing (Issue #249)', async () => {
+      const operation: any = {
+        type: 'addConnection',
+        // source is missing entirely
+        target: 'http-1'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors![0].message).toContain("Missing required parameter 'source'");
+      expect(result.errors![0].message).toContain("not 'sourceNodeId'");
+    });
+
+    it('should show helpful error with available nodes when target is missing (Issue #249)', async () => {
+      const operation: any = {
+        type: 'addConnection',
+        source: 'webhook-1',
+        // target is missing entirely
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors![0].message).toContain("Missing required parameter 'target'");
+      expect(result.errors![0].message).toContain("not 'targetNodeId'");
+    });
+
+    it('should list available nodes when source node not found (Issue #249)', async () => {
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'non-existent-node',
+        target: 'http-1'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors![0].message).toContain('Source node not found: "non-existent-node"');
+      expect(result.errors![0].message).toContain('Available nodes:');
+      expect(result.errors![0].message).toContain('Webhook');
+      expect(result.errors![0].message).toContain('HTTP Request');
+      expect(result.errors![0].message).toContain('Slack');
+    });
+
+    it('should list available nodes when target node not found (Issue #249)', async () => {
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'webhook-1',
+        target: 'non-existent-node'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors![0].message).toContain('Target node not found: "non-existent-node"');
+      expect(result.errors![0].message).toContain('Available nodes:');
+      expect(result.errors![0].message).toContain('Webhook');
+      expect(result.errors![0].message).toContain('HTTP Request');
+      expect(result.errors![0].message).toContain('Slack');
     });
   });
 
