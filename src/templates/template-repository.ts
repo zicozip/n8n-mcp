@@ -625,22 +625,23 @@ export class TemplateRepository {
     
     return { total, withMetadata, withoutMetadata, outdated };
   }
-  
+
   /**
-   * Search templates by metadata fields
+   * Build WHERE conditions for metadata filtering
+   * @private
+   * @returns Object containing SQL conditions array and parameter values array
    */
-  searchTemplatesByMetadata(filters: {
+  private buildMetadataFilterConditions(filters: {
     category?: string;
     complexity?: 'simple' | 'medium' | 'complex';
     maxSetupMinutes?: number;
     minSetupMinutes?: number;
     requiredService?: string;
     targetAudience?: string;
-  }, limit: number = 20, offset: number = 0): StoredTemplate[] {
+  }): { conditions: string[], params: any[] } {
     const conditions: string[] = ['metadata_json IS NOT NULL'];
     const params: any[] = [];
 
-    // Build WHERE conditions based on filters with proper parameterization
     if (filters.category !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
@@ -680,34 +681,86 @@ export class TemplateRepository {
       params.push(sanitizedAudience);
     }
 
+    return { conditions, params };
+  }
+
+  /**
+   * Search templates by metadata fields
+   */
+  searchTemplatesByMetadata(filters: {
+    category?: string;
+    complexity?: 'simple' | 'medium' | 'complex';
+    maxSetupMinutes?: number;
+    minSetupMinutes?: number;
+    requiredService?: string;
+    targetAudience?: string;
+  }, limit: number = 20, offset: number = 0): StoredTemplate[] {
+    const startTime = Date.now();
+
+    // Build WHERE conditions using shared helper
+    const { conditions, params } = this.buildMetadataFilterConditions(filters);
+
     // Performance optimization: Use two-phase query to avoid loading large compressed workflows
     // during metadata filtering. This prevents timeout when no filters are provided.
     // Phase 1: Get IDs only with metadata filtering (fast - no workflow data)
+    // Add id to ORDER BY to ensure stable ordering
     const idsQuery = `
       SELECT id FROM templates
       WHERE ${conditions.join(' AND ')}
-      ORDER BY views DESC, created_at DESC
+      ORDER BY views DESC, created_at DESC, id ASC
       LIMIT ? OFFSET ?
     `;
 
     params.push(limit, offset);
     const ids = this.db.prepare(idsQuery).all(...params) as { id: number }[];
 
+    const phase1Time = Date.now() - startTime;
+
     if (ids.length === 0) {
-      logger.debug('Metadata search found 0 results', { filters });
+      logger.debug('Metadata search found 0 results', { filters, phase1Ms: phase1Time });
       return [];
     }
 
-    // Phase 2: Fetch full records only for matching IDs (only decompress needed rows)
-    const placeholders = ids.map(() => '?').join(',');
-    const fullQuery = `
-      SELECT * FROM templates
-      WHERE id IN (${placeholders})
-      ORDER BY views DESC, created_at DESC
-    `;
-    const results = this.db.prepare(fullQuery).all(...ids.map(r => r.id)) as StoredTemplate[];
+    // Defensive validation: ensure all IDs are valid positive integers
+    const idValues = ids.map(r => r.id).filter(id => typeof id === 'number' && id > 0 && Number.isInteger(id));
 
-    logger.debug(`Metadata search found ${results.length} results`, { filters, count: results.length });
+    if (idValues.length === 0) {
+      logger.warn('No valid IDs after filtering', { filters, originalCount: ids.length });
+      return [];
+    }
+
+    if (idValues.length !== ids.length) {
+      logger.warn('Some IDs were filtered out as invalid', {
+        original: ids.length,
+        valid: idValues.length,
+        filtered: ids.length - idValues.length
+      });
+    }
+
+    // Phase 2: Fetch full records preserving exact order from Phase 1
+    // Use CTE with VALUES to maintain ordering without depending on SQLite's IN clause behavior
+    const phase2Start = Date.now();
+    const orderedQuery = `
+      WITH ordered_ids(id, sort_order) AS (
+        VALUES ${idValues.map((id, idx) => `(${id}, ${idx})`).join(', ')}
+      )
+      SELECT t.* FROM templates t
+      INNER JOIN ordered_ids o ON t.id = o.id
+      ORDER BY o.sort_order
+    `;
+
+    const results = this.db.prepare(orderedQuery).all() as StoredTemplate[];
+    const phase2Time = Date.now() - phase2Start;
+
+    logger.debug(`Metadata search found ${results.length} results`, {
+      filters,
+      count: results.length,
+      phase1Ms: phase1Time,
+      phase2Ms: phase2Time,
+      totalMs: Date.now() - startTime,
+      optimization: 'two-phase-with-ordering'
+    });
+
     return results.map(t => this.decompressWorkflow(t));
   }
   
@@ -722,48 +775,12 @@ export class TemplateRepository {
     requiredService?: string;
     targetAudience?: string;
   }): number {
-    const conditions: string[] = ['metadata_json IS NOT NULL'];
-    const params: any[] = [];
-    
-    if (filters.category !== undefined) {
-      // Use parameterized LIKE with JSON array search - safe from injection
-      conditions.push("json_extract(metadata_json, '$.categories') LIKE '%' || ? || '%'");
-      const sanitizedCategory = JSON.stringify(filters.category).slice(1, -1);
-      params.push(sanitizedCategory);
-    }
-    
-    if (filters.complexity) {
-      conditions.push("json_extract(metadata_json, '$.complexity') = ?");
-      params.push(filters.complexity);
-    }
-    
-    if (filters.maxSetupMinutes !== undefined) {
-      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?");
-      params.push(filters.maxSetupMinutes);
-    }
-    
-    if (filters.minSetupMinutes !== undefined) {
-      conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?");
-      params.push(filters.minSetupMinutes);
-    }
-    
-    if (filters.requiredService !== undefined) {
-      // Use parameterized LIKE with JSON array search - safe from injection
-      conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
-      const sanitizedService = JSON.stringify(filters.requiredService).slice(1, -1);
-      params.push(sanitizedService);
-    }
-    
-    if (filters.targetAudience !== undefined) {
-      // Use parameterized LIKE with JSON array search - safe from injection
-      conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
-      const sanitizedAudience = JSON.stringify(filters.targetAudience).slice(1, -1);
-      params.push(sanitizedAudience);
-    }
-    
+    // Build WHERE conditions using shared helper
+    const { conditions, params } = this.buildMetadataFilterConditions(filters);
+
     const query = `SELECT COUNT(*) as count FROM templates WHERE ${conditions.join(' AND ')}`;
     const result = this.db.prepare(query).get(...params) as { count: number };
-    
+
     return result.count;
   }
   
