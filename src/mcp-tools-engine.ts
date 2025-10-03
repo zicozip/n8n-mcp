@@ -89,10 +89,6 @@ export class MCPEngine {
     return this.repository.searchNodeProperties(args.nodeType, args.query, args.maxResults || 20);
   }
 
-  async getNodeForTask(args: any) {
-    return TaskTemplates.getTaskTemplate(args.task);
-  }
-
   async listAITools(args: any) {
     return this.repository.getAIToolNodes();
   }

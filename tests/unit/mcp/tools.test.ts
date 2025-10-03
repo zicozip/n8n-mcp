@@ -254,7 +254,7 @@ describe('n8nDocumentationToolsFinal', () => {
         discovery: ['list_nodes', 'search_nodes', 'list_ai_tools'],
         configuration: ['get_node_info', 'get_node_essentials', 'get_node_documentation'],
         validation: ['validate_node_operation', 'validate_workflow', 'validate_node_minimal'],
-        templates: ['list_tasks', 'get_node_for_task', 'search_templates', 'list_templates', 'get_template', 'list_node_templates'],
+        templates: ['list_tasks', 'search_templates', 'list_templates', 'get_template', 'list_node_templates'], // get_node_for_task removed in v2.15.0
         documentation: ['tools_documentation']
       };
 

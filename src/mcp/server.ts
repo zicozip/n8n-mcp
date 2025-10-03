@@ -713,7 +713,7 @@ export class N8NDocumentationMCPServer {
         this.validateToolParams(name, args, ['query']);
         // Convert limit to number if provided, otherwise use default
         const limit = args.limit !== undefined ? Number(args.limit) || 20 : 20;
-        return this.searchNodes(args.query, limit, { mode: args.mode });
+        return this.searchNodes(args.query, limit, { mode: args.mode, includeExamples: args.includeExamples });
       case 'list_ai_tools':
         // No required parameters
         return this.listAITools();
@@ -725,14 +725,11 @@ export class N8NDocumentationMCPServer {
         return this.getDatabaseStatistics();
       case 'get_node_essentials':
         this.validateToolParams(name, args, ['nodeType']);
-        return this.getNodeEssentials(args.nodeType);
+        return this.getNodeEssentials(args.nodeType, args.includeExamples);
       case 'search_node_properties':
         this.validateToolParams(name, args, ['nodeType', 'query']);
         const maxResults = args.maxResults !== undefined ? Number(args.maxResults) || 20 : 20;
         return this.searchNodeProperties(args.nodeType, args.query, maxResults);
-      case 'get_node_for_task':
-        this.validateToolParams(name, args, ['task']);
-        return this.getNodeForTask(args.task);
       case 'list_tasks':
         // No required parameters
         return this.listTasks(args.category);
@@ -1030,11 +1027,12 @@ export class N8NDocumentationMCPServer {
   }
 
   private async searchNodes(
-    query: string, 
+    query: string,
     limit: number = 20,
-    options?: { 
+    options?: {
       mode?: 'OR' | 'AND' | 'FUZZY';
       includeSource?: boolean;
+      includeExamples?: boolean;
     }
   ): Promise<any> {
     await this.ensureInitialized();
@@ -1060,16 +1058,23 @@ export class N8NDocumentationMCPServer {
     
     if (ftsExists) {
       // Use FTS5 search with normalized query
-      return this.searchNodesFTS(normalizedQuery, limit, searchMode);
+      logger.debug(`Using FTS5 search with includeExamples=${options?.includeExamples}`);
+      return this.searchNodesFTS(normalizedQuery, limit, searchMode, options);
     } else {
       // Fallback to LIKE search with normalized query
-      return this.searchNodesLIKE(normalizedQuery, limit);
+      logger.debug('Using LIKE search (no FTS5)');
+      return this.searchNodesLIKE(normalizedQuery, limit, options);
     }
   }
-  
-  private async searchNodesFTS(query: string, limit: number, mode: 'OR' | 'AND' | 'FUZZY'): Promise<any> {
+
+  private async searchNodesFTS(
+    query: string,
+    limit: number,
+    mode: 'OR' | 'AND' | 'FUZZY',
+    options?: { includeSource?: boolean; includeExamples?: boolean; }
+  ): Promise<any> {
     if (!this.db) throw new Error('Database not initialized');
-    
+
     // Clean and prepare the query
     const cleanedQuery = query.trim();
     if (!cleanedQuery) {
@@ -1168,10 +1173,38 @@ export class N8NDocumentationMCPServer {
         })),
         totalCount: scoredNodes.length
       };
-      
+
       // Only include mode if it's not the default
       if (mode !== 'OR') {
         result.mode = mode;
+      }
+
+      // Add examples if requested
+      if (options && options.includeExamples) {
+        try {
+          for (const nodeResult of result.results) {
+            const examples = this.db!.prepare(`
+              SELECT
+                parameters_json,
+                template_name,
+                template_views
+              FROM template_node_configs
+              WHERE node_type = ?
+              ORDER BY rank
+              LIMIT 2
+            `).all(nodeResult.workflowNodeType) as any[];
+
+            if (examples.length > 0) {
+              nodeResult.examples = examples.map((ex: any) => ({
+                configuration: JSON.parse(ex.parameters_json),
+                template: ex.template_name,
+                views: ex.template_views
+              }));
+            }
+          }
+        } catch (error: any) {
+          logger.error(`Failed to add examples:`, error);
+        }
       }
 
       // Track search query telemetry
@@ -1350,24 +1383,28 @@ export class N8NDocumentationMCPServer {
     return dp[m][n];
   }
   
-  private async searchNodesLIKE(query: string, limit: number): Promise<any> {
+  private async searchNodesLIKE(
+    query: string,
+    limit: number,
+    options?: { includeSource?: boolean; includeExamples?: boolean; }
+  ): Promise<any> {
     if (!this.db) throw new Error('Database not initialized');
-    
+
     // This is the existing LIKE-based implementation
     // Handle exact phrase searches with quotes
     if (query.startsWith('"') && query.endsWith('"')) {
       const exactPhrase = query.slice(1, -1);
       const nodes = this.db!.prepare(`
-        SELECT * FROM nodes 
+        SELECT * FROM nodes
         WHERE node_type LIKE ? OR display_name LIKE ? OR description LIKE ?
         LIMIT ?
       `).all(`%${exactPhrase}%`, `%${exactPhrase}%`, `%${exactPhrase}%`, limit * 3) as NodeRow[];
-      
+
       // Apply relevance ranking for exact phrase search
       const rankedNodes = this.rankSearchResults(nodes, exactPhrase, limit);
-      
-      return { 
-        query, 
+
+      const result: any = {
+        query,
         results: rankedNodes.map(node => ({
           nodeType: node.node_type,
           workflowNodeType: getWorkflowNodeType(node.package_name, node.node_type),
@@ -1375,9 +1412,39 @@ export class N8NDocumentationMCPServer {
           description: node.description,
           category: node.category,
           package: node.package_name
-        })), 
-        totalCount: rankedNodes.length 
+        })),
+        totalCount: rankedNodes.length
       };
+
+      // Add examples if requested
+      if (options?.includeExamples) {
+        for (const nodeResult of result.results) {
+          try {
+            const examples = this.db!.prepare(`
+              SELECT
+                parameters_json,
+                template_name,
+                template_views
+              FROM template_node_configs
+              WHERE node_type = ?
+              ORDER BY rank
+              LIMIT 2
+            `).all(nodeResult.workflowNodeType) as any[];
+
+            if (examples.length > 0) {
+              nodeResult.examples = examples.map((ex: any) => ({
+                configuration: JSON.parse(ex.parameters_json),
+                template: ex.template_name,
+                views: ex.template_views
+              }));
+            }
+          } catch (error: any) {
+            logger.warn(`Failed to fetch examples for ${nodeResult.nodeType}:`, error.message);
+          }
+        }
+      }
+
+      return result;
     }
     
     // Split into words for normal search
@@ -1404,8 +1471,8 @@ export class N8NDocumentationMCPServer {
     
     // Apply relevance ranking
     const rankedNodes = this.rankSearchResults(nodes, query, limit);
-    
-    return {
+
+    const result: any = {
       query,
       results: rankedNodes.map(node => ({
         nodeType: node.node_type,
@@ -1417,6 +1484,36 @@ export class N8NDocumentationMCPServer {
       })),
       totalCount: rankedNodes.length
     };
+
+    // Add examples if requested
+    if (options?.includeExamples) {
+      for (const nodeResult of result.results) {
+        try {
+          const examples = this.db!.prepare(`
+            SELECT
+              parameters_json,
+              template_name,
+              template_views
+            FROM template_node_configs
+            WHERE node_type = ?
+            ORDER BY rank
+            LIMIT 2
+          `).all(nodeResult.workflowNodeType) as any[];
+
+          if (examples.length > 0) {
+            nodeResult.examples = examples.map((ex: any) => ({
+              configuration: JSON.parse(ex.parameters_json),
+              template: ex.template_name,
+              views: ex.template_views
+            }));
+          }
+        } catch (error: any) {
+          logger.warn(`Failed to fetch examples for ${nodeResult.nodeType}:`, error.message);
+        }
+      }
+    }
+
+    return result;
   }
 
   private calculateRelevance(node: NodeRow, query: string): string {
@@ -1733,12 +1830,12 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     };
   }
 
-  private async getNodeEssentials(nodeType: string): Promise<any> {
+  private async getNodeEssentials(nodeType: string, includeExamples?: boolean): Promise<any> {
     await this.ensureInitialized();
     if (!this.repository) throw new Error('Repository not initialized');
-    
-    // Check cache first
-    const cacheKey = `essentials:${nodeType}`;
+
+    // Check cache first (cache key includes includeExamples)
+    const cacheKey = `essentials:${nodeType}:${includeExamples ? 'withExamples' : 'basic'}`;
     const cached = this.cache.get(cacheKey);
     if (cached) return cached;
     
@@ -1805,10 +1902,56 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
         developmentStyle: node.developmentStyle ?? 'programmatic'
       }
     };
-    
+
+    // Add examples from templates if requested
+    if (includeExamples) {
+      try {
+        const fullNodeType = getWorkflowNodeType(node.package ?? 'n8n-nodes-base', node.nodeType);
+        const examples = this.db!.prepare(`
+          SELECT
+            parameters_json,
+            template_name,
+            template_views,
+            complexity,
+            use_cases,
+            has_credentials,
+            has_expressions
+          FROM template_node_configs
+          WHERE node_type = ?
+          ORDER BY rank
+          LIMIT 3
+        `).all(fullNodeType) as any[];
+
+        if (examples.length > 0) {
+          (result as any).examples = examples.map((ex: any) => ({
+            configuration: JSON.parse(ex.parameters_json),
+            source: {
+              template: ex.template_name,
+              views: ex.template_views,
+              complexity: ex.complexity
+            },
+            useCases: ex.use_cases ? JSON.parse(ex.use_cases).slice(0, 2) : [],
+            metadata: {
+              hasCredentials: ex.has_credentials === 1,
+              hasExpressions: ex.has_expressions === 1
+            }
+          }));
+
+          (result as any).examplesCount = examples.length;
+        } else {
+          (result as any).examples = [];
+          (result as any).examplesCount = 0;
+        }
+      } catch (error: any) {
+        logger.warn(`Failed to fetch examples for ${nodeType}:`, error.message);
+        (result as any).examples = [];
+        (result as any).examplesCount = 0;
+      }
+    }
+
     // Cache for 1 hour
     this.cache.set(cacheKey, result, 3600);
-    
+
     return result;
   }
 
@@ -1866,43 +2009,6 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     };
   }
 
-  private async getNodeForTask(task: string): Promise<any> {
-    const template = TaskTemplates.getTaskTemplate(task);
-    
-    if (!template) {
-      // Try to find similar tasks
-      const similar = TaskTemplates.searchTasks(task);
-      throw new Error(
-        `Unknown task: ${task}. ` +
-        (similar.length > 0 
-          ? `Did you mean: ${similar.slice(0, 3).join(', ')}?`
-          : `Use 'list_tasks' to see available tasks.`)
-      );
-    }
-    
-    return {
-      task: template.task,
-      description: template.description,
-      nodeType: template.nodeType,
-      configuration: template.configuration,
-      userMustProvide: template.userMustProvide,
-      optionalEnhancements: template.optionalEnhancements || [],
-      notes: template.notes || [],
-      example: {
-        node: {
-          type: template.nodeType,
-          parameters: template.configuration
-        },
-        userInputsNeeded: template.userMustProvide.map(p => ({
-          property: p.property,
-          currentValue: this.getPropertyValue(template.configuration, p.property),
-          description: p.description,
-          example: p.example
-        }))
-      }
-    };
-  }
-  
   private getPropertyValue(config: any, path: string): any {
     const parts = path.split('.');
     let value = config;
