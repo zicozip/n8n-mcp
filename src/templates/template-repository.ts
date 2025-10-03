@@ -639,7 +639,7 @@ export class TemplateRepository {
   }, limit: number = 20, offset: number = 0): StoredTemplate[] {
     const conditions: string[] = ['metadata_json IS NOT NULL'];
     const params: any[] = [];
-    
+
     // Build WHERE conditions based on filters with proper parameterization
     if (filters.category !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
@@ -648,22 +648,22 @@ export class TemplateRepository {
       const sanitizedCategory = JSON.stringify(filters.category).slice(1, -1);
       params.push(sanitizedCategory);
     }
-    
+
     if (filters.complexity) {
       conditions.push("json_extract(metadata_json, '$.complexity') = ?");
       params.push(filters.complexity);
     }
-    
+
     if (filters.maxSetupMinutes !== undefined) {
       conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) <= ?");
       params.push(filters.maxSetupMinutes);
     }
-    
+
     if (filters.minSetupMinutes !== undefined) {
       conditions.push("CAST(json_extract(metadata_json, '$.estimated_setup_minutes') AS INTEGER) >= ?");
       params.push(filters.minSetupMinutes);
     }
-    
+
     if (filters.requiredService !== undefined) {
       // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.required_services') LIKE '%' || ? || '%'");
@@ -671,25 +671,42 @@ export class TemplateRepository {
       const sanitizedService = JSON.stringify(filters.requiredService).slice(1, -1);
       params.push(sanitizedService);
     }
-    
+
     if (filters.targetAudience !== undefined) {
-      // Use parameterized LIKE with JSON array search - safe from injection  
+      // Use parameterized LIKE with JSON array search - safe from injection
       conditions.push("json_extract(metadata_json, '$.target_audience') LIKE '%' || ? || '%'");
       // Escape special characters and quotes for JSON string matching
       const sanitizedAudience = JSON.stringify(filters.targetAudience).slice(1, -1);
       params.push(sanitizedAudience);
     }
-    
-    const query = `
-      SELECT * FROM templates 
+
+    // Performance optimization: Use two-phase query to avoid loading large compressed workflows
+    // during metadata filtering. This prevents timeout when no filters are provided.
+    // Phase 1: Get IDs only with metadata filtering (fast - no workflow data)
+    const idsQuery = `
+      SELECT id FROM templates
       WHERE ${conditions.join(' AND ')}
       ORDER BY views DESC, created_at DESC
       LIMIT ? OFFSET ?
     `;
-    
+
     params.push(limit, offset);
-    const results = this.db.prepare(query).all(...params) as StoredTemplate[];
-    
+    const ids = this.db.prepare(idsQuery).all(...params) as { id: number }[];
+
+    if (ids.length === 0) {
+      logger.debug('Metadata search found 0 results', { filters });
+      return [];
+    }
+
+    // Phase 2: Fetch full records only for matching IDs (only decompress needed rows)
+    const placeholders = ids.map(() => '?').join(',');
+    const fullQuery = `
+      SELECT * FROM templates
+      WHERE id IN (${placeholders})
+      ORDER BY views DESC, created_at DESC
+    `;
+    const results = this.db.prepare(fullQuery).all(...ids.map(r => r.id)) as StoredTemplate[];
+
     logger.debug(`Metadata search found ${results.length} results`, { filters, count: results.length });
     return results.map(t => this.decompressWorkflow(t));
   }
