@@ -145,7 +145,7 @@ describe('Parameter Validation', () => {
       vi.spyOn(server as any, 'getNodeDocumentation').mockResolvedValue({ docs: 'test' });
       vi.spyOn(server as any, 'getNodeEssentials').mockResolvedValue({ essentials: true });
       vi.spyOn(server as any, 'searchNodeProperties').mockResolvedValue({ properties: [] });
-      vi.spyOn(server as any, 'getNodeForTask').mockResolvedValue({ node: 'test' });
+      // Note: getNodeForTask removed in v2.15.0
       vi.spyOn(server as any, 'validateNodeConfig').mockResolvedValue({ valid: true });
       vi.spyOn(server as any, 'validateNodeMinimal').mockResolvedValue({ missing: [] });
       vi.spyOn(server as any, 'getPropertyDependencies').mockResolvedValue({ dependencies: {} });
@@ -477,7 +477,7 @@ describe('Parameter Validation', () => {
         { name: 'get_node_documentation', args: {}, expected: 'Missing required parameters for get_node_documentation: nodeType' },
         { name: 'get_node_essentials', args: {}, expected: 'Missing required parameters for get_node_essentials: nodeType' },
         { name: 'search_node_properties', args: {}, expected: 'Missing required parameters for search_node_properties: nodeType, query' },
-        { name: 'get_node_for_task', args: {}, expected: 'Missing required parameters for get_node_for_task: task' },
+        // Note: get_node_for_task removed in v2.15.0
         { name: 'get_property_dependencies', args: {}, expected: 'Missing required parameters for get_property_dependencies: nodeType' },
         { name: 'get_node_as_tool_info', args: {}, expected: 'Missing required parameters for get_node_as_tool_info: nodeType' },
         { name: 'get_template', args: {}, expected: 'Missing required parameters for get_template: templateId' },
