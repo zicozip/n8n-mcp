@@ -27,6 +27,18 @@ describe('Template Node Configs Database Integration', () => {
     const migrationPath = path.join(__dirname, '../../../src/database/migrations/add-template-node-configs.sql');
     const migration = fs.readFileSync(migrationPath, 'utf-8');
     db.exec(migration);
+
+    // Insert test templates with id 1-1000 to satisfy foreign key constraints
+    // Tests insert configs with various template_id values, so we pre-create many templates
+    const stmt = db.prepare(`
+      INSERT INTO templates (
+        id, workflow_id, name, description, views,
+        nodes_used, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    `);
+    for (let i = 1; i <= 1000; i++) {
+      stmt.run(i, i, `Test Template ${i}`, 'Test template for node configs', 100, '[]');
+    }
   });
 
   afterEach(() => {
@@ -242,14 +254,7 @@ describe('Template Node Configs Database Integration', () => {
     beforeEach(() => {
       // Enable foreign keys
       db.exec('PRAGMA foreign_keys = ON');
-
-      // Create a template first
-      db.prepare(`
-        INSERT INTO templates (
-          id, workflow_id, name, description, views,
-          nodes_used, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `).run(1, 100, 'Test Template', 'Description', 500, '[]');
+      // Note: Templates are already created in the main beforeEach
     });
 
     it('should allow inserting config with valid template_id', () => {

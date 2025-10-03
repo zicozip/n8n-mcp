@@ -37,20 +37,24 @@ describe('Template Examples E2E Integration', () => {
   });
 
   function seedTemplateConfigs() {
-    // Insert sample template first
-    db.prepare(`
-      INSERT INTO templates (
-        id, workflow_id, name, description, views,
-        nodes_used, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `).run(
-      1,
-      1,
-      'Test Template',
-      'Test Description',
-      1000,
-      JSON.stringify(['n8n-nodes-base.webhook', 'n8n-nodes-base.httpRequest'])
-    );
+    // Insert sample templates first to satisfy foreign key constraints
+    // The sampleConfigs use template_id 1-4, edge cases use 998-999
+    const templateIds = [1, 2, 3, 4, 998, 999];
+    for (const id of templateIds) {
+      db.prepare(`
+        INSERT INTO templates (
+          id, workflow_id, name, description, views,
+          nodes_used, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).run(
+        id,
+        id,
+        `Test Template ${id}`,
+        'Test Description',
+        1000,
+        JSON.stringify(['n8n-nodes-base.webhook', 'n8n-nodes-base.httpRequest'])
+      );
+    }
 
     // Insert webhook configs
     db.prepare(`
@@ -189,8 +193,19 @@ describe('Template Examples E2E Integration', () => {
 
   describe('Ranked View Functionality', () => {
     it('should return only top 5 ranked configs per node type from view', () => {
+      // Insert templates first to satisfy foreign key constraints
+      // Note: seedTemplateConfigs already created templates 1-4, so start from 5
+      for (let i = 5; i <= 14; i++) {
+        db.prepare(`
+          INSERT INTO templates (
+            id, workflow_id, name, description, views,
+            nodes_used, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).run(i, i, `Template ${i}`, 'Test', 1000 - (i * 50), '[]');
+      }
+
       // Insert 10 configs for same node type
-      for (let i = 3; i <= 12; i++) {
+      for (let i = 5; i <= 14; i++) {
         db.prepare(`
           INSERT INTO template_node_configs (
             node_type, template_id, template_name, template_views,
@@ -218,6 +233,16 @@ describe('Template Examples E2E Integration', () => {
 
   describe('Performance with Real-World Data Volume', () => {
     beforeEach(() => {
+      // Insert templates first to satisfy foreign key constraints
+      for (let i = 1; i <= 100; i++) {
+        db.prepare(`
+          INSERT INTO templates (
+            id, workflow_id, name, description, views,
+            nodes_used, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        `).run(i + 100, i + 100, `Template ${i}`, 'Test', Math.floor(Math.random() * 10000), '[]');
+      }
+
       // Insert 100 configs across 10 different node types
       const nodeTypes = [
         'n8n-nodes-base.slack',
@@ -389,13 +414,13 @@ describe('Template Examples E2E Integration', () => {
     it('should cascade delete configs when template is deleted', () => {
       db.exec('PRAGMA foreign_keys = ON');
 
-      // Insert a template and config
+      // Insert a new template (use id 1000 to avoid conflicts with seedTemplateConfigs)
       db.prepare(`
         INSERT INTO templates (
           id, workflow_id, name, description, views,
           nodes_used, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      `).run(2, 2, 'Test Template 2', 'Desc', 100, '[]');
+      `).run(1000, 1000, 'Test Template 1000', 'Desc', 100, '[]');
 
       db.prepare(`
         INSERT INTO template_node_configs (
@@ -404,7 +429,7 @@ describe('Template Examples E2E Integration', () => {
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         'n8n-nodes-base.test',
-        2,
+        1000,
         'Test',
         100,
         'Node',
@@ -413,14 +438,14 @@ describe('Template Examples E2E Integration', () => {
       );
 
       // Verify config exists
-      let config = db.prepare('SELECT * FROM template_node_configs WHERE template_id = ?').get(2);
+      let config = db.prepare('SELECT * FROM template_node_configs WHERE template_id = ?').get(1000);
       expect(config).toBeDefined();
 
       // Delete template
-      db.prepare('DELETE FROM templates WHERE id = ?').run(2);
+      db.prepare('DELETE FROM templates WHERE id = ?').run(1000);
 
       // Verify config is deleted (CASCADE)
-      config = db.prepare('SELECT * FROM template_node_configs WHERE template_id = ?').get(2);
+      config = db.prepare('SELECT * FROM template_node_configs WHERE template_id = ?').get(1000);
       expect(config).toBeUndefined();
     });
   });

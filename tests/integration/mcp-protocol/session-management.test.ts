@@ -483,10 +483,11 @@ describe('MCP Session Management', { timeout: 15000 }, () => {
       await client.connect(clientTransport);
 
       // Multiple error-inducing requests
+      // Note: get_node_for_task was removed in v2.15.0
       const errorPromises = [
         client.callTool({ name: 'get_node_info', arguments: { nodeType: 'invalid1' } }).catch(e => e),
         client.callTool({ name: 'get_node_info', arguments: { nodeType: 'invalid2' } }).catch(e => e),
-        client.callTool({ name: 'get_node_for_task', arguments: { task: 'invalid_task' } }).catch(e => e)
+        client.callTool({ name: 'search_nodes', arguments: { query: '' } }).catch(e => e) // Empty query should error
       ];
 
       const errors = await Promise.all(errorPromises);

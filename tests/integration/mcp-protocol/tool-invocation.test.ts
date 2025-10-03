@@ -459,30 +459,8 @@ describe('MCP Tool Invocation', () => {
   });
 
   describe('Task Templates', () => {
-    describe('get_node_for_task', () => {
-      it('should return pre-configured node for task', async () => {
-        const response = await client.callTool({ name: 'get_node_for_task', arguments: {
-          task: 'post_json_request'
-        }});
-
-        const config = JSON.parse(((response as any).content[0]).text);
-        expect(config).toHaveProperty('task');
-        expect(config).toHaveProperty('nodeType');
-        expect(config).toHaveProperty('configuration');
-        expect(config.configuration.method).toBe('POST');
-      });
-
-      it('should handle unknown tasks', async () => {
-        try {
-          await client.callTool({ name: 'get_node_for_task', arguments: {
-            task: 'unknown_task'
-          }});
-          expect.fail('Should have thrown an error');
-        } catch (error: any) {
-          expect(error.message).toContain('Unknown task');
-        }
-      });
-    });
+    // get_node_for_task was removed in v2.15.0
+    // Use search_nodes({ includeExamples: true }) instead for real-world examples
 
     describe('list_tasks', () => {
       it('should list all available tasks', async () => {
