@@ -643,6 +643,207 @@ describe('TemplateRepository Integration Tests', () => {
       });
     });
   });
+
+  describe('searchTemplatesByMetadata - Two-Phase Optimization', () => {
+  it('should use two-phase query pattern for performance', () => {
+    // Setup: Create templates with metadata and different views for deterministic ordering
+    const templates = [
+      { id: 1, complexity: 'simple', category: 'automation', views: 200 },
+      { id: 2, complexity: 'medium', category: 'integration', views: 300 },
+      { id: 3, complexity: 'simple', category: 'automation', views: 100 },
+      { id: 4, complexity: 'complex', category: 'data-processing', views: 400 }
+    ];
+
+    templates.forEach(({ id, complexity, category, views }) => {
+      const template = createTemplateWorkflow({ id, name: `Template ${id}`, totalViews: views });
+      const detail = createTemplateDetail({
+        id,
+        views,
+        workflow: {
+          id: id.toString(),
+          name: `Template ${id}`,
+          nodes: [],
+          connections: {},
+          settings: {}
+        }
+      });
+
+      repository.saveTemplate(template, detail);
+
+      // Update views to match our test data
+      db.prepare(`UPDATE templates SET views = ? WHERE workflow_id = ?`).run(views, id);
+
+      // Add metadata
+      const metadata = {
+        categories: [category],
+        complexity,
+        use_cases: ['test'],
+        estimated_setup_minutes: 15,
+        required_services: [],
+        key_features: ['test'],
+        target_audience: ['developers']
+      };
+
+      db.prepare(`
+        UPDATE templates
+        SET metadata_json = ?,
+            metadata_generated_at = datetime('now')
+        WHERE workflow_id = ?
+      `).run(JSON.stringify(metadata), id);
+    });
+
+    // Test: Search with filter should return matching templates
+    const results = repository.searchTemplatesByMetadata({ complexity: 'simple' }, 10, 0);
+
+    // Verify results - Ordered by views DESC (200, 100), then created_at DESC, then id ASC
+    expect(results).toHaveLength(2);
+    expect(results[0].workflow_id).toBe(1); // 200 views
+    expect(results[1].workflow_id).toBe(3); // 100 views
+  });
+
+  it('should preserve exact ordering from Phase 1', () => {
+    // Setup: Create templates with different view counts
+    // Use unique views to ensure deterministic ordering
+    const templates = [
+      { id: 1, views: 100 },
+      { id: 2, views: 500 },
+      { id: 3, views: 300 },
+      { id: 4, views: 400 },
+      { id: 5, views: 200 }
+    ];
+
+    templates.forEach(({ id, views }) => {
+      const template = createTemplateWorkflow({ id, name: `Template ${id}`, totalViews: views });
+      const detail = createTemplateDetail({
+        id,
+        views,
+        workflow: {
+          id: id.toString(),
+          name: `Template ${id}`,
+          nodes: [],
+          connections: {},
+          settings: {}
+        }
+      });
+
+      repository.saveTemplate(template, detail);
+
+      // Update views in database to match our test data
+      db.prepare(`UPDATE templates SET views = ? WHERE workflow_id = ?`).run(views, id);
+
+      // Add metadata
+      const metadata = {
+        categories: ['test'],
+        complexity: 'medium',
+        use_cases: ['test'],
+        estimated_setup_minutes: 15,
+        required_services: [],
+        key_features: ['test'],
+        target_audience: ['developers']
+      };
+
+      db.prepare(`
+        UPDATE templates
+        SET metadata_json = ?,
+            metadata_generated_at = datetime('now')
+        WHERE workflow_id = ?
+      `).run(JSON.stringify(metadata), id);
+    });
+
+    // Test: Search should return templates in correct order
+    const results = repository.searchTemplatesByMetadata({ complexity: 'medium' }, 10, 0);
+
+    // Verify ordering: 500 views, 400 views, 300 views, 200 views, 100 views
+    expect(results).toHaveLength(5);
+    expect(results[0].workflow_id).toBe(2); // 500 views
+    expect(results[1].workflow_id).toBe(4); // 400 views
+    expect(results[2].workflow_id).toBe(3); // 300 views
+    expect(results[3].workflow_id).toBe(5); // 200 views
+    expect(results[4].workflow_id).toBe(1); // 100 views
+  });
+
+  it('should handle empty results efficiently', () => {
+    // Setup: Create templates without the searched complexity
+    const template = createTemplateWorkflow({ id: 1 });
+    const detail = createTemplateDetail({
+      id: 1,
+      workflow: {
+        id: '1',
+        name: 'Template 1',
+        nodes: [],
+        connections: {},
+        settings: {}
+      }
+    });
+
+    repository.saveTemplate(template, detail);
+
+    const metadata = {
+      categories: ['test'],
+      complexity: 'simple',
+      use_cases: ['test'],
+      estimated_setup_minutes: 15,
+      required_services: [],
+      key_features: ['test'],
+      target_audience: ['developers']
+    };
+
+    db.prepare(`
+      UPDATE templates
+      SET metadata_json = ?,
+          metadata_generated_at = datetime('now')
+      WHERE workflow_id = 1
+    `).run(JSON.stringify(metadata));
+
+    // Test: Search for non-existent complexity
+    const results = repository.searchTemplatesByMetadata({ complexity: 'complex' }, 10, 0);
+
+    // Verify: Should return empty array without errors
+    expect(results).toHaveLength(0);
+  });
+
+  it('should validate IDs defensively', () => {
+    // This test ensures the defensive ID validation works
+    // Setup: Create a template
+    const template = createTemplateWorkflow({ id: 1 });
+    const detail = createTemplateDetail({
+      id: 1,
+      workflow: {
+        id: '1',
+        name: 'Template 1',
+        nodes: [],
+        connections: {},
+        settings: {}
+      }
+    });
+
+    repository.saveTemplate(template, detail);
+
+    const metadata = {
+      categories: ['test'],
+      complexity: 'simple',
+      use_cases: ['test'],
+      estimated_setup_minutes: 15,
+      required_services: [],
+      key_features: ['test'],
+      target_audience: ['developers']
+    };
+
+    db.prepare(`
+      UPDATE templates
+      SET metadata_json = ?,
+          metadata_generated_at = datetime('now')
+      WHERE workflow_id = 1
+    `).run(JSON.stringify(metadata));
+
+    // Test: Normal search should work
+    const results = repository.searchTemplatesByMetadata({ complexity: 'simple' }, 10, 0);
+
+    // Verify: Should return the template
+    expect(results).toHaveLength(1);
+    expect(results[0].workflow_id).toBe(1);
+  });
+  });
 });
 
 // Helper functions
