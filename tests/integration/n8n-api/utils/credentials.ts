@@ -39,15 +39,27 @@ export interface N8nTestCredentials {
  */
 export function getN8nCredentials(): N8nTestCredentials {
   if (process.env.CI) {
-    // CI: Use GitHub secrets
+    // CI: Use GitHub secrets - validate required variables first
+    const url = process.env.N8N_URL;
+    const apiKey = process.env.N8N_API_KEY;
+
+    if (!url || !apiKey) {
+      throw new Error(
+        'Missing required CI credentials:\n' +
+        `  N8N_URL: ${url ? 'set' : 'MISSING'}\n` +
+        `  N8N_API_KEY: ${apiKey ? 'set' : 'MISSING'}\n` +
+        'Please configure GitHub secrets for integration tests.'
+      );
+    }
+
     return {
-      url: process.env.N8N_URL!,
-      apiKey: process.env.N8N_API_KEY!,
+      url,
+      apiKey,
       webhookWorkflows: {
-        get: process.env.N8N_TEST_WEBHOOK_GET_ID!,
-        post: process.env.N8N_TEST_WEBHOOK_POST_ID!,
-        put: process.env.N8N_TEST_WEBHOOK_PUT_ID!,
-        delete: process.env.N8N_TEST_WEBHOOK_DELETE_ID!
+        get: process.env.N8N_TEST_WEBHOOK_GET_ID || '',
+        post: process.env.N8N_TEST_WEBHOOK_POST_ID || '',
+        put: process.env.N8N_TEST_WEBHOOK_PUT_ID || '',
+        delete: process.env.N8N_TEST_WEBHOOK_DELETE_ID || ''
       },
       cleanup: {
         enabled: true,
@@ -56,10 +68,23 @@ export function getN8nCredentials(): N8nTestCredentials {
       }
     };
   } else {
-    // Local: Use .env file
+    // Local: Use .env file - validate required variables first
+    const url = process.env.N8N_API_URL;
+    const apiKey = process.env.N8N_API_KEY;
+
+    if (!url || !apiKey) {
+      throw new Error(
+        'Missing required credentials in .env:\n' +
+        `  N8N_API_URL: ${url ? 'set' : 'MISSING'}\n` +
+        `  N8N_API_KEY: ${apiKey ? 'set' : 'MISSING'}\n\n` +
+        'Please add these to your .env file.\n' +
+        'See .env.example for configuration details.'
+      );
+    }
+
     return {
-      url: process.env.N8N_API_URL!,
-      apiKey: process.env.N8N_API_KEY!,
+      url,
+      apiKey,
       webhookWorkflows: {
         get: process.env.N8N_TEST_WEBHOOK_GET_ID || '',
         post: process.env.N8N_TEST_WEBHOOK_POST_ID || '',

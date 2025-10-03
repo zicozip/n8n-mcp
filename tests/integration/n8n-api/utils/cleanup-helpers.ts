@@ -32,11 +32,18 @@ export async function cleanupOrphanedWorkflows(): Promise<string[]> {
   let allWorkflows: any[] = [];
   let cursor: string | undefined;
   let pageCount = 0;
+  const MAX_PAGES = 1000; // Safety limit to prevent infinite loops
 
   // Fetch all workflows with pagination
   try {
     do {
       pageCount++;
+
+      if (pageCount > MAX_PAGES) {
+        logger.error(`Exceeded maximum pages (${MAX_PAGES}). Possible infinite loop or API issue.`);
+        throw new Error('Pagination safety limit exceeded while fetching workflows');
+      }
+
       logger.debug(`Fetching workflows page ${pageCount}...`);
 
       const response = await client.listWorkflows({
@@ -101,11 +108,18 @@ export async function cleanupOldExecutions(
   let allExecutions: any[] = [];
   let cursor: string | undefined;
   let pageCount = 0;
+  const MAX_PAGES = 1000; // Safety limit to prevent infinite loops
 
   // Fetch all executions
   try {
     do {
       pageCount++;
+
+      if (pageCount > MAX_PAGES) {
+        logger.error(`Exceeded maximum pages (${MAX_PAGES}). Possible infinite loop or API issue.`);
+        throw new Error('Pagination safety limit exceeded while fetching executions');
+      }
+
       logger.debug(`Fetching executions page ${pageCount}...`);
 
       const response = await client.listExecutions({
@@ -239,9 +253,18 @@ export async function cleanupExecutionsByWorkflow(
 
   let cursor: string | undefined;
   let totalCount = 0;
+  let pageCount = 0;
+  const MAX_PAGES = 1000; // Safety limit to prevent infinite loops
 
   try {
     do {
+      pageCount++;
+
+      if (pageCount > MAX_PAGES) {
+        logger.error(`Exceeded maximum pages (${MAX_PAGES}). Possible infinite loop or API issue.`);
+        throw new Error(`Pagination safety limit exceeded while fetching executions for workflow ${workflowId}`);
+      }
+
       const response = await client.listExecutions({
         workflowId,
         cursor,
