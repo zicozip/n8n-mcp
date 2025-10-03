@@ -20,6 +20,8 @@ n8n-MCP serves as a bridge between n8n's workflow automation platform and AI mod
 - ⚡ **Node operations** - 63.6% coverage of available actions
 - 📄 **Documentation** - 90% coverage from official n8n docs (including AI nodes)
 - 🤖 **AI tools** - 263 AI-capable nodes detected with full documentation
+- 💡 **Real-world examples** - 2,646 pre-extracted configurations from popular templates
+- 🎯 **Template library** - 2,500+ workflow templates with smart filtering
 
 
 ## ⚠️ Important Safety Warning
@@ -418,14 +420,13 @@ You are an expert in n8n automation software using n8n-MCP tools. Your role is t
 
 3. **Discovery Phase** - Find the right nodes (if no suitable template):
    - Think deeply about user request and the logic you are going to build to fulfill it. Ask follow-up questions to clarify the user's intent, if something is unclear. Then, proceed with the rest of your instructions.
-   - `search_nodes({query: 'keyword'})` - Search by functionality
+   - `search_nodes({query: 'keyword', includeExamples: true})` - Search by functionality with real configuration examples
    - `list_nodes({category: 'trigger'})` - Browse by category
    - `list_ai_tools()` - See AI-capable nodes (remember: ANY node can be an AI tool!)
 
 4. **Configuration Phase** - Get node details efficiently:
-   - `get_node_essentials(nodeType)` - Start here! Only 10-20 essential properties
+   - `get_node_essentials(nodeType, {includeExamples: true})` - Start here! Get 10-20 essential properties with top 3 real-world configurations from popular templates
    - `search_node_properties(nodeType, 'auth')` - Find specific properties
-   - `get_node_for_task('send_email')` - Get pre-configured templates
    - `get_node_documentation(nodeType)` - Human-readable docs when needed
    - It is good common practice to show a visual representation of the workflow architecture to the user and asking for opinion, before moving forward. 
 
@@ -526,8 +527,8 @@ validate_workflow(workflow)
 ### Building from Scratch (if no suitable template)
 
 #### 1. Discovery & Configuration
-search_nodes({query: 'slack'})
-get_node_essentials('n8n-nodes-base.slack')
+search_nodes({query: 'slack', includeExamples: true})
+get_node_essentials('n8n-nodes-base.slack', {includeExamples: true})
 
 #### 2. Pre-Validation
 validate_node_minimal('n8n-nodes-base.slack', {resource:'message', operation:'send'})
@@ -588,11 +589,11 @@ This tool was created to benefit everyone in the n8n community without friction.
 ## Features
 
 - **🔍 Smart Node Search**: Find nodes by name, category, or functionality
-- **📖 Essential Properties**: Get only the 10-20 properties that matter (NEW in v2.4.0)
-- **🎯 Task Templates**: Pre-configured settings for common automation tasks
+- **📖 Essential Properties**: Get only the 10-20 properties that matter
+- **💡 Real-World Examples**: 2,646 pre-extracted configurations from popular templates
 - **✅ Config Validation**: Validate node configurations before deployment
 - **🔗 Dependency Analysis**: Understand property relationships and conditions
-- **💡 Working Examples**: Real-world examples for immediate use
+- **🎯 Template Discovery**: 2,500+ workflow templates with smart filtering
 - **⚡ Fast Response**: Average query time ~12ms with optimized SQLite
 - **🌐 Universal Compatibility**: Works with any Node.js version
 
@@ -618,8 +619,8 @@ Once connected, Claude can use these powerful tools:
 - **`tools_documentation`** - Get documentation for any MCP tool (START HERE!)
 - **`list_nodes`** - List all n8n nodes with filtering options
 - **`get_node_info`** - Get comprehensive information about a specific node
-- **`get_node_essentials`** - Get only essential properties with examples (10-20 properties instead of 200+)
-- **`search_nodes`** - Full-text search across all node documentation
+- **`get_node_essentials`** - Get only essential properties (10-20 instead of 200+). Use `includeExamples: true` to get top 3 real-world configurations from popular templates
+- **`search_nodes`** - Full-text search across all node documentation. Use `includeExamples: true` to get top 2 real-world configurations per node from templates
 - **`search_node_properties`** - Find specific properties within nodes
 - **`list_ai_tools`** - List all AI-capable nodes (ANY node can be used as AI tool!)
 - **`get_node_as_tool_info`** - Get guidance on using any node as an AI tool
@@ -633,8 +634,6 @@ Once connected, Claude can use these powerful tools:
 - **`get_templates_for_task`** - Curated templates for common automation tasks
 
 ### Advanced Tools
-- **`get_node_for_task`** - Pre-configured node settings for common tasks
-- **`list_tasks`** - Discover available task templates
 - **`validate_node_operation`** - Validate node configurations (operation-aware, profiles support)
 - **`validate_node_minimal`** - Quick validation for just required fields
 - **`validate_workflow`** - Complete workflow validation including AI tool connections
@@ -674,14 +673,17 @@ These powerful tools allow you to manage n8n workflows directly from Claude. The
 ### Example Usage
 
 ```typescript
-// Get essentials for quick configuration
-get_node_essentials("nodes-base.httpRequest")
+// Get essentials with real-world examples from templates
+get_node_essentials({
+  nodeType: "nodes-base.httpRequest",
+  includeExamples: true  // Returns top 3 configs from popular templates
+})
 
-// Find nodes for a specific task
-search_nodes({ query: "send email gmail" })
-
-// Get pre-configured settings
-get_node_for_task("send_email")
+// Search nodes with configuration examples
+search_nodes({
+  query: "send email gmail",
+  includeExamples: true  // Returns top 2 configs per node
+})
 
 // Validate before deployment
 validate_node_operation({
@@ -772,12 +774,14 @@ npm run dev:http       # HTTP dev mode
 
 ## 📊 Metrics & Coverage
 
-Current database coverage (n8n v1.106.3):
+Current database coverage (n8n v1.113.3):
 
-- ✅ **535/535** nodes loaded (100%)
+- ✅ **536/536** nodes loaded (100%)
 - ✅ **528** nodes with properties (98.7%)
 - ✅ **470** nodes with documentation (88%)
 - ✅ **267** AI-capable tools detected
+- ✅ **2,646** pre-extracted template configurations
+- ✅ **2,500+** workflow templates available
 - ✅ **AI Agent & LangChain nodes** fully documented
 - ⚡ **Average response time**: ~12ms
 - 💾 **Database size**: ~15MB (optimized)
