@@ -31,6 +31,8 @@
     "test:watch": "vitest watch",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run --config vitest.config.integration.ts",
+    "test:integration:n8n": "vitest run tests/integration/n8n-api",
+    "test:cleanup:orphans": "tsx tests/integration/n8n-api/scripts/cleanup-orphans.ts",
     "test:e2e": "vitest run tests/e2e",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
