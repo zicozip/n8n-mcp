@@ -142,7 +142,8 @@ describe.skip('MCP Telemetry Integration', () => {
         telemetry.trackError(
           error.constructor.name,
           error.message,
-          toolName
+          toolName,
+          error.message
         );
         throw error;
       }

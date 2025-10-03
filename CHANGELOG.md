@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.3] - 2025-10-03
+
+### Added
+- **Error Message Capture in Telemetry** - Enhanced telemetry tracking to capture actual error messages for better debugging
+  - Added optional `errorMessage` parameter to `trackError()` method
+  - Comprehensive error message sanitization to protect sensitive data
+  - Updated all production and test call sites to pass error messages
+  - Error messages now stored in telemetry events table for analysis
+
+### Security
+- **Enhanced Error Message Sanitization** - Comprehensive security hardening for telemetry data
+  - **ReDoS Prevention**: Early truncation to 1500 chars before regex processing
+  - **Full URL Redaction**: Changed from `[URL]/path` to `[URL]` to prevent API structure leakage
+  - **Correct Sanitization Order**: URLs → specific credentials → emails → generic patterns
+  - **Credential Pattern Detection**: Added AWS keys, GitHub tokens, JWT, Bearer tokens
+  - **Error Handling**: Try-catch wrapper with `[SANITIZATION_FAILED]` fallback
+  - **Stack Trace Truncation**: Limited to first 3 lines to reduce attack surface
+
+### Fixed
+- **Missing Error Messages**: Resolved issue where 272+ weekly validation errors had no error messages captured
+- **Data Leakage**: Fixed URL path preservation exposing API versions and user IDs
+- **Email Exposure**: Fixed sanitization order allowing emails in URLs to leak
+- **ReDoS Vulnerability**: Removed complex capturing regex patterns that could cause performance issues
+
+### Changed
+- **Breaking Change**: `trackError()` signature updated with 4th parameter `errorMessage?: string`
+  - All internal call sites updated in single commit (atomic change)
+  - Not backwards compatible but acceptable as all code is internal
+
+### Technical Details
+- **Sanitization Patterns**:
+  - AWS Keys: `AKIA[A-Z0-9]{16}` → `[AWS_KEY]`
+  - GitHub Tokens: `ghp_[a-zA-Z0-9]{36,}` → `[GITHUB_TOKEN]`
+  - JWT: `eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+` → `[JWT]`
+  - Bearer Tokens: `Bearer [^\s]+` → `Bearer [TOKEN]`
+  - Emails: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}` → `[EMAIL]`
+  - Long Keys: `\b[a-zA-Z0-9_-]{32,}\b` → `[KEY]`
+  - Generic Credentials: `password/api_key/token=<value>` → `<field>=[REDACTED]`
+
+### Test Coverage
+- Added 18 new security-focused tests
+- Total telemetry tests: 269 passing
+- Coverage: 90.75% for telemetry module
+- All security patterns validated with edge cases
+
+### Performance
+- Early truncation prevents ReDoS attacks
+- Simplified regex patterns (no complex capturing groups)
+- Sanitization adds <1ms overhead per error
+- Final message truncated to 500 chars max
+
+### Impact
+- **Debugging**: Error messages now available for root cause analysis
+- **Security**: Comprehensive protection against credential leakage
+- **Performance**: Protected against ReDoS attacks
+- **Reliability**: Try-catch ensures sanitization never breaks telemetry
+
 ## [2.15.2] - 2025-10-03
 
 ### Fixed

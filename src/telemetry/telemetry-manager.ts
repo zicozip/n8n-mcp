@@ -152,9 +152,9 @@ export class TelemetryManager {
   /**
    * Track an error event
    */
-  trackError(errorType: string, context: string, toolName?: string): void {
+  trackError(errorType: string, context: string, toolName?: string, errorMessage?: string): void {
     this.ensureInitialized();
-    this.eventTracker.trackError(errorType, context, toolName);
+    this.eventTracker.trackError(errorType, context, toolName, errorMessage);
   }
 
   /**

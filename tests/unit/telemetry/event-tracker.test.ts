@@ -192,7 +192,7 @@ describe('TelemetryEventTracker', () => {
 
   describe('trackError()', () => {
     it('should track error events without rate limiting', () => {
-      eventTracker.trackError('ValidationError', 'Node configuration invalid', 'httpRequest');
+      eventTracker.trackError('ValidationError', 'Node configuration invalid', 'httpRequest', 'Required field "url" is missing');
 
       const events = eventTracker.getEventQueue();
       expect(events).toHaveLength(1);
@@ -202,31 +202,170 @@ describe('TelemetryEventTracker', () => {
         properties: {
           errorType: 'ValidationError',
           context: 'Node configuration invalid',
-          tool: 'httpRequest'
+          tool: 'httpRequest',
+          error: 'Required field "url" is missing'
         }
       });
     });
 
     it('should sanitize error context', () => {
       const context = 'Failed to connect to https://api.example.com with key abc123def456ghi789jklmno0123456789';
-      eventTracker.trackError('NetworkError', context);
+      eventTracker.trackError('NetworkError', context, undefined, 'Connection timeout after 30s');
 
       const events = eventTracker.getEventQueue();
       expect(events[0].properties.context).toBe('Failed to connect to [URL] with key [KEY]');
     });
 
     it('should sanitize error type', () => {
-      eventTracker.trackError('Invalid$Error!Type', 'test context');
+      eventTracker.trackError('Invalid$Error!Type', 'test context', undefined, 'Test error message');
 
       const events = eventTracker.getEventQueue();
       expect(events[0].properties.errorType).toBe('Invalid_Error_Type');
     });
 
     it('should handle missing tool name', () => {
-      eventTracker.trackError('TestError', 'test context');
+      eventTracker.trackError('TestError', 'test context', undefined, 'No tool specified');
 
       const events = eventTracker.getEventQueue();
       expect(events[0].properties.tool).toBeNull();  // Validator converts undefined to null
+    });
+  });
+
+  describe('trackError() with error messages', () => {
+    it('should capture error messages in properties', () => {
+      eventTracker.trackError('ValidationError', 'test', 'tool', 'Field "url" is required');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toBe('Field "url" is required');
+    });
+
+    it('should handle undefined error message', () => {
+      eventTracker.trackError('Error', 'test', 'tool', undefined);
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toBeNull();  // Validator converts undefined to null
+    });
+
+    it('should sanitize API keys in error messages', () => {
+      eventTracker.trackError('AuthError', 'test', 'tool', 'Failed with api_key=sk_live_abc123def456');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('api_key=[REDACTED]');
+      expect(events[0].properties.error).not.toContain('sk_live_abc123def456');
+    });
+
+    it('should sanitize passwords in error messages', () => {
+      eventTracker.trackError('AuthError', 'test', 'tool', 'Login failed: password=secret123');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('password=[REDACTED]');
+    });
+
+    it('should sanitize long keys (32+ chars)', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Key: abc123def456ghi789jkl012mno345pqr678');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('[KEY]');
+    });
+
+    it('should sanitize URLs in error messages', () => {
+      eventTracker.trackError('NetworkError', 'test', 'tool', 'Failed to fetch https://api.example.com/v1/users');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toBe('Failed to fetch [URL]');
+      expect(events[0].properties.error).not.toContain('api.example.com');
+      expect(events[0].properties.error).not.toContain('/v1/users');
+    });
+
+    it('should truncate very long error messages to 500 chars', () => {
+      const longError = 'Error occurred while processing the request. ' + 'Additional context details. '.repeat(50);
+      eventTracker.trackError('Error', 'test', 'tool', longError);
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error.length).toBeLessThanOrEqual(503); // 500 + '...'
+      expect(events[0].properties.error).toMatch(/\.\.\.$/);
+    });
+
+    it('should handle stack traces by keeping first 3 lines', () => {
+      const errorMsg = 'Error: Something failed\n  at foo (/path/file.js:10:5)\n  at bar (/path/file.js:20:10)\n  at baz (/path/file.js:30:15)\n  at qux (/path/file.js:40:20)';
+      eventTracker.trackError('Error', 'test', 'tool', errorMsg);
+
+      const events = eventTracker.getEventQueue();
+      const lines = events[0].properties.error.split('\n');
+      expect(lines.length).toBeLessThanOrEqual(3);
+    });
+
+    it('should sanitize emails in error messages', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Failed for user test@example.com');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('[EMAIL]');
+      expect(events[0].properties.error).not.toContain('test@example.com');
+    });
+
+    it('should sanitize quoted tokens', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Auth failed: "abc123def456ghi789"');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('"[TOKEN]"');
+    });
+
+    it('should sanitize token= patterns in error messages', () => {
+      eventTracker.trackError('AuthError', 'test', 'tool', 'Failed with token=abc123def456');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('token=[REDACTED]');
+    });
+
+    it('should sanitize AWS access keys', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Failed with AWS key AKIAIOSFODNN7EXAMPLE');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('[AWS_KEY]');
+      expect(events[0].properties.error).not.toContain('AKIAIOSFODNN7EXAMPLE');
+    });
+
+    it('should sanitize GitHub tokens', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Auth failed: ghp_1234567890abcdefghijklmnopqrstuvwxyz');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('[GITHUB_TOKEN]');
+      expect(events[0].properties.error).not.toContain('ghp_1234567890abcdefghijklmnopqrstuvwxyz');
+    });
+
+    it('should sanitize JWT tokens', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Invalid JWT eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.signature provided');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('[JWT]');
+      expect(events[0].properties.error).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+    });
+
+    it('should sanitize Bearer tokens', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Authorization failed: Bearer abc123def456ghi789');
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.error).toContain('Bearer [TOKEN]');
+      expect(events[0].properties.error).not.toContain('abc123def456ghi789');
+    });
+
+    it('should prevent email leakage in URLs by sanitizing URLs first', () => {
+      eventTracker.trackError('Error', 'test', 'tool', 'Failed: https://api.example.com/users/test@example.com/profile');
+
+      const events = eventTracker.getEventQueue();
+      // URL should be fully redacted, preventing any email leakage
+      expect(events[0].properties.error).toBe('Failed: [URL]');
+      expect(events[0].properties.error).not.toContain('test@example.com');
+      expect(events[0].properties.error).not.toContain('/users/');
+    });
+
+    it('should handle extremely long error messages efficiently', () => {
+      const hugeError = 'Error: ' + 'x'.repeat(10000);
+      eventTracker.trackError('Error', 'test', 'tool', hugeError);
+
+      const events = eventTracker.getEventQueue();
+      // Should be truncated at 500 chars max
+      expect(events[0].properties.error.length).toBeLessThanOrEqual(503); // 500 + '...'
     });
   });
 
@@ -618,7 +757,7 @@ describe('TelemetryEventTracker', () => {
   describe('sanitization helpers', () => {
     it('should sanitize context strings properly', () => {
       const context = 'Error at https://api.example.com/v1/users/test@email.com?key=secret123456789012345678901234567890';
-      eventTracker.trackError('TestError', context);
+      eventTracker.trackError('TestError', context, undefined, 'Test error with special chars');
 
       const events = eventTracker.getEventQueue();
       // After sanitization: emails first, then keys, then URL (keeping path)
@@ -628,7 +767,7 @@ describe('TelemetryEventTracker', () => {
     it('should handle context truncation', () => {
       // Use a more realistic long context that won't trigger key sanitization
       const longContext = 'Error occurred while processing the request: ' + 'details '.repeat(20);
-      eventTracker.trackError('TestError', longContext);
+      eventTracker.trackError('TestError', longContext, undefined, 'Long error message for truncation test');
 
       const events = eventTracker.getEventQueue();
       // Should be truncated to 100 chars
