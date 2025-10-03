@@ -284,14 +284,37 @@ export async function handleCreateWorkflow(args: unknown, context?: InstanceCont
     const client = ensureApiConfigured(context);
     const input = createWorkflowSchema.parse(args);
 
-    // Normalize all node types before validation
-    const normalizedInput = NodeTypeNormalizer.normalizeWorkflowNodeTypes(input);
+    // Proactively detect SHORT form node types (common mistake)
+    const shortFormErrors: string[] = [];
+    input.nodes?.forEach((node: any, index: number) => {
+      if (node.type?.startsWith('nodes-base.') || node.type?.startsWith('nodes-langchain.')) {
+        const fullForm = node.type.startsWith('nodes-base.')
+          ? node.type.replace('nodes-base.', 'n8n-nodes-base.')
+          : node.type.replace('nodes-langchain.', '@n8n/n8n-nodes-langchain.');
+        shortFormErrors.push(
+          `Node ${index} ("${node.name}") uses SHORT form "${node.type}". ` +
+          `The n8n API requires FULL form. Change to "${fullForm}"`
+        );
+      }
+    });
 
-    // Validate workflow structure
-    const errors = validateWorkflowStructure(normalizedInput);
+    if (shortFormErrors.length > 0) {
+      telemetry.trackWorkflowCreation(input, false);
+      return {
+        success: false,
+        error: 'Node type format error: n8n API requires FULL form node types',
+        details: {
+          errors: shortFormErrors,
+          hint: 'Use n8n-nodes-base.* instead of nodes-base.* for standard nodes'
+        }
+      };
+    }
+
+    // Validate workflow structure (n8n API expects FULL form: n8n-nodes-base.*)
+    const errors = validateWorkflowStructure(input);
     if (errors.length > 0) {
       // Track validation failure
-      telemetry.trackWorkflowCreation(normalizedInput, false);
+      telemetry.trackWorkflowCreation(input, false);
 
       return {
         success: false,
@@ -300,8 +323,8 @@ export async function handleCreateWorkflow(args: unknown, context?: InstanceCont
       };
     }
 
-    // Create workflow with normalized node types
-    const workflow = await client.createWorkflow(normalizedInput);
+    // Create workflow (n8n API expects node types in FULL form)
+    const workflow = await client.createWorkflow(input);
 
     // Track successful workflow creation
     telemetry.trackWorkflowCreation(workflow, true);
@@ -540,21 +563,14 @@ export async function handleUpdateWorkflow(args: unknown, context?: InstanceCont
         };
       }
 
-      // Normalize all node types before validation
-      const normalizedWorkflow = NodeTypeNormalizer.normalizeWorkflowNodeTypes(fullWorkflow);
-
-      const errors = validateWorkflowStructure(normalizedWorkflow);
+      // Validate workflow structure (n8n API expects FULL form: n8n-nodes-base.*)
+      const errors = validateWorkflowStructure(fullWorkflow);
       if (errors.length > 0) {
         return {
           success: false,
           error: 'Workflow validation failed',
           details: { errors }
         };
-      }
-
-      // Update updateData with normalized nodes if they were modified
-      if (updateData.nodes) {
-        updateData.nodes = normalizedWorkflow.nodes;
       }
     }
     

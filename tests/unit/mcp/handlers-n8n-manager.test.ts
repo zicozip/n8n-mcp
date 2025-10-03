@@ -231,20 +231,9 @@ describe('handlers-n8n-manager', () => {
         message: 'Workflow "Test Workflow" created successfully with ID: test-workflow-id',
       });
 
-      const expectedNormalizedInput = {
-        name: 'Test Workflow',
-        nodes: [{
-          id: 'node1',
-          name: 'Start',
-          type: 'nodes-base.start',
-          typeVersion: 1,
-          position: [100, 100],
-          parameters: {},
-        }],
-        connections: testWorkflow.connections,
-      };
-      expect(mockApiClient.createWorkflow).toHaveBeenCalledWith(expectedNormalizedInput);
-      expect(n8nValidation.validateWorkflowStructure).toHaveBeenCalledWith(expectedNormalizedInput);
+      // Should send input as-is to API (n8n expects FULL form: n8n-nodes-base.*)
+      expect(mockApiClient.createWorkflow).toHaveBeenCalledWith(input);
+      expect(n8nValidation.validateWorkflowStructure).toHaveBeenCalledWith(input);
     });
 
     it('should handle validation errors', async () => {
@@ -280,9 +269,9 @@ describe('handlers-n8n-manager', () => {
     it('should handle API errors', async () => {
       const input = {
         name: 'Test Workflow',
-        nodes: [{ 
-          id: 'node1', 
-          name: 'Start', 
+        nodes: [{
+          id: 'node1',
+          name: 'Start',
           type: 'n8n-nodes-base.start',
           typeVersion: 1,
           position: [100, 100],
@@ -315,6 +304,326 @@ describe('handlers-n8n-manager', () => {
       expect(result).toEqual({
         success: false,
         error: 'n8n API not configured. Please set N8N_API_URL and N8N_API_KEY environment variables.',
+      });
+    });
+
+    describe('SHORT form detection', () => {
+      it('should detect and reject nodes-base.* SHORT form', async () => {
+        const input = {
+          name: 'Test Workflow',
+          nodes: [{
+            id: 'node1',
+            name: 'Webhook',
+            type: 'nodes-base.webhook',
+            typeVersion: 1,
+            position: [100, 100],
+            parameters: {}
+          }],
+          connections: {}
+        };
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Node type format error: n8n API requires FULL form node types');
+        expect(result.details.errors).toHaveLength(1);
+        expect(result.details.errors[0]).toContain('Node 0');
+        expect(result.details.errors[0]).toContain('Webhook');
+        expect(result.details.errors[0]).toContain('nodes-base.webhook');
+        expect(result.details.errors[0]).toContain('n8n-nodes-base.webhook');
+        expect(result.details.errors[0]).toContain('SHORT form');
+        expect(result.details.errors[0]).toContain('FULL form');
+        expect(result.details.hint).toBe('Use n8n-nodes-base.* instead of nodes-base.* for standard nodes');
+      });
+
+      it('should detect and reject nodes-langchain.* SHORT form', async () => {
+        const input = {
+          name: 'AI Workflow',
+          nodes: [{
+            id: 'ai1',
+            name: 'AI Agent',
+            type: 'nodes-langchain.agent',
+            typeVersion: 1,
+            position: [100, 100],
+            parameters: {}
+          }],
+          connections: {}
+        };
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Node type format error: n8n API requires FULL form node types');
+        expect(result.details.errors).toHaveLength(1);
+        expect(result.details.errors[0]).toContain('Node 0');
+        expect(result.details.errors[0]).toContain('AI Agent');
+        expect(result.details.errors[0]).toContain('nodes-langchain.agent');
+        expect(result.details.errors[0]).toContain('@n8n/n8n-nodes-langchain.agent');
+        expect(result.details.errors[0]).toContain('SHORT form');
+        expect(result.details.errors[0]).toContain('FULL form');
+        expect(result.details.hint).toBe('Use n8n-nodes-base.* instead of nodes-base.* for standard nodes');
+      });
+
+      it('should detect multiple SHORT form nodes', async () => {
+        const input = {
+          name: 'Test Workflow',
+          nodes: [
+            {
+              id: 'node1',
+              name: 'Webhook',
+              type: 'nodes-base.webhook',
+              typeVersion: 1,
+              position: [100, 100],
+              parameters: {}
+            },
+            {
+              id: 'node2',
+              name: 'HTTP Request',
+              type: 'nodes-base.httpRequest',
+              typeVersion: 1,
+              position: [200, 100],
+              parameters: {}
+            },
+            {
+              id: 'node3',
+              name: 'AI Agent',
+              type: 'nodes-langchain.agent',
+              typeVersion: 1,
+              position: [300, 100],
+              parameters: {}
+            }
+          ],
+          connections: {}
+        };
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Node type format error: n8n API requires FULL form node types');
+        expect(result.details.errors).toHaveLength(3);
+        expect(result.details.errors[0]).toContain('Node 0');
+        expect(result.details.errors[0]).toContain('Webhook');
+        expect(result.details.errors[0]).toContain('n8n-nodes-base.webhook');
+        expect(result.details.errors[1]).toContain('Node 1');
+        expect(result.details.errors[1]).toContain('HTTP Request');
+        expect(result.details.errors[1]).toContain('n8n-nodes-base.httpRequest');
+        expect(result.details.errors[2]).toContain('Node 2');
+        expect(result.details.errors[2]).toContain('AI Agent');
+        expect(result.details.errors[2]).toContain('@n8n/n8n-nodes-langchain.agent');
+      });
+
+      it('should allow FULL form n8n-nodes-base.* without error', async () => {
+        const testWorkflow = createTestWorkflow({
+          nodes: [{
+            id: 'node1',
+            name: 'Webhook',
+            type: 'n8n-nodes-base.webhook',
+            typeVersion: 1,
+            position: [100, 100],
+            parameters: {}
+          }]
+        });
+
+        const input = {
+          name: 'Test Workflow',
+          nodes: testWorkflow.nodes,
+          connections: {}
+        };
+
+        mockApiClient.createWorkflow.mockResolvedValue(testWorkflow);
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        expect(result.success).toBe(true);
+        expect(mockApiClient.createWorkflow).toHaveBeenCalledWith(input);
+      });
+
+      it('should allow FULL form @n8n/n8n-nodes-langchain.* without error', async () => {
+        const testWorkflow = createTestWorkflow({
+          nodes: [{
+            id: 'ai1',
+            name: 'AI Agent',
+            type: '@n8n/n8n-nodes-langchain.agent',
+            typeVersion: 1,
+            position: [100, 100],
+            parameters: {}
+          }]
+        });
+
+        const input = {
+          name: 'AI Workflow',
+          nodes: testWorkflow.nodes,
+          connections: {}
+        };
+
+        mockApiClient.createWorkflow.mockResolvedValue(testWorkflow);
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        expect(result.success).toBe(true);
+        expect(mockApiClient.createWorkflow).toHaveBeenCalledWith(input);
+      });
+
+      it('should detect SHORT form in mixed FULL/SHORT workflow', async () => {
+        const input = {
+          name: 'Mixed Workflow',
+          nodes: [
+            {
+              id: 'node1',
+              name: 'Start',
+              type: 'n8n-nodes-base.start', // FULL form - correct
+              typeVersion: 1,
+              position: [100, 100],
+              parameters: {}
+            },
+            {
+              id: 'node2',
+              name: 'Webhook',
+              type: 'nodes-base.webhook', // SHORT form - error
+              typeVersion: 1,
+              position: [200, 100],
+              parameters: {}
+            }
+          ],
+          connections: {}
+        };
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Node type format error: n8n API requires FULL form node types');
+        expect(result.details.errors).toHaveLength(1);
+        expect(result.details.errors[0]).toContain('Node 1');
+        expect(result.details.errors[0]).toContain('Webhook');
+        expect(result.details.errors[0]).toContain('nodes-base.webhook');
+      });
+
+      it('should handle nodes with null type gracefully', async () => {
+        const input = {
+          name: 'Test Workflow',
+          nodes: [{
+            id: 'node1',
+            name: 'Unknown',
+            type: null,
+            typeVersion: 1,
+            position: [100, 100],
+            parameters: {}
+          }],
+          connections: {}
+        };
+
+        // Should pass SHORT form detection (null doesn't start with 'nodes-base.')
+        // Will fail at structure validation or API call
+        vi.mocked(n8nValidation.validateWorkflowStructure).mockReturnValue([
+          'Node type is required'
+        ]);
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        // Should fail at validation, not SHORT form detection
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Workflow validation failed');
+      });
+
+      it('should handle nodes with undefined type gracefully', async () => {
+        const input = {
+          name: 'Test Workflow',
+          nodes: [{
+            id: 'node1',
+            name: 'Unknown',
+            // type is undefined
+            typeVersion: 1,
+            position: [100, 100],
+            parameters: {}
+          }],
+          connections: {}
+        };
+
+        // Should pass SHORT form detection (undefined doesn't start with 'nodes-base.')
+        // Will fail at structure validation or API call
+        vi.mocked(n8nValidation.validateWorkflowStructure).mockReturnValue([
+          'Node type is required'
+        ]);
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        // Should fail at validation, not SHORT form detection
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Workflow validation failed');
+      });
+
+      it('should handle empty nodes array gracefully', async () => {
+        const input = {
+          name: 'Empty Workflow',
+          nodes: [],
+          connections: {}
+        };
+
+        // Should pass SHORT form detection (no nodes to check)
+        vi.mocked(n8nValidation.validateWorkflowStructure).mockReturnValue([
+          'Workflow must have at least one node'
+        ]);
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        // Should fail at validation, not SHORT form detection
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Workflow validation failed');
+      });
+
+      it('should handle nodes array with undefined nodes gracefully', async () => {
+        const input = {
+          name: 'Test Workflow',
+          nodes: undefined,
+          connections: {}
+        };
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        // Should fail at Zod validation (nodes is required in schema)
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Invalid input');
+        expect(result.details).toHaveProperty('errors');
+      });
+
+      it('should provide correct index in error message for multiple nodes', async () => {
+        const input = {
+          name: 'Test Workflow',
+          nodes: [
+            {
+              id: 'node1',
+              name: 'Start',
+              type: 'n8n-nodes-base.start', // FULL form - OK
+              typeVersion: 1,
+              position: [100, 100],
+              parameters: {}
+            },
+            {
+              id: 'node2',
+              name: 'Process',
+              type: 'n8n-nodes-base.set', // FULL form - OK
+              typeVersion: 1,
+              position: [200, 100],
+              parameters: {}
+            },
+            {
+              id: 'node3',
+              name: 'Webhook',
+              type: 'nodes-base.webhook', // SHORT form - index 2
+              typeVersion: 1,
+              position: [300, 100],
+              parameters: {}
+            }
+          ],
+          connections: {}
+        };
+
+        const result = await handlers.handleCreateWorkflow(input);
+
+        expect(result.success).toBe(false);
+        expect(result.details.errors).toHaveLength(1);
+        expect(result.details.errors[0]).toContain('Node 2'); // Zero-indexed
+        expect(result.details.errors[0]).toContain('Webhook');
       });
     });
   });

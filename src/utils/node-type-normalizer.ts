@@ -1,27 +1,44 @@
 /**
- * Universal Node Type Normalizer
+ * Universal Node Type Normalizer - FOR DATABASE OPERATIONS ONLY
  *
- * Converts ANY node type variation to the canonical SHORT form used by the database.
- * This fixes the critical issue where AI agents or external sources may produce
- * full-form node types (e.g., "n8n-nodes-base.webhook") which need to be normalized
- * to match the database storage format (e.g., "nodes-base.webhook").
+ * ⚠️ WARNING: Do NOT use before n8n API calls!
+ *
+ * This class converts node types to SHORT form (database format).
+ * The n8n API requires FULL form (n8n-nodes-base.*).
+ *
+ * **Use this ONLY when:**
+ * - Querying the node database
+ * - Searching for node information
+ * - Looking up node metadata
+ *
+ * **Do NOT use before:**
+ * - Creating workflows (n8n_create_workflow)
+ * - Updating workflows (n8n_update_workflow)
+ * - Any n8n API calls
  *
  * **IMPORTANT:** The n8n-mcp database stores nodes in SHORT form:
  * - n8n-nodes-base → nodes-base
  * - @n8n/n8n-nodes-langchain → nodes-langchain
  *
- * Handles:
- * - Full form → Short form (n8n-nodes-base.X → nodes-base.X)
- * - Already short form → Unchanged
- * - LangChain nodes → Proper short prefix
+ * But the n8n API requires FULL form:
+ * - nodes-base → n8n-nodes-base
+ * - nodes-langchain → @n8n/n8n-nodes-langchain
  *
- * @example
- * NodeTypeNormalizer.normalizeToFullForm('n8n-nodes-base.webhook')
+ * @example Database Lookup (CORRECT usage)
+ * const dbType = NodeTypeNormalizer.normalizeToFullForm('n8n-nodes-base.webhook')
  * // → 'nodes-base.webhook'
+ * const node = await repository.getNode(dbType)
  *
- * @example
- * NodeTypeNormalizer.normalizeToFullForm('nodes-base.webhook')
- * // → 'nodes-base.webhook' (unchanged)
+ * @example API Call (INCORRECT - Do NOT do this!)
+ * const workflow = { nodes: [{ type: 'n8n-nodes-base.webhook' }] }
+ * const normalized = NodeTypeNormalizer.normalizeWorkflowNodeTypes(workflow)
+ * // ❌ WRONG! normalized has SHORT form, API needs FULL form
+ * await client.createWorkflow(normalized) // FAILS!
+ *
+ * @example API Call (CORRECT)
+ * const workflow = { nodes: [{ type: 'n8n-nodes-base.webhook' }] }
+ * // ✅ Send as-is to API (FULL form required)
+ * await client.createWorkflow(workflow) // WORKS!
  */
 
 export interface NodeTypeNormalizationResult {
