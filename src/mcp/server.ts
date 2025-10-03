@@ -398,7 +398,8 @@ export class N8NDocumentationMCPServer {
         telemetry.trackError(
           error instanceof Error ? error.constructor.name : 'UnknownError',
           `tool_execution`,
-          name
+          name,
+          errorMessage
         );
 
         // Track tool sequence even for errors

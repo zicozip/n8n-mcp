@@ -23,7 +23,7 @@ async function testIntegration() {
 
   // Track errors
   console.log('Tracking errors...');
-  telemetry.trackError('ValidationError', 'workflow_validation', 'validate_workflow');
+  telemetry.trackError('ValidationError', 'workflow_validation', 'validate_workflow', 'Required field missing: nodes array is empty');
 
   // Track a test workflow
   console.log('Tracking workflow creation...');

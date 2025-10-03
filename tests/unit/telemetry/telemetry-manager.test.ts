@@ -233,12 +233,13 @@ describe('TelemetryManager', () => {
     });
 
     it('should track errors', () => {
-      manager.trackError('ValidationError', 'Node configuration invalid', 'httpRequest');
+      manager.trackError('ValidationError', 'Node configuration invalid', 'httpRequest', 'Required field "url" is missing');
 
       expect(mockEventTracker.trackError).toHaveBeenCalledWith(
         'ValidationError',
         'Node configuration invalid',
-        'httpRequest'
+        'httpRequest',
+        'Required field "url" is missing'
       );
     });
 
