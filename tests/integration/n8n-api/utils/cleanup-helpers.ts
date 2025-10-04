@@ -218,7 +218,7 @@ export async function cleanupWorkflowsByTag(tag: string): Promise<string[]> {
 
   try {
     const response = await client.listWorkflows({
-      tags: tag ? [tag] : undefined,
+      tags: tag || undefined,
       limit: 100,
       excludePinnedData: true
     });
