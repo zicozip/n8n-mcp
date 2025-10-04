@@ -47,8 +47,8 @@ describe('Integration: handleGetWorkflowMinimal', () => {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Minimal - Inactive'),
         tags: [
-          { name: 'mcp-integration-test' },
-          { name: 'minimal-test' }
+          'mcp-integration-test',
+          'minimal-test'
         ]
       };
 
@@ -97,8 +97,8 @@ describe('Integration: handleGetWorkflowMinimal', () => {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Minimal - Active'),
         tags: [
-          { name: 'mcp-integration-test' },
-          { name: 'minimal-test-active' }
+          'mcp-integration-test',
+          'minimal-test-active'
         ]
       };
 

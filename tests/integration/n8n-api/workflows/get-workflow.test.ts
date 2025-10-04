@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { createTestContext, TestContext, createTestWorkflowName } from '../utils/test-context';
 import { getTestN8nClient } from '../utils/n8n-client';
 import { N8nApiClient } from '../../../../src/services/n8n-api-client';
+import { Workflow } from '../../../../src/types/n8n-api';
 import { SIMPLE_WEBHOOK_WORKFLOW } from '../utils/fixtures';
 import { cleanupOrphanedWorkflows } from '../utils/cleanup-helpers';
 import { createMcpContext } from '../utils/mcp-context';
@@ -46,7 +47,7 @@ describe('Integration: handleGetWorkflow', () => {
       const workflow = {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Workflow - Complete Data'),
-        tags: [{ name: 'mcp-integration-test' }]
+        tags: ['mcp-integration-test']
       };
 
       const created = await client.createWorkflow(workflow);
@@ -63,14 +64,14 @@ describe('Integration: handleGetWorkflow', () => {
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
 
-      const retrieved = response.data;
+      const retrieved = response.data as Workflow;
 
       // Verify all expected fields are present
       expect(retrieved).toBeDefined();
       expect(retrieved.id).toBe(created.id);
       expect(retrieved.name).toBe(workflow.name);
       expect(retrieved.nodes).toBeDefined();
-      expect(retrieved.nodes).toHaveLength(workflow.nodes.length);
+      expect(retrieved.nodes).toHaveLength(workflow.nodes!.length);
       expect(retrieved.connections).toBeDefined();
       expect(retrieved.active).toBeDefined();
       expect(retrieved.createdAt).toBeDefined();
@@ -78,7 +79,7 @@ describe('Integration: handleGetWorkflow', () => {
 
       // Verify node data integrity
       const retrievedNode = retrieved.nodes[0];
-      const originalNode = workflow.nodes[0];
+      const originalNode = workflow.nodes![0];
       expect(retrievedNode.name).toBe(originalNode.name);
       expect(retrievedNode.type).toBe(originalNode.type);
       expect(retrievedNode.parameters).toBeDefined();

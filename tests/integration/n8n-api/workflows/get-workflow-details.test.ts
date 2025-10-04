@@ -46,7 +46,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       const workflow = {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Details - Basic'),
-        tags: [{ name: 'mcp-integration-test' }]
+        tags: ['mcp-integration-test']
       };
 
       const created = await client.createWorkflow(workflow);
@@ -64,7 +64,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       expect(response.data).toBeDefined();
 
       // handleGetWorkflowDetails returns { workflow, executionStats, hasWebhookTrigger, webhookPath }
-      const details = response.data.workflow;
+      const details = (response.data as any).workflow;
 
       // Verify basic details
       expect(details).toBeDefined();
@@ -90,9 +90,9 @@ describe('Integration: handleGetWorkflowDetails', () => {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Details - With Metadata'),
         tags: [
-          { name: 'mcp-integration-test' },
-          { name: 'test-category' },
-          { name: 'integration' }
+          'mcp-integration-test',
+          'test-category',
+          'integration'
         ],
         settings: {
           executionOrder: 'v1' as const,
@@ -110,7 +110,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       // Retrieve workflow details using MCP handler
       const response = await handleGetWorkflowDetails({ id: created.id }, mcpContext);
       expect(response.success).toBe(true);
-      const details = response.data.workflow;
+      const details = (response.data as any).workflow;
 
       // Verify metadata is present (tags may be undefined in API response)
       // Note: n8n API behavior for tags varies - they may not be returned
@@ -136,7 +136,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       const workflow = {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Details - Version History'),
-        tags: [{ name: 'mcp-integration-test' }]
+        tags: ['mcp-integration-test']
       };
 
       const created = await client.createWorkflow(workflow);
@@ -149,7 +149,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       // Get initial version using MCP handler
       const initialResponse = await handleGetWorkflowDetails({ id: created.id }, mcpContext);
       expect(initialResponse.success).toBe(true);
-      const initialDetails = initialResponse.data.workflow;
+      const initialDetails = (initialResponse.data as any).workflow;
       const initialVersionId = initialDetails.versionId;
       const initialUpdatedAt = initialDetails.updatedAt;
 
@@ -163,7 +163,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       // Get updated details using MCP handler
       const updatedResponse = await handleGetWorkflowDetails({ id: created.id }, mcpContext);
       expect(updatedResponse.success).toBe(true);
-      const updatedDetails = updatedResponse.data.workflow;
+      const updatedDetails = (updatedResponse.data as any).workflow;
 
       // Verify version changed
       expect(updatedDetails.versionId).toBeDefined();
@@ -184,7 +184,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       const workflow = {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Details - Execution Stats'),
-        tags: [{ name: 'mcp-integration-test' }]
+        tags: ['mcp-integration-test']
       };
 
       const created = await client.createWorkflow(workflow);
@@ -197,7 +197,7 @@ describe('Integration: handleGetWorkflowDetails', () => {
       // Retrieve workflow details using MCP handler
       const response = await handleGetWorkflowDetails({ id: created.id }, mcpContext);
       expect(response.success).toBe(true);
-      const details = response.data.workflow;
+      const details = (response.data as any).workflow;
 
       // Verify execution-related fields exist
       // Note: New workflows won't have executions, but fields should be present

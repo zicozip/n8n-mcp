@@ -46,7 +46,7 @@ describe('Integration: handleGetWorkflowStructure', () => {
       const workflow = {
         ...SIMPLE_WEBHOOK_WORKFLOW,
         name: createTestWorkflowName('Get Structure - Simple'),
-        tags: [{ name: 'mcp-integration-test' }]
+        tags: ['mcp-integration-test']
       };
 
       const created = await client.createWorkflow(workflow);
@@ -92,7 +92,7 @@ describe('Integration: handleGetWorkflowStructure', () => {
       const workflow = {
         ...MULTI_NODE_WORKFLOW,
         name: createTestWorkflowName('Get Structure - Complex'),
-        tags: [{ name: 'mcp-integration-test' }]
+        tags: ['mcp-integration-test']
       };
 
       const created = await client.createWorkflow(workflow);
