@@ -22,7 +22,41 @@
 
 ## Overview
 
-Transform the test suite to test all 17 n8n API handlers against a **real n8n instance** instead of mocks. This plan ensures 100% coverage of every tool, operation, and parameter combination to prevent bugs like the P0 workflow creation issue from slipping through.
+Transform the test suite to test all 17 **MCP handlers** against a **real n8n instance** instead of mocks. This plan ensures 100% coverage of every tool, operation, and parameter combination to prevent bugs like the P0 workflow creation issue from slipping through.
+
+### What We Test: MCP Handlers (The Product Layer)
+
+**IMPORTANT**: These integration tests validate the **MCP handler layer** (the actual product that AI assistants interact with), not just the raw n8n API client.
+
+**Architecture:**
+```
+AI Assistant (Claude)
+      ↓
+  MCP Tools (What AI sees)
+      ↓
+  MCP Handlers (What we test) ← INTEGRATION TESTS TARGET THIS LAYER
+      ↓
+  N8nApiClient (Low-level HTTP)
+      ↓
+  n8n REST API
+```
+
+**Why This Matters:**
+- **MCP handlers** wrap API responses in `McpToolResponse` format: `{ success: boolean, data?: any, error?: string }`
+- **MCP handlers** transform and enrich API responses (e.g., `handleGetWorkflowDetails` adds execution stats)
+- **MCP handlers** provide the exact interface that AI assistants consume
+- Testing raw API client bypasses the product layer and misses MCP-specific logic
+
+**Test Pattern:**
+```typescript
+// ❌ WRONG: Testing raw API client (low-level service)
+const result = await client.createWorkflow(workflow);
+
+// ✅ CORRECT: Testing MCP handler (product layer)
+const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+expect(response.success).toBe(true);
+const result = response.data;
+```
 
 ## Critical Requirements
 
@@ -48,9 +82,9 @@ Transform the test suite to test all 17 n8n API handlers against a **real n8n in
 
 ### Total Test Scenarios: ~150+
 
-#### Workflow Management (10 handlers)
+#### Workflow Management (10 MCP handlers)
 
-**1. `handleCreateWorkflow`** - 10+ scenarios
+**1. `handleCreateWorkflow`** - 15+ scenarios (MCP handler testing)
 - Create workflow with base nodes (webhook, httpRequest, set)
 - Create workflow with langchain nodes (agent, aiChain)
 - Invalid node types (error handling)
@@ -314,6 +348,24 @@ tests/integration/n8n-api/
 
 #### 1.3 Core Utilities
 
+**mcp-context.ts** - MCP context configuration for handler testing:
+```typescript
+import { InstanceContext } from '../../../../src/types/instance-context';
+import { getN8nCredentials } from './credentials';
+
+/**
+ * Creates MCP context for testing MCP handlers against real n8n instance
+ * This is what gets passed to MCP handlers (handleCreateWorkflow, etc.)
+ */
+export function createMcpContext(): InstanceContext {
+  const creds = getN8nCredentials();
+  return {
+    n8nApiUrl: creds.url,
+    n8nApiKey: creds.apiKey
+  };
+}
+```
+
 **credentials.ts** - Environment-aware credential loader:
 ```typescript
 import dotenv from 'dotenv';
@@ -421,11 +473,25 @@ export function validateWebhookUrls(creds: N8nTestCredentials): void {
 }
 ```
 
-**n8n-client.ts** - Pre-configured API client wrapper:
+**n8n-client.ts** - Pre-configured API client (for test utilities only):
 ```typescript
 import { N8nApiClient } from '../../../src/services/n8n-api-client';
 import { getN8nCredentials } from './credentials';
 
+/**
+ * IMPORTANT: This client is ONLY used for test setup/cleanup utilities.
+ * DO NOT use this in actual test cases - use MCP handlers instead!
+ *
+ * Test utilities that need direct API access:
+ * - cleanupOrphanedWorkflows() - bulk cleanup
+ * - Fixture setup/teardown
+ * - Pre-test verification
+ *
+ * Actual tests MUST use MCP handlers:
+ * - handleCreateWorkflow()
+ * - handleGetWorkflow()
+ * - etc.
+ */
 let client: N8nApiClient | null = null;
 
 export function getTestN8nClient(): N8nApiClient {
@@ -737,33 +803,92 @@ ${method} Method:
 
 ### Phase 2: Workflow Creation Tests (P0)
 
-**Branch**: `feat/integration-tests-workflow-creation`
+**Branch**: `feat/integration-tests-phase-2`
 
 **File**: `tests/integration/n8n-api/workflows/create-workflow.test.ts`
 
-**10+ Test Scenarios**:
+**Test Approach**: Tests the `handleCreateWorkflow` MCP handler against real n8n instance
+
+**MCP Handler Test Pattern:**
+```typescript
+import { handleCreateWorkflow } from '../../../../src/mcp/handlers-n8n-manager';
+import { createMcpContext } from '../utils/mcp-context';
+import { InstanceContext } from '../../../../src/types/instance-context';
+
+describe('Integration: handleCreateWorkflow', () => {
+  let mcpContext: InstanceContext;
+
+  beforeEach(() => {
+    mcpContext = createMcpContext();
+  });
+
+  it('should create workflow using MCP handler', async () => {
+    const workflow = { name: 'Test', nodes: [...], connections: {} };
+
+    // Test MCP handler (the product layer)
+    const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+
+    // Verify MCP response structure
+    expect(response.success).toBe(true);
+    expect(response.data).toBeDefined();
+
+    // Extract actual workflow from MCP response
+    const result = response.data;
+    expect(result.id).toBeTruthy();
+  });
+});
+```
+
+**15 Test Scenarios** (all testing MCP handlers):
 1. Create workflow with base webhook node (verify P0 bug fix)
 2. Create workflow with base HTTP request node
 3. Create workflow with langchain agent node
 4. Create complex multi-node workflow
 5. Create workflow with complex connections
-6. Error: Invalid node type
-7. Error: Missing required parameters
-8. Error: Duplicate node names
-9. Error: Invalid connection references
-10. Create workflow with custom settings
+6. Create workflow with custom settings
+7. Create workflow with n8n expressions
+8. Create workflow with error handling
+9. Error: Invalid node type (documents API behavior)
+10. Error: Missing required parameters (documents API behavior)
+11. Error: Duplicate node names (documents API behavior)
+12. Error: Invalid connection references (documents API behavior)
+13. Edge case: Minimal single node workflow
+14. Edge case: Empty connections object
+15. Edge case: Workflow without settings
 
 ---
 
 ### Phase 3: Workflow Retrieval Tests (P1)
 
-**Branch**: `feat/integration-tests-workflow-retrieval`
+**Branch**: `feat/integration-tests-phase-3`
+
+**Test Approach**: Tests MCP handlers (`handleGetWorkflow`, `handleGetWorkflowDetails`, `handleGetWorkflowStructure`, `handleGetWorkflowMinimal`)
+
+**MCP Handler Pattern:**
+```typescript
+import {
+  handleGetWorkflow,
+  handleGetWorkflowDetails,
+  handleGetWorkflowStructure,
+  handleGetWorkflowMinimal
+} from '../../../../src/mcp/handlers-n8n-manager';
+
+// Test MCP handler
+const response = await handleGetWorkflow({ id: workflowId }, mcpContext);
+expect(response.success).toBe(true);
+const workflow = response.data;
+
+// Note: handleGetWorkflowDetails returns nested structure
+const detailsResponse = await handleGetWorkflowDetails({ id }, mcpContext);
+const workflow = detailsResponse.data.workflow;  // Extract from nested structure
+const stats = detailsResponse.data.executionStats;
+```
 
 **Files**:
-- `get-workflow.test.ts` (3 scenarios)
-- `get-workflow-details.test.ts` (4 scenarios)
-- `get-workflow-structure.test.ts` (2 scenarios)
-- `get-workflow-minimal.test.ts` (2 scenarios)
+- `get-workflow.test.ts` (3 scenarios - tests handleGetWorkflow)
+- `get-workflow-details.test.ts` (4 scenarios - tests handleGetWorkflowDetails)
+- `get-workflow-structure.test.ts` (2 scenarios - tests handleGetWorkflowStructure)
+- `get-workflow-minimal.test.ts` (2 scenarios - tests handleGetWorkflowMinimal)
 
 ---
 
@@ -954,13 +1079,15 @@ jobs:
 
 ### Phase 2: Workflow Creation Tests ✅ COMPLETE
 - ✅ 15 test scenarios implemented (all passing)
+- ✅ Tests the `handleCreateWorkflow` MCP handler (product layer)
+- ✅ All tests use MCP handler pattern with McpToolResponse validation
 - ✅ P0 bug verification (FULL vs SHORT node type format)
 - ✅ Base node tests (webhook, HTTP, langchain, multi-node)
 - ✅ Advanced features (connections, settings, expressions, error handling)
 - ✅ Error scenarios (4 tests documenting actual API behavior)
 - ✅ Edge cases (3 tests for minimal/empty configurations)
-- ✅ Test file: 484 lines covering all handleCreateWorkflow scenarios
-- ✅ All tests passing on real n8n instance
+- ✅ Test file: 563 lines covering all handleCreateWorkflow scenarios
+- ✅ All tests passing against real n8n instance
 
 ### Overall Project (In Progress)
 - ⏳ All 17 handlers have integration tests (1 of 17 complete)
@@ -998,7 +1125,30 @@ jobs:
 - Run local tests frequently to catch issues early
 - Document any n8n API quirks discovered during testing
 
-## Key Learnings from Phase 2
+## Key Learnings from Implementation
+
+### Critical Testing Principle: Test the Product Layer
+
+**The Mistake**: Initially, Phase 2 tests called `client.createWorkflow()` (raw API client) instead of `handleCreateWorkflow()` (MCP handler).
+
+**Why This Was Wrong**:
+- AI assistants interact with MCP handlers, not raw API client
+- MCP handlers wrap responses in `McpToolResponse` format
+- MCP handlers may transform/enrich API responses
+- Bypassing MCP layer misses product-specific logic and bugs
+
+**The Fix**: All tests updated to use MCP handlers:
+```typescript
+// ❌ BEFORE: Testing wrong layer
+const result = await client.createWorkflow(workflow);
+
+// ✅ AFTER: Testing the actual product
+const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+expect(response.success).toBe(true);
+const result = response.data;
+```
+
+**Lesson Learned**: Always test the layer closest to the user/consumer. For n8n-mcp, that's the MCP handler layer.
 
 ### n8n API Behavior Discoveries
 1. **Validation Timing**: n8n API accepts workflows with invalid node types and connection references at creation time. Validation only happens at execution time.

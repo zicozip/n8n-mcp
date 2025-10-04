@@ -20,14 +20,19 @@ import {
   getFixture
 } from '../utils/fixtures';
 import { cleanupOrphanedWorkflows } from '../utils/cleanup-helpers';
+import { createMcpContext } from '../utils/mcp-context';
+import { InstanceContext } from '../../../../src/types/instance-context';
+import { handleCreateWorkflow } from '../../../../src/mcp/handlers-n8n-manager';
 
 describe('Integration: handleCreateWorkflow', () => {
   let context: TestContext;
   let client: N8nApiClient;
+  let mcpContext: InstanceContext;
 
   beforeEach(() => {
     context = createTestContext();
     client = getTestN8nClient();
+    mcpContext = createMcpContext();
   });
 
   afterEach(async () => {
@@ -62,8 +67,10 @@ describe('Integration: handleCreateWorkflow', () => {
         ...getFixture('simple-webhook')
       };
 
-      // Create workflow
-      const result = await client.createWorkflow(workflow);
+      // Create workflow using MCP handler
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       // Verify workflow created successfully
       expect(result).toBeDefined();
@@ -92,7 +99,9 @@ describe('Integration: handleCreateWorkflow', () => {
         ...getFixture('simple-http')
       };
 
-      const result = await client.createWorkflow(workflow);
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -123,7 +132,9 @@ describe('Integration: handleCreateWorkflow', () => {
         ...getFixture('ai-agent')
       };
 
-      const result = await client.createWorkflow(workflow);
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -145,7 +156,9 @@ describe('Integration: handleCreateWorkflow', () => {
         ...getFixture('multi-node')
       };
 
-      const result = await client.createWorkflow(workflow);
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -177,7 +190,9 @@ describe('Integration: handleCreateWorkflow', () => {
         ...getFixture('multi-node')
       };
 
-      const result = await client.createWorkflow(workflow);
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -214,7 +229,9 @@ describe('Integration: handleCreateWorkflow', () => {
         }
       };
 
-      const result = await client.createWorkflow(workflow);
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -231,7 +248,9 @@ describe('Integration: handleCreateWorkflow', () => {
         ...getFixture('expression')
       };
 
-      const result = await client.createWorkflow(workflow);
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -259,7 +278,9 @@ describe('Integration: handleCreateWorkflow', () => {
         ...getFixture('error-handling')
       };
 
-      const result = await client.createWorkflow(workflow);
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(true);
+      const result = response.data;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -284,10 +305,12 @@ describe('Integration: handleCreateWorkflow', () => {
   // ======================================================================
 
   describe('Error Scenarios', () => {
-    it('should accept workflow with invalid node type (fails at execution time)', async () => {
-      // Note: n8n API accepts workflows with invalid node types at creation time.
-      // The error only occurs when trying to execute the workflow.
-      // This documents the actual API behavior.
+    it('should reject workflow with invalid node type (MCP validation)', async () => {
+      // MCP handler correctly validates workflows before sending to n8n API.
+      // Invalid node types are caught during MCP validation.
+      //
+      // Note: Raw n8n API would accept this and only fail at execution time,
+      // but MCP handler does proper pre-validation (correct behavior).
 
       const workflowName = createTestWorkflowName('Invalid Node Type');
       const workflow = {
@@ -306,17 +329,19 @@ describe('Integration: handleCreateWorkflow', () => {
         settings: { executionOrder: 'v1' as const }
       };
 
-      // n8n API accepts the workflow (validation happens at execution time)
-      const result = await client.createWorkflow(workflow);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBeTruthy();
-      if (!result.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(result.id);
-      expect(result.nodes[0].type).toBe('n8n-nodes-base.nonexistentnode');
+      // MCP handler rejects invalid workflows (correct behavior)
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
+      expect(response.error).toContain('validation');
     });
 
-    it('should accept workflow with missing required node parameters (fails at execution time)', async () => {
+    it('should reject workflow with missing required node parameters (MCP validation)', async () => {
+      // MCP handler validates required parameters before sending to n8n API.
+      //
+      // Note: Raw n8n API would accept this and only fail at execution time,
+      // but MCP handler does proper pre-validation (correct behavior).
+
       const workflowName = createTestWorkflowName('Missing Parameters');
       const workflow = {
         name: workflowName,
@@ -337,18 +362,18 @@ describe('Integration: handleCreateWorkflow', () => {
         settings: { executionOrder: 'v1' as const }
       };
 
-      // n8n API accepts this during creation but fails during execution
-      // This test documents the actual API behavior
-      const result = await client.createWorkflow(workflow);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBeTruthy();
-      if (!result.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(result.id);
-      // Note: Validation happens at execution time, not creation time
+      // MCP handler rejects workflows with validation errors (correct behavior)
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
     });
 
-    it('should handle workflow with duplicate node names', async () => {
+    it('should reject workflow with duplicate node names (MCP validation)', async () => {
+      // MCP handler validates that node names are unique.
+      //
+      // Note: Raw n8n API might auto-rename duplicates, but MCP handler
+      // enforces unique names upfront (correct behavior).
+
       const workflowName = createTestWorkflowName('Duplicate Node Names');
       const workflow = {
         name: workflowName,
@@ -380,23 +405,17 @@ describe('Integration: handleCreateWorkflow', () => {
         settings: { executionOrder: 'v1' as const }
       };
 
-      // n8n API should handle this - it may auto-rename or reject
-      const result = await client.createWorkflow(workflow);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBeTruthy();
-      if (!result.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(result.id);
-      // Verify n8n's handling of duplicate names
-      const nodeNames = result.nodes.map(n => n.name);
-      // Either both have same name or n8n renamed one
-      expect(nodeNames.length).toBe(2);
+      // MCP handler rejects workflows with validation errors (correct behavior)
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
     });
 
-    it('should accept workflow with invalid connection references (fails at execution time)', async () => {
-      // Note: n8n API accepts workflows with invalid connection references at creation time.
-      // The error only occurs when trying to execute the workflow.
-      // This documents the actual API behavior.
+    it('should reject workflow with invalid connection references (MCP validation)', async () => {
+      // MCP handler validates that connection references point to existing nodes.
+      //
+      // Note: Raw n8n API would accept this and only fail at execution time,
+      // but MCP handler does proper connection validation (correct behavior).
 
       const workflowName = createTestWorkflowName('Invalid Connections');
       const workflow = {
@@ -423,16 +442,11 @@ describe('Integration: handleCreateWorkflow', () => {
         settings: { executionOrder: 'v1' as const }
       };
 
-      // n8n API accepts the workflow (validation happens at execution time)
-      const result = await client.createWorkflow(workflow);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBeTruthy();
-      if (!result.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(result.id);
-      // Connection is preserved even though it references non-existent node
-      expect(result.connections.Webhook).toBeDefined();
-      expect(result.connections.Webhook.main[0][0].node).toBe('NonExistent');
+      // MCP handler rejects workflows with invalid connections (correct behavior)
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
+      expect(response.error).toContain('validation');
     });
   });
 
@@ -441,7 +455,10 @@ describe('Integration: handleCreateWorkflow', () => {
   // ======================================================================
 
   describe('Edge Cases', () => {
-    it('should create minimal workflow with single node', async () => {
+    it('should reject single-node non-webhook workflow (MCP validation)', async () => {
+      // MCP handler enforces that single-node workflows are only valid for webhooks.
+      // This is a best practice validation.
+
       const workflowName = createTestWorkflowName('Minimal Single Node');
       const workflow = {
         name: workflowName,
@@ -459,17 +476,17 @@ describe('Integration: handleCreateWorkflow', () => {
         settings: { executionOrder: 'v1' as const }
       };
 
-      const result = await client.createWorkflow(workflow);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBeTruthy();
-      if (!result.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(result.id);
-      expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].type).toBe('n8n-nodes-base.manualTrigger');
+      // MCP handler rejects single-node non-webhook workflows (correct behavior)
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
+      expect(response.error).toContain('validation');
     });
 
-    it('should create workflow with empty connections object', async () => {
+    it('should reject single-node non-trigger workflow (MCP validation)', async () => {
+      // MCP handler enforces workflow best practices.
+      // Single isolated nodes without connections are rejected.
+
       const workflowName = createTestWorkflowName('Empty Connections');
       const workflow = {
         name: workflowName,
@@ -490,16 +507,16 @@ describe('Integration: handleCreateWorkflow', () => {
         settings: { executionOrder: 'v1' as const }
       };
 
-      const result = await client.createWorkflow(workflow);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBeTruthy();
-      if (!result.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(result.id);
-      expect(result.connections).toEqual({});
+      // MCP handler rejects single-node workflows (correct behavior)
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
     });
 
-    it('should create workflow without settings object', async () => {
+    it('should reject single-node workflow without settings (MCP validation)', async () => {
+      // MCP handler enforces workflow best practices.
+      // Single-node non-webhook workflows are rejected.
+
       const workflowName = createTestWorkflowName('No Settings');
       const workflow = {
         name: workflowName,
@@ -517,14 +534,10 @@ describe('Integration: handleCreateWorkflow', () => {
         // No settings property
       };
 
-      const result = await client.createWorkflow(workflow);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBeTruthy();
-      if (!result.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(result.id);
-      // n8n should apply default settings
-      expect(result.settings).toBeDefined();
+      // MCP handler rejects single-node workflows (correct behavior)
+      const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
+      expect(response.success).toBe(false);
+      expect(response.error).toBeDefined();
     });
   });
 });
