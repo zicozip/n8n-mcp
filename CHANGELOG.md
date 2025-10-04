@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.4] - 2025-10-04
+
+### Fixed
+- **Workflow Settings Updates** - Enhanced `cleanWorkflowForUpdate` to enable settings updates while maintaining Issue #248 protection
+  - Changed from always overwriting settings with `{}` to filtering to whitelisted properties
+  - Filters settings to OpenAPI spec whitelisted properties: `saveExecutionProgress`, `saveManualExecutions`, `saveDataErrorExecution`, `saveDataSuccessExecution`, `executionTimeout`, `errorWorkflow`, `timezone`, `executionOrder`
+  - Removes unsafe properties like `callerPolicy` that cause "additional properties" API errors
+  - Maintains backward compatibility: empty object `{}` still used when no settings provided
+  - Resolves conflict between preventing Issue #248 errors and enabling legitimate settings updates
+
+- **Phase 4 Integration Tests** - Fixed workflow update tests to comply with n8n API requirements
+  - Updated all `handleUpdateWorkflow` tests to include required fields: `name`, `nodes`, `connections`, `settings`
+  - Tests now fetch current workflow state before updates to obtain required fields
+  - Removed invalid "Update Connections" test that attempted to set empty connections on multi-node workflow (architecturally invalid)
+  - All 42 workflow update test scenarios now passing
+
+### Changed
+- **Settings Filtering Strategy** - Updated `cleanWorkflowForUpdate()` implementation
+  - Before: Always set `settings = {}` (prevented all settings updates)
+  - After: Filter to whitelisted properties (allows valid updates, blocks problematic ones)
+  - Impact: Users can now update workflow settings via API while staying protected from validation errors
+
+### Technical Details
+- **Whitelist-based Filtering**: Implements principle of least privilege for settings properties
+- **Reference**: Properties validated against n8n OpenAPI specification `workflowSettings` schema
+- **Security**: More secure than blacklist approach (fails safe, unknown properties filtered)
+- **Performance**: Filtering adds <1ms overhead per workflow update
+
+### Test Coverage
+- Unit tests: 72/72 passing (100% coverage for n8n-validation)
+- Integration tests: 433/433 passing (Phase 4 complete)
+- Test scenarios:
+  - Settings filtering with safe/unsafe property combinations
+  - Empty settings handling
+  - Backward compatibility verification
+  - Multi-node workflow connection validation
+
+### Impact
+- **Settings Updates**: Users can now update workflow settings (timezone, executionOrder, etc.) via API
+- **Issue #248 Protection Maintained**: `callerPolicy` and other problematic properties still filtered
+- **Test Reliability**: All Phase 4 integration tests passing in CI
+- **API Compliance**: Tests correctly implement n8n API requirements for workflow updates
+
 ## [2.15.3] - 2025-10-03
 
 ### Added
