@@ -13,17 +13,27 @@ import { existsSync } from 'fs';
 export function loadTestEnvironment(): void {
   // CI Debug logging
   const isCI = process.env.CI === 'true';
-  
+
+  // First, load the main .env file (for integration tests that need real credentials)
+  const mainEnvPath = path.resolve(process.cwd(), '.env');
+  if (existsSync(mainEnvPath)) {
+    dotenv.config({ path: mainEnvPath });
+    if (isCI) {
+      console.log('[CI-DEBUG] Loaded .env file from:', mainEnvPath);
+    }
+  }
+
   // Load base test environment
   const testEnvPath = path.resolve(process.cwd(), '.env.test');
-  
+
   if (isCI) {
     console.log('[CI-DEBUG] Looking for .env.test at:', testEnvPath);
     console.log('[CI-DEBUG] File exists?', existsSync(testEnvPath));
   }
-  
+
   if (existsSync(testEnvPath)) {
-    const result = dotenv.config({ path: testEnvPath });
+    // Don't override values from .env
+    const result = dotenv.config({ path: testEnvPath, override: false });
     if (isCI && result.error) {
       console.error('[CI-DEBUG] Failed to load .env.test:', result.error);
     } else if (isCI && result.parsed) {
@@ -39,9 +49,9 @@ export function loadTestEnvironment(): void {
     dotenv.config({ path: localEnvPath, override: true });
   }
 
-  // Set test-specific defaults
+  // Set test-specific defaults (only if not already set)
   setTestDefaults();
-  
+
   // Validate required environment variables
   validateTestEnvironment();
 }

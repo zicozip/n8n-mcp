@@ -29,7 +29,9 @@ export function getTestN8nClient(): N8nApiClient {
     validateCredentials(creds);
     client = new N8nApiClient({
       baseUrl: creds.url,
-      apiKey: creds.apiKey
+      apiKey: creds.apiKey,
+      timeout: 30000,
+      maxRetries: 3
     });
   }
   return client;
