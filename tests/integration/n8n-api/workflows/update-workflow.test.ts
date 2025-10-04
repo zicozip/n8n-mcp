@@ -166,16 +166,17 @@ describe('Integration: handleUpdateWorkflow', () => {
       if (!created.id) throw new Error('Workflow ID is missing');
       context.trackWorkflow(created.id);
 
-      // Fetch current workflow to get nodes (required by n8n API)
+      // Fetch current workflow to get required fields (n8n API requirement)
       const current = await client.getWorkflow(created.id);
 
       // Remove connections (disconnect nodes)
       const response = await handleUpdateWorkflow(
         {
           id: created.id,
-          name: current.name,      // Required by n8n API
-          nodes: current.nodes,    // Required by n8n API
-          connections: {}
+          name: current.name,         // Required by n8n API
+          nodes: current.nodes,       // Required by n8n API
+          connections: {},
+          settings: current.settings  // Required by n8n API
         },
         mcpContext
       );
