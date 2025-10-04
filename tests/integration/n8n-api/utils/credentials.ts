@@ -40,13 +40,13 @@ export interface N8nTestCredentials {
 export function getN8nCredentials(): N8nTestCredentials {
   if (process.env.CI) {
     // CI: Use GitHub secrets - validate required variables first
-    const url = process.env.N8N_URL;
+    const url = process.env.N8N_API_URL;
     const apiKey = process.env.N8N_API_KEY;
 
     if (!url || !apiKey) {
       throw new Error(
         'Missing required CI credentials:\n' +
-        `  N8N_URL: ${url ? 'set' : 'MISSING'}\n` +
+        `  N8N_API_URL: ${url ? 'set' : 'MISSING'}\n` +
         `  N8N_API_KEY: ${apiKey ? 'set' : 'MISSING'}\n` +
         'Please configure GitHub secrets for integration tests.'
       );
