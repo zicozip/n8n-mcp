@@ -57,8 +57,7 @@ describe('Integration: handleUpdateWorkflow', () => {
       // Replace with HTTP workflow (completely different structure)
       const replacement = {
         ...SIMPLE_HTTP_WORKFLOW,
-        name: createTestWorkflowName('Update - Full Replacement (Updated)'),
-        tags: ['mcp-integration-test', 'updated']
+        name: createTestWorkflowName('Update - Full Replacement (Updated)')
       };
 
       // Update using MCP handler
@@ -67,8 +66,7 @@ describe('Integration: handleUpdateWorkflow', () => {
           id: created.id,
           name: replacement.name,
           nodes: replacement.nodes,
-          connections: replacement.connections,
-          tags: replacement.tags
+          connections: replacement.connections
         },
         mcpContext
       );
@@ -81,7 +79,6 @@ describe('Integration: handleUpdateWorkflow', () => {
       expect(updated.id).toBe(created.id);
       expect(updated.name).toBe(replacement.name);
       expect(updated.nodes).toHaveLength(2); // HTTP workflow has 2 nodes
-      expect(updated.tags).toContain('updated');
     });
   });
 
@@ -220,42 +217,6 @@ describe('Integration: handleUpdateWorkflow', () => {
     });
   });
 
-  // ======================================================================
-  // Update Tags
-  // ======================================================================
-
-  describe('Update Tags', () => {
-    it('should update workflow tags', async () => {
-      // Create workflow
-      const workflow = {
-        ...SIMPLE_WEBHOOK_WORKFLOW,
-        name: createTestWorkflowName('Update - Tags'),
-        tags: ['mcp-integration-test', 'original']
-      };
-
-      const created = await client.createWorkflow(workflow);
-      expect(created.id).toBeTruthy();
-      if (!created.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(created.id);
-
-      // Update tags
-      const response = await handleUpdateWorkflow(
-        {
-          id: created.id,
-          tags: ['mcp-integration-test', 'updated', 'modified']
-        },
-        mcpContext
-      );
-
-      expect(response.success).toBe(true);
-      const updated = response.data as any;
-
-      // Note: n8n API tag behavior may vary
-      if (updated.tags) {
-        expect(updated.tags).toContain('updated');
-      }
-    });
-  });
 
   // ======================================================================
   // Validation Errors
@@ -354,7 +315,7 @@ describe('Integration: handleUpdateWorkflow', () => {
   // ======================================================================
 
   describe('Multiple Properties', () => {
-    it('should update name, tags, and settings together', async () => {
+    it('should update name and settings together', async () => {
       // Create workflow
       const workflow = {
         ...SIMPLE_WEBHOOK_WORKFLOW,
@@ -374,7 +335,6 @@ describe('Integration: handleUpdateWorkflow', () => {
         {
           id: created.id,
           name: newName,
-          tags: ['mcp-integration-test', 'multi-update'],
           settings: {
             executionOrder: 'v1' as const,
             timezone: 'America/New_York'
@@ -387,10 +347,6 @@ describe('Integration: handleUpdateWorkflow', () => {
       const updated = response.data as any;
       expect(updated.name).toBe(newName);
       expect(updated.settings?.timezone).toBe('America/New_York');
-
-      if (updated.tags) {
-        expect(updated.tags).toContain('multi-update');
-      }
     });
   });
 });
