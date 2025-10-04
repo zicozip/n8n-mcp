@@ -607,11 +607,12 @@ export async function handleDeleteWorkflow(args: unknown, context?: InstanceCont
   try {
     const client = ensureApiConfigured(context);
     const { id } = z.object({ id: z.string() }).parse(args);
-    
-    await client.deleteWorkflow(id);
-    
+
+    const deleted = await client.deleteWorkflow(id);
+
     return {
       success: true,
+      data: deleted,
       message: `Workflow ${id} deleted successfully`
     };
   } catch (error) {
@@ -642,12 +643,17 @@ export async function handleListWorkflows(args: unknown, context?: InstanceConte
   try {
     const client = ensureApiConfigured(context);
     const input = listWorkflowsSchema.parse(args || {});
-    
+
+    // Convert tags array to comma-separated string (n8n API format)
+    const tagsParam = input.tags && input.tags.length > 0
+      ? input.tags.join(',')
+      : undefined;
+
     const response = await client.listWorkflows({
       limit: input.limit || 100,
       cursor: input.cursor,
       active: input.active,
-      tags: input.tags,
+      tags: tagsParam as any,  // API expects string, not array
       projectId: input.projectId,
       excludePinnedData: input.excludePinnedData ?? true
     });
