@@ -226,7 +226,7 @@ export interface WorkflowListParams {
   limit?: number;
   cursor?: string;
   active?: boolean;
-  tags?: string[] | null;
+  tags?: string | null;  // Comma-separated string per n8n API spec
   projectId?: string;
   excludePinnedData?: boolean;
   instance?: string;

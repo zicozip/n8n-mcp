@@ -161,9 +161,10 @@ export class N8nApiClient {
     }
   }
 
-  async deleteWorkflow(id: string): Promise<void> {
+  async deleteWorkflow(id: string): Promise<Workflow> {
     try {
-      await this.client.delete(`/workflows/${id}`);
+      const response = await this.client.delete(`/workflows/${id}`);
+      return response.data;
     } catch (error) {
       throw handleN8nApiError(error);
     }

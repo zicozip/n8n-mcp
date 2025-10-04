@@ -381,12 +381,12 @@ describe('N8nApiClient', () => {
     });
 
     it('should list workflows with custom params', async () => {
-      const params = { limit: 10, active: true, tags: ['test'] };
+      const params = { limit: 10, active: true, tags: 'test,production' };
       const response = { data: [], nextCursor: null };
       mockAxiosInstance.get.mockResolvedValue({ data: response });
-      
+
       const result = await client.listWorkflows(params);
-      
+
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/workflows', { params });
       expect(result).toEqual(response);
     });

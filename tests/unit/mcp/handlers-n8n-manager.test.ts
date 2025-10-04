@@ -723,6 +723,66 @@ describe('handlers-n8n-manager', () => {
     });
   });
 
+  describe('handleDeleteWorkflow', () => {
+    it('should delete workflow successfully', async () => {
+      const testWorkflow = createTestWorkflow();
+      mockApiClient.deleteWorkflow.mockResolvedValue(testWorkflow);
+
+      const result = await handlers.handleDeleteWorkflow({ id: 'test-workflow-id' });
+
+      expect(result).toEqual({
+        success: true,
+        data: testWorkflow,
+        message: 'Workflow test-workflow-id deleted successfully',
+      });
+      expect(mockApiClient.deleteWorkflow).toHaveBeenCalledWith('test-workflow-id');
+    });
+
+    it('should handle invalid input', async () => {
+      const result = await handlers.handleDeleteWorkflow({ notId: 'test' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Invalid input');
+      expect(result.details).toHaveProperty('errors');
+    });
+
+    it('should handle N8nApiError', async () => {
+      const apiError = new N8nNotFoundError('Workflow', 'non-existent-id');
+      mockApiClient.deleteWorkflow.mockRejectedValue(apiError);
+
+      const result = await handlers.handleDeleteWorkflow({ id: 'non-existent-id' });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Workflow with ID non-existent-id not found',
+        code: 'NOT_FOUND',
+      });
+    });
+
+    it('should handle generic errors', async () => {
+      const genericError = new Error('Database connection failed');
+      mockApiClient.deleteWorkflow.mockRejectedValue(genericError);
+
+      const result = await handlers.handleDeleteWorkflow({ id: 'test-workflow-id' });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Database connection failed',
+      });
+    });
+
+    it('should handle API not configured error', async () => {
+      vi.mocked(getN8nApiConfig).mockReturnValue(null);
+
+      const result = await handlers.handleDeleteWorkflow({ id: 'test-workflow-id' });
+
+      expect(result).toEqual({
+        success: false,
+        error: 'n8n API not configured. Please set N8N_API_URL and N8N_API_KEY environment variables.',
+      });
+    });
+  });
+
   describe('handleListWorkflows', () => {
     it('should list workflows with minimal data', async () => {
       const workflows = [
@@ -769,6 +829,103 @@ describe('handlers-n8n-manager', () => {
           _note: 'More workflows available. Use cursor to get next page.',
         },
       });
+    });
+
+    it('should handle invalid input with ZodError', async () => {
+      const result = await handlers.handleListWorkflows({
+        limit: 'invalid',  // Should be a number
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Invalid input');
+      expect(result.details).toHaveProperty('errors');
+    });
+
+    it('should handle N8nApiError', async () => {
+      const apiError = new N8nAuthenticationError('Invalid API key');
+      mockApiClient.listWorkflows.mockRejectedValue(apiError);
+
+      const result = await handlers.handleListWorkflows({});
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to authenticate with n8n. Please check your API key.',
+        code: 'AUTHENTICATION_ERROR',
+      });
+    });
+
+    it('should handle generic errors', async () => {
+      const genericError = new Error('Network timeout');
+      mockApiClient.listWorkflows.mockRejectedValue(genericError);
+
+      const result = await handlers.handleListWorkflows({});
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Network timeout',
+      });
+    });
+
+    it('should handle workflows without isArchived field gracefully', async () => {
+      const workflows = [
+        createTestWorkflow({ id: 'wf1', name: 'Workflow 1' }),
+      ];
+      // Remove isArchived field to test undefined handling
+      delete (workflows[0] as any).isArchived;
+
+      mockApiClient.listWorkflows.mockResolvedValue({
+        data: workflows,
+        nextCursor: null,
+      });
+
+      const result = await handlers.handleListWorkflows({});
+
+      expect(result.success).toBe(true);
+      expect(result.data.workflows[0]).toHaveProperty('isArchived');
+    });
+
+    it('should convert tags array to comma-separated string', async () => {
+      const workflows = [
+        createTestWorkflow({ id: 'wf1', name: 'Workflow 1', tags: ['tag1', 'tag2'] }),
+      ];
+
+      mockApiClient.listWorkflows.mockResolvedValue({
+        data: workflows,
+        nextCursor: null,
+      });
+
+      const result = await handlers.handleListWorkflows({
+        tags: ['production', 'active'],
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockApiClient.listWorkflows).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tags: 'production,active',
+        })
+      );
+    });
+
+    it('should handle empty tags array', async () => {
+      const workflows = [
+        createTestWorkflow({ id: 'wf1', name: 'Workflow 1' }),
+      ];
+
+      mockApiClient.listWorkflows.mockResolvedValue({
+        data: workflows,
+        nextCursor: null,
+      });
+
+      const result = await handlers.handleListWorkflows({
+        tags: [],
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockApiClient.listWorkflows).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tags: undefined,
+        })
+      );
     });
   });
 

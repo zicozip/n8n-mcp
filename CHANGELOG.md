@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.5] - 2025-10-04
+
+### Added
+- **Phase 5 Integration Tests** - Comprehensive workflow management tests (16 scenarios)
+  - `delete-workflow.test.ts`: 3 test scenarios
+    - Successful deletion
+    - Error handling for non-existent workflows
+    - Cleanup verification (workflow actually deleted from n8n)
+  - `list-workflows.test.ts`: 13 test scenarios
+    - No filters (all workflows)
+    - Filter by active status (true/false)
+    - Pagination (first page, cursor, last page)
+    - Limit variations (1, 50, 100)
+    - Exclude pinned data
+    - Empty results handling
+    - Sort order consistency verification
+
+### Fixed
+- **handleDeleteWorkflow** - Now returns deleted workflow data in response
+  - Before: Returned only success message
+  - After: Returns deleted workflow object per n8n API specification
+  - Impact: MCP tool consumers can access deleted workflow data for confirmation, logging, or undo operations
+
+- **handleListWorkflows Tags Filter** - Fixed tags parameter format for n8n API compliance
+  - Before: Sent tags as array `?tags[]=tag1&tags[]=tag2` (non-functional)
+  - After: Converts to comma-separated string `?tags=tag1,tag2` per n8n OpenAPI spec
+  - Impact: Tags filtering now works correctly when listing workflows
+  - Implementation: `input.tags.join(',')` conversion in handler
+
+- **N8nApiClient.deleteWorkflow** - Return type now matches n8n API specification
+  - Before: `Promise<void>`
+  - After: `Promise<Workflow>` (returns deleted workflow object)
+  - Impact: Aligns with n8n API behavior where DELETE returns the deleted resource
+
+### Changed
+- **WorkflowListParams.tags** - Type changed for API compliance
+  - Before: `tags?: string[] | null` (incorrect)
+  - After: `tags?: string | null` (comma-separated string per n8n OpenAPI spec)
+  - Impact: Type safety now matches actual API behavior
+
+### Technical Details
+- **API Compliance**: All fixes align with n8n OpenAPI specification
+- **Backward Compatibility**: Handler maintains existing MCP tool interface (array input converted internally)
+- **Type Safety**: TypeScript types now accurately reflect n8n API contracts
+
+### Test Coverage
+- Integration tests: 71/71 passing (Phase 1-5 complete)
+- Total test scenarios across all phases: 87
+- New coverage:
+  - Workflow deletion: 3 scenarios
+  - Workflow listing with filters: 13 scenarios
+
+### Impact
+- **DELETE workflows**: Now returns workflow data for verification
+- **List with tags**: Tag filtering now functional (was broken before)
+- **API alignment**: Implementation correctly matches n8n OpenAPI specification
+- **Test reliability**: All integration tests passing in CI
+
 ## [2.15.4] - 2025-10-04
 
 ### Fixed
