@@ -139,18 +139,44 @@ export function cleanWorkflowForUpdate(workflow: Workflow): Partial<Workflow> {
   // PROBLEM:
   // - Some versions reject updates with settings properties (community forum reports)
   // - Cloud versions REQUIRE settings property to be present (n8n.estyl.team)
-  // - Properties like callerPolicy and executionOrder cause "additional properties" errors
+  // - Properties like callerPolicy cause "additional properties" errors
   //
   // SOLUTION:
-  // - ALWAYS set settings to empty object {}, regardless of whether it exists
+  // - Filter settings to only include whitelisted properties (OpenAPI spec)
+  // - If no settings provided, use empty object {} for safety
   // - Empty object satisfies "required property" validation (cloud API)
-  // - Empty object has no "additional properties" to trigger errors (self-hosted)
-  // - n8n API interprets empty settings as "no changes" and preserves existing settings
+  // - Whitelisted properties prevent "additional properties" errors
   //
   // References:
   // - https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916
+  // - OpenAPI spec: workflowSettings schema
   // - Tested on n8n.estyl.team (cloud) and localhost (self-hosted)
-  cleanedWorkflow.settings = {};
+
+  // Whitelisted settings properties from n8n OpenAPI spec
+  const safeSettingsProperties = [
+    'saveExecutionProgress',
+    'saveManualExecutions',
+    'saveDataErrorExecution',
+    'saveDataSuccessExecution',
+    'executionTimeout',
+    'errorWorkflow',
+    'timezone',
+    'executionOrder'
+  ];
+
+  if (cleanedWorkflow.settings && typeof cleanedWorkflow.settings === 'object') {
+    // Filter to only safe properties
+    const filteredSettings: any = {};
+    for (const key of safeSettingsProperties) {
+      if (key in cleanedWorkflow.settings) {
+        filteredSettings[key] = (cleanedWorkflow.settings as any)[key];
+      }
+    }
+    cleanedWorkflow.settings = filteredSettings;
+  } else {
+    // No settings provided - use empty object for safety
+    cleanedWorkflow.settings = {};
+  }
 
   return cleanedWorkflow;
 }

@@ -552,16 +552,12 @@ export async function handleUpdateWorkflow(args: unknown, context?: InstanceCont
 
     // If nodes/connections are being updated, validate the structure
     if (updateData.nodes || updateData.connections) {
-      // Fetch current workflow if only partial update
-      let fullWorkflow = updateData as Partial<Workflow>;
-
-      if (!updateData.nodes || !updateData.connections) {
-        const current = await client.getWorkflow(id);
-        fullWorkflow = {
-          ...current,
-          ...updateData
-        };
-      }
+      // Always fetch current workflow for validation (need all fields like name)
+      const current = await client.getWorkflow(id);
+      const fullWorkflow = {
+        ...current,
+        ...updateData
+      };
 
       // Validate workflow structure (n8n API expects FULL form: n8n-nodes-base.*)
       const errors = validateWorkflowStructure(fullWorkflow);
