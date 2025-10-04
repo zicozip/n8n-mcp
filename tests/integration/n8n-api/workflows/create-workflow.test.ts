@@ -36,8 +36,11 @@ describe('Integration: handleCreateWorkflow', () => {
 
   // Global cleanup after all tests to catch any orphaned workflows
   // (e.g., from test retries or failures)
+  // IMPORTANT: Skip cleanup in CI to preserve shared n8n instance workflows
   afterAll(async () => {
-    await cleanupOrphanedWorkflows();
+    if (!process.env.CI) {
+      await cleanupOrphanedWorkflows();
+    }
   });
 
   // ======================================================================
