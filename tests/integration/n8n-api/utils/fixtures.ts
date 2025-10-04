@@ -222,6 +222,7 @@ export const ERROR_HANDLING_WORKFLOW: Partial<Workflow> = {
       main: [[{ node: 'HTTP Request', type: 'main', index: 0 }]]
     },
     'HTTP Request': {
+      main: [[{ node: 'Handle Error', type: 'main', index: 0 }]],
       error: [[{ node: 'Handle Error', type: 'main', index: 0 }]]
     }
   },
