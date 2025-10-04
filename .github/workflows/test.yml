@@ -72,6 +72,12 @@ jobs:
         run: npm run test:integration -- --reporter=default --reporter=junit
         env:
           CI: true
+          N8N_API_URL: ${{ secrets.N8N_API_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+          N8N_TEST_WEBHOOK_GET_URL: ${{ secrets.N8N_TEST_WEBHOOK_GET_URL }}
+          N8N_TEST_WEBHOOK_POST_URL: ${{ secrets.N8N_TEST_WEBHOOK_POST_URL }}
+          N8N_TEST_WEBHOOK_PUT_URL: ${{ secrets.N8N_TEST_WEBHOOK_PUT_URL }}
+          N8N_TEST_WEBHOOK_DELETE_URL: ${{ secrets.N8N_TEST_WEBHOOK_DELETE_URL }}
       
       # Generate test summary
       - name: Generate test summary
