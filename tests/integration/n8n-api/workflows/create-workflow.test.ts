@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { createTestContext, TestContext, createTestWorkflowName } from '../utils/test-context';
 import { getTestN8nClient } from '../utils/n8n-client';
 import { N8nApiClient } from '../../../../src/services/n8n-api-client';
+import { Workflow } from '../../../../src/types/n8n-api';
 import {
   SIMPLE_WEBHOOK_WORKFLOW,
   SIMPLE_HTTP_WORKFLOW,
@@ -70,7 +71,7 @@ describe('Integration: handleCreateWorkflow', () => {
       // Create workflow using MCP handler
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       // Verify workflow created successfully
       expect(result).toBeDefined();
@@ -101,7 +102,7 @@ describe('Integration: handleCreateWorkflow', () => {
 
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -111,8 +112,8 @@ describe('Integration: handleCreateWorkflow', () => {
       expect(result.nodes).toHaveLength(2);
 
       // Verify both nodes created with FULL type format
-      const webhookNode = result.nodes.find(n => n.name === 'Webhook');
-      const httpNode = result.nodes.find(n => n.name === 'HTTP Request');
+      const webhookNode = result.nodes.find((n: any) => n.name === 'Webhook');
+      const httpNode = result.nodes.find((n: any) => n.name === 'HTTP Request');
 
       expect(webhookNode).toBeDefined();
       expect(webhookNode!.type).toBe('n8n-nodes-base.webhook');
@@ -134,7 +135,7 @@ describe('Integration: handleCreateWorkflow', () => {
 
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -144,7 +145,7 @@ describe('Integration: handleCreateWorkflow', () => {
       expect(result.nodes).toHaveLength(2);
 
       // Verify langchain node type format
-      const agentNode = result.nodes.find(n => n.name === 'AI Agent');
+      const agentNode = result.nodes.find((n: any) => n.name === 'AI Agent');
       expect(agentNode).toBeDefined();
       expect(agentNode!.type).toBe('@n8n/n8n-nodes-langchain.agent');
     });
@@ -158,7 +159,7 @@ describe('Integration: handleCreateWorkflow', () => {
 
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -168,7 +169,7 @@ describe('Integration: handleCreateWorkflow', () => {
       expect(result.nodes).toHaveLength(4);
 
       // Verify all node types preserved
-      const nodeTypes = result.nodes.map(n => n.type);
+      const nodeTypes = result.nodes.map((n: any) => n.type);
       expect(nodeTypes).toContain('n8n-nodes-base.webhook');
       expect(nodeTypes).toContain('n8n-nodes-base.set');
       expect(nodeTypes).toContain('n8n-nodes-base.merge');
@@ -192,7 +193,7 @@ describe('Integration: handleCreateWorkflow', () => {
 
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -231,7 +232,7 @@ describe('Integration: handleCreateWorkflow', () => {
 
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -250,7 +251,7 @@ describe('Integration: handleCreateWorkflow', () => {
 
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -259,7 +260,7 @@ describe('Integration: handleCreateWorkflow', () => {
       expect(result.nodes).toHaveLength(2);
 
       // Verify Set node with expressions
-      const setNode = result.nodes.find(n => n.name === 'Set Variables');
+      const setNode = result.nodes.find((n: any) => n.name === 'Set Variables');
       expect(setNode).toBeDefined();
       expect(setNode!.parameters.assignments).toBeDefined();
 
@@ -280,7 +281,7 @@ describe('Integration: handleCreateWorkflow', () => {
 
       const response = await handleCreateWorkflow({ ...workflow }, mcpContext);
       expect(response.success).toBe(true);
-      const result = response.data;
+      const result = response.data as Workflow;
 
       expect(result).toBeDefined();
       expect(result.id).toBeTruthy();
@@ -289,7 +290,7 @@ describe('Integration: handleCreateWorkflow', () => {
       expect(result.nodes).toHaveLength(3);
 
       // Verify HTTP node with error handling
-      const httpNode = result.nodes.find(n => n.name === 'HTTP Request');
+      const httpNode = result.nodes.find((n: any) => n.name === 'HTTP Request');
       expect(httpNode).toBeDefined();
       expect(httpNode!.continueOnFail).toBe(true);
       expect(httpNode!.onError).toBe('continueErrorOutput');
