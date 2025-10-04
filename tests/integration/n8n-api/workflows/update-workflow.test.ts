@@ -176,7 +176,7 @@ describe('Integration: handleUpdateWorkflow', () => {
           name: current.name,         // Required by n8n API
           nodes: current.nodes,       // Required by n8n API
           connections: {},
-          settings: current.settings  // Required by n8n API
+          settings: {}                // Empty settings (safe for all n8n versions)
         },
         mcpContext
       );
