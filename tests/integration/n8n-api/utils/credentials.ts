@@ -15,7 +15,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 export interface N8nTestCredentials {
   url: string;
   apiKey: string;
-  webhookWorkflows: {
+  webhookUrls: {
     get: string;
     post: string;
     put: string;
@@ -55,11 +55,11 @@ export function getN8nCredentials(): N8nTestCredentials {
     return {
       url,
       apiKey,
-      webhookWorkflows: {
-        get: process.env.N8N_TEST_WEBHOOK_GET_ID || '',
-        post: process.env.N8N_TEST_WEBHOOK_POST_ID || '',
-        put: process.env.N8N_TEST_WEBHOOK_PUT_ID || '',
-        delete: process.env.N8N_TEST_WEBHOOK_DELETE_ID || ''
+      webhookUrls: {
+        get: process.env.N8N_TEST_WEBHOOK_GET_URL || '',
+        post: process.env.N8N_TEST_WEBHOOK_POST_URL || '',
+        put: process.env.N8N_TEST_WEBHOOK_PUT_URL || '',
+        delete: process.env.N8N_TEST_WEBHOOK_DELETE_URL || ''
       },
       cleanup: {
         enabled: true,
@@ -85,11 +85,11 @@ export function getN8nCredentials(): N8nTestCredentials {
     return {
       url,
       apiKey,
-      webhookWorkflows: {
-        get: process.env.N8N_TEST_WEBHOOK_GET_ID || '',
-        post: process.env.N8N_TEST_WEBHOOK_POST_ID || '',
-        put: process.env.N8N_TEST_WEBHOOK_PUT_ID || '',
-        delete: process.env.N8N_TEST_WEBHOOK_DELETE_ID || ''
+      webhookUrls: {
+        get: process.env.N8N_TEST_WEBHOOK_GET_URL || '',
+        post: process.env.N8N_TEST_WEBHOOK_POST_URL || '',
+        put: process.env.N8N_TEST_WEBHOOK_PUT_URL || '',
+        delete: process.env.N8N_TEST_WEBHOOK_DELETE_URL || ''
       },
       cleanup: {
         enabled: process.env.N8N_TEST_CLEANUP_ENABLED !== 'false',
@@ -127,24 +127,24 @@ export function validateCredentials(creds: N8nTestCredentials): void {
 }
 
 /**
- * Validate that webhook workflow IDs are configured
+ * Validate that webhook URLs are configured
  *
  * @param creds - Credentials to validate
- * @throws Error with setup instructions if webhook workflows are missing
+ * @throws Error with setup instructions if webhook URLs are missing
  */
-export function validateWebhookWorkflows(creds: N8nTestCredentials): void {
+export function validateWebhookUrls(creds: N8nTestCredentials): void {
   const missing: string[] = [];
 
-  if (!creds.webhookWorkflows.get) missing.push('GET');
-  if (!creds.webhookWorkflows.post) missing.push('POST');
-  if (!creds.webhookWorkflows.put) missing.push('PUT');
-  if (!creds.webhookWorkflows.delete) missing.push('DELETE');
+  if (!creds.webhookUrls.get) missing.push('GET');
+  if (!creds.webhookUrls.post) missing.push('POST');
+  if (!creds.webhookUrls.put) missing.push('PUT');
+  if (!creds.webhookUrls.delete) missing.push('DELETE');
 
   if (missing.length > 0) {
-    const envVars = missing.map(m => `N8N_TEST_WEBHOOK_${m}_ID`);
+    const envVars = missing.map(m => `N8N_TEST_WEBHOOK_${m}_URL`);
 
     throw new Error(
-      `Missing webhook workflow IDs for HTTP methods: ${missing.join(', ')}\n\n` +
+      `Missing webhook URLs for HTTP methods: ${missing.join(', ')}\n\n` +
       `Webhook testing requires pre-activated workflows in n8n.\n` +
       `n8n API doesn't support workflow activation, so these must be created manually.\n\n` +
       `Setup Instructions:\n` +
@@ -153,8 +153,9 @@ export function validateWebhookWorkflows(creds: N8nTestCredentials): void {
       `3. Configure webhook paths:\n` +
       missing.map(m => `   - ${m}: mcp-test-${m.toLowerCase()}`).join('\n') + '\n' +
       `4. ACTIVATE each workflow in n8n UI\n` +
-      `5. Set the following environment variables with workflow IDs:\n` +
-      envVars.map(v => `   ${v}=<workflow-id>`).join('\n') + '\n\n' +
+      `5. Set the following environment variables with full webhook URLs:\n` +
+      envVars.map(v => `   ${v}=<full-webhook-url>`).join('\n') + '\n\n' +
+      `Example: N8N_TEST_WEBHOOK_GET_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-get\n\n` +
       `See docs/local/integration-testing-plan.md for detailed instructions.`
     );
   }
@@ -175,18 +176,18 @@ export function hasCredentials(): boolean {
 }
 
 /**
- * Check if webhook workflows are configured (non-throwing version)
+ * Check if webhook URLs are configured (non-throwing version)
  *
- * @returns true if all webhook workflow IDs are available
+ * @returns true if all webhook URLs are available
  */
-export function hasWebhookWorkflows(): boolean {
+export function hasWebhookUrls(): boolean {
   try {
     const creds = getN8nCredentials();
     return !!(
-      creds.webhookWorkflows.get &&
-      creds.webhookWorkflows.post &&
-      creds.webhookWorkflows.put &&
-      creds.webhookWorkflows.delete
+      creds.webhookUrls.get &&
+      creds.webhookUrls.post &&
+      creds.webhookUrls.put &&
+      creds.webhookUrls.delete
     );
   } catch {
     return false;

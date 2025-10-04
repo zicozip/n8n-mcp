@@ -1,5 +1,25 @@
 # Comprehensive Integration Testing Plan
 
+## Status
+
+**Phase 1: Foundation** ✅ **COMPLETE** (October 3, 2025)
+- All utility files created and tested
+- Webhook workflows created on `https://n8n-test.n8n-mcp.com`
+- GitHub secrets configured
+- Critical fix: Updated credentials to use webhook URLs instead of IDs
+- Environment loading fixed to support real n8n API integration tests
+
+**Phase 2: Workflow Creation Tests** ✅ **COMPLETE** (October 3, 2025)
+- 15 test scenarios implemented and passing
+- P0 bug verification confirmed (FULL node type format)
+- All test categories covered: base nodes, advanced features, error scenarios, edge cases
+- Documented actual n8n API behavior (validation at execution time, not creation time)
+- Test file: `tests/integration/n8n-api/workflows/create-workflow.test.ts` (484 lines)
+
+**Next Phase**: Phase 3 - Workflow Retrieval Tests
+
+---
+
 ## Overview
 
 Transform the test suite to test all 17 n8n API handlers against a **real n8n instance** instead of mocks. This plan ensures 100% coverage of every tool, operation, and parameter combination to prevent bugs like the P0 workflow creation issue from slipping through.
@@ -13,11 +33,12 @@ Transform the test suite to test all 17 n8n API handlers against a **real n8n in
 2. **Pre-activated Webhook Workflows**:
    - n8n API doesn't support workflow activation via API
    - Need pre-created, activated workflows for webhook testing
-   - Store workflow IDs in `.env`:
-     - `N8N_TEST_WEBHOOK_GET_ID` - Webhook with GET method
-     - `N8N_TEST_WEBHOOK_POST_ID` - Webhook with POST method
-     - `N8N_TEST_WEBHOOK_PUT_ID` - Webhook with PUT method
-     - `N8N_TEST_WEBHOOK_DELETE_ID` - Webhook with DELETE method
+   - Store webhook URLs (not workflow IDs) in `.env`:
+     - `N8N_TEST_WEBHOOK_GET_URL` - GET method webhook URL
+     - `N8N_TEST_WEBHOOK_POST_URL` - POST method webhook URL
+     - `N8N_TEST_WEBHOOK_PUT_URL` - PUT method webhook URL
+     - `N8N_TEST_WEBHOOK_DELETE_URL` - DELETE method webhook URL
+   - **Rationale**: Webhook URLs are what the `n8n_trigger_webhook_workflow` tool needs. Workflow IDs are only for workflow management tests (which create workflows dynamically during test execution).
 
 3. **100% Coverage Goal**: Test EVERY tool, EVERY operation, EVERY parameter combination
 
@@ -232,13 +253,13 @@ Transform the test suite to test all 17 n8n API handlers against a **real n8n in
 N8N_API_URL=http://localhost:5678
 N8N_API_KEY=your-api-key-here
 
-# Pre-activated Webhook Workflows for Testing
+# Pre-activated Webhook URLs for Testing
 # Create these workflows manually in n8n and activate them
-# Each workflow should have a single Webhook node with the specified HTTP method
-N8N_TEST_WEBHOOK_GET_ID=     # Webhook with GET method
-N8N_TEST_WEBHOOK_POST_ID=    # Webhook with POST method
-N8N_TEST_WEBHOOK_PUT_ID=     # Webhook with PUT method
-N8N_TEST_WEBHOOK_DELETE_ID=  # Webhook with DELETE method
+# Store the full webhook URLs (not workflow IDs)
+N8N_TEST_WEBHOOK_GET_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-get
+N8N_TEST_WEBHOOK_POST_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-post
+N8N_TEST_WEBHOOK_PUT_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-put
+N8N_TEST_WEBHOOK_DELETE_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-delete
 
 # Test Configuration
 N8N_TEST_CLEANUP_ENABLED=true           # Enable automatic cleanup
@@ -247,12 +268,14 @@ N8N_TEST_NAME_PREFIX=[MCP-TEST]         # Name prefix for test workflows
 ```
 
 **GitHub Secrets (for CI):**
-- `N8N_URL`: n8n instance URL
-- `N8N_API_KEY`: n8n API key
-- `N8N_TEST_WEBHOOK_GET_ID`: Pre-activated GET webhook workflow ID
-- `N8N_TEST_WEBHOOK_POST_ID`: Pre-activated POST webhook workflow ID
-- `N8N_TEST_WEBHOOK_PUT_ID`: Pre-activated PUT webhook workflow ID
-- `N8N_TEST_WEBHOOK_DELETE_ID`: Pre-activated DELETE webhook workflow ID
+- `N8N_URL`: n8n instance URL (e.g., `https://n8n-test.n8n-mcp.com`)
+- `N8N_API_KEY`: n8n API key (JWT token from n8n Settings > API)
+- `N8N_TEST_WEBHOOK_GET_URL`: Pre-activated GET webhook URL
+- `N8N_TEST_WEBHOOK_POST_URL`: Pre-activated POST webhook URL
+- `N8N_TEST_WEBHOOK_PUT_URL`: Pre-activated PUT webhook URL
+- `N8N_TEST_WEBHOOK_DELETE_URL`: Pre-activated DELETE webhook URL
+
+**Note**: Webhook URLs can be stored as repository secrets (not environment secrets) since they don't grant API access. The real secret is `N8N_API_KEY`.
 
 #### 1.2 Directory Structure
 
@@ -300,7 +323,7 @@ dotenv.config();
 export interface N8nTestCredentials {
   url: string;
   apiKey: string;
-  webhookWorkflows: {
+  webhookUrls: {
     get: string;
     post: string;
     put: string;
@@ -316,14 +339,26 @@ export interface N8nTestCredentials {
 export function getN8nCredentials(): N8nTestCredentials {
   if (process.env.CI) {
     // CI: Use GitHub secrets
+    const url = process.env.N8N_URL;
+    const apiKey = process.env.N8N_API_KEY;
+
+    if (!url || !apiKey) {
+      throw new Error(
+        'Missing required CI credentials:\n' +
+        `  N8N_URL: ${url ? 'set' : 'MISSING'}\n` +
+        `  N8N_API_KEY: ${apiKey ? 'set' : 'MISSING'}\n` +
+        'Please configure GitHub secrets for integration tests.'
+      );
+    }
+
     return {
-      url: process.env.N8N_URL!,
-      apiKey: process.env.N8N_API_KEY!,
-      webhookWorkflows: {
-        get: process.env.N8N_TEST_WEBHOOK_GET_ID!,
-        post: process.env.N8N_TEST_WEBHOOK_POST_ID!,
-        put: process.env.N8N_TEST_WEBHOOK_PUT_ID!,
-        delete: process.env.N8N_TEST_WEBHOOK_DELETE_ID!
+      url,
+      apiKey,
+      webhookUrls: {
+        get: process.env.N8N_TEST_WEBHOOK_GET_URL || '',
+        post: process.env.N8N_TEST_WEBHOOK_POST_URL || '',
+        put: process.env.N8N_TEST_WEBHOOK_PUT_URL || '',
+        delete: process.env.N8N_TEST_WEBHOOK_DELETE_URL || ''
       },
       cleanup: {
         enabled: true,
@@ -333,14 +368,27 @@ export function getN8nCredentials(): N8nTestCredentials {
     };
   } else {
     // Local: Use .env file
+    const url = process.env.N8N_API_URL;
+    const apiKey = process.env.N8N_API_KEY;
+
+    if (!url || !apiKey) {
+      throw new Error(
+        'Missing required credentials in .env:\n' +
+        `  N8N_API_URL: ${url ? 'set' : 'MISSING'}\n` +
+        `  N8N_API_KEY: ${apiKey ? 'set' : 'MISSING'}\n\n` +
+        'Please add these to your .env file.\n' +
+        'See .env.example for configuration details.'
+      );
+    }
+
     return {
-      url: process.env.N8N_API_URL!,
-      apiKey: process.env.N8N_API_KEY!,
-      webhookWorkflows: {
-        get: process.env.N8N_TEST_WEBHOOK_GET_ID || '',
-        post: process.env.N8N_TEST_WEBHOOK_POST_ID || '',
-        put: process.env.N8N_TEST_WEBHOOK_PUT_ID || '',
-        delete: process.env.N8N_TEST_WEBHOOK_DELETE_ID || ''
+      url,
+      apiKey,
+      webhookUrls: {
+        get: process.env.N8N_TEST_WEBHOOK_GET_URL || '',
+        post: process.env.N8N_TEST_WEBHOOK_POST_URL || '',
+        put: process.env.N8N_TEST_WEBHOOK_PUT_URL || '',
+        delete: process.env.N8N_TEST_WEBHOOK_DELETE_URL || ''
       },
       cleanup: {
         enabled: process.env.N8N_TEST_CLEANUP_ENABLED !== 'false',
@@ -356,18 +404,18 @@ export function validateCredentials(creds: N8nTestCredentials): void {
   if (!creds.apiKey) throw new Error('N8N_API_KEY is required');
 }
 
-export function validateWebhookWorkflows(creds: N8nTestCredentials): void {
+export function validateWebhookUrls(creds: N8nTestCredentials): void {
   const missing: string[] = [];
-  if (!creds.webhookWorkflows.get) missing.push('GET');
-  if (!creds.webhookWorkflows.post) missing.push('POST');
-  if (!creds.webhookWorkflows.put) missing.push('PUT');
-  if (!creds.webhookWorkflows.delete) missing.push('DELETE');
+  if (!creds.webhookUrls.get) missing.push('GET');
+  if (!creds.webhookUrls.post) missing.push('POST');
+  if (!creds.webhookUrls.put) missing.push('PUT');
+  if (!creds.webhookUrls.delete) missing.push('DELETE');
 
   if (missing.length > 0) {
     throw new Error(
-      `Missing webhook workflow IDs for HTTP methods: ${missing.join(', ')}\n` +
+      `Missing webhook URLs for HTTP methods: ${missing.join(', ')}\n` +
       `Please create and activate webhook workflows, then set:\n` +
-      missing.map(m => `  N8N_TEST_WEBHOOK_${m}_ID`).join('\n')
+      missing.map(m => `  N8N_TEST_WEBHOOK_${m}_URL`).join('\n')
     );
   }
 }
@@ -818,12 +866,12 @@ jobs:
         env:
           N8N_URL: ${{ secrets.N8N_URL }}
           N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
-          N8N_TEST_WEBHOOK_GET_ID: ${{ secrets.N8N_TEST_WEBHOOK_GET_ID }}
-          N8N_TEST_WEBHOOK_POST_ID: ${{ secrets.N8N_TEST_WEBHOOK_POST_ID }}
-          N8N_TEST_WEBHOOK_PUT_ID: ${{ secrets.N8N_TEST_WEBHOOK_PUT_ID }}
-          N8N_TEST_WEBHOOK_DELETE_ID: ${{ secrets.N8N_TEST_WEBHOOK_DELETE_ID }}
+          N8N_TEST_WEBHOOK_GET_URL: ${{ secrets.N8N_TEST_WEBHOOK_GET_URL }}
+          N8N_TEST_WEBHOOK_POST_URL: ${{ secrets.N8N_TEST_WEBHOOK_POST_URL }}
+          N8N_TEST_WEBHOOK_PUT_URL: ${{ secrets.N8N_TEST_WEBHOOK_PUT_URL }}
+          N8N_TEST_WEBHOOK_DELETE_URL: ${{ secrets.N8N_TEST_WEBHOOK_DELETE_URL }}
           CI: true
-        run: npm run test:integration
+        run: npm run test:integration:n8n
 
       - name: Cleanup orphaned workflows
         if: always()
@@ -871,30 +919,57 @@ jobs:
 2. ✅ Start n8n instance: `npx n8n start`
 3. ✅ Create 4 webhook workflows (GET, POST, PUT, DELETE)
 4. ✅ Activate all 4 webhook workflows in n8n UI
-5. ✅ Get workflow IDs from n8n UI
+5. ✅ Get webhook URLs from the workflow's Webhook node
 6. ✅ Copy `.env.example` to `.env`
-7. ✅ Set `N8N_API_URL=http://localhost:5678`
+7. ✅ Set `N8N_API_URL=<your-n8n-url>`
 8. ✅ Generate API key in n8n Settings > API
 9. ✅ Set `N8N_API_KEY=<your-key>`
-10. ✅ Set all 4 `N8N_TEST_WEBHOOK_*_ID` variables
+10. ✅ Set all 4 `N8N_TEST_WEBHOOK_*_URL` variables with full webhook URLs
 
-### CI/GitHub Actions
-1. ✅ Set up cloud n8n instance (or self-hosted)
+### CI/GitHub Actions (✅ COMPLETED)
+1. ✅ Set up cloud n8n instance: `https://n8n-test.n8n-mcp.com`
 2. ✅ Create 4 webhook workflows (GET, POST, PUT, DELETE)
 3. ✅ Activate all 4 webhook workflows
 4. ✅ Add GitHub secrets: `N8N_URL`, `N8N_API_KEY`
-5. ✅ Add webhook workflow ID secrets (4 total)
+5. ✅ Add webhook URL secrets:
+   - `N8N_TEST_WEBHOOK_GET_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-get`
+   - `N8N_TEST_WEBHOOK_POST_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-post`
+   - `N8N_TEST_WEBHOOK_PUT_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-put`
+   - `N8N_TEST_WEBHOOK_DELETE_URL=https://n8n-test.n8n-mcp.com/webhook/mcp-test-delete`
 
 ---
 
 ## Success Criteria
 
-- ✅ All 17 handlers have integration tests
-- ✅ All operations/parameters covered (150+ scenarios)
-- ✅ Tests run successfully locally and in CI
+### Phase 1: Foundation ✅ COMPLETE
+- ✅ Environment configuration (.env, GitHub secrets)
+- ✅ All utility files created (8 files, ~1,520 lines of code)
+- ✅ Pre-activated webhook workflows created and tested
+- ✅ Cleanup helpers with pagination safety
+- ✅ Resource tracking with TestContext
+- ✅ Fixtures and factories for test data
+- ✅ Documentation updated
+- ✅ Environment loading fixed (loads .env before test defaults)
+- ✅ Vitest integration config updated (removed MSW for n8n-api tests)
+
+### Phase 2: Workflow Creation Tests ✅ COMPLETE
+- ✅ 15 test scenarios implemented (all passing)
+- ✅ P0 bug verification (FULL vs SHORT node type format)
+- ✅ Base node tests (webhook, HTTP, langchain, multi-node)
+- ✅ Advanced features (connections, settings, expressions, error handling)
+- ✅ Error scenarios (4 tests documenting actual API behavior)
+- ✅ Edge cases (3 tests for minimal/empty configurations)
+- ✅ Test file: 484 lines covering all handleCreateWorkflow scenarios
+- ✅ All tests passing on real n8n instance
+
+### Overall Project (In Progress)
+- ⏳ All 17 handlers have integration tests (1 of 17 complete)
+- ⏳ All operations/parameters covered (15 of 150+ scenarios complete)
+- ✅ Tests run successfully locally (Phase 2 verified)
+- ⏳ Tests run successfully in CI (pending Phase 9)
 - ✅ No manual cleanup required (automatic)
-- ✅ Test coverage catches P0-level bugs
-- ✅ CI runs on every PR and daily
+- ✅ Test coverage catches P0-level bugs (verified in Phase 2)
+- ⏳ CI runs on every PR and daily (pending Phase 9)
 - ✅ Clear error messages when tests fail
 - ✅ Documentation for webhook workflow setup
 
@@ -902,8 +977,8 @@ jobs:
 
 ## Timeline Estimate
 
-- **Phase 1 (Foundation)**: 2-3 days
-- **Phase 2 (Workflow Creation)**: 1 day
+- **Phase 1 (Foundation)**: ✅ COMPLETE (October 3, 2025)
+- **Phase 2 (Workflow Creation)**: ✅ COMPLETE (October 3, 2025)
 - **Phase 3 (Retrieval)**: 1 day
 - **Phase 4 (Updates)**: 2-3 days (15 operations)
 - **Phase 5 (Management)**: 1 day
@@ -912,7 +987,7 @@ jobs:
 - **Phase 8 (System)**: 1 day
 - **Phase 9 (CI/CD)**: 1 day
 
-**Total**: ~14-18 days
+**Total**: 2 days complete (~4-6 hours actual), ~12-16 days remaining
 
 ---
 
@@ -922,3 +997,17 @@ jobs:
 - Phases can be parallelized where dependencies allow
 - Run local tests frequently to catch issues early
 - Document any n8n API quirks discovered during testing
+
+## Key Learnings from Phase 2
+
+### n8n API Behavior Discoveries
+1. **Validation Timing**: n8n API accepts workflows with invalid node types and connection references at creation time. Validation only happens at execution time.
+2. **Node Type Format**: FULL node type format (`n8n-nodes-base.*`) must be used in API requests. The P0 bug was confirmed fixed.
+3. **Missing Parameters**: n8n accepts workflows with missing required parameters. They fail during execution, not creation.
+4. **Duplicate Names**: n8n API handles duplicate node names gracefully (may auto-rename).
+
+### Technical Implementation Insights
+1. **MSW Interference**: Integration tests that need real network requests must NOT load MSW setup. Removed from vitest.config.integration.ts.
+2. **Environment Loading**: Must load `.env` file BEFORE test defaults in global setup to preserve real credentials.
+3. **Cleanup Safety**: TestContext pattern works well for tracking and cleaning up test resources.
+4. **Test Isolation**: Each test creates unique workflows with timestamps to avoid conflicts.

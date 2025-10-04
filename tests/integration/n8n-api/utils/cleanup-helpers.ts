@@ -62,13 +62,22 @@ export async function cleanupOrphanedWorkflows(): Promise<string[]> {
     throw error;
   }
 
-  // Find test workflows
-  const testWorkflows = allWorkflows.filter(w =>
-    w.tags?.includes(creds.cleanup.tag) ||
-    w.name?.startsWith(creds.cleanup.namePrefix)
-  );
+  // Pre-activated webhook workflow that should NOT be deleted
+  // This is needed for webhook trigger integration tests
+  // Note: Single webhook accepts all HTTP methods (GET, POST, PUT, DELETE)
+  const preservedWorkflowNames = new Set([
+    '[MCP-TEST] Webhook All Methods'
+  ]);
 
-  logger.info(`Found ${testWorkflows.length} orphaned test workflow(s)`);
+  // Find test workflows but exclude pre-activated webhook workflows
+  const testWorkflows = allWorkflows.filter(w => {
+    const isTestWorkflow = w.tags?.includes(creds.cleanup.tag) || w.name?.startsWith(creds.cleanup.namePrefix);
+    const isPreserved = preservedWorkflowNames.has(w.name);
+
+    return isTestWorkflow && !isPreserved;
+  });
+
+  logger.info(`Found ${testWorkflows.length} orphaned test workflow(s) (excluding ${preservedWorkflowNames.size} preserved webhook workflow)`);
 
   if (testWorkflows.length === 0) {
     return deleted;

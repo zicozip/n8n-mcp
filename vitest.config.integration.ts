@@ -5,8 +5,9 @@ export default mergeConfig(
   baseConfig,
   defineConfig({
     test: {
-      // Include both global setup and integration-specific MSW setup
-      setupFiles: ['./tests/setup/global-setup.ts', './tests/integration/setup/integration-setup.ts'],
+      // Include global setup, but NOT integration-setup.ts for n8n-api tests
+      // (they need real network requests, not MSW mocks)
+      setupFiles: ['./tests/setup/global-setup.ts'],
       // Only include integration tests
       include: ['tests/integration/**/*.test.ts'],
       // Integration tests might need more time
