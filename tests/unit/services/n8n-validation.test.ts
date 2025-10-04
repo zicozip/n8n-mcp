@@ -344,9 +344,9 @@ describe('n8n-validation', () => {
         expect(cleaned).not.toHaveProperty('shared');
         expect(cleaned).not.toHaveProperty('active');
         
-        // Should keep name but replace settings with empty object (n8n API limitation)
+        // Should keep name and filter settings to safe properties
         expect(cleaned.name).toBe('Updated Workflow');
-        expect(cleaned.settings).toEqual({});
+        expect(cleaned.settings).toEqual({ executionOrder: 'v1' });
       });
 
       it('should add empty settings object for cloud API compatibility', () => {
@@ -360,7 +360,7 @@ describe('n8n-validation', () => {
         expect(cleaned.settings).toEqual({});
       });
 
-      it('should replace settings with empty object to prevent API errors (Issue #248 - final fix)', () => {
+      it('should filter settings to safe properties to prevent API errors (Issue #248 - final fix)', () => {
         const workflow = {
           name: 'Test Workflow',
           nodes: [],
@@ -368,36 +368,45 @@ describe('n8n-validation', () => {
           settings: {
             executionOrder: 'v1' as const,
             saveDataSuccessExecution: 'none' as const,
-            callerPolicy: 'workflowsFromSameOwner' as const,
-            timeSavedPerExecution: 5, // UI-only property
+            callerPolicy: 'workflowsFromSameOwner' as const, // Filtered out (not in OpenAPI spec)
+            timeSavedPerExecution: 5, // Filtered out (UI-only property)
           },
         } as any;
 
         const cleaned = cleanWorkflowForUpdate(workflow);
 
-        // Settings replaced with empty object (satisfies both API versions)
-        expect(cleaned.settings).toEqual({});
+        // Unsafe properties filtered out, safe properties kept
+        expect(cleaned.settings).toEqual({
+          executionOrder: 'v1',
+          saveDataSuccessExecution: 'none'
+        });
+        expect(cleaned.settings).not.toHaveProperty('callerPolicy');
+        expect(cleaned.settings).not.toHaveProperty('timeSavedPerExecution');
       });
 
-      it('should replace settings with callerPolicy (Issue #248 - API limitation)', () => {
+      it('should filter out callerPolicy (Issue #248 - API limitation)', () => {
         const workflow = {
           name: 'Test Workflow',
           nodes: [],
           connections: {},
           settings: {
             executionOrder: 'v1' as const,
-            callerPolicy: 'workflowsFromSameOwner' as const,
+            callerPolicy: 'workflowsFromSameOwner' as const, // Filtered out
             errorWorkflow: 'N2O2nZy3aUiBRGFN',
           },
         } as any;
 
         const cleaned = cleanWorkflowForUpdate(workflow);
 
-        // Settings replaced with empty object (n8n API rejects updates with settings properties)
-        expect(cleaned.settings).toEqual({});
+        // callerPolicy filtered out (causes API errors), safe properties kept
+        expect(cleaned.settings).toEqual({
+          executionOrder: 'v1',
+          errorWorkflow: 'N2O2nZy3aUiBRGFN'
+        });
+        expect(cleaned.settings).not.toHaveProperty('callerPolicy');
       });
 
-      it('should replace all settings regardless of content (Issue #248 - API design)', () => {
+      it('should filter all settings properties correctly (Issue #248 - API design)', () => {
         const workflow = {
           name: 'Test Workflow',
           nodes: [],
@@ -411,15 +420,25 @@ describe('n8n-validation', () => {
             saveExecutionProgress: false,
             executionTimeout: 300,
             errorWorkflow: 'error-workflow-id',
-            callerPolicy: 'workflowsFromAList' as const,
+            callerPolicy: 'workflowsFromAList' as const, // Filtered out (not in OpenAPI spec)
           },
         } as any;
 
         const cleaned = cleanWorkflowForUpdate(workflow);
 
-        // Settings replaced with empty object due to n8n API limitation (cannot update settings via API)
+        // Safe properties kept, unsafe properties filtered out
         // See: https://community.n8n.io/t/api-workflow-update-endpoint-doesnt-support-setting-callerpolicy/161916
-        expect(cleaned.settings).toEqual({});
+        expect(cleaned.settings).toEqual({
+          executionOrder: 'v0',
+          timezone: 'UTC',
+          saveDataErrorExecution: 'all',
+          saveDataSuccessExecution: 'none',
+          saveManualExecutions: false,
+          saveExecutionProgress: false,
+          executionTimeout: 300,
+          errorWorkflow: 'error-workflow-id'
+        });
+        expect(cleaned.settings).not.toHaveProperty('callerPolicy');
       });
 
       it('should handle workflows without settings gracefully', () => {
