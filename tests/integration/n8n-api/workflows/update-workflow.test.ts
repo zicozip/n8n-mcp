@@ -149,47 +149,10 @@ describe('Integration: handleUpdateWorkflow', () => {
   });
 
   // ======================================================================
-  // Update Connections
-  // ======================================================================
-
-  describe('Update Connections', () => {
-    it('should update workflow connections', async () => {
-      // Create HTTP workflow
-      const workflow = {
-        ...SIMPLE_HTTP_WORKFLOW,
-        name: createTestWorkflowName('Update - Connections'),
-        tags: ['mcp-integration-test']
-      };
-
-      const created = await client.createWorkflow(workflow);
-      expect(created.id).toBeTruthy();
-      if (!created.id) throw new Error('Workflow ID is missing');
-      context.trackWorkflow(created.id);
-
-      // Fetch current workflow to get required fields (n8n API requirement)
-      const current = await client.getWorkflow(created.id);
-
-      // Remove connections (disconnect nodes)
-      const response = await handleUpdateWorkflow(
-        {
-          id: created.id,
-          name: current.name,         // Required by n8n API
-          nodes: current.nodes,       // Required by n8n API
-          connections: {},
-          settings: {}                // Empty settings (safe for all n8n versions)
-        },
-        mcpContext
-      );
-
-      expect(response.success).toBe(true);
-      const updated = response.data as any;
-      expect(Object.keys(updated.connections || {})).toHaveLength(0);
-    });
-  });
-
-  // ======================================================================
   // Update Settings
   // ======================================================================
+  // Note: "Update Connections" test removed - empty connections invalid for multi-node workflows
+  // Connection modifications are tested in update-partial-workflow.test.ts
 
   describe('Update Settings', () => {
     it('should update workflow settings without affecting nodes', async () => {
