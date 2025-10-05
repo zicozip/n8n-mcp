@@ -16,7 +16,61 @@
 - Documented actual n8n API behavior (validation at execution time, not creation time)
 - Test file: `tests/integration/n8n-api/workflows/create-workflow.test.ts` (484 lines)
 
-**Next Phase**: Phase 3 - Workflow Retrieval Tests
+**Phase 3: Workflow Retrieval Tests** ✅ **COMPLETE** (October 3, 2025)
+- 11 test scenarios implemented and passing
+- All MCP retrieval handlers tested: handleGetWorkflow, handleGetWorkflowDetails, handleGetWorkflowStructure, handleGetWorkflowMinimal
+- Test files:
+  - `get-workflow.test.ts` (3 scenarios)
+  - `get-workflow-details.test.ts` (4 scenarios)
+  - `get-workflow-structure.test.ts` (2 scenarios)
+  - `get-workflow-minimal.test.ts` (2 scenarios)
+
+**Phase 4: Workflow Update Tests** ✅ **COMPLETE** (October 4, 2025)
+- 42 test scenarios implemented and passing
+- Enhanced settings filtering (whitelist approach) to enable updates while maintaining Issue #248 protection
+- All update operations tested:
+  - Full workflow updates: 7 scenarios (update-workflow.test.ts)
+  - Partial/diff-based updates: 32 scenarios covering all 15 operations (update-partial-workflow.test.ts)
+  - Validation error scenarios: 3 scenarios
+- Critical fixes:
+  - Settings filtering uses OpenAPI spec whitelist (filters callerPolicy, preserves safe properties)
+  - All tests comply with n8n API requirements (name, nodes, connections, settings fields)
+  - Removed invalid "Update Connections" test (empty connections invalid for multi-node workflows)
+- Version 2.15.4 released with comprehensive CHANGELOG entry
+
+**Phase 5: Workflow Management Tests** ✅ **COMPLETE** (October 4, 2025)
+- 16 test scenarios implemented and passing
+- All workflow management operations tested:
+  - Delete workflow: 3 scenarios (delete-workflow.test.ts)
+  - List workflows: 13 scenarios (list-workflows.test.ts)
+- Critical API compliance fixes:
+  - handleDeleteWorkflow: Now returns deleted workflow data (per n8n API spec)
+  - handleListWorkflows: Fixed tags parameter format (array → CSV string conversion)
+  - N8nApiClient.deleteWorkflow: Return type corrected (void → Workflow)
+  - WorkflowListParams.tags: Type corrected (string[] → string per n8n OpenAPI spec)
+- Unit test coverage: Added 9 unit tests for handler coverage (100% coverage achieved)
+- n8n-mcp-tester validation: All tools tested and working correctly in production
+- Version 2.15.5 released with comprehensive CHANGELOG entry
+- Test results: 71/71 integration tests passing (Phase 1-5 complete)
+
+**Phase 6A: Workflow Validation Tests** ✅ **COMPLETE** (October 5, 2025)
+- 12 test scenarios implemented and passing
+- NodeRepository utility created for tests requiring node validation
+- All validation profiles tested: strict, runtime, ai-friendly, minimal
+- Test coverage:
+  - Valid workflows across all 4 profiles (4 scenarios)
+  - Invalid workflow detection (2 scenarios - bad node types, missing connections)
+  - Selective validation (3 scenarios - nodes only, connections only, expressions only)
+  - Error handling (2 scenarios - non-existent workflow, invalid profile)
+  - Response format verification (1 scenario)
+- Critical discoveries:
+  - Response only includes errors/warnings fields when they exist (not empty arrays)
+  - Field name is errorCount, not totalErrors
+  - Tests require NodeRepository instance (added singleton utility)
+- Test file: validate-workflow.test.ts (431 lines)
+- Test results: 83/83 integration tests passing (Phase 1-5, 6A complete)
+
+**Next Phase**: Phase 6B - Workflow Autofix Tests
 
 ---
 
@@ -912,13 +966,35 @@ const stats = detailsResponse.data.executionStats;
 
 ---
 
-### Phase 6: Validation & Autofix Tests (P2)
+### Phase 6A: Workflow Validation Tests (P2) ✅ COMPLETE
 
-**Branch**: `feat/integration-tests-validation`
+**Branch**: `feat/integration-tests-phase-6`
 
 **Files**:
-- `validate-workflow.test.ts` (16 scenarios: 4 profiles × 4 validation types)
-- `autofix-workflow.test.ts` (20+ scenarios: 5 fix types × confidence levels)
+- ✅ `tests/integration/n8n-api/utils/node-repository.ts` - NodeRepository singleton for validation tests
+- ✅ `validate-workflow.test.ts` (12 scenarios: 4 profiles + invalid detection + selective validation + error handling)
+
+**Implementation Notes**:
+- Created NodeRepository utility since handleValidateWorkflow requires repository parameter
+- Tests cover all 4 validation profiles (strict, runtime, ai-friendly, minimal)
+- Invalid workflow detection tests (bad node types, missing connections)
+- Selective validation tests (nodes only, connections only, expressions only)
+- Response structure correctly handles conditional errors/warnings fields
+
+### Phase 6B: Workflow Autofix Tests (P2)
+
+**Branch**: `feat/integration-tests-phase-6b` (or continue on `feat/integration-tests-phase-6`)
+
+**Files**:
+- `autofix-workflow.test.ts` (15-20 scenarios: 5 fix types × modes × confidence levels)
+
+**Test Coverage Required**:
+- 5 fix types: expression-format, typeversion-correction, error-output-config, node-type-correction, webhook-missing-path
+- Preview mode (applyFixes: false) vs Apply mode (applyFixes: true)
+- Confidence threshold filtering (high, medium, low)
+- maxFixes parameter limiting
+- Multiple fix types in single workflow
+- No fixes available scenario
 
 ---
 
@@ -1090,9 +1166,9 @@ jobs:
 - ✅ All tests passing against real n8n instance
 
 ### Overall Project (In Progress)
-- ⏳ All 17 handlers have integration tests (1 of 17 complete)
-- ⏳ All operations/parameters covered (15 of 150+ scenarios complete)
-- ✅ Tests run successfully locally (Phase 2 verified)
+- ⏳ All 17 handlers have integration tests (10 of 17 complete)
+- ⏳ All operations/parameters covered (83 of 150+ scenarios complete)
+- ✅ Tests run successfully locally (Phases 1-6A verified)
 - ⏳ Tests run successfully in CI (pending Phase 9)
 - ✅ No manual cleanup required (automatic)
 - ✅ Test coverage catches P0-level bugs (verified in Phase 2)
@@ -1106,15 +1182,16 @@ jobs:
 
 - **Phase 1 (Foundation)**: ✅ COMPLETE (October 3, 2025)
 - **Phase 2 (Workflow Creation)**: ✅ COMPLETE (October 3, 2025)
-- **Phase 3 (Retrieval)**: 1 day
-- **Phase 4 (Updates)**: 2-3 days (15 operations)
-- **Phase 5 (Management)**: 1 day
-- **Phase 6 (Validation)**: 2 days
+- **Phase 3 (Retrieval)**: ✅ COMPLETE (October 3, 2025)
+- **Phase 4 (Updates)**: ✅ COMPLETE (October 4, 2025)
+- **Phase 5 (Management)**: ✅ COMPLETE (October 4, 2025)
+- **Phase 6A (Validation)**: ✅ COMPLETE (October 5, 2025)
+- **Phase 6B (Autofix)**: 1 day
 - **Phase 7 (Executions)**: 2 days
 - **Phase 8 (System)**: 1 day
 - **Phase 9 (CI/CD)**: 1 day
 
-**Total**: 2 days complete (~4-6 hours actual), ~12-16 days remaining
+**Total**: 5.5 days complete, ~5 days remaining
 
 ---
 
