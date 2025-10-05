@@ -1000,7 +1000,7 @@ describe('WorkflowDiffEngine', () => {
       // So we expect 4 total connections
       const connectionsAtIndex0 = result.workflow!.connections['Webhook']['main'][0];
       expect(connectionsAtIndex0.length).toBeGreaterThanOrEqual(3);
-      const targets = connectionsAtIndex0.map(c => c.node);
+      const targets = connectionsAtIndex0.map((c: any) => c.node);
       expect(targets).toContain('Processor1');
       expect(targets).toContain('Processor2');
       expect(targets).toContain('Processor3');
@@ -1112,7 +1112,7 @@ describe('WorkflowDiffEngine', () => {
       expect(result.success).toBe(true);
       expect(result.workflow!.connections['Webhook']['main'][0]).toBeDefined();
       // TestNode should be in the connections (might not be first if HTTP Request already exists)
-      const targets = result.workflow!.connections['Webhook']['main'][0].map(c => c.node);
+      const targets = result.workflow!.connections['Webhook']['main'][0].map((c: any) => c.node);
       expect(targets).toContain('TestNode');
     });
   });
