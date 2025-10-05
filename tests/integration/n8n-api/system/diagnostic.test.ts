@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createMcpContext } from '../utils/mcp-context';
 import { InstanceContext } from '../../../../src/types/instance-context';
 import { handleDiagnostic } from '../../../../src/mcp/handlers-n8n-manager';
+import { DiagnosticResponse } from '../utils/response-types';
 
 describe('Integration: handleDiagnostic', () => {
   let mcpContext: InstanceContext;
@@ -31,7 +32,7 @@ describe('Integration: handleDiagnostic', () => {
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
 
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       // Verify core diagnostic fields
       expect(data).toHaveProperty('timestamp');
@@ -52,7 +53,7 @@ describe('Integration: handleDiagnostic', () => {
         mcpContext
       );
 
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       expect(data.environment).toBeDefined();
       expect(data.environment).toHaveProperty('N8N_API_URL');
@@ -72,7 +73,7 @@ describe('Integration: handleDiagnostic', () => {
         mcpContext
       );
 
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       expect(data.apiConfiguration).toBeDefined();
       expect(data.apiConfiguration).toHaveProperty('configured');
@@ -109,7 +110,7 @@ describe('Integration: handleDiagnostic', () => {
         mcpContext
       );
 
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       expect(data.toolsAvailability).toBeDefined();
       expect(data.toolsAvailability).toHaveProperty('documentationTools');
@@ -144,7 +145,7 @@ describe('Integration: handleDiagnostic', () => {
         mcpContext
       );
 
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       expect(data.troubleshooting).toBeDefined();
       expect(data.troubleshooting).toHaveProperty('steps');
@@ -172,32 +173,33 @@ describe('Integration: handleDiagnostic', () => {
       );
 
       expect(response.success).toBe(true);
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       // Verbose mode should add debug section
       expect(data).toHaveProperty('debug');
       expect(data.debug).toBeDefined();
 
       // Verify debug information
+      expect(data.debug).toBeDefined();
       expect(data.debug).toHaveProperty('processEnv');
       expect(data.debug).toHaveProperty('nodeVersion');
       expect(data.debug).toHaveProperty('platform');
       expect(data.debug).toHaveProperty('workingDirectory');
 
       // Process env should list relevant environment variables
-      expect(Array.isArray(data.debug.processEnv)).toBe(true);
+      expect(Array.isArray(data.debug?.processEnv)).toBe(true);
 
       // Node version should be a string
-      expect(typeof data.debug.nodeVersion).toBe('string');
-      expect(data.debug.nodeVersion).toMatch(/^v\d+\.\d+\.\d+/);
+      expect(typeof data.debug?.nodeVersion).toBe('string');
+      expect(data.debug?.nodeVersion).toMatch(/^v\d+\.\d+\.\d+/);
 
       // Platform should be a string (linux, darwin, win32, etc.)
-      expect(typeof data.debug.platform).toBe('string');
-      expect(data.debug.platform.length).toBeGreaterThan(0);
+      expect(typeof data.debug?.platform).toBe('string');
+      expect(data.debug && data.debug.platform.length).toBeGreaterThan(0);
 
       // Working directory should be a path
-      expect(typeof data.debug.workingDirectory).toBe('string');
-      expect(data.debug.workingDirectory.length).toBeGreaterThan(0);
+      expect(typeof data.debug?.workingDirectory).toBe('string');
+      expect(data.debug && data.debug.workingDirectory.length).toBeGreaterThan(0);
     });
 
     it('should not include debug info when verbose is false', async () => {
@@ -207,7 +209,7 @@ describe('Integration: handleDiagnostic', () => {
       );
 
       expect(response.success).toBe(true);
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       // Debug section should not be present
       expect(data.debug).toBeUndefined();
@@ -220,7 +222,7 @@ describe('Integration: handleDiagnostic', () => {
       );
 
       expect(response.success).toBe(true);
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       // Debug section should not be present when verbose not specified
       expect(data.debug).toBeUndefined();
@@ -241,7 +243,7 @@ describe('Integration: handleDiagnostic', () => {
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
 
-      const data = response.data as any;
+      const data = response.data as DiagnosticResponse;
 
       // Verify all required fields
       const requiredFields = [

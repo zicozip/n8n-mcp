@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createMcpContext } from '../utils/mcp-context';
 import { InstanceContext } from '../../../../src/types/instance-context';
 import { handleListAvailableTools } from '../../../../src/mcp/handlers-n8n-manager';
+import { ListToolsResponse } from '../utils/response-types';
 
 describe('Integration: handleListAvailableTools', () => {
   let mcpContext: InstanceContext;
@@ -28,7 +29,7 @@ describe('Integration: handleListAvailableTools', () => {
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
 
-      const data = response.data as any;
+      const data = response.data as ListToolsResponse;
 
       // Verify tools array exists
       expect(data).toHaveProperty('tools');
@@ -42,14 +43,14 @@ describe('Integration: handleListAvailableTools', () => {
       expect(categories).toContain('System');
 
       // Verify each category has tools
-      data.tools.forEach((category: any) => {
+      data.tools.forEach(category => {
         expect(category).toHaveProperty('category');
         expect(category).toHaveProperty('tools');
         expect(Array.isArray(category.tools)).toBe(true);
         expect(category.tools.length).toBeGreaterThan(0);
 
         // Verify each tool has required fields
-        category.tools.forEach((tool: any) => {
+        category.tools.forEach(tool => {
           expect(tool).toHaveProperty('name');
           expect(tool).toHaveProperty('description');
           expect(typeof tool.name).toBe('string');
@@ -62,7 +63,7 @@ describe('Integration: handleListAvailableTools', () => {
       const response = await handleListAvailableTools(mcpContext);
 
       expect(response.success).toBe(true);
-      const data = response.data as any;
+      const data = response.data as ListToolsResponse;
 
       // Verify configuration status
       expect(data).toHaveProperty('apiConfigured');
@@ -85,7 +86,7 @@ describe('Integration: handleListAvailableTools', () => {
       const response = await handleListAvailableTools(mcpContext);
 
       expect(response.success).toBe(true);
-      const data = response.data as any;
+      const data = response.data as ListToolsResponse;
 
       // Verify limitations are documented
       expect(data).toHaveProperty('limitations');
@@ -93,7 +94,7 @@ describe('Integration: handleListAvailableTools', () => {
       expect(data.limitations.length).toBeGreaterThan(0);
 
       // Verify limitations are informative strings
-      data.limitations.forEach((limitation: string) => {
+      data.limitations.forEach(limitation => {
         expect(typeof limitation).toBe('string');
         expect(limitation.length).toBeGreaterThan(0);
       });
@@ -112,12 +113,12 @@ describe('Integration: handleListAvailableTools', () => {
   describe('Workflow Management Tools', () => {
     it('should include all workflow management tools', async () => {
       const response = await handleListAvailableTools(mcpContext);
-      const data = response.data as any;
+      const data = response.data as ListToolsResponse;
 
-      const workflowCategory = data.tools.find((cat: any) => cat.category === 'Workflow Management');
+      const workflowCategory = data.tools.find(cat => cat.category === 'Workflow Management');
       expect(workflowCategory).toBeDefined();
 
-      const toolNames = workflowCategory.tools.map((t: any) => t.name);
+      const toolNames = workflowCategory!.tools.map(t => t.name);
 
       // Core workflow tools
       expect(toolNames).toContain('n8n_create_workflow');
@@ -142,12 +143,12 @@ describe('Integration: handleListAvailableTools', () => {
   describe('Execution Management Tools', () => {
     it('should include all execution management tools', async () => {
       const response = await handleListAvailableTools(mcpContext);
-      const data = response.data as any;
+      const data = response.data as ListToolsResponse;
 
-      const executionCategory = data.tools.find((cat: any) => cat.category === 'Execution Management');
+      const executionCategory = data.tools.find(cat => cat.category === 'Execution Management');
       expect(executionCategory).toBeDefined();
 
-      const toolNames = executionCategory.tools.map((t: any) => t.name);
+      const toolNames = executionCategory!.tools.map(t => t.name);
 
       expect(toolNames).toContain('n8n_trigger_webhook_workflow');
       expect(toolNames).toContain('n8n_get_execution');
@@ -163,12 +164,12 @@ describe('Integration: handleListAvailableTools', () => {
   describe('System Tools', () => {
     it('should include system tools', async () => {
       const response = await handleListAvailableTools(mcpContext);
-      const data = response.data as any;
+      const data = response.data as ListToolsResponse;
 
-      const systemCategory = data.tools.find((cat: any) => cat.category === 'System');
+      const systemCategory = data.tools.find(cat => cat.category === 'System');
       expect(systemCategory).toBeDefined();
 
-      const toolNames = systemCategory.tools.map((t: any) => t.name);
+      const toolNames = systemCategory!.tools.map(t => t.name);
 
       expect(toolNames).toContain('n8n_health_check');
       expect(toolNames).toContain('n8n_list_available_tools');
@@ -186,7 +187,7 @@ describe('Integration: handleListAvailableTools', () => {
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
 
-      const data = response.data as any;
+      const data = response.data as ListToolsResponse;
 
       // Verify all required fields
       expect(data).toHaveProperty('tools');

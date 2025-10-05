@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createMcpContext } from '../utils/mcp-context';
 import { InstanceContext } from '../../../../src/types/instance-context';
 import { handleHealthCheck } from '../../../../src/mcp/handlers-n8n-manager';
+import { HealthCheckResponse } from '../utils/response-types';
 
 describe('Integration: handleHealthCheck', () => {
   let mcpContext: InstanceContext;
@@ -28,7 +29,7 @@ describe('Integration: handleHealthCheck', () => {
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
 
-      const data = response.data as any;
+      const data = response.data as HealthCheckResponse;
 
       // Verify required fields
       expect(data).toHaveProperty('status');
@@ -53,7 +54,7 @@ describe('Integration: handleHealthCheck', () => {
       const response = await handleHealthCheck(mcpContext);
 
       expect(response.success).toBe(true);
-      const data = response.data as any;
+      const data = response.data as HealthCheckResponse;
 
       // Check for feature information
       // Note: Features may vary by n8n instance configuration
@@ -89,7 +90,7 @@ describe('Integration: handleHealthCheck', () => {
       expect(response.success).toBe(true);
       expect(response.data).toBeDefined();
 
-      const data = response.data as any;
+      const data = response.data as HealthCheckResponse;
 
       // Verify all expected fields are present
       const expectedFields = ['status', 'apiUrl', 'mcpVersion'];
