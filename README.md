@@ -4,7 +4,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/czlonkowski/n8n-mcp?style=social)](https://github.com/czlonkowski/n8n-mcp)
 [![npm version](https://img.shields.io/npm/v/n8n-mcp.svg)](https://www.npmjs.com/package/n8n-mcp)
 [![codecov](https://codecov.io/gh/czlonkowski/n8n-mcp/graph/badge.svg?token=YOUR_TOKEN)](https://codecov.io/gh/czlonkowski/n8n-mcp)
-[![Tests](https://img.shields.io/badge/tests-2883%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
+[![Tests](https://img.shields.io/badge/tests-3336%20passing-brightgreen.svg)](https://github.com/czlonkowski/n8n-mcp/actions)
 [![n8n version](https://img.shields.io/badge/n8n-^1.113.3-orange.svg)](https://github.com/n8n-io/n8n)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io%2Fczlonkowski%2Fn8n--mcp-green.svg)](https://github.com/czlonkowski/n8n-mcp/pkgs/container/n8n-mcp)
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/n8n-mcp?referralCode=n8n-mcp)
@@ -938,22 +938,24 @@ npm run test:bench          # Performance benchmarks
 
 ### Testing Architecture
 
-- **Unit Tests**: Isolated component testing with mocks
-  - Services layer: ~450 tests
-  - Parsers: ~200 tests
-  - Database repositories: ~100 tests
-  - MCP tools: ~180 tests
+**Total: 3,336 tests** across unit and integration test suites
 
-- **Integration Tests**: Full system behavior validation
-  - MCP Protocol compliance: 72 tests
-  - Database operations: 89 tests
-  - Error handling: 44 tests
-  - Performance: 44 tests
+- **Unit Tests** (2,766 tests): Isolated component testing with mocks
+  - Services layer: Enhanced validation, property filtering, workflow validation
+  - Parsers: Node parsing, property extraction, documentation mapping
+  - Database: Repositories, adapters, migrations, FTS5 search
+  - MCP tools: Tool definitions, documentation system
+  - HTTP server: Multi-tenant support, security, configuration
 
-- **Benchmarks**: Performance testing for critical paths
-  - Database queries
-  - Node loading
-  - Search operations
+- **Integration Tests** (570 tests): Full system behavior validation
+  - **n8n API Integration** (172 tests): All 18 MCP handler tools tested against real n8n instance
+    - Workflow management: Create, read, update, delete, list, validate, autofix
+    - Execution management: Trigger, retrieve, list, delete
+    - System tools: Health check, tool listing, diagnostics
+  - **MCP Protocol** (119 tests): Protocol compliance, session management, error handling
+  - **Database** (226 tests): Repository operations, transactions, performance, FTS5 search
+  - **Templates** (35 tests): Template fetching, storage, metadata operations
+  - **Docker** (18 tests): Configuration, entrypoint, security validation
 
 For detailed testing documentation, see [Testing Architecture](./docs/testing-architecture.md).
 

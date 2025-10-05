@@ -2,21 +2,27 @@
 
 ## Overview
 
-This document describes the comprehensive testing infrastructure implemented for the n8n-MCP project. The testing suite includes over 1,100 tests split between unit and integration tests, benchmarks, and a complete CI/CD pipeline ensuring code quality and reliability.
+This document describes the comprehensive testing infrastructure implemented for the n8n-MCP project. The testing suite includes 3,336 tests split between unit and integration tests, benchmarks, and a complete CI/CD pipeline ensuring code quality and reliability.
 
-### Test Suite Statistics (from CI Run #41)
+### Test Suite Statistics (October 2025)
 
-- **Total Tests**: 1,182 tests
-  - **Unit Tests**: 933 tests (932 passed, 1 skipped)
-  - **Integration Tests**: 249 tests (245 passed, 4 skipped)
-- **Test Files**: 
-  - 30 unit test files
-  - 14 integration test files
-- **Test Execution Time**: 
+- **Total Tests**: 3,336 tests
+  - **Unit Tests**: 2,766 tests - Isolated component testing with mocks
+  - **Integration Tests**: 570 tests - Full system behavior validation
+    - n8n API Integration: 172 tests (all 18 MCP handler tools)
+    - MCP Protocol: 119 tests (protocol compliance, session management)
+    - Database: 226 tests (repository operations, transactions, FTS5)
+    - Templates: 35 tests (fetching, storage, metadata)
+    - Docker: 18 tests (configuration, security)
+- **Test Files**:
+  - 106 unit test files
+  - 41 integration test files
+  - Total: 147 test files
+- **Test Execution Time**:
   - Unit tests: ~2 minutes with coverage
-  - Integration tests: ~23 seconds
-  - Total CI time: ~2.5 minutes
-- **Success Rate**: 99.5% (only 5 tests skipped, 0 failures)
+  - Integration tests: ~30 seconds
+  - Total CI time: ~3 minutes
+- **Success Rate**: 100% (all tests passing in CI)
 - **CI/CD Pipeline**: Fully automated with GitHub Actions
 - **Test Artifacts**: JUnit XML, coverage reports, benchmark results
 - **Parallel Execution**: Configurable with thread pool
@@ -66,13 +72,20 @@ export default defineConfig({
 
 ```
 tests/
-├── unit/                        # Unit tests with mocks (933 tests, 30 files)
+├── unit/                        # Unit tests with mocks (2,766 tests, 106 files)
 │   ├── __mocks__/              # Mock implementations
 │   │   └── n8n-nodes-base.test.ts
 │   ├── database/               # Database layer tests
 │   │   ├── database-adapter-unit.test.ts
 │   │   ├── node-repository-core.test.ts
 │   │   └── template-repository-core.test.ts
+│   ├── docker/                 # Docker configuration tests
+│   │   ├── config-security.test.ts
+│   │   ├── edge-cases.test.ts
+│   │   ├── parse-config.test.ts
+│   │   └── serve-command.test.ts
+│   ├── http-server/            # HTTP server tests
+│   │   └── multi-tenant-support.test.ts
 │   ├── loaders/                # Node loader tests
 │   │   └── node-loader.test.ts
 │   ├── mappers/                # Data mapper tests
@@ -86,6 +99,8 @@ tests/
 │   │   ├── node-parser.test.ts
 │   │   ├── property-extractor.test.ts
 │   │   └── simple-parser.test.ts
+│   ├── scripts/                # Script tests
+│   │   └── fetch-templates-extraction.test.ts
 │   ├── services/               # Service layer tests (largest test suite)
 │   │   ├── config-validator.test.ts
 │   │   ├── enhanced-config-validator.test.ts
@@ -100,22 +115,56 @@ tests/
 │   │   ├── workflow-diff-engine.test.ts
 │   │   ├── workflow-validator-comprehensive.test.ts
 │   │   └── workflow-validator.test.ts
+│   ├── telemetry/              # Telemetry tests
+│   │   └── telemetry-manager.test.ts
 │   └── utils/                  # Utility function tests
+│       ├── cache-utils.test.ts
 │       └── database-utils.test.ts
-├── integration/                 # Integration tests (249 tests, 14 files)
-│   ├── database/               # Database integration tests
+├── integration/                 # Integration tests (570 tests, 41 files)
+│   ├── n8n-api/                # n8n API integration tests (172 tests, 18 files)
+│   │   ├── executions/         # Execution management tests
+│   │   │   ├── get-execution.test.ts
+│   │   │   └── list-executions.test.ts
+│   │   ├── system/             # System tool tests
+│   │   │   ├── diagnostic.test.ts
+│   │   │   ├── health-check.test.ts
+│   │   │   └── list-tools.test.ts
+│   │   ├── utils/              # Test utilities
+│   │   │   ├── mcp-context.ts
+│   │   │   └── response-types.ts
+│   │   └── workflows/          # Workflow management tests
+│   │       ├── autofix-workflow.test.ts
+│   │       ├── create-workflow.test.ts
+│   │       ├── delete-workflow.test.ts
+│   │       ├── get-workflow-details.test.ts
+│   │       ├── get-workflow-minimal.test.ts
+│   │       ├── get-workflow-structure.test.ts
+│   │       ├── get-workflow.test.ts
+│   │       ├── list-workflows.test.ts
+│   │       ├── update-full-workflow.test.ts
+│   │       ├── update-partial-workflow.test.ts
+│   │       └── validate-workflow.test.ts
+│   ├── database/               # Database integration tests (226 tests)
 │   │   ├── connection-management.test.ts
 │   │   ├── fts5-search.test.ts
 │   │   ├── node-repository.test.ts
 │   │   ├── performance.test.ts
+│   │   ├── template-node-configs.test.ts
+│   │   ├── template-repository.test.ts
 │   │   └── transactions.test.ts
-│   ├── mcp-protocol/           # MCP protocol tests
+│   ├── docker/                 # Docker integration tests (18 tests)
+│   │   ├── docker-config.test.ts
+│   │   └── docker-entrypoint.test.ts
+│   ├── mcp-protocol/           # MCP protocol tests (119 tests)
 │   │   ├── basic-connection.test.ts
 │   │   ├── error-handling.test.ts
 │   │   ├── performance.test.ts
 │   │   ├── protocol-compliance.test.ts
 │   │   ├── session-management.test.ts
-│   │   └── tool-invocation.test.ts
+│   │   ├── tool-invocation.test.ts
+│   │   └── workflow-error-validation.test.ts
+│   ├── templates/              # Template tests (35 tests)
+│   │   └── metadata-operations.test.ts
 │   └── setup/                  # Integration test setup
 │       ├── integration-setup.ts
 │       └── msw-test-server.ts
@@ -368,9 +417,54 @@ describe('n8n-nodes-base mock', () => {
 
 ## Integration Testing
 
-Our integration tests verify the complete system behavior:
+Our integration tests verify the complete system behavior across 570 tests in four major categories:
 
-### MCP Protocol Testing
+### n8n API Integration Testing (172 tests)
+
+The n8n API integration tests verify all 18 MCP handler tools against a real n8n instance. These tests ensure our product layer (MCP handlers) work correctly end-to-end, not just the raw API client.
+
+**Test Organization:**
+- **Workflows** (11 handlers): Create, read, update (full/partial), delete, list, validate, autofix
+- **Executions** (2 handlers): Get execution details, list executions
+- **System** (3 handlers): Health check, list available tools, diagnostics
+
+**Example:**
+```typescript
+// tests/integration/n8n-api/workflows/create-workflow.test.ts
+describe('Integration: handleCreateWorkflow', () => {
+  it('should create a simple two-node workflow', async () => {
+    const response = await handleCreateWorkflow(
+      {
+        params: {
+          arguments: {
+            name: 'Test Workflow',
+            nodes: [webhook, setNode],
+            connections: { Webhook: { main: [[{ node: 'Set', type: 'main', index: 0 }]] } }
+          }
+        }
+      },
+      mcpContext
+    );
+
+    expect(response.success).toBe(true);
+    const workflow = response.data as WorkflowData;
+    expect(workflow.id).toBeDefined();
+    expect(workflow.nodes).toHaveLength(2);
+
+    // Cleanup
+    await handleDeleteWorkflow({ params: { arguments: { id: workflow.id } } }, mcpContext);
+  });
+});
+```
+
+**Key Features Tested:**
+- Real workflow creation, modification, deletion with cleanup
+- TypeScript type safety with response interfaces
+- Complete coverage of all 18 n8n API tools
+- Proper error handling and edge cases
+- Response format validation
+
+### MCP Protocol Testing (119 tests)
 
 ```typescript
 // tests/integration/mcp-protocol/tool-invocation.test.ts
@@ -381,20 +475,20 @@ describe('MCP Tool Invocation', () => {
   beforeEach(async () => {
     mcpServer = new TestableN8NMCPServer();
     await mcpServer.initialize();
-    
+
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
     await mcpServer.connectToTransport(serverTransport);
-    
+
     client = new Client({ name: 'test-client', version: '1.0.0' }, {});
     await client.connect(clientTransport);
   });
 
   it('should list nodes with filtering', async () => {
-    const response = await client.callTool({ 
-      name: 'list_nodes', 
-      arguments: { category: 'trigger', limit: 10 } 
+    const response = await client.callTool({
+      name: 'list_nodes',
+      arguments: { category: 'trigger', limit: 10 }
     });
-    
+
     expectValidMCPResponse(response);
     const result = JSON.parse(response.content[0].text);
     expect(result.nodes).toHaveLength(10);
@@ -403,65 +497,104 @@ describe('MCP Tool Invocation', () => {
 });
 ```
 
-### Database Integration Testing
+### Database Integration Testing (226 tests)
 
 ```typescript
 // tests/integration/database/fts5-search.test.ts
 describe('FTS5 Search Integration', () => {
   it('should perform fuzzy search', async () => {
     const results = await nodeRepo.searchNodes('HTT', 'FUZZY');
-    
+
     expect(results.some(n => n.nodeType.includes('httpRequest'))).toBe(true);
     expect(results.some(n => n.displayName.includes('HTTP'))).toBe(true);
   });
 
   it('should handle complex boolean queries', async () => {
     const results = await nodeRepo.searchNodes('webhook OR http', 'OR');
-    
+
     expect(results.length).toBeGreaterThan(0);
-    expect(results.some(n => 
-      n.description?.includes('webhook') || 
+    expect(results.some(n =>
+      n.description?.includes('webhook') ||
       n.description?.includes('http')
     )).toBe(true);
   });
 });
 ```
 
+### Template Integration Testing (35 tests)
+
+Tests template fetching, storage, and metadata operations against the n8n.io API and local database.
+
+### Docker Integration Testing (18 tests)
+
+Tests Docker configuration parsing, entrypoint script, and security validation.
+
 ## Test Distribution and Coverage
 
 ### Test Distribution by Component
 
-Based on our 1,182 tests:
+Based on our 3,336 tests:
 
-1. **Services Layer** (~450 tests)
+**Integration Tests (570 tests):**
+1. **n8n API Integration** (172 tests)
+   - Workflow management handlers: 11 tools with comprehensive scenarios
+   - Execution management handlers: 2 tools
+   - System tool handlers: 3 tools
+   - TypeScript type safety with response interfaces
+
+2. **Database Integration** (226 tests)
+   - Repository operations and transactions
+   - FTS5 full-text search with fuzzy matching
+   - Performance and concurrent access tests
+   - Template node configurations
+
+3. **MCP Protocol** (119 tests)
+   - Protocol compliance and session management
+   - Tool invocation and error handling
+   - Performance and stress testing
+   - Workflow error validation
+
+4. **Templates & Docker** (53 tests)
+   - Template fetching and metadata operations
+   - Docker configuration and security validation
+
+**Unit Tests (2,766 tests):**
+1. **Services Layer** (largest suite)
    - `workflow-validator-comprehensive.test.ts`: 150+ tests
-   - `node-specific-validators.test.ts`: 120+ tests
-   - `n8n-validation.test.ts`: 80+ tests
-   - `n8n-api-client.test.ts`: 60+ tests
+   - `enhanced-config-validator.test.ts`: 120+ tests
+   - `node-specific-validators.test.ts`: 100+ tests
+   - `n8n-api-client.test.ts`: 80+ tests
+   - Config validation, property filtering, workflow diff engine
 
 2. **Parsers** (~200 tests)
-   - `simple-parser.test.ts`: 80+ tests
-   - `property-extractor.test.ts`: 70+ tests
-   - `node-parser.test.ts`: 50+ tests
+   - Node parsing with version support
+   - Property extraction and documentation mapping
+   - Simple parser for basic node information
 
-3. **MCP Integration** (~150 tests)
-   - `tool-invocation.test.ts`: 50+ tests
-   - `error-handling.test.ts`: 40+ tests
-   - `session-management.test.ts`: 30+ tests
+3. **Database Layer** (~150 tests)
+   - Repository core functionality with mocks
+   - Database adapter unit tests
+   - Template repository operations
 
-4. **Database** (~300 tests)
-   - Unit tests for repositories: 100+ tests
-   - Integration tests for FTS5 search: 80+ tests
-   - Transaction tests: 60+ tests
-   - Performance tests: 60+ tests
+4. **MCP Tools & HTTP Server** (~300 tests)
+   - Tool definitions and documentation system
+   - Multi-tenant support and security
+   - Configuration validation
+
+5. **Utils, Docker, Scripts, Telemetry** (remaining tests)
+   - Cache utilities, database helpers
+   - Docker config security and parsing
+   - Template extraction scripts
+   - Telemetry tracking
 
 ### Test Execution Performance
 
 From our CI runs:
 - **Fastest tests**: Unit tests with mocks (<1ms each)
-- **Slowest tests**: Integration tests with real database (100-5000ms)
+- **Slowest tests**: Integration tests with real database and n8n API (100-5000ms)
 - **Average test time**: ~20ms per test
-- **Total suite execution**: Under 3 minutes in CI
+- **Total suite execution**: ~3 minutes in CI (with coverage)
+- **Parallel execution**: Configurable thread pool for optimal performance
 
 ## CI/CD Pipeline
 
