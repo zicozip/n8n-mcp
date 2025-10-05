@@ -648,10 +648,12 @@ export class WorkflowDiffEngine {
     let sourceIndex = operation.sourceIndex ?? 0;
 
     // Smart parameter: branch (for IF nodes)
-    if (operation.branch && !operation.sourceOutput) {
-      // Only apply if sourceOutput not explicitly set
+    // IF nodes use 'main' output with index 0 (true) or 1 (false)
+    if (operation.branch !== undefined && operation.sourceIndex === undefined) {
+      // Only apply if sourceIndex not explicitly set
       if (sourceNode?.type === 'n8n-nodes-base.if') {
-        sourceOutput = operation.branch; // 'true' or 'false'
+        sourceIndex = operation.branch === 'true' ? 0 : 1;
+        // sourceOutput remains 'main' (do not change it)
       }
     }
 

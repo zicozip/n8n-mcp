@@ -1184,9 +1184,10 @@ describe('WorkflowDiffEngine', () => {
       expect(result.success).toBe(true);
       expect(result.workflow).toBeDefined();
 
-      // Should create connection on 'true' output
-      expect(result.workflow!.connections['IF']['true']).toBeDefined();
-      expect(result.workflow!.connections['IF']['true'][0][0].node).toBe('TrueHandler');
+      // Should create connection on 'main' output, index 0 (true branch)
+      expect(result.workflow!.connections['IF']['main']).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][0]).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][0][0].node).toBe('TrueHandler');
     });
 
     it('should use branch="false" for IF node connections', async () => {
@@ -1224,9 +1225,10 @@ describe('WorkflowDiffEngine', () => {
 
       expect(result.success).toBe(true);
 
-      // Should create connection on 'false' output
-      expect(result.workflow!.connections['IF']['false']).toBeDefined();
-      expect(result.workflow!.connections['IF']['false'][0][0].node).toBe('FalseHandler');
+      // Should create connection on 'main' output, index 1 (false branch)
+      expect(result.workflow!.connections['IF']['main']).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][1]).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][1][0].node).toBe('FalseHandler');
     });
 
     it('should use case parameter for Switch node connections', async () => {
@@ -1360,8 +1362,10 @@ describe('WorkflowDiffEngine', () => {
 
       expect(result.success).toBe(true);
 
-      // Should rewire the true branch
-      expect(result.workflow!.connections['IFRewire']['true'][0][0].node).toBe('NewSuccessHandler');
+      // Should rewire the true branch (main output, index 0)
+      expect(result.workflow!.connections['IFRewire']['main']).toBeDefined();
+      expect(result.workflow!.connections['IFRewire']['main'][0]).toBeDefined();
+      expect(result.workflow!.connections['IFRewire']['main'][0][0].node).toBe('NewSuccessHandler');
     });
 
     it('should use case parameter with rewireConnection', async () => {
@@ -1457,10 +1461,12 @@ describe('WorkflowDiffEngine', () => {
 
       expect(result.success).toBe(true);
 
-      // Should use explicit sourceOutput ('false'), not branch ('true')
+      // Should use explicit sourceOutput ('false'), not smart branch parameter
+      // Note: explicit sourceOutput='false' creates connection on output named 'false'
+      // This is different from branch parameter which maps to sourceIndex
       expect(result.workflow!.connections['IFOverride']['false']).toBeDefined();
       expect(result.workflow!.connections['IFOverride']['false'][0][0].node).toBe('OverrideHandler');
-      expect(result.workflow!.connections['IFOverride']['true']).toBeUndefined();
+      expect(result.workflow!.connections['IFOverride']['main']).toBeUndefined();
     });
 
     it('should not override explicit sourceIndex with case parameter', async () => {
