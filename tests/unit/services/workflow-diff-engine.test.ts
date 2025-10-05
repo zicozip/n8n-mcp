@@ -1144,6 +1144,369 @@ describe('WorkflowDiffEngine', () => {
     });
   });
 
+  describe('Smart Parameters (Phase 1)', () => {
+    it('should use branch="true" for IF node connections', async () => {
+      // Add IF node
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      // Add TrueHandler node (use unique name)
+      const addTrueHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'TrueHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      // Connect IF to TrueHandler using smart branch parameter
+      const connectWithBranch: any = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'TrueHandler',
+        branch: 'true'  // Smart parameter instead of sourceOutput: 'true'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addTrueHandler, connectWithBranch]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow).toBeDefined();
+
+      // Should create connection on 'true' output
+      expect(result.workflow!.connections['IF']['true']).toBeDefined();
+      expect(result.workflow!.connections['IF']['true'][0][0].node).toBe('TrueHandler');
+    });
+
+    it('should use branch="false" for IF node connections', async () => {
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      const addFalseHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'FalseHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const connectWithBranch: any = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'FalseHandler',
+        branch: 'false'  // Smart parameter for false branch
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addFalseHandler, connectWithBranch]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should create connection on 'false' output
+      expect(result.workflow!.connections['IF']['false']).toBeDefined();
+      expect(result.workflow!.connections['IF']['false'][0][0].node).toBe('FalseHandler');
+    });
+
+    it('should use case parameter for Switch node connections', async () => {
+      // Add Switch node
+      const addSwitch: any = {
+        type: 'addNode',
+        node: {
+          name: 'Switch',
+          type: 'n8n-nodes-base.switch',
+          position: [400, 300]
+        }
+      };
+
+      // Add handler nodes
+      const addCase0: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case0Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 200]
+        }
+      };
+
+      const addCase1: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case1Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const addCase2: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case2Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 400]
+        }
+      };
+
+      // Connect using case parameter
+      const connectCase0: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case0Handler',
+        case: 0  // Smart parameter instead of sourceIndex: 0
+      };
+
+      const connectCase1: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case1Handler',
+        case: 1  // Smart parameter instead of sourceIndex: 1
+      };
+
+      const connectCase2: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case2Handler',
+        case: 2  // Smart parameter instead of sourceIndex: 2
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSwitch, addCase0, addCase1, addCase2, connectCase0, connectCase1, connectCase2]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // All cases should be routed correctly
+      expect(result.workflow!.connections['Switch']['main'][0][0].node).toBe('Case0Handler');
+      expect(result.workflow!.connections['Switch']['main'][1][0].node).toBe('Case1Handler');
+      expect(result.workflow!.connections['Switch']['main'][2][0].node).toBe('Case2Handler');
+    });
+
+    it('should use branch parameter with rewireConnection', async () => {
+      // Setup: Create IF node with true/false branches
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IFRewire',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      const addSuccess: any = {
+        type: 'addNode',
+        node: {
+          name: 'SuccessHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 200]
+        }
+      };
+
+      const addNewSuccess: any = {
+        type: 'addNode',
+        node: {
+          name: 'NewSuccessHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 250]
+        }
+      };
+
+      // Initial connection
+      const initialConn: any = {
+        type: 'addConnection',
+        source: 'IFRewire',
+        target: 'SuccessHandler',
+        branch: 'true'
+      };
+
+      // Rewire using branch parameter
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'IFRewire',
+        from: 'SuccessHandler',
+        to: 'NewSuccessHandler',
+        branch: 'true'  // Smart parameter
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addSuccess, addNewSuccess, initialConn, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should rewire the true branch
+      expect(result.workflow!.connections['IFRewire']['true'][0][0].node).toBe('NewSuccessHandler');
+    });
+
+    it('should use case parameter with rewireConnection', async () => {
+      const addSwitch: any = {
+        type: 'addNode',
+        node: {
+          name: 'Switch',
+          type: 'n8n-nodes-base.switch',
+          position: [400, 300]
+        }
+      };
+
+      const addCase1: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case1Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const addNewCase1: any = {
+        type: 'addNode',
+        node: {
+          name: 'NewCase1Handler',
+          type: 'n8n-nodes-base.slack',
+          position: [600, 350]
+        }
+      };
+
+      const initialConn: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case1Handler',
+        case: 1
+      };
+
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Switch',
+        from: 'Case1Handler',
+        to: 'NewCase1Handler',
+        case: 1  // Smart parameter
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSwitch, addCase1, addNewCase1, initialConn, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should rewire case 1
+      expect(result.workflow!.connections['Switch']['main'][1][0].node).toBe('NewCase1Handler');
+    });
+
+    it('should not override explicit sourceOutput with branch parameter', async () => {
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IFOverride',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      const addHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'OverrideHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      // Both branch and sourceOutput provided - sourceOutput should win
+      const connectWithBoth: any = {
+        type: 'addConnection',
+        source: 'IFOverride',
+        target: 'OverrideHandler',
+        branch: 'true',          // Smart parameter suggests 'true'
+        sourceOutput: 'false'    // Explicit parameter should override
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addHandler, connectWithBoth]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should use explicit sourceOutput ('false'), not branch ('true')
+      expect(result.workflow!.connections['IFOverride']['false']).toBeDefined();
+      expect(result.workflow!.connections['IFOverride']['false'][0][0].node).toBe('OverrideHandler');
+      expect(result.workflow!.connections['IFOverride']['true']).toBeUndefined();
+    });
+
+    it('should not override explicit sourceIndex with case parameter', async () => {
+      const addSwitch: any = {
+        type: 'addNode',
+        node: {
+          name: 'Switch',
+          type: 'n8n-nodes-base.switch',
+          position: [400, 300]
+        }
+      };
+
+      const addHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      // Both case and sourceIndex provided - sourceIndex should win
+      const connectWithBoth: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Handler',
+        case: 1,           // Smart parameter suggests index 1
+        sourceIndex: 2     // Explicit parameter should override
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSwitch, addHandler, connectWithBoth]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should use explicit sourceIndex (2), not case (1)
+      expect(result.workflow!.connections['Switch']['main'][2]).toBeDefined();
+      expect(result.workflow!.connections['Switch']['main'][2][0].node).toBe('Handler');
+      expect(result.workflow!.connections['Switch']['main'][1]).toEqual([]);
+    });
+  });
+
   describe('AddConnection with sourceIndex (Phase 0 Fix)', () => {
     it('should add connection to correct sourceIndex', async () => {
       // Add IF node

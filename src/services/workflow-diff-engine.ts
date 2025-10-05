@@ -523,8 +523,10 @@ export class WorkflowDiffEngine {
       return `"To" node not found: "${operation.to}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters.`;
     }
 
+    // Resolve smart parameters (branch, case) before validating connections
+    const { sourceOutput } = this.resolveSmartParameters(workflow, operation);
+
     // Validate that connection from source to "from" exists
-    const sourceOutput = operation.sourceOutput || 'main';
     const connections = workflow.connections[sourceNode.name]?.[sourceOutput];
     if (!connections) {
       return `No connections found from "${sourceNode.name}" on output "${sourceOutput}"`;
@@ -631,16 +633,48 @@ export class WorkflowDiffEngine {
     node.disabled = true;
   }
 
+  /**
+   * Resolve smart parameters (branch, case) to technical parameters
+   * Phase 1 UX improvement: Semantic parameters for multi-output nodes
+   */
+  private resolveSmartParameters(
+    workflow: Workflow,
+    operation: AddConnectionOperation | RewireConnectionOperation
+  ): { sourceOutput: string; sourceIndex: number } {
+    const sourceNode = this.findNode(workflow, operation.source, operation.source);
+
+    // Start with explicit values or defaults
+    let sourceOutput = operation.sourceOutput ?? 'main';
+    let sourceIndex = operation.sourceIndex ?? 0;
+
+    // Smart parameter: branch (for IF nodes)
+    if (operation.branch && !operation.sourceOutput) {
+      // Only apply if sourceOutput not explicitly set
+      if (sourceNode?.type === 'n8n-nodes-base.if') {
+        sourceOutput = operation.branch; // 'true' or 'false'
+      }
+    }
+
+    // Smart parameter: case (for Switch nodes)
+    if (operation.case !== undefined && operation.sourceIndex === undefined) {
+      // Only apply if sourceIndex not explicitly set
+      sourceIndex = operation.case;
+    }
+
+    return { sourceOutput, sourceIndex };
+  }
+
   // Connection operation appliers
   private applyAddConnection(workflow: Workflow, operation: AddConnectionOperation): void {
     const sourceNode = this.findNode(workflow, operation.source, operation.source);
     const targetNode = this.findNode(workflow, operation.target, operation.target);
     if (!sourceNode || !targetNode) return;
 
+    // Resolve smart parameters (branch, case) to technical parameters
+    const { sourceOutput, sourceIndex } = this.resolveSmartParameters(workflow, operation);
+
     // Use nullish coalescing to properly handle explicit 0 values
-    const sourceOutput = operation.sourceOutput ?? 'main';
     const targetInput = operation.targetInput ?? 'main';
-    const sourceIndex = operation.sourceIndex ?? 0;
     const targetIndex = operation.targetIndex ?? 0;
 
     // Initialize source node connections object
@@ -763,12 +797,15 @@ export class WorkflowDiffEngine {
    * @param operation - Rewire operation specifying source, from, and to
    */
   private applyRewireConnection(workflow: Workflow, operation: RewireConnectionOperation): void {
+    // Resolve smart parameters (branch, case) to technical parameters
+    const { sourceOutput, sourceIndex } = this.resolveSmartParameters(workflow, operation);
+
     // First, remove the old connection (source → from)
     this.applyRemoveConnection(workflow, {
       type: 'removeConnection',
       source: operation.source,
       target: operation.from,
-      sourceOutput: operation.sourceOutput,
+      sourceOutput: sourceOutput,
       targetInput: operation.targetInput
     });
 
@@ -777,9 +814,9 @@ export class WorkflowDiffEngine {
       type: 'addConnection',
       source: operation.source,
       target: operation.to,
-      sourceOutput: operation.sourceOutput,
+      sourceOutput: sourceOutput,
       targetInput: operation.targetInput,
-      sourceIndex: operation.sourceIndex,
+      sourceIndex: sourceIndex,
       targetIndex: 0 // Default target index for new connection
     });
   }

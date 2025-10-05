@@ -64,6 +64,9 @@ export interface AddConnectionOperation extends DiffOperation {
   targetInput?: string; // Default: 'main'
   sourceIndex?: number; // Default: 0
   targetIndex?: number; // Default: 0
+  // Smart parameters for multi-output nodes (Phase 1 UX improvement)
+  branch?: 'true' | 'false'; // For IF nodes: maps to sourceOutput
+  case?: number; // For Switch nodes: maps to sourceIndex
 }
 
 export interface RemoveConnectionOperation extends DiffOperation {
@@ -95,6 +98,9 @@ export interface RewireConnectionOperation extends DiffOperation {
   sourceOutput?: string;  // Optional: which output to rewire (default: 'main')
   targetInput?: string;   // Optional: which input type (default: 'main')
   sourceIndex?: number;   // Optional: which source index (default: 0)
+  // Smart parameters for multi-output nodes (Phase 1 UX improvement)
+  branch?: 'true' | 'false'; // For IF nodes: maps to sourceOutput
+  case?: number; // For Switch nodes: maps to sourceIndex
 }
 
 // Workflow Metadata Operations
