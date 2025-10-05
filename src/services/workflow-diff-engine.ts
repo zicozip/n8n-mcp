@@ -584,27 +584,38 @@ export class WorkflowDiffEngine {
     const sourceNode = this.findNode(workflow, operation.source, operation.source);
     const targetNode = this.findNode(workflow, operation.target, operation.target);
     if (!sourceNode || !targetNode) return;
-    
-    const sourceOutput = operation.sourceOutput || 'main';
-    const targetInput = operation.targetInput || 'main';
-    const sourceIndex = operation.sourceIndex || 0;
-    const targetIndex = operation.targetIndex || 0;
-    
-    // Initialize connections structure if needed
+
+    // Use nullish coalescing to properly handle explicit 0 values
+    const sourceOutput = operation.sourceOutput ?? 'main';
+    const targetInput = operation.targetInput ?? 'main';
+    const sourceIndex = operation.sourceIndex ?? 0;
+    const targetIndex = operation.targetIndex ?? 0;
+
+    // Initialize source node connections object
     if (!workflow.connections[sourceNode.name]) {
       workflow.connections[sourceNode.name] = {};
     }
+
+    // Initialize output type array
     if (!workflow.connections[sourceNode.name][sourceOutput]) {
       workflow.connections[sourceNode.name][sourceOutput] = [];
     }
-    
-    // Ensure we have array at the source index
-    while (workflow.connections[sourceNode.name][sourceOutput].length <= sourceIndex) {
-      workflow.connections[sourceNode.name][sourceOutput].push([]);
+
+    // Get reference to output array for clarity
+    const outputArray = workflow.connections[sourceNode.name][sourceOutput];
+
+    // Ensure we have connection arrays up to and including the target sourceIndex
+    while (outputArray.length <= sourceIndex) {
+      outputArray.push([]);
     }
-    
-    // Add connection
-    workflow.connections[sourceNode.name][sourceOutput][sourceIndex].push({
+
+    // Defensive: Verify the slot is an array (should always be true after while loop)
+    if (!Array.isArray(outputArray[sourceIndex])) {
+      outputArray[sourceIndex] = [];
+    }
+
+    // Add connection to the correct sourceIndex
+    outputArray[sourceIndex].push({
       node: targetNode.name,
       type: targetInput,
       index: targetIndex
@@ -645,7 +656,33 @@ export class WorkflowDiffEngine {
   }
 
   private applyUpdateConnection(workflow: Workflow, operation: UpdateConnectionOperation): void {
-    // For now, implement as remove + add
+    // Validate that updates object exists and is an object
+    if (!operation.updates || typeof operation.updates !== 'object') {
+      throw new Error(
+        `updateConnection operation requires 'updates' object.\n\n` +
+        `You provided: ${JSON.stringify(operation, null, 2)}\n\n` +
+        `The 'updates' property is missing or invalid. ` +
+        `This operation modifies connection properties (output type, input type, indices), ` +
+        `not connection targets.\n\n` +
+        `Correct format:\n` +
+        `{\n` +
+        `  type: "updateConnection",\n` +
+        `  source: "IF",\n` +
+        `  target: "EmailNode",\n` +
+        `  updates: {\n` +
+        `    sourceOutput: "false"  // Change from one output to another\n` +
+        `  }\n` +
+        `}\n\n` +
+        `💡 Note: If you want to change which node a connection goes to, ` +
+        `use removeConnection + addConnection instead:\n` +
+        `[\n` +
+        `  {type: "removeConnection", source: "${operation.source}", target: "${operation.target}"},\n` +
+        `  {type: "addConnection", source: "${operation.source}", target: "NewTarget"}\n` +
+        `]`
+      );
+    }
+
+    // Implement as remove + add with the updated properties
     this.applyRemoveConnection(workflow, {
       type: 'removeConnection',
       source: operation.source,
@@ -653,7 +690,7 @@ export class WorkflowDiffEngine {
       sourceOutput: operation.updates.sourceOutput,
       targetInput: operation.updates.targetInput
     });
-    
+
     this.applyAddConnection(workflow, {
       type: 'addConnection',
       source: operation.source,

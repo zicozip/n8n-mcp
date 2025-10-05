@@ -29,9 +29,9 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
 - **disableNode**: Disable an active node
 
 ### Connection Operations (5 types):
-- **addConnection**: Connect nodes (source→target)
+- **addConnection**: Connect nodes (source→target) - now properly handles sourceIndex for multi-output nodes (Phase 0 fix)
 - **removeConnection**: Remove connection between nodes (supports ignoreErrors flag)
-- **updateConnection**: Modify connection properties
+- **updateConnection**: Modify connection properties (output/input types, indices) - REQUIRES 'updates' object (Phase 0 validation added)
 - **cleanStaleConnections**: Auto-remove all connections referencing non-existent nodes (NEW in v2.14.4)
 - **replaceConnections**: Replace entire connections object (NEW in v2.14.4)
 
@@ -103,6 +103,8 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
       'Node names with special characters (apostrophes, quotes) work correctly since v2.15.6 (Issue #270 fixed)',
       'For best compatibility, prefer node IDs over names when dealing with special characters',
       'Use "updates" property for updateNode operations: {type: "updateNode", updates: {...}}',
+      '⚠️ updateConnection REQUIRES "updates" object: {type: "updateConnection", updates: {sourceOutput: "..."}} - will fail with clear error if missing (Phase 0 fix)',
+      '⚠️ updateConnection modifies connection properties, NOT targets - to change target use removeConnection + addConnection',
       'cleanStaleConnections removes ALL broken connections - cannot be selective',
       'replaceConnections overwrites entire connections object - all previous connections lost'
     ],
