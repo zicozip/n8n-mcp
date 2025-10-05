@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.6] - 2025-10-05
+
+### Fixed
+- **Issue #270: Apostrophes in Node Names** - Fixed workflow diff operations failing when node names contain special characters
+  - Root Cause: `findNode()` method used exact string matching without normalization, causing escaped vs unescaped character mismatches
+  - Example: Default Manual Trigger node name "When clicking 'Execute workflow'" failed when JSON-RPC sent escaped version "When clicking \\'Execute workflow\\'"
+  - Solution: Added `normalizeNodeName()` helper that unescapes special characters (quotes, backslashes) and normalizes whitespace
+  - Affected Operations: 8 operations fixed - addConnection, removeConnection, updateConnection, removeNode, updateNode, moveNode, enableNode, disableNode
+  - Error Messages: Enhanced all validation methods with `formatNodeNotFoundError()` helper showing available nodes and suggesting node IDs for special characters
+  - Duplicate Prevention: Fixed `validateAddNode()` to use normalization when checking for duplicate node names
+
+### Changed
+- **WorkflowDiffEngine String Normalization** - Enhanced to handle edge cases from code review
+  - Regex Processing Order: Fixed critical bug - now processes backslashes BEFORE quotes (prevents multiply-escaped character failures)
+  - Whitespace Handling: Comprehensive normalization of tabs, newlines, and mixed whitespace (prevents collision edge cases)
+  - Documentation: Added detailed JSDoc warnings about normalization collision risks with examples
+  - Best Practice: Documentation recommends using node IDs over names for special characters
+
+### Technical Details
+- **Normalization Algorithm**: 4-step process
+  1. Trim leading/trailing whitespace
+  2. Unescape backslashes (MUST be first!)
+  3. Unescape single and double quotes
+  4. Normalize all whitespace to single spaces
+- **Error Message Format**: Now shows node IDs (first 8 chars) and suggests using IDs for special characters
+- **Collision Prevention**: Duplicate checking uses same normalization to prevent subtle bugs
+
+### Test Coverage
+- Unit tests: 120/120 passing (up from 116)
+- New test scenarios:
+  - Tabs in node names
+  - Newlines in node names
+  - Mixed whitespace (tabs + newlines + spaces)
+  - Escaped vs unescaped matching (core Issue #270 scenario)
+- Coverage: 90.11% statements (up from 90.05%)
+
+### Code Review
+- All 6 MUST FIX and SHOULD FIX recommendations implemented:
+  - ✅ Fixed regex processing order (critical bug)
+  - ✅ Added comprehensive whitespace tests
+  - ✅ Fixed duplicate checking normalization
+  - ✅ Enhanced all 6 validation method error messages
+  - ✅ Added comprehensive JSDoc documentation
+  - ✅ Added escaped vs unescaped test case
+- Final review: APPROVED FOR MERGE (production-ready)
+
+### Impact
+- **Workflow Operations**: All 8 affected operations now handle special characters correctly
+- **User Experience**: Clear error messages with actionable suggestions
+- **Reliability**: Comprehensive normalization prevents subtle bugs
+- **Documentation**: Tool documentation updated to reflect fix (v2.15.6+)
+
 ## [2.15.5] - 2025-10-04
 
 ### Added
