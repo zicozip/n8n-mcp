@@ -63,12 +63,16 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
     },
     returns: 'Updated workflow object or validation results if validateOnly=true',
     examples: [
-      '// Clean up stale connections after node renames/deletions\nn8n_update_partial_workflow({id: "abc", operations: [{type: "cleanStaleConnections"}]})',
-      '// Remove connection gracefully (no error if it doesn\'t exist)\nn8n_update_partial_workflow({id: "xyz", operations: [{type: "removeConnection", source: "Old Node", target: "Target", ignoreErrors: true}]})',
-      '// Best-effort mode: apply what works, report what fails\nn8n_update_partial_workflow({id: "123", operations: [\n  {type: "updateName", name: "Fixed Workflow"},\n  {type: "removeConnection", source: "Broken", target: "Node"},\n  {type: "cleanStaleConnections"}\n], continueOnError: true})',
-      '// Replace entire connections object\nn8n_update_partial_workflow({id: "456", operations: [{type: "replaceConnections", connections: {"Webhook": {"main": [[{node: "Slack", type: "main", index: 0}]]}}}]})',
-      '// Update node parameter (classic atomic mode)\nn8n_update_partial_workflow({id: "789", operations: [{type: "updateNode", nodeName: "HTTP Request", updates: {"parameters.url": "https://api.example.com"}}]})',
-      '// Validate before applying\nn8n_update_partial_workflow({id: "012", operations: [{type: "removeNode", nodeName: "Old Process"}], validateOnly: true})'
+      '// Add a basic node (minimal configuration)\nn8n_update_partial_workflow({id: "abc", operations: [{type: "addNode", node: {name: "Process Data", type: "n8n-nodes-base.set", position: [400, 300], parameters: {}}}]})',
+      '// Add node with full configuration\nn8n_update_partial_workflow({id: "def", operations: [{type: "addNode", node: {name: "Send Slack Alert", type: "n8n-nodes-base.slack", position: [600, 300], typeVersion: 2, parameters: {resource: "message", operation: "post", channel: "#alerts", text: "Success!"}}}]})',
+      '// Add node AND connect it (common pattern)\nn8n_update_partial_workflow({id: "ghi", operations: [\n  {type: "addNode", node: {name: "HTTP Request", type: "n8n-nodes-base.httpRequest", position: [400, 300], parameters: {url: "https://api.example.com", method: "GET"}}},\n  {type: "addConnection", source: "Webhook", target: "HTTP Request"}\n]})',
+      '// Add multiple nodes in batch\nn8n_update_partial_workflow({id: "jkl", operations: [\n  {type: "addNode", node: {name: "Filter", type: "n8n-nodes-base.filter", position: [400, 300], parameters: {}}},\n  {type: "addNode", node: {name: "Transform", type: "n8n-nodes-base.set", position: [600, 300], parameters: {}}},\n  {type: "addConnection", source: "Filter", target: "Transform"}\n]})',
+      '// Clean up stale connections after node renames/deletions\nn8n_update_partial_workflow({id: "mno", operations: [{type: "cleanStaleConnections"}]})',
+      '// Remove connection gracefully (no error if it doesn\'t exist)\nn8n_update_partial_workflow({id: "pqr", operations: [{type: "removeConnection", source: "Old Node", target: "Target", ignoreErrors: true}]})',
+      '// Best-effort mode: apply what works, report what fails\nn8n_update_partial_workflow({id: "stu", operations: [\n  {type: "updateName", name: "Fixed Workflow"},\n  {type: "removeConnection", source: "Broken", target: "Node"},\n  {type: "cleanStaleConnections"}\n], continueOnError: true})',
+      '// Replace entire connections object\nn8n_update_partial_workflow({id: "vwx", operations: [{type: "replaceConnections", connections: {"Webhook": {"main": [[{node: "Slack", type: "main", index: 0}]]}}}]})',
+      '// Update node parameter (classic atomic mode)\nn8n_update_partial_workflow({id: "yza", operations: [{type: "updateNode", nodeName: "HTTP Request", updates: {"parameters.url": "https://api.example.com"}}]})',
+      '// Validate before applying\nn8n_update_partial_workflow({id: "bcd", operations: [{type: "removeNode", nodeName: "Old Process"}], validateOnly: true})'
     ],
     useCases: [
       'Clean up broken workflows after node renames/deletions',
