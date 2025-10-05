@@ -32,13 +32,18 @@ export function normalizeNodeType(nodeType: string): string {
 
 /**
  * Gets alternative node type formats to try for lookups
- * 
+ *
  * @param nodeType The original node type
  * @returns Array of alternative formats to try
  */
 export function getNodeTypeAlternatives(nodeType: string): string[] {
+  // Defensive: validate input to prevent TypeError when nodeType is undefined/null/empty
+  if (!nodeType || typeof nodeType !== 'string' || nodeType.trim() === '') {
+    return [];
+  }
+
   const alternatives: string[] = [];
-  
+
   // Add lowercase version
   alternatives.push(nodeType.toLowerCase());
   

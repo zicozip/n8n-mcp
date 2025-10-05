@@ -599,15 +599,22 @@ export class N8NDocumentationMCPServer {
    */
   private validateToolParamsBasic(toolName: string, args: any, requiredParams: string[]): void {
     const missing: string[] = [];
-    
+    const invalid: string[] = [];
+
     for (const param of requiredParams) {
       if (!(param in args) || args[param] === undefined || args[param] === null) {
         missing.push(param);
+      } else if (typeof args[param] === 'string' && args[param].trim() === '') {
+        invalid.push(`${param} (empty string)`);
       }
     }
-    
+
     if (missing.length > 0) {
       throw new Error(`Missing required parameters for ${toolName}: ${missing.join(', ')}. Please provide the required parameters to use this tool.`);
+    }
+
+    if (invalid.length > 0) {
+      throw new Error(`Invalid parameters for ${toolName}: ${invalid.join(', ')}. String parameters cannot be empty.`);
     }
   }
 
