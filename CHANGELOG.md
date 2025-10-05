@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.15.6] - 2025-10-05
 
 ### Fixed
+- **Issue #269: Missing addNode Examples** - Added comprehensive examples for addNode operation in MCP tool documentation
+  - Problem: Claude AI didn't know how to use addNode operation correctly due to zero examples in documentation
+  - Solution: Added 4 progressive examples to `n8n_update_partial_workflow` tool documentation:
+    1. Basic addNode (minimal configuration)
+    2. Complete addNode (full parameters including typeVersion)
+    3. addNode + addConnection combo (most common pattern)
+    4. Batch operation (multiple nodes + connections)
+  - Impact: AI assistants can now correctly use addNode without errors or trial-and-error
+
 - **Issue #270: Apostrophes in Node Names** - Fixed workflow diff operations failing when node names contain special characters
   - Root Cause: `findNode()` method used exact string matching without normalization, causing escaped vs unescaped character mismatches
   - Example: Default Manual Trigger node name "When clicking 'Execute workflow'" failed when JSON-RPC sent escaped version "When clicking \\'Execute workflow\\'"
