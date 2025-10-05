@@ -295,10 +295,14 @@ export class WorkflowDiffEngine {
   // Node operation validators
   private validateAddNode(workflow: Workflow, operation: AddNodeOperation): string | null {
     const { node } = operation;
-    
-    // Check if node with same name already exists
-    if (workflow.nodes.some(n => n.name === node.name)) {
-      return `Node with name "${node.name}" already exists`;
+
+    // Check if node with same name already exists (use normalization to prevent collisions)
+    const normalizedNewName = this.normalizeNodeName(node.name);
+    const duplicate = workflow.nodes.find(n =>
+      this.normalizeNodeName(n.name) === normalizedNewName
+    );
+    if (duplicate) {
+      return `Node with name "${node.name}" already exists (normalized name matches existing node "${duplicate.name}")`;
     }
     
     // Validate node type format
@@ -316,7 +320,7 @@ export class WorkflowDiffEngine {
   private validateRemoveNode(workflow: Workflow, operation: RemoveNodeOperation): string | null {
     const node = this.findNode(workflow, operation.nodeId, operation.nodeName);
     if (!node) {
-      return `Node not found: ${operation.nodeId || operation.nodeName}`;
+      return this.formatNodeNotFoundError(workflow, operation.nodeId || operation.nodeName || '', 'removeNode');
     }
     
     // Check if node has connections that would be broken
@@ -339,7 +343,7 @@ export class WorkflowDiffEngine {
   private validateUpdateNode(workflow: Workflow, operation: UpdateNodeOperation): string | null {
     const node = this.findNode(workflow, operation.nodeId, operation.nodeName);
     if (!node) {
-      return `Node not found: ${operation.nodeId || operation.nodeName}`;
+      return this.formatNodeNotFoundError(workflow, operation.nodeId || operation.nodeName || '', 'updateNode');
     }
     return null;
   }
@@ -347,7 +351,7 @@ export class WorkflowDiffEngine {
   private validateMoveNode(workflow: Workflow, operation: MoveNodeOperation): string | null {
     const node = this.findNode(workflow, operation.nodeId, operation.nodeName);
     if (!node) {
-      return `Node not found: ${operation.nodeId || operation.nodeName}`;
+      return this.formatNodeNotFoundError(workflow, operation.nodeId || operation.nodeName || '', 'moveNode');
     }
     return null;
   }
@@ -355,7 +359,8 @@ export class WorkflowDiffEngine {
   private validateToggleNode(workflow: Workflow, operation: EnableNodeOperation | DisableNodeOperation): string | null {
     const node = this.findNode(workflow, operation.nodeId, operation.nodeName);
     if (!node) {
-      return `Node not found: ${operation.nodeId || operation.nodeName}`;
+      const operationType = operation.type === 'enableNode' ? 'enableNode' : 'disableNode';
+      return this.formatNodeNotFoundError(workflow, operation.nodeId || operation.nodeName || '', operationType);
     }
     return null;
   }
@@ -806,16 +811,31 @@ export class WorkflowDiffEngine {
    * Normalize node names to handle special characters and escaping differences.
    * Fixes issue #270: apostrophes and other special characters in node names.
    *
+   * ⚠️ WARNING: Normalization can cause collisions between names that differ only in:
+   * - Leading/trailing whitespace
+   * - Multiple consecutive spaces vs single spaces
+   * - Escaped vs unescaped quotes/backslashes
+   * - Different types of whitespace (tabs, newlines, spaces)
+   *
+   * Examples of names that normalize to the SAME value:
+   * - "Node 'test'" === "Node  'test'" (multiple spaces)
+   * - "Node 'test'" === "Node\t'test'" (tab vs space)
+   * - "Node 'test'" === "Node \\'test\\'" (escaped quotes)
+   * - "Path\\to\\file" === "Path\\\\to\\\\file" (escaped backslashes)
+   *
+   * Best Practice: For node names with special characters, prefer using node IDs
+   * to avoid ambiguity. Use n8n_get_workflow_structure() to get node IDs.
+   *
    * @param name - The node name to normalize
-   * @returns Normalized node name for comparison
+   * @returns Normalized node name for safe comparison
    */
   private normalizeNodeName(name: string): string {
     return name
       .trim()                    // Remove leading/trailing whitespace
-      .replace(/\\'/g, "'")      // Unescape single quotes: \' -> '
-      .replace(/\\"/g, '"')      // Unescape double quotes: \" -> "
-      .replace(/\\\\/g, '\\')    // Unescape backslashes: \\ -> \
-      .replace(/\s+/g, ' ');     // Normalize multiple spaces to single space
+      .replace(/\\\\/g, '\\')    // FIRST: Unescape backslashes: \\ -> \ (must be first to handle multiply-escaped chars)
+      .replace(/\\'/g, "'")      // THEN: Unescape single quotes: \' -> '
+      .replace(/\\"/g, '"')      // THEN: Unescape double quotes: \" -> "
+      .replace(/\s+/g, ' ');     // FINALLY: Normalize all whitespace (spaces, tabs, newlines) to single space
   }
 
   /**
@@ -854,6 +874,26 @@ export class WorkflowDiffEngine {
     }
 
     return null;
+  }
+
+  /**
+   * Format a consistent "node not found" error message with helpful context.
+   * Shows available nodes with IDs and tips about using node IDs for special characters.
+   *
+   * @param workflow - The workflow being validated
+   * @param nodeIdentifier - The node ID or name that wasn't found
+   * @param operationType - The operation being performed (e.g., "removeNode", "updateNode")
+   * @returns Formatted error message with available nodes and helpful tips
+   */
+  private formatNodeNotFoundError(
+    workflow: Workflow,
+    nodeIdentifier: string,
+    operationType: string
+  ): string {
+    const availableNodes = workflow.nodes
+      .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+      .join(', ');
+    return `Node not found for ${operationType}: "${nodeIdentifier}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters (apostrophes, quotes).`;
   }
 
   private setNestedProperty(obj: any, path: string, value: any): void {

@@ -3218,5 +3218,141 @@ describe('WorkflowDiffEngine', () => {
       const updatedNode = result.workflow.nodes.find((n: any) => n.name === "Update 'this' node");
       expect(updatedNode?.parameters.value).toBe('new');
     });
+
+    // Code Review Fix: Test whitespace normalization
+    it('should handle tabs in node names', async () => {
+      const workflowWithTabs = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'tab-node-1',
+            name: "Node\twith\ttabs",  // Contains tabs
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: "Node\twith\ttabs",  // Tabs should normalize to single spaces
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithTabs as Workflow, request);
+
+      expect(result.success).toBe(true);
+      // After normalization, both "Node\twith\ttabs" and "Node with tabs" should match
+      expect(result.workflow.connections["Node\twith\ttabs"]).toBeDefined();
+    });
+
+    it('should handle newlines in node names', async () => {
+      const workflowWithNewlines = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'newline-node-1',
+            name: "Node\nwith\nnewlines",  // Contains newlines
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: "Node\nwith\nnewlines",  // Newlines should normalize to single spaces
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithNewlines as Workflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow.connections["Node\nwith\nnewlines"]).toBeDefined();
+    });
+
+    it('should handle mixed whitespace (tabs, newlines, spaces)', async () => {
+      const workflowWithMixed = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'mixed-whitespace-node-1',
+            name: "Node\t  \n  with  \r\nmixed",  // Mixed whitespace
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: "Node\t  \n  with  \r\nmixed",  // Should normalize all whitespace
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithMixed as Workflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow.connections["Node\t  \n  with  \r\nmixed"]).toBeDefined();
+    });
+
+    // Code Review Fix: Test escaped vs unescaped matching (core issue #270 scenario)
+    it('should match escaped input with unescaped stored names (Issue #270 core scenario)', async () => {
+      // Scenario: AI/JSON-RPC sends escaped name, n8n workflow has unescaped name
+      const workflowWithUnescaped = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'test-node',
+            name: "When clicking 'Execute workflow'",  // Unescaped (how n8n stores it)
+            type: 'n8n-nodes-base.manualTrigger',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: "When clicking \\'Execute workflow\\'",  // Escaped (how JSON-RPC might send it)
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithUnescaped as Workflow, request);
+
+      expect(result.success).toBe(true);  // Should match despite different escaping
+      expect(result.workflow.connections["When clicking 'Execute workflow'"]).toBeDefined();
+    });
   });
 });
