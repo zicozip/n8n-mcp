@@ -27,10 +27,15 @@ const workflowDiffSchema = z.object({
     // Connection operations
     source: z.string().optional(),
     target: z.string().optional(),
+    from: z.string().optional(),  // For rewireConnection
+    to: z.string().optional(),    // For rewireConnection
     sourceOutput: z.string().optional(),
     targetInput: z.string().optional(),
     sourceIndex: z.number().optional(),
     targetIndex: z.number().optional(),
+    // Smart parameters (Phase 1 UX improvement)
+    branch: z.enum(['true', 'false']).optional(),
+    case: z.number().optional(),
     ignoreErrors: z.boolean().optional(),
     // Connection cleanup operations
     dryRun: z.boolean().optional(),
