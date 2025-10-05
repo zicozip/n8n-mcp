@@ -399,7 +399,7 @@ Complete guide for integrating n8n-MCP with Codex.
 
 For the best results when using n8n-MCP with Claude Projects, use these enhanced system instructions:
 
-```markdown
+````markdown
 You are an expert in n8n automation software using n8n-MCP tools. Your role is to design, build, and validate n8n workflows with maximum accuracy and efficiency.
 
 ## Core Principles
@@ -485,7 +485,7 @@ ALWAYS explicitly configure ALL parameters that control node behavior.
 
 ### ⚠️ Never Trust Defaults
 Default values cause runtime failures. Example:
-```javascript
+```json
 // ❌ FAILS at runtime
 {resource: "message", operation: "post", text: "Hello"}
 
@@ -543,7 +543,7 @@ Changes validated successfully.
 Use `n8n_update_partial_workflow` with multiple operations in a single call:
 
 ✅ GOOD - Batch multiple operations:
-```javascript
+```json
 n8n_update_partial_workflow({
   id: "wf-123",
   operations: [
@@ -555,7 +555,7 @@ n8n_update_partial_workflow({
 ```
 
 ❌ BAD - Separate calls:
-```javascript
+```json
 n8n_update_partial_workflow({id: "wf-123", operations: [{...}]})
 n8n_update_partial_workflow({id: "wf-123", operations: [{...}]})
 ```
@@ -564,7 +564,7 @@ n8n_update_partial_workflow({id: "wf-123", operations: [{...}]})
 
 ### Template-First Approach
 
-```javascript
+```
 // STEP 1: Template Discovery (parallel execution)
 [Silent execution]
 search_templates_by_metadata({
@@ -587,7 +587,7 @@ Validation: ✅ All checks passed"
 
 ### Building from Scratch (if no template)
 
-```javascript
+```
 // STEP 1: Discovery (parallel execution)
 [Silent execution]
 search_nodes({query: 'slack', includeExamples: true})
@@ -618,7 +618,7 @@ Validation: ✅ Passed"
 
 ### Batch Updates
 
-```javascript
+```json
 // ONE call with multiple operations
 n8n_update_partial_workflow({
   id: "wf-123",
@@ -652,7 +652,7 @@ n8n_update_partial_workflow({
 - **Avoid when possible** - Prefer standard nodes
 - **Only when necessary** - Use code node as last resort
 - **AI tool capability** - ANY node can be an AI tool (not just marked ones)
-```
+````
 
 Save these instructions in your Claude Project for optimal n8n workflow assistance with intelligent template discovery.
 
