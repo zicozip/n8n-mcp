@@ -365,7 +365,28 @@ describe('WorkflowValidator - Edge Cases', () => {
   });
 
   describe('Special Characters and Unicode', () => {
-    it.skip('should handle special characters in node names - FIXME: mock issues', async () => {
+    // Note: These tests are skipped because WorkflowValidator also needs special character
+    // normalization (similar to WorkflowDiffEngine fix in #270). Will be addressed in a future PR.
+    it.skip('should handle apostrophes in node names - TODO: needs WorkflowValidator normalization', async () => {
+      // Test default n8n Manual Trigger node name with apostrophes
+      const workflow = {
+        nodes: [
+          { id: '1', name: "When clicking 'Execute workflow'", type: 'n8n-nodes-base.manualTrigger', position: [0, 0] as [number, number], parameters: {} },
+          { id: '2', name: 'HTTP Request', type: 'n8n-nodes-base.httpRequest', position: [100, 0] as [number, number], parameters: {} }
+        ],
+        connections: {
+          "When clicking 'Execute workflow'": {
+            main: [[{ node: 'HTTP Request', type: 'main', index: 0 }]]
+          }
+        }
+      };
+
+      const result = await validator.validateWorkflow(workflow as any);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it.skip('should handle special characters in node names - TODO: needs WorkflowValidator normalization', async () => {
       const workflow = {
         nodes: [
           { id: '1', name: 'Node@#$%', type: 'n8n-nodes-base.set', position: [0, 0] as [number, number], parameters: {} },
@@ -381,9 +402,10 @@ describe('WorkflowValidator - Edge Cases', () => {
           }
         }
       };
-      
+
       const result = await validator.validateWorkflow(workflow as any);
       expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should handle very long node names', async () => {
