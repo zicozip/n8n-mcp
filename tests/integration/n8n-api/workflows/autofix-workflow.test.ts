@@ -13,8 +13,9 @@ import { cleanupOrphanedWorkflows } from '../utils/cleanup-helpers';
 import { createMcpContext } from '../utils/mcp-context';
 import { InstanceContext } from '../../../../src/types/instance-context';
 import { handleAutofixWorkflow } from '../../../../src/mcp/handlers-n8n-manager';
-import { getNodeRepository } from '../utils/node-repository';
+import { getNodeRepository, closeNodeRepository } from '../utils/node-repository';
 import { NodeRepository } from '../../../../src/database/node-repository';
+import { AutofixResponse } from '../types/mcp-responses';
 
 describe('Integration: handleAutofixWorkflow', () => {
   let context: TestContext;
@@ -34,6 +35,7 @@ describe('Integration: handleAutofixWorkflow', () => {
   });
 
   afterAll(async () => {
+    await closeNodeRepository();
     if (!process.env.CI) {
       await cleanupOrphanedWorkflows();
     }
@@ -104,7 +106,7 @@ describe('Integration: handleAutofixWorkflow', () => {
       );
 
       expect(response.success).toBe(true);
-      const data = response.data as any;
+      const data = response.data as AutofixResponse;
 
       // If fixes are available, should be in preview mode
       if (data.fixesAvailable && data.fixesAvailable > 0) {
