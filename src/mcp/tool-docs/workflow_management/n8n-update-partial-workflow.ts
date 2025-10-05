@@ -96,6 +96,8 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
       'continueOnError breaks atomic guarantees - use with caution',
       'Order matters for dependent operations (e.g., must add node before connecting to it)',
       'Node references accept ID or name, but name must be unique',
+      'Node names with special characters (apostrophes, quotes) work correctly since v2.15.6 (Issue #270 fixed)',
+      'For best compatibility, prefer node IDs over names when dealing with special characters',
       'Use "updates" property for updateNode operations: {type: "updateNode", updates: {...}}',
       'cleanStaleConnections removes ALL broken connections - cannot be selective',
       'replaceConnections overwrites entire connections object - all previous connections lost'

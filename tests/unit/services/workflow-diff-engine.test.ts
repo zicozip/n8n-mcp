@@ -3007,4 +3007,216 @@ describe('WorkflowDiffEngine', () => {
       });
     });
   });
+
+  // Issue #270: Special characters in node names
+  describe('Special Characters in Node Names', () => {
+    it('should handle apostrophes in node names for addConnection', async () => {
+      // Default n8n Manual Trigger node name contains apostrophes
+      const workflowWithApostrophes = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'manual-trigger-1',
+            name: "When clicking 'Execute workflow'", // Contains apostrophes
+            type: 'n8n-nodes-base.manualTrigger',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: "When clicking 'Execute workflow'",  // Using node name with apostrophes
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithApostrophes as Workflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow.connections["When clicking 'Execute workflow'"]).toBeDefined();
+      expect(result.workflow.connections["When clicking 'Execute workflow'"].main).toBeDefined();
+    });
+
+    it('should handle double quotes in node names', async () => {
+      const workflowWithQuotes = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'quoted-node-1',
+            name: 'Node with "quotes"',  // Contains double quotes
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Node with "quotes"',
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithQuotes as Workflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow.connections['Node with "quotes"']).toBeDefined();
+    });
+
+    it('should handle backslashes in node names', async () => {
+      const workflowWithBackslashes = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'backslash-node-1',
+            name: 'Path\\with\\backslashes',  // Contains backslashes
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Path\\with\\backslashes',
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithBackslashes as Workflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow.connections['Path\\with\\backslashes']).toBeDefined();
+    });
+
+    it('should handle mixed special characters in node names', async () => {
+      const workflowWithMixed = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'complex-node-1',
+            name: "Complex 'name' with \"quotes\" and \\backslash",
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ]
+      };
+
+      const operation: AddConnectionOperation = {
+        type: 'addConnection',
+        source: "Complex 'name' with \"quotes\" and \\backslash",
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithMixed as Workflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow.connections["Complex 'name' with \"quotes\" and \\backslash"]).toBeDefined();
+    });
+
+    it('should handle special characters in removeConnection', async () => {
+      const workflowWithConnections = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'apostrophe-node-1',
+            name: "Node with 'apostrophes'",
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: {}
+          }
+        ],
+        connections: {
+          ...baseWorkflow.connections,
+          "Node with 'apostrophes'": {
+            main: [[{ node: 'HTTP Request', type: 'main', index: 0 }]]
+          }
+        }
+      };
+
+      const operation: RemoveConnectionOperation = {
+        type: 'removeConnection',
+        source: "Node with 'apostrophes'",
+        target: 'HTTP Request'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithConnections as any, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow.connections["Node with 'apostrophes'"]).toBeUndefined();
+    });
+
+    it('should handle special characters in updateNode', async () => {
+      const workflowWithSpecialNode = {
+        ...baseWorkflow,
+        nodes: [
+          ...baseWorkflow.nodes,
+          {
+            id: 'special-node-1',
+            name: "Update 'this' node",
+            type: 'n8n-nodes-base.set',
+            typeVersion: 1,
+            position: [100, 100] as [number, number],
+            parameters: { value: 'old' }
+          }
+        ]
+      };
+
+      const operation: UpdateNodeOperation = {
+        type: 'updateNode',
+        nodeName: "Update 'this' node",
+        updates: {
+          'parameters.value': 'new'
+        }
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [operation]
+      };
+
+      const result = await diffEngine.applyDiff(workflowWithSpecialNode as Workflow, request);
+
+      expect(result.success).toBe(true);
+      const updatedNode = result.workflow.nodes.find((n: any) => n.name === "Update 'this' node");
+      expect(updatedNode?.parameters.value).toBe('new');
+    });
+  });
 });

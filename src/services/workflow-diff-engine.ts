@@ -384,12 +384,16 @@ export class WorkflowDiffEngine {
     const targetNode = this.findNode(workflow, operation.target, operation.target);
 
     if (!sourceNode) {
-      const availableNodes = workflow.nodes.map(n => n.name).join(', ');
-      return `Source node not found: "${operation.source}". Available nodes: ${availableNodes}`;
+      const availableNodes = workflow.nodes
+        .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+        .join(', ');
+      return `Source node not found: "${operation.source}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters (apostrophes, quotes).`;
     }
     if (!targetNode) {
-      const availableNodes = workflow.nodes.map(n => n.name).join(', ');
-      return `Target node not found: "${operation.target}". Available nodes: ${availableNodes}`;
+      const availableNodes = workflow.nodes
+        .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+        .join(', ');
+      return `Target node not found: "${operation.target}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters (apostrophes, quotes).`;
     }
 
     // Check if connection already exists
@@ -417,10 +421,16 @@ export class WorkflowDiffEngine {
     const targetNode = this.findNode(workflow, operation.target, operation.target);
 
     if (!sourceNode) {
-      return `Source node not found: ${operation.source}`;
+      const availableNodes = workflow.nodes
+        .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+        .join(', ');
+      return `Source node not found: "${operation.source}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters.`;
     }
     if (!targetNode) {
-      return `Target node not found: ${operation.target}`;
+      const availableNodes = workflow.nodes
+        .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+        .join(', ');
+      return `Target node not found: "${operation.target}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters.`;
     }
 
     const sourceOutput = operation.sourceOutput || 'main';
@@ -791,23 +801,58 @@ export class WorkflowDiffEngine {
   }
 
   // Helper methods
+
+  /**
+   * Normalize node names to handle special characters and escaping differences.
+   * Fixes issue #270: apostrophes and other special characters in node names.
+   *
+   * @param name - The node name to normalize
+   * @returns Normalized node name for comparison
+   */
+  private normalizeNodeName(name: string): string {
+    return name
+      .trim()                    // Remove leading/trailing whitespace
+      .replace(/\\'/g, "'")      // Unescape single quotes: \' -> '
+      .replace(/\\"/g, '"')      // Unescape double quotes: \" -> "
+      .replace(/\\\\/g, '\\')    // Unescape backslashes: \\ -> \
+      .replace(/\s+/g, ' ');     // Normalize multiple spaces to single space
+  }
+
+  /**
+   * Find a node by ID or name in the workflow.
+   * Uses string normalization to handle special characters (Issue #270).
+   *
+   * @param workflow - The workflow to search in
+   * @param nodeId - Optional node ID to search for
+   * @param nodeName - Optional node name to search for
+   * @returns The found node or null
+   */
   private findNode(workflow: Workflow, nodeId?: string, nodeName?: string): WorkflowNode | null {
+    // Try to find by ID first (exact match, no normalization needed for UUIDs)
     if (nodeId) {
       const nodeById = workflow.nodes.find(n => n.id === nodeId);
       if (nodeById) return nodeById;
     }
-    
+
+    // Try to find by name with normalization (handles special characters)
     if (nodeName) {
-      const nodeByName = workflow.nodes.find(n => n.name === nodeName);
+      const normalizedSearch = this.normalizeNodeName(nodeName);
+      const nodeByName = workflow.nodes.find(n =>
+        this.normalizeNodeName(n.name) === normalizedSearch
+      );
       if (nodeByName) return nodeByName;
     }
-    
-    // If nodeId is provided but not found, try treating it as a name
+
+    // Fallback: If nodeId provided but not found, try treating it as a name
+    // This allows operations to work with either IDs or names flexibly
     if (nodeId && !nodeName) {
-      const nodeByName = workflow.nodes.find(n => n.name === nodeId);
+      const normalizedSearch = this.normalizeNodeName(nodeId);
+      const nodeByName = workflow.nodes.find(n =>
+        this.normalizeNodeName(n.name) === normalizedSearch
+      );
       if (nodeByName) return nodeByName;
     }
-    
+
     return null;
   }
 
