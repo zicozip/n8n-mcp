@@ -118,7 +118,8 @@ describe('Integration: handleAutofixWorkflow', () => {
 
         // Verify workflow not modified (fetch it back)
         const fetched = await client.getWorkflow(created.id!);
-        expect(fetched.nodes[1].parameters.assignments.assignments[0].value).toBe('$json.data');
+        const params = fetched.nodes[1].parameters as { assignments: { assignments: Array<{ value: string }> } };
+        expect(params.assignments.assignments[0].value).toBe('$json.data');
       } else {
         // No fixes available - that's also a valid result
         expect(data.message).toContain('No automatic fixes available');
@@ -240,7 +241,8 @@ describe('Integration: handleAutofixWorkflow', () => {
 
         // Verify workflow was actually modified
         const fetched = await client.getWorkflow(created.id!);
-        const setValue = fetched.nodes[1].parameters.assignments.assignments[0].value;
+        const params = fetched.nodes[1].parameters as { assignments: { assignments: Array<{ value: unknown }> } };
+        const setValue = params.assignments.assignments[0].value;
         // Expression format should be fixed (depends on what fixes were available)
         expect(setValue).toBeDefined();
       } else {
