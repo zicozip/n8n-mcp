@@ -21,6 +21,7 @@ import {
   AddConnectionOperation,
   RemoveConnectionOperation,
   UpdateConnectionOperation,
+  RewireConnectionOperation,
   UpdateSettingsOperation,
   UpdateNameOperation,
   AddTagOperation,
@@ -225,6 +226,8 @@ export class WorkflowDiffEngine {
         return this.validateRemoveConnection(workflow, operation);
       case 'updateConnection':
         return this.validateUpdateConnection(workflow, operation);
+      case 'rewireConnection':
+        return this.validateRewireConnection(workflow, operation as RewireConnectionOperation);
       case 'updateSettings':
       case 'updateName':
       case 'addTag':
@@ -270,6 +273,9 @@ export class WorkflowDiffEngine {
         break;
       case 'updateConnection':
         this.applyUpdateConnection(workflow, operation);
+        break;
+      case 'rewireConnection':
+        this.applyRewireConnection(workflow, operation as RewireConnectionOperation);
         break;
       case 'updateSettings':
         this.applyUpdateSettings(workflow, operation);
@@ -458,20 +464,20 @@ export class WorkflowDiffEngine {
   private validateUpdateConnection(workflow: Workflow, operation: UpdateConnectionOperation): string | null {
     const sourceNode = this.findNode(workflow, operation.source, operation.source);
     const targetNode = this.findNode(workflow, operation.target, operation.target);
-    
+
     if (!sourceNode) {
       return `Source node not found: ${operation.source}`;
     }
     if (!targetNode) {
       return `Target node not found: ${operation.target}`;
     }
-    
+
     // Check if connection exists to update
     const existingConnections = workflow.connections[sourceNode.name];
     if (!existingConnections) {
       return `No connections found from "${sourceNode.name}"`;
     }
-    
+
     // Check if any connection to target exists
     let hasConnection = false;
     Object.values(existingConnections).forEach(outputs => {
@@ -481,11 +487,57 @@ export class WorkflowDiffEngine {
         }
       });
     });
-    
+
     if (!hasConnection) {
       return `No connection exists from "${sourceNode.name}" to "${targetNode.name}"`;
     }
-    
+
+    return null;
+  }
+
+  private validateRewireConnection(workflow: Workflow, operation: RewireConnectionOperation): string | null {
+    // Validate source node exists
+    const sourceNode = this.findNode(workflow, operation.source, operation.source);
+    if (!sourceNode) {
+      const availableNodes = workflow.nodes
+        .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+        .join(', ');
+      return `Source node not found: "${operation.source}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters.`;
+    }
+
+    // Validate "from" node exists (current target)
+    const fromNode = this.findNode(workflow, operation.from, operation.from);
+    if (!fromNode) {
+      const availableNodes = workflow.nodes
+        .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+        .join(', ');
+      return `"From" node not found: "${operation.from}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters.`;
+    }
+
+    // Validate "to" node exists (new target)
+    const toNode = this.findNode(workflow, operation.to, operation.to);
+    if (!toNode) {
+      const availableNodes = workflow.nodes
+        .map(n => `"${n.name}" (id: ${n.id.substring(0, 8)}...)`)
+        .join(', ');
+      return `"To" node not found: "${operation.to}". Available nodes: ${availableNodes}. Tip: Use node ID for names with special characters.`;
+    }
+
+    // Validate that connection from source to "from" exists
+    const sourceOutput = operation.sourceOutput || 'main';
+    const connections = workflow.connections[sourceNode.name]?.[sourceOutput];
+    if (!connections) {
+      return `No connections found from "${sourceNode.name}" on output "${sourceOutput}"`;
+    }
+
+    const hasConnection = connections.some(conns =>
+      conns.some(c => c.node === fromNode.name)
+    );
+
+    if (!hasConnection) {
+      return `No connection exists from "${sourceNode.name}" to "${fromNode.name}" on output "${sourceOutput}"`;
+    }
+
     return null;
   }
 
@@ -699,6 +751,36 @@ export class WorkflowDiffEngine {
       targetInput: operation.updates.targetInput,
       sourceIndex: operation.updates.sourceIndex,
       targetIndex: operation.updates.targetIndex
+    });
+  }
+
+  /**
+   * Rewire a connection from one target to another
+   * This is a semantic wrapper around removeConnection + addConnection
+   * that provides clear intent: "rewire connection from X to Y"
+   *
+   * @param workflow - Workflow to modify
+   * @param operation - Rewire operation specifying source, from, and to
+   */
+  private applyRewireConnection(workflow: Workflow, operation: RewireConnectionOperation): void {
+    // First, remove the old connection (source → from)
+    this.applyRemoveConnection(workflow, {
+      type: 'removeConnection',
+      source: operation.source,
+      target: operation.from,
+      sourceOutput: operation.sourceOutput,
+      targetInput: operation.targetInput
+    });
+
+    // Then, add the new connection (source → to)
+    this.applyAddConnection(workflow, {
+      type: 'addConnection',
+      source: operation.source,
+      target: operation.to,
+      sourceOutput: operation.sourceOutput,
+      targetInput: operation.targetInput,
+      sourceIndex: operation.sourceIndex,
+      targetIndex: 0 // Default target index for new connection
     });
   }
 

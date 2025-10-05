@@ -867,6 +867,283 @@ describe('WorkflowDiffEngine', () => {
     });
   });
 
+  describe('RewireConnection Operation (Phase 1)', () => {
+    it('should rewire connection from one target to another', async () => {
+      // Setup: Create a connection Webhook → HTTP Request
+      // Then rewire it to Webhook → Slack instead
+      const rewireOp: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'HTTP Request',
+        to: 'Slack'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewireOp]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow).toBeDefined();
+
+      // Old connection should be removed
+      const webhookConnections = result.workflow!.connections['Webhook']['main'][0];
+      expect(webhookConnections.some((c: any) => c.node === 'HTTP Request')).toBe(false);
+
+      // New connection should exist
+      expect(webhookConnections.some((c: any) => c.node === 'Slack')).toBe(true);
+    });
+
+    it('should rewire connection with specified sourceOutput', async () => {
+      // Add IF node with connection on 'true' output
+      const addNode: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [600, 300]
+        }
+      };
+
+      const addConn: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'HTTP Request',
+        sourceOutput: 'true'
+      };
+
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'IF',
+        from: 'HTTP Request',
+        to: 'Slack',
+        sourceOutput: 'true'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addNode, addConn, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Verify rewiring on 'true' output
+      const trueConnections = result.workflow!.connections['IF']['true'][0];
+      expect(trueConnections.some((c: any) => c.node === 'HTTP Request')).toBe(false);
+      expect(trueConnections.some((c: any) => c.node === 'Slack')).toBe(true);
+    });
+
+    it('should preserve other parallel connections when rewiring', async () => {
+      // Setup: Webhook connects to both HTTP Request (in baseWorkflow) and Slack (added here)
+      // Add a Set node, then rewire HTTP Request → Set
+      // Slack connection should remain unchanged
+
+      // Add Slack connection in parallel
+      const addSlackConn: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Webhook',
+        target: 'Slack'
+      };
+
+      // Add Set node to rewire to
+      const addSetNode: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Set',
+          type: 'n8n-nodes-base.set',
+          position: [800, 300]
+        }
+      };
+
+      // Rewire HTTP Request → Set
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'HTTP Request',
+        to: 'Set'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSlackConn, addSetNode, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      const webhookConnections = result.workflow!.connections['Webhook']['main'][0];
+
+      // HTTP Request should be removed
+      expect(webhookConnections.some((c: any) => c.node === 'HTTP Request')).toBe(false);
+
+      // Set should be added
+      expect(webhookConnections.some((c: any) => c.node === 'Set')).toBe(true);
+
+      // Slack should still be there (parallel connection preserved)
+      expect(webhookConnections.some((c: any) => c.node === 'Slack')).toBe(true);
+    });
+
+    it('should reject rewireConnection when source node not found', async () => {
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'NonExistent',
+        from: 'HTTP Request',
+        to: 'Slack'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('Source node not found');
+      expect(result.errors![0].message).toContain('NonExistent');
+      expect(result.errors![0].message).toContain('Available nodes');
+    });
+
+    it('should reject rewireConnection when "from" node not found', async () => {
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'NonExistent',
+        to: 'Slack'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('"From" node not found');
+      expect(result.errors![0].message).toContain('NonExistent');
+    });
+
+    it('should reject rewireConnection when "to" node not found', async () => {
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'HTTP Request',
+        to: 'NonExistent'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('"To" node not found');
+      expect(result.errors![0].message).toContain('NonExistent');
+    });
+
+    it('should reject rewireConnection when connection does not exist', async () => {
+      // Slack node exists but doesn't have any outgoing connections
+      // So this should fail with "No connections found" error
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Slack',  // Slack has no outgoing connections in baseWorkflow
+        from: 'HTTP Request',
+        to: 'Webhook'  // Use existing node
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('No connections found from');
+      expect(result.errors![0].message).toContain('Slack');
+    });
+
+    it('should handle rewiring IF node branches correctly', async () => {
+      // Add IF node with true/false branches
+      const addIF: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [600, 300]
+        }
+      };
+
+      const addSuccess: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'SuccessHandler',
+          type: 'n8n-nodes-base.set',
+          position: [800, 200]
+        }
+      };
+
+      const addError: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'ErrorHandler',
+          type: 'n8n-nodes-base.set',
+          position: [800, 400]
+        }
+      };
+
+      const connectTrue: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'SuccessHandler',
+        sourceOutput: 'true'
+      };
+
+      const connectFalse: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'ErrorHandler',
+        sourceOutput: 'false'
+      };
+
+      // Rewire the false branch to go to SuccessHandler instead
+      const rewireFalse: any = {
+        type: 'rewireConnection',
+        source: 'IF',
+        from: 'ErrorHandler',
+        to: 'Slack',
+        sourceOutput: 'false'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addSuccess, addError, connectTrue, connectFalse, rewireFalse]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // True branch should still point to SuccessHandler
+      expect(result.workflow!.connections['IF']['true'][0][0].node).toBe('SuccessHandler');
+
+      // False branch should now point to Slack
+      expect(result.workflow!.connections['IF']['false'][0][0].node).toBe('Slack');
+    });
+  });
+
   describe('AddConnection with sourceIndex (Phase 0 Fix)', () => {
     it('should add connection to correct sourceIndex', async () => {
       // Add IF node

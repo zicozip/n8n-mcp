@@ -87,6 +87,16 @@ export interface UpdateConnectionOperation extends DiffOperation {
   };
 }
 
+export interface RewireConnectionOperation extends DiffOperation {
+  type: 'rewireConnection';
+  source: string;      // Source node name or ID
+  from: string;        // Current target to rewire FROM
+  to: string;          // New target to rewire TO
+  sourceOutput?: string;  // Optional: which output to rewire (default: 'main')
+  targetInput?: string;   // Optional: which input type (default: 'main')
+  sourceIndex?: number;   // Optional: which source index (default: 0)
+}
+
 // Workflow Metadata Operations
 export interface UpdateSettingsOperation extends DiffOperation {
   type: 'updateSettings';
@@ -140,6 +150,7 @@ export type WorkflowDiffOperation =
   | AddConnectionOperation
   | RemoveConnectionOperation
   | UpdateConnectionOperation
+  | RewireConnectionOperation
   | UpdateSettingsOperation
   | UpdateNameOperation
   | AddTagOperation
@@ -187,8 +198,8 @@ export function isNodeOperation(op: WorkflowDiffOperation): op is
 }
 
 export function isConnectionOperation(op: WorkflowDiffOperation): op is
-  AddConnectionOperation | RemoveConnectionOperation | UpdateConnectionOperation | CleanStaleConnectionsOperation | ReplaceConnectionsOperation {
-  return ['addConnection', 'removeConnection', 'updateConnection', 'cleanStaleConnections', 'replaceConnections'].includes(op.type);
+  AddConnectionOperation | RemoveConnectionOperation | UpdateConnectionOperation | RewireConnectionOperation | CleanStaleConnectionsOperation | ReplaceConnectionsOperation {
+  return ['addConnection', 'removeConnection', 'updateConnection', 'rewireConnection', 'cleanStaleConnections', 'replaceConnections'].includes(op.type);
 }
 
 export function isMetadataOperation(op: WorkflowDiffOperation): op is 
