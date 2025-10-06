@@ -4,7 +4,7 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
   name: 'n8n_update_partial_workflow',
   category: 'workflow_management',
   essentials: {
-    description: 'Update workflow incrementally with diff operations. Types: addNode, removeNode, updateNode, moveNode, enable/disableNode, addConnection, removeConnection, rewireConnection, cleanStaleConnections, replaceConnections, updateSettings, updateName, add/removeTag. Supports smart parameters (branch, case) for multi-output nodes.',
+    description: 'Update workflow incrementally with diff operations. Types: addNode, removeNode, updateNode, moveNode, enable/disableNode, addConnection, removeConnection, rewireConnection, cleanStaleConnections, replaceConnections, updateSettings, updateName, add/removeTag. Supports smart parameters (branch, case) for multi-output nodes. Full support for AI connections (ai_languageModel, ai_tool, ai_memory, ai_embedding, ai_vectorStore, ai_document, ai_textSplitter, ai_outputParser).',
     keyParameters: ['id', 'operations', 'continueOnError'],
     example: 'n8n_update_partial_workflow({id: "wf_123", operations: [{type: "rewireConnection", source: "IF", from: "Old", to: "New", branch: "true"}]})',
     performance: 'Fast (50-200ms)',
@@ -15,7 +15,9 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
       'Use cleanStaleConnections to auto-remove broken connections',
       'Set ignoreErrors:true on removeConnection for cleanup',
       'Use continueOnError mode for best-effort bulk operations',
-      'Validate with validateOnly first'
+      'Validate with validateOnly first',
+      'For AI connections, specify sourceOutput type (ai_languageModel, ai_tool, etc.)',
+      'Batch AI component connections for atomic updates'
     ]
   },
   full: {
@@ -57,6 +59,32 @@ For **Switch nodes**, use semantic 'case' parameter:
 
 Works with addConnection and rewireConnection operations. Explicit sourceIndex overrides smart parameters.
 
+## AI Connection Support
+
+Full support for all 8 AI connection types used in n8n AI workflows:
+
+**Connection Types**:
+- **ai_languageModel**: Connect language models (OpenAI, Anthropic, Google Gemini) to AI Agents
+- **ai_tool**: Connect tools (HTTP Request Tool, Code Tool, etc.) to AI Agents
+- **ai_memory**: Connect memory systems (Window Buffer, Conversation Summary) to AI Agents
+- **ai_outputParser**: Connect output parsers (Structured, JSON) to AI Agents
+- **ai_embedding**: Connect embedding models to Vector Stores
+- **ai_vectorStore**: Connect vector stores to Vector Store Tools
+- **ai_document**: Connect document loaders to Vector Stores
+- **ai_textSplitter**: Connect text splitters to document processing chains
+
+**AI Connection Examples**:
+- Single connection: \`{type: "addConnection", source: "OpenAI", target: "AI Agent", sourceOutput: "ai_languageModel"}\`
+- Fallback model: Use targetIndex (0=primary, 1=fallback) for dual language model setup
+- Multiple tools: Batch multiple \`sourceOutput: "ai_tool"\` connections to one AI Agent
+- Vector retrieval: Chain ai_embedding → ai_vectorStore → ai_tool → AI Agent
+
+**Best Practices**:
+- Always specify \`sourceOutput\` for AI connections (defaults to "main" if omitted)
+- Connect language model BEFORE creating/enabling AI Agent (validation requirement)
+- Use atomic mode (default) when setting up AI workflows to ensure complete configuration
+- Validate AI workflows after changes with \`n8n_validate_workflow\` tool
+
 ## Cleanup & Recovery Features
 
 ### Automatic Cleanup
@@ -92,7 +120,18 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
       '// Remove connection gracefully (no error if it doesn\'t exist)\nn8n_update_partial_workflow({id: "stu", operations: [{type: "removeConnection", source: "Old Node", target: "Target", ignoreErrors: true}]})',
       '// Best-effort mode: apply what works, report what fails\nn8n_update_partial_workflow({id: "vwx", operations: [\n  {type: "updateName", name: "Fixed Workflow"},\n  {type: "removeConnection", source: "Broken", target: "Node"},\n  {type: "cleanStaleConnections"}\n], continueOnError: true})',
       '// Update node parameter\nn8n_update_partial_workflow({id: "yza", operations: [{type: "updateNode", nodeName: "HTTP Request", updates: {"parameters.url": "https://api.example.com"}}]})',
-      '// Validate before applying\nn8n_update_partial_workflow({id: "bcd", operations: [{type: "removeNode", nodeName: "Old Process"}], validateOnly: true})'
+      '// Validate before applying\nn8n_update_partial_workflow({id: "bcd", operations: [{type: "removeNode", nodeName: "Old Process"}], validateOnly: true})',
+      '\n// ============ AI CONNECTION EXAMPLES ============',
+      '// Connect language model to AI Agent\nn8n_update_partial_workflow({id: "ai1", operations: [{type: "addConnection", source: "OpenAI Chat Model", target: "AI Agent", sourceOutput: "ai_languageModel"}]})',
+      '// Connect tool to AI Agent\nn8n_update_partial_workflow({id: "ai2", operations: [{type: "addConnection", source: "HTTP Request Tool", target: "AI Agent", sourceOutput: "ai_tool"}]})',
+      '// Connect memory to AI Agent\nn8n_update_partial_workflow({id: "ai3", operations: [{type: "addConnection", source: "Window Buffer Memory", target: "AI Agent", sourceOutput: "ai_memory"}]})',
+      '// Connect output parser to AI Agent\nn8n_update_partial_workflow({id: "ai4", operations: [{type: "addConnection", source: "Structured Output Parser", target: "AI Agent", sourceOutput: "ai_outputParser"}]})',
+      '// Complete AI Agent setup: Add language model, tools, and memory\nn8n_update_partial_workflow({id: "ai5", operations: [\n  {type: "addConnection", source: "OpenAI Chat Model", target: "AI Agent", sourceOutput: "ai_languageModel"},\n  {type: "addConnection", source: "HTTP Request Tool", target: "AI Agent", sourceOutput: "ai_tool"},\n  {type: "addConnection", source: "Code Tool", target: "AI Agent", sourceOutput: "ai_tool"},\n  {type: "addConnection", source: "Window Buffer Memory", target: "AI Agent", sourceOutput: "ai_memory"}\n]})',
+      '// Add fallback model to AI Agent (requires v2.1+)\nn8n_update_partial_workflow({id: "ai6", operations: [\n  {type: "addConnection", source: "OpenAI Chat Model", target: "AI Agent", sourceOutput: "ai_languageModel", targetIndex: 0},\n  {type: "addConnection", source: "Anthropic Chat Model", target: "AI Agent", sourceOutput: "ai_languageModel", targetIndex: 1}\n]})',
+      '// Vector Store setup: Connect embeddings and documents\nn8n_update_partial_workflow({id: "ai7", operations: [\n  {type: "addConnection", source: "Embeddings OpenAI", target: "Pinecone Vector Store", sourceOutput: "ai_embedding"},\n  {type: "addConnection", source: "Default Data Loader", target: "Pinecone Vector Store", sourceOutput: "ai_document"}\n]})',
+      '// Connect Vector Store Tool to AI Agent (retrieval setup)\nn8n_update_partial_workflow({id: "ai8", operations: [\n  {type: "addConnection", source: "Pinecone Vector Store", target: "Vector Store Tool", sourceOutput: "ai_vectorStore"},\n  {type: "addConnection", source: "Vector Store Tool", target: "AI Agent", sourceOutput: "ai_tool"}\n]})',
+      '// Rewire AI Agent to use different language model\nn8n_update_partial_workflow({id: "ai9", operations: [{type: "rewireConnection", source: "AI Agent", from: "OpenAI Chat Model", to: "Anthropic Chat Model", sourceOutput: "ai_languageModel"}]})',
+      '// Replace all AI tools for an agent\nn8n_update_partial_workflow({id: "ai10", operations: [\n  {type: "removeConnection", source: "Old Tool 1", target: "AI Agent", sourceOutput: "ai_tool"},\n  {type: "removeConnection", source: "Old Tool 2", target: "AI Agent", sourceOutput: "ai_tool"},\n  {type: "addConnection", source: "New HTTP Tool", target: "AI Agent", sourceOutput: "ai_tool"},\n  {type: "addConnection", source: "New Code Tool", target: "AI Agent", sourceOutput: "ai_tool"}\n]})'
     ],
     useCases: [
       'Rewire connections when replacing nodes',
@@ -104,7 +143,13 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
       'Graceful cleanup operations that don\'t fail',
       'Enable/disable nodes',
       'Rename workflows or nodes',
-      'Manage tags efficiently'
+      'Manage tags efficiently',
+      'Connect AI components (language models, tools, memory, parsers)',
+      'Set up AI Agent workflows with multiple tools',
+      'Add fallback language models to AI Agents',
+      'Configure Vector Store retrieval systems',
+      'Swap language models in existing AI workflows',
+      'Batch-update AI tool connections'
     ],
     performance: 'Very fast - typically 50-200ms. Much faster than full updates as only changes are processed.',
     bestPractices: [
@@ -117,7 +162,12 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
       'Use validateOnly to test operations before applying',
       'Group related changes in one call',
       'Check operation order for dependencies',
-      'Use atomic mode (default) for critical updates'
+      'Use atomic mode (default) for critical updates',
+      'For AI connections, always specify sourceOutput (ai_languageModel, ai_tool, ai_memory, etc.)',
+      'Connect language model BEFORE adding AI Agent to ensure validation passes',
+      'Use targetIndex for fallback models (primary=0, fallback=1)',
+      'Batch AI component connections in a single operation for atomicity',
+      'Validate AI workflows after connection changes to catch configuration errors'
     ],
     pitfalls: [
       '**REQUIRES N8N_API_URL and N8N_API_KEY environment variables** - will not work without n8n API access',
