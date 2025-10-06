@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.17.0] - 2025-10-06
+## [2.16.2] - 2025-10-06
 
 ### 🔒 Security
 
@@ -119,7 +119,7 @@ const match = files.find(f => f.endsWith(`${safeName}.md`) && !f.includes('crede
 **No action required** - This is a drop-in security fix. Simply upgrade:
 
 ```bash
-npm install n8n-mcp@2.17.0
+npm install n8n-mcp@2.16.2
 # or
 npm update n8n-mcp
 ```
@@ -152,8 +152,6 @@ npm update n8n-mcp
 **Security Audit:** Issue #265 - Third-party security audit identified 25 issues
 **This Release:** Fixes 2 CRITICAL issues (CRITICAL-01, CRITICAL-02)
 **Remaining Work:** 20 issues to be addressed in subsequent releases (HIGH, MEDIUM, LOW priority)
-
-**Next Release:** v2.18.0 will address HIGH-02 (Rate Limiting) and HIGH-03 (SSRF Protection)
 
 ### References
 
