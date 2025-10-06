@@ -65,6 +65,9 @@ docker run -d \
 | `NODE_ENV` | Environment: `development` or `production` | `production` | No |
 | `LOG_LEVEL` | Logging level: `debug`, `info`, `warn`, `error` | `info` | No |
 | `NODE_DB_PATH` | Custom database path (v2.7.16+) | `/app/data/nodes.db` | No |
+| `AUTH_RATE_LIMIT_WINDOW` | Rate limit window in ms (v2.16.3+) | `900000` (15 min) | No |
+| `AUTH_RATE_LIMIT_MAX` | Max auth attempts per window (v2.16.3+) | `20` | No |
+| `WEBHOOK_SECURITY_MODE` | SSRF protection: `strict`/`moderate`/`permissive` (v2.16.3+) | `strict` | No |
 
 *Either `AUTH_TOKEN` or `AUTH_TOKEN_FILE` must be set for HTTP mode. If both are set, `AUTH_TOKEN` takes precedence.
 
@@ -283,7 +286,36 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 docker inspect n8n-mcp | jq '.[0].State.Health'
 ```
 
-## 🔒 Security Considerations
+## 🔒 Security Features (v2.16.3+)
+
+### Rate Limiting
+
+Protects against brute force authentication attacks:
+
+```bash
+# Configure in .env or docker-compose.yml
+AUTH_RATE_LIMIT_WINDOW=900000  # 15 minutes in milliseconds
+AUTH_RATE_LIMIT_MAX=20         # 20 attempts per IP per window
+```
+
+### SSRF Protection
+
+Prevents Server-Side Request Forgery when using webhook triggers:
+
+```bash
+# For production (blocks localhost + private IPs + cloud metadata)
+WEBHOOK_SECURITY_MODE=strict
+
+# For local development with local n8n instance
+WEBHOOK_SECURITY_MODE=moderate
+
+# For internal testing only (allows private IPs)
+WEBHOOK_SECURITY_MODE=permissive
+```
+
+**Note:** Cloud metadata endpoints (169.254.169.254, metadata.google.internal, etc.) are ALWAYS blocked in all modes.
+
+## 🔒 Authentication
 
 ### Authentication
 

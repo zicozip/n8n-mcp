@@ -196,6 +196,41 @@ docker ps -a | grep n8n-mcp | grep Exited | awk '{print $1}' | xargs -r docker r
 - Manually clean up containers periodically
 - Consider using HTTP mode instead
 
+### Webhooks to Local n8n Fail (v2.16.3+)
+
+**Symptoms:**
+- `n8n_trigger_webhook_workflow` fails with "SSRF protection" error
+- Error message: "SSRF protection: Localhost access is blocked"
+- Webhooks work from n8n UI but not from n8n-MCP
+
+**Root Cause:** Default strict SSRF protection blocks localhost access to prevent attacks.
+
+**Solution:** Use moderate security mode for local development
+
+```bash
+# For Docker run
+docker run -d \
+  --name n8n-mcp \
+  -e MCP_MODE=http \
+  -e AUTH_TOKEN=your-token \
+  -e WEBHOOK_SECURITY_MODE=moderate \
+  -p 3000:3000 \
+  ghcr.io/czlonkowski/n8n-mcp:latest
+
+# For Docker Compose - add to environment:
+services:
+  n8n-mcp:
+    environment:
+      WEBHOOK_SECURITY_MODE: moderate
+```
+
+**Security Modes Explained:**
+- `strict` (default): Blocks localhost + private IPs + cloud metadata (production)
+- `moderate`: Allows localhost, blocks private IPs + cloud metadata (local development)
+- `permissive`: Allows localhost + private IPs, blocks cloud metadata (testing only)
+
+**Important:** Always use `strict` mode in production. Cloud metadata is blocked in all modes.
+
 ### n8n API Connection Issues
 
 **Symptoms:**
