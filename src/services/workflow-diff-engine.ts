@@ -484,20 +484,22 @@ export class WorkflowDiffEngine {
     }
 
     // Resolve smart parameters (branch, case) before validating connections
-    const { sourceOutput } = this.resolveSmartParameters(workflow, operation);
+    const { sourceOutput, sourceIndex } = this.resolveSmartParameters(workflow, operation);
 
-    // Validate that connection from source to "from" exists
+    // Validate that connection from source to "from" exists at the specific index
     const connections = workflow.connections[sourceNode.name]?.[sourceOutput];
     if (!connections) {
       return `No connections found from "${sourceNode.name}" on output "${sourceOutput}"`;
     }
 
-    const hasConnection = connections.some(conns =>
-      conns.some(c => c.node === fromNode.name)
-    );
+    if (!connections[sourceIndex]) {
+      return `No connections found from "${sourceNode.name}" on output "${sourceOutput}" at index ${sourceIndex}`;
+    }
+
+    const hasConnection = connections[sourceIndex].some(c => c.node === fromNode.name);
 
     if (!hasConnection) {
-      return `No connection exists from "${sourceNode.name}" to "${fromNode.name}" on output "${sourceOutput}"`;
+      return `No connection exists from "${sourceNode.name}" to "${fromNode.name}" on output "${sourceOutput}" at index ${sourceIndex}"`;
     }
 
     return null;
