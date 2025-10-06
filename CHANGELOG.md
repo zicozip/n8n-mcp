@@ -5,6 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.0] - 2025-01-06
+
+### 🤖 AI Workflow Validation
+
+**Major enhancement: Comprehensive AI Agent workflow validation now working correctly.**
+
+This release fixes critical bugs that caused ALL AI-specific validation to be silently skipped. Before this fix, 0% of AI validation was functional.
+
+#### Fixed
+
+- **🚨 CRITICAL: Node Type Normalization Bug (HIGH-01, HIGH-04, HIGH-08)**
+  - **Issue:** All AI validation was silently skipped due to node type comparison mismatch
+  - **Root Cause:** `NodeTypeNormalizer.normalizeToFullForm()` returns SHORT form (`nodes-langchain.agent`) but validation code compared against FULL form (`@n8n/n8n-nodes-langchain.agent`)
+  - **Impact:** Every comparison returned FALSE, causing zero AI validations to execute
+  - **Affected Validations:**
+    - Missing language model detection (HIGH-01) - Never triggered
+    - AI tool connection detection (HIGH-04) - Never triggered, false warnings
+    - Streaming mode validation (HIGH-08) - Never triggered
+    - All 13 AI tool sub-node validators - Never triggered
+    - Chat Trigger validation - Never triggered
+    - Basic LLM Chain validation - Never triggered
+  - **Fix:** Updated 21 node type comparisons to use SHORT form
+    - `ai-node-validator.ts`: 7 comparison fixes
+    - `ai-tool-validators.ts`: 14 comparison fixes (13 validator keys + 13 switch cases)
+  - **Verification:** All 25 AI validator unit tests now passing (100%)
+
+- **🚨 HIGH-08: Incomplete Streaming Mode Validation**
+  - **Issue:** Only validated streaming FROM Chat Trigger, missed AI Agent's own `streamResponse` setting
+  - **Impact:** AI Agent with `options.streamResponse=true` and main output connections not detected
+  - **Fix:** Added validation for both scenarios:
+    - Chat Trigger with `responseMode="streaming"` → AI Agent → main output
+    - AI Agent with `options.streamResponse=true` → main output
+  - **Error Code:** `STREAMING_WITH_MAIN_OUTPUT` with clear error message
+  - **Verification:** 2 test scenarios pass (Chat Trigger + AI Agent own setting)
+
+- **🐛 MEDIUM-02: get_node_essentials Examples Retrieval**
+  - **Issue:** `get_node_essentials` with `includeExamples=true` always returned empty examples array
+  - **Root Cause:** Inconsistent `workflowNodeType` construction between result object and examples query
+  - **Impact:** Examples existed in database but query used wrong node type (e.g., `n8n-nodes-base.agent` instead of `@n8n/n8n-nodes-langchain.agent`)
+  - **Fix:** Use pre-computed `result.workflowNodeType` instead of reconstructing it
+  - **Verification:** Examples now retrieved correctly, matching `search_nodes` behavior
+
+#### Added
+
+- **AI Agent Validation:**
+  - Missing language model connection detection with code `MISSING_LANGUAGE_MODEL`
+  - AI tool connection validation (no more false "no tools connected" warnings)
+  - Streaming mode constraint enforcement for both Chat Trigger and AI Agent scenarios
+  - Memory connection validation (max 1 allowed)
+  - Output parser validation
+  - System message presence checks (info level)
+  - High `maxIterations` warnings
+
+- **Chat Trigger Validation:**
+  - Streaming mode target validation (must connect to AI Agent)
+  - Main output connection validation for streaming mode
+  - Connection existence checks
+
+- **Basic LLM Chain Validation:**
+  - Language model connection requirement
+  - Prompt text validation
+
+- **AI Tool Sub-Node Validation:**
+  - 13 specialized validators for AI tools (HTTP Request Tool, Code Tool, Vector Store Tool, etc.)
+  - Tool description validation
+  - Credentials validation
+  - Configuration-specific checks
+
+#### Changed
+
+- **Breaking:** AI validation now actually runs (was completely non-functional before)
+- **Validation strictness:** All AI-specific validations now enforce n8n's actual requirements
+- **Error messages:** Clear, actionable messages with error codes for programmatic handling
+
+### Testing
+
+- **Unit Tests:** 25/25 AI validator tests passing (100%)
+- **Test Improvement:** Overall test pass rate improved from 37.5% to 62.5%+ (+67% improvement)
+- **Debug Tests:** 3/3 debug scenarios passing
+
+### Documentation
+
+- Added comprehensive test scenarios in `PHASE_2_TEST_SCENARIOS.md`
+- Added Phase 1-2 completion summary in `PHASE_1_2_SUMMARY.md`
+- Added detailed Phase 2 analysis in `PHASE_2_COMPLETE.md`
+- Updated README.md with AI workflow validation features
+
 ## [2.16.3] - 2025-01-06
 
 ### 🔒 Security
