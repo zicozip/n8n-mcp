@@ -1914,7 +1914,8 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
     // Add examples from templates if requested
     if (includeExamples) {
       try {
-        const fullNodeType = getWorkflowNodeType(node.package ?? 'n8n-nodes-base', node.nodeType);
+        // Use the already-computed workflowNodeType from result (line 1888)
+        // This ensures consistency with search_nodes behavior (line 1203)
         const examples = this.db!.prepare(`
           SELECT
             parameters_json,
@@ -1928,7 +1929,7 @@ Full documentation is being prepared. For now, use get_node_essentials for confi
           WHERE node_type = ?
           ORDER BY rank
           LIMIT 3
-        `).all(fullNodeType) as any[];
+        `).all(result.workflowNodeType) as any[];
 
         if (examples.length > 0) {
           (result as any).examples = examples.map((ex: any) => ({
