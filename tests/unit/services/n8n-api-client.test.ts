@@ -12,6 +12,12 @@ import {
 } from '../../../src/utils/n8n-errors';
 import * as n8nValidation from '../../../src/services/n8n-validation';
 import { logger } from '../../../src/utils/logger';
+import * as dns from 'dns/promises';
+
+// Mock DNS module for SSRF protection
+vi.mock('dns/promises', () => ({
+  lookup: vi.fn(),
+}));
 
 // Mock dependencies
 vi.mock('axios');
@@ -52,7 +58,22 @@ describe('N8nApiClient', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
+    // Mock DNS lookup for SSRF protection
+    vi.mocked(dns.lookup).mockImplementation(async (hostname: any) => {
+      // Simulate real DNS behavior for test URLs
+      if (hostname === 'localhost') {
+        return { address: '127.0.0.1', family: 4 } as any;
+      }
+      // For hostnames that look like IPs, return as-is
+      const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+      if (ipv4Regex.test(hostname)) {
+        return { address: hostname, family: 4 } as any;
+      }
+      // For real hostnames (like n8n.example.com), return a public IP
+      return { address: '8.8.8.8', family: 4 } as any;
+    });
+
     // Create mock axios instance
     mockAxiosInstance = {
       defaults: { baseURL: 'https://n8n.example.com/api/v1' },

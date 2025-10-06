@@ -73,6 +73,13 @@ PORT=3000
 # Optional: Enable n8n management tools
 # N8N_API_URL=https://your-n8n-instance.com
 # N8N_API_KEY=your-api-key-here
+# Security Configuration (v2.16.3+)
+# Rate limiting (default: 20 attempts per 15 minutes)
+AUTH_RATE_LIMIT_WINDOW=900000
+AUTH_RATE_LIMIT_MAX=20
+# SSRF protection mode (default: strict)
+# Use 'moderate' for local n8n, 'strict' for production
+WEBHOOK_SECURITY_MODE=strict
 EOF
 
 # 2. Deploy with Docker
@@ -591,6 +598,67 @@ curl -H "Authorization: Bearer $AUTH_TOKEN" \
   }
 }
 ```
+
+## 🔒 Security Features (v2.16.3+)
+
+### Rate Limiting
+
+Built-in rate limiting protects authentication endpoints from brute force attacks:
+
+**Configuration:**
+```bash
+# Defaults (15 minutes window, 20 attempts per IP)
+AUTH_RATE_LIMIT_WINDOW=900000  # milliseconds
+AUTH_RATE_LIMIT_MAX=20
+```
+
+**Features:**
+- Per-IP rate limiting with configurable window and max attempts
+- Standard rate limit headers (RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset)
+- JSON-RPC formatted error responses
+- Automatic IP tracking behind reverse proxies (requires TRUST_PROXY=1)
+
+**Behavior:**
+- First 20 attempts: Return 401 Unauthorized for invalid credentials
+- Attempts 21+: Return 429 Too Many Requests with Retry-After header
+- Counter resets after 15 minutes (configurable)
+
+### SSRF Protection
+
+Prevents Server-Side Request Forgery attacks when using webhook triggers:
+
+**Three Security Modes:**
+
+1. **Strict Mode (default)** - Production deployments
+   ```bash
+   WEBHOOK_SECURITY_MODE=strict
+   ```
+   - ✅ Block localhost (127.0.0.1, ::1)
+   - ✅ Block private IPs (10.x, 192.168.x, 172.16-31.x)
+   - ✅ Block cloud metadata (169.254.169.254, metadata.google.internal)
+   - ✅ DNS rebinding prevention
+   - 🎯 **Use for**: Cloud deployments, production environments
+
+2. **Moderate Mode** - Local development with local n8n
+   ```bash
+   WEBHOOK_SECURITY_MODE=moderate
+   ```
+   - ✅ Allow localhost (for local n8n instances)
+   - ✅ Block private IPs
+   - ✅ Block cloud metadata
+   - ✅ DNS rebinding prevention
+   - 🎯 **Use for**: Development with n8n on localhost:5678
+
+3. **Permissive Mode** - Internal networks only
+   ```bash
+   WEBHOOK_SECURITY_MODE=permissive
+   ```
+   - ✅ Allow localhost and private IPs
+   - ✅ Block cloud metadata (always blocked)
+   - ✅ DNS rebinding prevention
+   - 🎯 **Use for**: Internal testing (NOT for production)
+
+**Important:** Cloud metadata endpoints are ALWAYS blocked in all modes for security.
 
 ## 🔒 Security Best Practices
 

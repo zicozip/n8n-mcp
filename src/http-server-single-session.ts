@@ -5,6 +5,7 @@
  * while maintaining simplicity for single-player use case
  */
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { N8NDocumentationMCPServer } from './mcp/server';
@@ -989,8 +990,41 @@ export class SingleSessionHTTPServer {
     });
 
 
-    // Main MCP endpoint with authentication
-    app.post('/mcp', jsonParser, async (req: express.Request, res: express.Response): Promise<void> => {
+    // SECURITY: Rate limiting for authentication endpoint
+    // Prevents brute force attacks and DoS
+    // See: https://github.com/czlonkowski/n8n-mcp/issues/265 (HIGH-02)
+    const authLimiter = rateLimit({
+      windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW || '900000'), // 15 minutes
+      max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20'), // 20 authentication attempts per IP
+      message: {
+        jsonrpc: '2.0',
+        error: {
+          code: -32000,
+          message: 'Too many authentication attempts. Please try again later.'
+        },
+        id: null
+      },
+      standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
+      legacyHeaders: false, // Disable `X-RateLimit-*` headers
+      handler: (req, res) => {
+        logger.warn('Rate limit exceeded', {
+          ip: req.ip,
+          userAgent: req.get('user-agent'),
+          event: 'rate_limit'
+        });
+        res.status(429).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Too many authentication attempts'
+          },
+          id: null
+        });
+      }
+    });
+
+    // Main MCP endpoint with authentication and rate limiting
+    app.post('/mcp', authLimiter, jsonParser, async (req: express.Request, res: express.Response): Promise<void> => {
       // Log comprehensive debug info about the request
       logger.info('POST /mcp request received - DETAILED DEBUG', {
         headers: req.headers,

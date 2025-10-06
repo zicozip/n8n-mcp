@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.3] - 2025-01-06
+
+### 🔒 Security
+
+**HIGH priority security enhancements. Recommended for all production deployments.**
+
+This release implements 2 high-priority security protections identified in the security audit (Issue #265 PR #2):
+
+- **🛡️ HIGH-02: Rate Limiting for Authentication**
+  - **Issue:** No rate limiting on authentication endpoints allowed brute force attacks
+  - **Impact:** Attackers could make unlimited authentication attempts
+  - **Fix:** Implemented express-rate-limit middleware for authentication endpoint
+    - Default: 20 attempts per 15 minutes per IP
+    - Configurable via `AUTH_RATE_LIMIT_WINDOW` and `AUTH_RATE_LIMIT_MAX`
+    - Per-IP tracking with standard rate limit headers (RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset)
+    - JSON-RPC formatted error responses (429 Too Many Requests)
+    - Automatic IP detection behind reverse proxies (requires TRUST_PROXY=1)
+  - **Verification:** 4 integration tests with sequential request patterns
+  - **See:** https://github.com/czlonkowski/n8n-mcp/issues/265 (HIGH-02)
+
+- **🛡️ HIGH-03: SSRF Protection for Webhooks**
+  - **Issue:** Webhook triggers vulnerable to Server-Side Request Forgery attacks
+  - **Impact:** Attackers could access internal networks, localhost services, and cloud metadata
+  - **Fix:** Implemented three-mode SSRF protection system with DNS rebinding prevention
+    - **Strict mode** (default): Block localhost + private IPs + cloud metadata (production)
+    - **Moderate mode**: Allow localhost, block private IPs + cloud metadata (local development)
+    - **Permissive mode**: Allow localhost + private IPs, block cloud metadata (internal testing)
+    - Cloud metadata endpoints **ALWAYS blocked** in all modes (169.254.169.254, metadata.google.internal, etc.)
+    - DNS rebinding prevention through hostname resolution before validation
+    - IPv6 support with link-local (fe80::/10) and unique local (fc00::/7) address blocking
+  - **Configuration:** Set via `WEBHOOK_SECURITY_MODE` environment variable
+  - **Locations Updated:**
+    - `src/utils/ssrf-protection.ts` - Core protection logic
+    - `src/services/n8n-api-client.ts:219` - Webhook trigger validation
+  - **Verification:** 25 unit tests covering all three modes, DNS rebinding, IPv6
+  - **See:** https://github.com/czlonkowski/n8n-mcp/issues/265 (HIGH-03)
+
+### Added
+- **Configuration:** `AUTH_RATE_LIMIT_WINDOW` - Rate limit window in milliseconds (default: 900000 = 15 minutes)
+- **Configuration:** `AUTH_RATE_LIMIT_MAX` - Max authentication attempts per window per IP (default: 20)
+- **Configuration:** `WEBHOOK_SECURITY_MODE` - SSRF protection mode (strict/moderate/permissive, default: strict)
+- **Documentation:** Comprehensive security features section in all deployment guides
+  - HTTP_DEPLOYMENT.md - Rate limiting and SSRF protection configuration
+  - DOCKER_README.md - Security features section with environment variables
+  - DOCKER_TROUBLESHOOTING.md - "Webhooks to Local n8n Fail" troubleshooting guide
+  - RAILWAY_DEPLOYMENT.md - Security configuration recommendations
+  - README.md - Local n8n configuration section for moderate mode
+
+### Changed
+- **Security:** All webhook triggers now validate URLs through SSRF protection before execution
+- **Security:** HTTP authentication endpoint now enforces rate limiting per IP address
+- **Dependencies:** Added `express-rate-limit@^7.1.5` for rate limiting functionality
+
+### Fixed
+- **Security:** IPv6 localhost URLs (`http://[::1]/webhook`) now correctly stripped of brackets before validation
+- **Security:** Localhost detection now properly handles all localhost variants (127.x.x.x, ::1, localhost, etc.)
+
 ## [2.16.2] - 2025-10-06
 
 ### 🔒 Security

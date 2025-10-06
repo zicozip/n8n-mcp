@@ -212,7 +212,16 @@ export class N8nApiClient {
   async triggerWebhook(request: WebhookRequest): Promise<any> {
     try {
       const { webhookUrl, httpMethod, data, headers, waitForResponse = true } = request;
-      
+
+      // SECURITY: Validate URL for SSRF protection (includes DNS resolution)
+      // See: https://github.com/czlonkowski/n8n-mcp/issues/265 (HIGH-03)
+      const { SSRFProtection } = await import('../utils/ssrf-protection');
+      const validation = await SSRFProtection.validateWebhookUrl(webhookUrl);
+
+      if (!validation.valid) {
+        throw new Error(`SSRF protection: ${validation.reason}`);
+      }
+
       // Extract path from webhook URL
       const url = new URL(webhookUrl);
       const webhookPath = url.pathname;
