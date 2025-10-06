@@ -116,17 +116,46 @@ The `n8n_update_partial_workflow` tool allows you to make targeted changes to wo
 }
 ```
 
-#### Update Connection (Change routing)
+#### Rewire Connection
 ```json
 {
-  "type": "updateConnection",
+  "type": "rewireConnection",
+  "source": "Webhook",
+  "from": "Old Handler",
+  "to": "New Handler",
+  "description": "Rewire connection to new handler"
+}
+```
+
+#### Smart Parameters for IF Nodes
+```json
+{
+  "type": "addConnection",
   "source": "IF",
-  "target": "Send Email",
-  "changes": {
-    "sourceOutput": "false",  // Change from 'true' to 'false' output
-    "targetInput": "main"
-  },
-  "description": "Route failed conditions to email"
+  "target": "Success Handler",
+  "branch": "true",  // Semantic parameter instead of sourceIndex
+  "description": "Route true branch to success handler"
+}
+```
+
+```json
+{
+  "type": "addConnection",
+  "source": "IF",
+  "target": "Error Handler",
+  "branch": "false",  // Routes to false branch (sourceIndex=1)
+  "description": "Route false branch to error handler"
+}
+```
+
+#### Smart Parameters for Switch Nodes
+```json
+{
+  "type": "addConnection",
+  "source": "Switch",
+  "target": "Handler A",
+  "case": 0,  // First output
+  "description": "Route case 0 to Handler A"
 }
 ```
 
@@ -577,13 +606,13 @@ The tool validates all operations before applying any changes. Common errors inc
 
 Always check the response for validation errors and adjust your operations accordingly.
 
-## Transactional Updates (v2.7.0+)
+## Transactional Updates
 
 The diff engine now supports transactional updates using a **two-pass processing** approach:
 
 ### How It Works
 
-1. **Operation Limit**: Maximum 5 operations per request to ensure reliability
+1. **No Operation Limit**: Process unlimited operations in a single request
 2. **Two-Pass Processing**:
    - **Pass 1**: All node operations (add, remove, update, move, enable, disable)
    - **Pass 2**: All other operations (connections, settings, metadata)
@@ -633,9 +662,9 @@ This allows you to add nodes and connect them in the same request:
 ### Benefits
 
 - **Order Independence**: You don't need to worry about operation order
-- **Atomic Updates**: All operations succeed or all fail
+- **Atomic Updates**: All operations succeed or all fail (unless continueOnError is enabled)
 - **Intuitive Usage**: Add complex workflow structures in one call
-- **Clear Limits**: 5 operations max keeps things simple and reliable
+- **No Hard Limits**: Process unlimited operations efficiently
 
 ### Example: Complete Workflow Addition
 
@@ -694,4 +723,4 @@ This allows you to add nodes and connect them in the same request:
 }
 ```
 
-All 5 operations will be processed correctly regardless of order!
+All operations will be processed correctly regardless of order!
