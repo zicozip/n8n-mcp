@@ -10,6 +10,7 @@ import { ExpressionFormatValidator } from './expression-format-validator';
 import { NodeSimilarityService, NodeSuggestion } from './node-similarity-service';
 import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 import { Logger } from '../utils/logger';
+import { validateAISpecificNodes, hasAINodes } from './ai-node-validator';
 const logger = new Logger({ prefix: '[WorkflowValidator]' });
 
 interface WorkflowNode {
@@ -174,9 +175,30 @@ export class WorkflowValidator {
           this.checkWorkflowPatterns(workflow, result, profile);
         }
 
+        // Validate AI-specific nodes (AI Agent, Chat Trigger, AI tools)
+        if (workflow.nodes.length > 0 && hasAINodes(workflow)) {
+          const aiIssues = validateAISpecificNodes(workflow);
+          // Convert AI validation issues to workflow validation format
+          for (const issue of aiIssues) {
+            const validationIssue: ValidationIssue = {
+              type: issue.severity === 'error' ? 'error' : 'warning',
+              nodeId: issue.nodeId,
+              nodeName: issue.nodeName,
+              message: issue.message,
+              details: issue.code ? { code: issue.code } : undefined
+            };
+
+            if (issue.severity === 'error') {
+              result.errors.push(validationIssue);
+            } else {
+              result.warnings.push(validationIssue);
+            }
+          }
+        }
+
         // Add suggestions based on findings
         this.generateSuggestions(workflow, result);
-        
+
         // Add AI-specific recovery suggestions if there are errors
         if (result.errors.length > 0) {
           this.addErrorRecoverySuggestions(result);
