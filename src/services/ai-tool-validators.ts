@@ -977,18 +977,18 @@ export function validateWolframAlphaTool(node: WorkflowNode): ValidationIssue[] 
  * Helper: Map node types to validator functions
  */
 export const AI_TOOL_VALIDATORS = {
-  '@n8n/n8n-nodes-langchain.toolHttpRequest': validateHTTPRequestTool,
-  '@n8n/n8n-nodes-langchain.toolCode': validateCodeTool,
-  '@n8n/n8n-nodes-langchain.toolVectorStore': validateVectorStoreTool,
-  '@n8n/n8n-nodes-langchain.toolWorkflow': validateWorkflowTool,
-  '@n8n/n8n-nodes-langchain.agentTool': validateAIAgentTool,
-  '@n8n/n8n-nodes-langchain.mcpClientTool': validateMCPClientTool,
-  '@n8n/n8n-nodes-langchain.toolCalculator': validateCalculatorTool,
-  '@n8n/n8n-nodes-langchain.toolThink': validateThinkTool,
-  '@n8n/n8n-nodes-langchain.toolSerpApi': validateSerpApiTool,
-  '@n8n/n8n-nodes-langchain.toolWikipedia': validateWikipediaTool,
-  '@n8n/n8n-nodes-langchain.toolSearXng': validateSearXngTool,
-  '@n8n/n8n-nodes-langchain.toolWolframAlpha': validateWolframAlphaTool,
+  'nodes-langchain.toolHttpRequest': validateHTTPRequestTool,
+  'nodes-langchain.toolCode': validateCodeTool,
+  'nodes-langchain.toolVectorStore': validateVectorStoreTool,
+  'nodes-langchain.toolWorkflow': validateWorkflowTool,
+  'nodes-langchain.agentTool': validateAIAgentTool,
+  'nodes-langchain.mcpClientTool': validateMCPClientTool,
+  'nodes-langchain.toolCalculator': validateCalculatorTool,
+  'nodes-langchain.toolThink': validateThinkTool,
+  'nodes-langchain.toolSerpApi': validateSerpApiTool,
+  'nodes-langchain.toolWikipedia': validateWikipediaTool,
+  'nodes-langchain.toolSearXng': validateSearXngTool,
+  'nodes-langchain.toolWolframAlpha': validateWolframAlphaTool,
 } as const;
 
 /**
@@ -1012,29 +1012,29 @@ export function validateAIToolSubNode(
 
   // Route to appropriate validator based on node type
   switch (normalized) {
-    case '@n8n/n8n-nodes-langchain.toolHttpRequest':
+    case 'nodes-langchain.toolHttpRequest':
       return validateHTTPRequestTool(node);
-    case '@n8n/n8n-nodes-langchain.toolCode':
+    case 'nodes-langchain.toolCode':
       return validateCodeTool(node);
-    case '@n8n/n8n-nodes-langchain.toolVectorStore':
+    case 'nodes-langchain.toolVectorStore':
       return validateVectorStoreTool(node, reverseConnections, workflow);
-    case '@n8n/n8n-nodes-langchain.toolWorkflow':
+    case 'nodes-langchain.toolWorkflow':
       return validateWorkflowTool(node);
-    case '@n8n/n8n-nodes-langchain.agentTool':
+    case 'nodes-langchain.agentTool':
       return validateAIAgentTool(node, reverseConnections);
-    case '@n8n/n8n-nodes-langchain.mcpClientTool':
+    case 'nodes-langchain.mcpClientTool':
       return validateMCPClientTool(node);
-    case '@n8n/n8n-nodes-langchain.toolCalculator':
+    case 'nodes-langchain.toolCalculator':
       return validateCalculatorTool(node);
-    case '@n8n/n8n-nodes-langchain.toolThink':
+    case 'nodes-langchain.toolThink':
       return validateThinkTool(node);
-    case '@n8n/n8n-nodes-langchain.toolSerpApi':
+    case 'nodes-langchain.toolSerpApi':
       return validateSerpApiTool(node);
-    case '@n8n/n8n-nodes-langchain.toolWikipedia':
+    case 'nodes-langchain.toolWikipedia':
       return validateWikipediaTool(node);
-    case '@n8n/n8n-nodes-langchain.toolSearXng':
+    case 'nodes-langchain.toolSearXng':
       return validateSearXngTool(node);
-    case '@n8n/n8n-nodes-langchain.toolWolframAlpha':
+    case 'nodes-langchain.toolWolframAlpha':
       return validateWolframAlphaTool(node);
     default:
       return [];
