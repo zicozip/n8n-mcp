@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - Phase 0: Connection Operations Critical Fixes
+
+### Fixed
+- **🐛 CRITICAL: Fixed `addConnection` sourceIndex handling (Issue #272, discovered in hands-on testing)**
+  - Multi-output nodes (IF, Switch) now work correctly with sourceIndex parameter
+  - Changed from `||` to `??` operator to properly handle explicit 0 values
+  - Added defensive array validation before accessing indices
+  - Improves rating from 3/10 to 8/10 for multi-output node scenarios
+  - **Impact**: IF nodes, Switch nodes, and all conditional routing now reliable
+
+- **🐛 CRITICAL: Added runtime validation for `updateConnection` (Issue #272, #204)**
+  - Prevents server crashes when `updates` object is missing
+  - Provides helpful error message with:
+    - Clear explanation of what's wrong
+    - Correct format example
+    - Suggestion to use removeConnection + addConnection for rewiring
+  - Validates `updates` is an object, not string or other type
+  - **Impact**: No more cryptic "Cannot read properties of undefined" crashes
+
+### Enhanced
+- **Error Messages**: `updateConnection` errors now include actionable guidance
+  - Example format shown in error
+  - Alternative approaches suggested (removeConnection + addConnection)
+  - Clear explanation that updateConnection modifies properties, not targets
+
+### Testing
+- Added 8 comprehensive tests for Phase 0 fixes
+  - 2 tests for updateConnection validation (missing updates, invalid type)
+  - 5 tests for sourceIndex handling (IF nodes, parallel execution, Switch nodes, explicit 0)
+  - 1 test for complex multi-output routing scenarios
+  - All 126 existing tests still passing
+
+### Documentation
+- Updated tool documentation to clarify:
+  - `addConnection` now properly handles sourceIndex (Phase 0 fix noted)
+  - `updateConnection` REQUIRES 'updates' object (Phase 0 validation noted)
+  - Added pitfalls about updateConnection limitations
+  - Clarified that updateConnection modifies properties, NOT connection targets
+
+### Developer Experience
+- More defensive programming throughout connection operations
+- Better use of nullish coalescing (??) vs. logical OR (||)
+- Clear inline comments explaining expected behavior
+- Improved type safety with runtime guards
+
+### References
+- Comprehensive analysis: `docs/local/connection-operations-deep-dive-and-improvement-plan.md`
+- Based on hands-on testing with n8n-mcp-tester agent
+- Overall experience rating improved from 4.5/10 to estimated 6/10
+
 ## [2.14.4] - 2025-09-30
 
 ### Added

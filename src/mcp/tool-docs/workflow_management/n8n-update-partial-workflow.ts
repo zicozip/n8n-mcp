@@ -4,11 +4,14 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
   name: 'n8n_update_partial_workflow',
   category: 'workflow_management',
   essentials: {
-    description: 'Update workflow incrementally with diff operations. Types: addNode, removeNode, updateNode, moveNode, enable/disableNode, addConnection, removeConnection, cleanStaleConnections, replaceConnections, updateSettings, updateName, add/removeTag.',
+    description: 'Update workflow incrementally with diff operations. Types: addNode, removeNode, updateNode, moveNode, enable/disableNode, addConnection, removeConnection, rewireConnection, cleanStaleConnections, replaceConnections, updateSettings, updateName, add/removeTag. Supports smart parameters (branch, case) for multi-output nodes.',
     keyParameters: ['id', 'operations', 'continueOnError'],
-    example: 'n8n_update_partial_workflow({id: "wf_123", operations: [{type: "cleanStaleConnections"}]})',
+    example: 'n8n_update_partial_workflow({id: "wf_123", operations: [{type: "rewireConnection", source: "IF", from: "Old", to: "New", branch: "true"}]})',
     performance: 'Fast (50-200ms)',
     tips: [
+      'Use rewireConnection to change connection targets',
+      'Use branch="true"/"false" for IF nodes',
+      'Use case=N for Switch nodes',
       'Use cleanStaleConnections to auto-remove broken connections',
       'Set ignoreErrors:true on removeConnection for cleanup',
       'Use continueOnError mode for best-effort bulk operations',
@@ -16,7 +19,7 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
     ]
   },
   full: {
-    description: `Updates workflows using surgical diff operations instead of full replacement. Supports 15 operation types for precise modifications. Operations are validated and applied atomically by default - all succeed or none are applied. v2.14.4 adds cleanup operations and best-effort mode for workflow recovery scenarios.
+    description: `Updates workflows using surgical diff operations instead of full replacement. Supports 15 operation types for precise modifications. Operations are validated and applied atomically by default - all succeed or none are applied.
 
 ## Available Operations:
 
@@ -29,11 +32,11 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
 - **disableNode**: Disable an active node
 
 ### Connection Operations (5 types):
-- **addConnection**: Connect nodes (source→target)
+- **addConnection**: Connect nodes (source→target). Supports smart parameters: branch="true"/"false" for IF nodes, case=N for Switch nodes.
 - **removeConnection**: Remove connection between nodes (supports ignoreErrors flag)
-- **updateConnection**: Modify connection properties
-- **cleanStaleConnections**: Auto-remove all connections referencing non-existent nodes (NEW in v2.14.4)
-- **replaceConnections**: Replace entire connections object (NEW in v2.14.4)
+- **rewireConnection**: Change connection target from one node to another. Supports smart parameters.
+- **cleanStaleConnections**: Auto-remove all connections referencing non-existent nodes
+- **replaceConnections**: Replace entire connections object
 
 ### Metadata Operations (4 types):
 - **updateSettings**: Modify workflow settings
@@ -41,7 +44,20 @@ export const n8nUpdatePartialWorkflowDoc: ToolDocumentation = {
 - **addTag**: Add a workflow tag
 - **removeTag**: Remove a workflow tag
 
-## New in v2.14.4: Cleanup & Recovery Features
+## Smart Parameters for Multi-Output Nodes
+
+For **IF nodes**, use semantic 'branch' parameter instead of technical sourceIndex:
+- **branch="true"**: Routes to true branch (sourceIndex=0)
+- **branch="false"**: Routes to false branch (sourceIndex=1)
+
+For **Switch nodes**, use semantic 'case' parameter:
+- **case=0**: First output
+- **case=1**: Second output
+- **case=N**: Nth output
+
+Works with addConnection and rewireConnection operations. Explicit sourceIndex overrides smart parameters.
+
+## Cleanup & Recovery Features
 
 ### Automatic Cleanup
 The **cleanStaleConnections** operation automatically removes broken connection references after node renames/deletions. Essential for workflow recovery.
@@ -66,15 +82,21 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
       '// Add a basic node (minimal configuration)\nn8n_update_partial_workflow({id: "abc", operations: [{type: "addNode", node: {name: "Process Data", type: "n8n-nodes-base.set", position: [400, 300], parameters: {}}}]})',
       '// Add node with full configuration\nn8n_update_partial_workflow({id: "def", operations: [{type: "addNode", node: {name: "Send Slack Alert", type: "n8n-nodes-base.slack", position: [600, 300], typeVersion: 2, parameters: {resource: "message", operation: "post", channel: "#alerts", text: "Success!"}}}]})',
       '// Add node AND connect it (common pattern)\nn8n_update_partial_workflow({id: "ghi", operations: [\n  {type: "addNode", node: {name: "HTTP Request", type: "n8n-nodes-base.httpRequest", position: [400, 300], parameters: {url: "https://api.example.com", method: "GET"}}},\n  {type: "addConnection", source: "Webhook", target: "HTTP Request"}\n]})',
-      '// Add multiple nodes in batch\nn8n_update_partial_workflow({id: "jkl", operations: [\n  {type: "addNode", node: {name: "Filter", type: "n8n-nodes-base.filter", position: [400, 300], parameters: {}}},\n  {type: "addNode", node: {name: "Transform", type: "n8n-nodes-base.set", position: [600, 300], parameters: {}}},\n  {type: "addConnection", source: "Filter", target: "Transform"}\n]})',
-      '// Clean up stale connections after node renames/deletions\nn8n_update_partial_workflow({id: "mno", operations: [{type: "cleanStaleConnections"}]})',
-      '// Remove connection gracefully (no error if it doesn\'t exist)\nn8n_update_partial_workflow({id: "pqr", operations: [{type: "removeConnection", source: "Old Node", target: "Target", ignoreErrors: true}]})',
-      '// Best-effort mode: apply what works, report what fails\nn8n_update_partial_workflow({id: "stu", operations: [\n  {type: "updateName", name: "Fixed Workflow"},\n  {type: "removeConnection", source: "Broken", target: "Node"},\n  {type: "cleanStaleConnections"}\n], continueOnError: true})',
-      '// Replace entire connections object\nn8n_update_partial_workflow({id: "vwx", operations: [{type: "replaceConnections", connections: {"Webhook": {"main": [[{node: "Slack", type: "main", index: 0}]]}}}]})',
-      '// Update node parameter (classic atomic mode)\nn8n_update_partial_workflow({id: "yza", operations: [{type: "updateNode", nodeName: "HTTP Request", updates: {"parameters.url": "https://api.example.com"}}]})',
+      '// Rewire connection from one target to another\nn8n_update_partial_workflow({id: "xyz", operations: [{type: "rewireConnection", source: "Webhook", from: "Old Handler", to: "New Handler"}]})',
+      '// Smart parameter: IF node true branch\nn8n_update_partial_workflow({id: "abc", operations: [{type: "addConnection", source: "IF", target: "Success Handler", branch: "true"}]})',
+      '// Smart parameter: IF node false branch\nn8n_update_partial_workflow({id: "def", operations: [{type: "addConnection", source: "IF", target: "Error Handler", branch: "false"}]})',
+      '// Smart parameter: Switch node case routing\nn8n_update_partial_workflow({id: "ghi", operations: [\n  {type: "addConnection", source: "Switch", target: "Handler A", case: 0},\n  {type: "addConnection", source: "Switch", target: "Handler B", case: 1},\n  {type: "addConnection", source: "Switch", target: "Handler C", case: 2}\n]})',
+      '// Rewire with smart parameter\nn8n_update_partial_workflow({id: "jkl", operations: [{type: "rewireConnection", source: "IF", from: "Old True Handler", to: "New True Handler", branch: "true"}]})',
+      '// Add multiple nodes in batch\nn8n_update_partial_workflow({id: "mno", operations: [\n  {type: "addNode", node: {name: "Filter", type: "n8n-nodes-base.filter", position: [400, 300], parameters: {}}},\n  {type: "addNode", node: {name: "Transform", type: "n8n-nodes-base.set", position: [600, 300], parameters: {}}},\n  {type: "addConnection", source: "Filter", target: "Transform"}\n]})',
+      '// Clean up stale connections after node renames/deletions\nn8n_update_partial_workflow({id: "pqr", operations: [{type: "cleanStaleConnections"}]})',
+      '// Remove connection gracefully (no error if it doesn\'t exist)\nn8n_update_partial_workflow({id: "stu", operations: [{type: "removeConnection", source: "Old Node", target: "Target", ignoreErrors: true}]})',
+      '// Best-effort mode: apply what works, report what fails\nn8n_update_partial_workflow({id: "vwx", operations: [\n  {type: "updateName", name: "Fixed Workflow"},\n  {type: "removeConnection", source: "Broken", target: "Node"},\n  {type: "cleanStaleConnections"}\n], continueOnError: true})',
+      '// Update node parameter\nn8n_update_partial_workflow({id: "yza", operations: [{type: "updateNode", nodeName: "HTTP Request", updates: {"parameters.url": "https://api.example.com"}}]})',
       '// Validate before applying\nn8n_update_partial_workflow({id: "bcd", operations: [{type: "removeNode", nodeName: "Old Process"}], validateOnly: true})'
     ],
     useCases: [
+      'Rewire connections when replacing nodes',
+      'Route IF/Switch node outputs with semantic parameters',
       'Clean up broken workflows after node renames/deletions',
       'Bulk connection cleanup with best-effort mode',
       'Update single node parameters',
@@ -86,6 +108,9 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
     ],
     performance: 'Very fast - typically 50-200ms. Much faster than full updates as only changes are processed.',
     bestPractices: [
+      'Use rewireConnection instead of remove+add for changing targets',
+      'Use branch="true"/"false" for IF nodes instead of sourceIndex',
+      'Use case=N for Switch nodes instead of sourceIndex',
       'Use cleanStaleConnections after renaming/removing nodes',
       'Use continueOnError for bulk cleanup operations',
       'Set ignoreErrors:true on removeConnection for graceful cleanup',
@@ -100,9 +125,11 @@ Add **ignoreErrors: true** to removeConnection operations to prevent failures wh
       'continueOnError breaks atomic guarantees - use with caution',
       'Order matters for dependent operations (e.g., must add node before connecting to it)',
       'Node references accept ID or name, but name must be unique',
-      'Node names with special characters (apostrophes, quotes) work correctly since v2.15.6 (Issue #270 fixed)',
+      'Node names with special characters (apostrophes, quotes) work correctly',
       'For best compatibility, prefer node IDs over names when dealing with special characters',
       'Use "updates" property for updateNode operations: {type: "updateNode", updates: {...}}',
+      'Smart parameters (branch, case) only work with IF and Switch nodes - ignored for other node types',
+      'Explicit sourceIndex overrides smart parameters (branch, case) if both provided',
       'cleanStaleConnections removes ALL broken connections - cannot be selective',
       'replaceConnections overwrites entire connections object - all previous connections lost'
     ],

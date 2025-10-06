@@ -74,12 +74,12 @@ describe('Parameter Validation', () => {
         }).toThrow('Missing required parameters for test_tool: nodeType');
       });
 
-      it('should pass when required parameter is empty string', () => {
+      it('should reject when required parameter is empty string (Issue #275 fix)', () => {
         const args = { query: '', limit: 10 };
-        
+
         expect(() => {
           server.testValidateToolParams('test_tool', args, ['query']);
-        }).not.toThrow();
+        }).toThrow('String parameters cannot be empty');
       });
 
       it('should pass when required parameter is zero', () => {

@@ -12,7 +12,6 @@ import {
   DisableNodeOperation,
   AddConnectionOperation,
   RemoveConnectionOperation,
-  UpdateConnectionOperation,
   UpdateSettingsOperation,
   UpdateNameOperation,
   AddTagOperation,
@@ -774,9 +773,656 @@ describe('WorkflowDiffEngine', () => {
     });
   });
 
-  describe('UpdateConnection Operation', () => {
-    it('should update connection properties', async () => {
-      // Add an IF node with multiple outputs
+
+  describe('RewireConnection Operation (Phase 1)', () => {
+    it('should rewire connection from one target to another', async () => {
+      // Setup: Create a connection Webhook → HTTP Request
+      // Then rewire it to Webhook → Slack instead
+      const rewireOp: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'HTTP Request',
+        to: 'Slack'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewireOp]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow).toBeDefined();
+
+      // Old connection should be removed
+      const webhookConnections = result.workflow!.connections['Webhook']['main'][0];
+      expect(webhookConnections.some((c: any) => c.node === 'HTTP Request')).toBe(false);
+
+      // New connection should exist
+      expect(webhookConnections.some((c: any) => c.node === 'Slack')).toBe(true);
+    });
+
+    it('should rewire connection with specified sourceOutput', async () => {
+      // Add IF node with connection on 'true' output
+      const addNode: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [600, 300]
+        }
+      };
+
+      const addConn: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'HTTP Request',
+        sourceOutput: 'true'
+      };
+
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'IF',
+        from: 'HTTP Request',
+        to: 'Slack',
+        sourceOutput: 'true'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addNode, addConn, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Verify rewiring on 'true' output
+      const trueConnections = result.workflow!.connections['IF']['true'][0];
+      expect(trueConnections.some((c: any) => c.node === 'HTTP Request')).toBe(false);
+      expect(trueConnections.some((c: any) => c.node === 'Slack')).toBe(true);
+    });
+
+    it('should preserve other parallel connections when rewiring', async () => {
+      // Setup: Webhook connects to both HTTP Request (in baseWorkflow) and Slack (added here)
+      // Add a Set node, then rewire HTTP Request → Set
+      // Slack connection should remain unchanged
+
+      // Add Slack connection in parallel
+      const addSlackConn: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Webhook',
+        target: 'Slack'
+      };
+
+      // Add Set node to rewire to
+      const addSetNode: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Set',
+          type: 'n8n-nodes-base.set',
+          position: [800, 300]
+        }
+      };
+
+      // Rewire HTTP Request → Set
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'HTTP Request',
+        to: 'Set'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSlackConn, addSetNode, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      const webhookConnections = result.workflow!.connections['Webhook']['main'][0];
+
+      // HTTP Request should be removed
+      expect(webhookConnections.some((c: any) => c.node === 'HTTP Request')).toBe(false);
+
+      // Set should be added
+      expect(webhookConnections.some((c: any) => c.node === 'Set')).toBe(true);
+
+      // Slack should still be there (parallel connection preserved)
+      expect(webhookConnections.some((c: any) => c.node === 'Slack')).toBe(true);
+    });
+
+    it('should reject rewireConnection when source node not found', async () => {
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'NonExistent',
+        from: 'HTTP Request',
+        to: 'Slack'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('Source node not found');
+      expect(result.errors![0].message).toContain('NonExistent');
+      expect(result.errors![0].message).toContain('Available nodes');
+    });
+
+    it('should reject rewireConnection when "from" node not found', async () => {
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'NonExistent',
+        to: 'Slack'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('"From" node not found');
+      expect(result.errors![0].message).toContain('NonExistent');
+    });
+
+    it('should reject rewireConnection when "to" node not found', async () => {
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Webhook',
+        from: 'HTTP Request',
+        to: 'NonExistent'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('"To" node not found');
+      expect(result.errors![0].message).toContain('NonExistent');
+    });
+
+    it('should reject rewireConnection when connection does not exist', async () => {
+      // Slack node exists but doesn't have any outgoing connections
+      // So this should fail with "No connections found" error
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Slack',  // Slack has no outgoing connections in baseWorkflow
+        from: 'HTTP Request',
+        to: 'Webhook'  // Use existing node
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors![0].message).toContain('No connections found from');
+      expect(result.errors![0].message).toContain('Slack');
+    });
+
+    it('should handle rewiring IF node branches correctly', async () => {
+      // Add IF node with true/false branches
+      const addIF: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [600, 300]
+        }
+      };
+
+      const addSuccess: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'SuccessHandler',
+          type: 'n8n-nodes-base.set',
+          position: [800, 200]
+        }
+      };
+
+      const addError: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'ErrorHandler',
+          type: 'n8n-nodes-base.set',
+          position: [800, 400]
+        }
+      };
+
+      const connectTrue: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'SuccessHandler',
+        sourceOutput: 'true'
+      };
+
+      const connectFalse: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'ErrorHandler',
+        sourceOutput: 'false'
+      };
+
+      // Rewire the false branch to go to SuccessHandler instead
+      const rewireFalse: any = {
+        type: 'rewireConnection',
+        source: 'IF',
+        from: 'ErrorHandler',
+        to: 'Slack',
+        sourceOutput: 'false'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addSuccess, addError, connectTrue, connectFalse, rewireFalse]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // True branch should still point to SuccessHandler
+      expect(result.workflow!.connections['IF']['true'][0][0].node).toBe('SuccessHandler');
+
+      // False branch should now point to Slack
+      expect(result.workflow!.connections['IF']['false'][0][0].node).toBe('Slack');
+    });
+  });
+
+  describe('Smart Parameters (Phase 1)', () => {
+    it('should use branch="true" for IF node connections', async () => {
+      // Add IF node
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      // Add TrueHandler node (use unique name)
+      const addTrueHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'TrueHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      // Connect IF to TrueHandler using smart branch parameter
+      const connectWithBranch: any = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'TrueHandler',
+        branch: 'true'  // Smart parameter instead of sourceOutput: 'true'
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addTrueHandler, connectWithBranch]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow).toBeDefined();
+
+      // Should create connection on 'main' output, index 0 (true branch)
+      expect(result.workflow!.connections['IF']['main']).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][0]).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][0][0].node).toBe('TrueHandler');
+    });
+
+    it('should use branch="false" for IF node connections', async () => {
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IF',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      const addFalseHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'FalseHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const connectWithBranch: any = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'FalseHandler',
+        branch: 'false'  // Smart parameter for false branch
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addFalseHandler, connectWithBranch]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should create connection on 'main' output, index 1 (false branch)
+      expect(result.workflow!.connections['IF']['main']).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][1]).toBeDefined();
+      expect(result.workflow!.connections['IF']['main'][1][0].node).toBe('FalseHandler');
+    });
+
+    it('should use case parameter for Switch node connections', async () => {
+      // Add Switch node
+      const addSwitch: any = {
+        type: 'addNode',
+        node: {
+          name: 'Switch',
+          type: 'n8n-nodes-base.switch',
+          position: [400, 300]
+        }
+      };
+
+      // Add handler nodes
+      const addCase0: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case0Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 200]
+        }
+      };
+
+      const addCase1: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case1Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const addCase2: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case2Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 400]
+        }
+      };
+
+      // Connect using case parameter
+      const connectCase0: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case0Handler',
+        case: 0  // Smart parameter instead of sourceIndex: 0
+      };
+
+      const connectCase1: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case1Handler',
+        case: 1  // Smart parameter instead of sourceIndex: 1
+      };
+
+      const connectCase2: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case2Handler',
+        case: 2  // Smart parameter instead of sourceIndex: 2
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSwitch, addCase0, addCase1, addCase2, connectCase0, connectCase1, connectCase2]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // All cases should be routed correctly
+      expect(result.workflow!.connections['Switch']['main'][0][0].node).toBe('Case0Handler');
+      expect(result.workflow!.connections['Switch']['main'][1][0].node).toBe('Case1Handler');
+      expect(result.workflow!.connections['Switch']['main'][2][0].node).toBe('Case2Handler');
+    });
+
+    it('should use branch parameter with rewireConnection', async () => {
+      // Setup: Create IF node with true/false branches
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IFRewire',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      const addSuccess: any = {
+        type: 'addNode',
+        node: {
+          name: 'SuccessHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 200]
+        }
+      };
+
+      const addNewSuccess: any = {
+        type: 'addNode',
+        node: {
+          name: 'NewSuccessHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 250]
+        }
+      };
+
+      // Initial connection
+      const initialConn: any = {
+        type: 'addConnection',
+        source: 'IFRewire',
+        target: 'SuccessHandler',
+        branch: 'true'
+      };
+
+      // Rewire using branch parameter
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'IFRewire',
+        from: 'SuccessHandler',
+        to: 'NewSuccessHandler',
+        branch: 'true'  // Smart parameter
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addSuccess, addNewSuccess, initialConn, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should rewire the true branch (main output, index 0)
+      expect(result.workflow!.connections['IFRewire']['main']).toBeDefined();
+      expect(result.workflow!.connections['IFRewire']['main'][0]).toBeDefined();
+      expect(result.workflow!.connections['IFRewire']['main'][0][0].node).toBe('NewSuccessHandler');
+    });
+
+    it('should use case parameter with rewireConnection', async () => {
+      const addSwitch: any = {
+        type: 'addNode',
+        node: {
+          name: 'Switch',
+          type: 'n8n-nodes-base.switch',
+          position: [400, 300]
+        }
+      };
+
+      const addCase1: any = {
+        type: 'addNode',
+        node: {
+          name: 'Case1Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const addNewCase1: any = {
+        type: 'addNode',
+        node: {
+          name: 'NewCase1Handler',
+          type: 'n8n-nodes-base.slack',
+          position: [600, 350]
+        }
+      };
+
+      const initialConn: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case1Handler',
+        case: 1
+      };
+
+      const rewire: any = {
+        type: 'rewireConnection',
+        source: 'Switch',
+        from: 'Case1Handler',
+        to: 'NewCase1Handler',
+        case: 1  // Smart parameter
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSwitch, addCase1, addNewCase1, initialConn, rewire]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should rewire case 1
+      expect(result.workflow!.connections['Switch']['main'][1][0].node).toBe('NewCase1Handler');
+    });
+
+    it('should not override explicit sourceOutput with branch parameter', async () => {
+      const addIF: any = {
+        type: 'addNode',
+        node: {
+          name: 'IFOverride',
+          type: 'n8n-nodes-base.if',
+          position: [400, 300]
+        }
+      };
+
+      const addHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'OverrideHandler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      // Both branch and sourceOutput provided - sourceOutput should win
+      const connectWithBoth: any = {
+        type: 'addConnection',
+        source: 'IFOverride',
+        target: 'OverrideHandler',
+        branch: 'true',          // Smart parameter suggests 'true'
+        sourceOutput: 'false'    // Explicit parameter should override
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addIF, addHandler, connectWithBoth]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should use explicit sourceOutput ('false'), not smart branch parameter
+      // Note: explicit sourceOutput='false' creates connection on output named 'false'
+      // This is different from branch parameter which maps to sourceIndex
+      expect(result.workflow!.connections['IFOverride']['false']).toBeDefined();
+      expect(result.workflow!.connections['IFOverride']['false'][0][0].node).toBe('OverrideHandler');
+      expect(result.workflow!.connections['IFOverride']['main']).toBeUndefined();
+    });
+
+    it('should not override explicit sourceIndex with case parameter', async () => {
+      const addSwitch: any = {
+        type: 'addNode',
+        node: {
+          name: 'Switch',
+          type: 'n8n-nodes-base.switch',
+          position: [400, 300]
+        }
+      };
+
+      const addHandler: any = {
+        type: 'addNode',
+        node: {
+          name: 'Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      // Both case and sourceIndex provided - sourceIndex should win
+      const connectWithBoth: any = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Handler',
+        case: 1,           // Smart parameter suggests index 1
+        sourceIndex: 2     // Explicit parameter should override
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSwitch, addHandler, connectWithBoth]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+
+      // Should use explicit sourceIndex (2), not case (1)
+      expect(result.workflow!.connections['Switch']['main'][2]).toBeDefined();
+      expect(result.workflow!.connections['Switch']['main'][2][0].node).toBe('Handler');
+      expect(result.workflow!.connections['Switch']['main'][1]).toEqual([]);
+    });
+  });
+
+  describe('AddConnection with sourceIndex (Phase 0 Fix)', () => {
+    it('should add connection to correct sourceIndex', async () => {
+      // Add IF node
       const addNodeOp: AddNodeOperation = {
         type: 'addNode',
         node: {
@@ -786,39 +1432,241 @@ describe('WorkflowDiffEngine', () => {
         }
       };
 
-      const addConnectionOp: AddConnectionOperation = {
-        type: 'addConnection',
-        source: 'IF',
-        target: 'slack-1',
-        sourceOutput: 'true'
+      // Add two different target nodes
+      const addNode1: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'SuccessHandler',
+          type: 'n8n-nodes-base.set',
+          position: [800, 200]
+        }
       };
 
-      const updateConnectionOp: UpdateConnectionOperation = {
-        type: 'updateConnection',
-        source: 'IF',
-        target: 'slack-1',
-        updates: {
-          sourceOutput: 'false',
-          sourceIndex: 0,
-          targetIndex: 0
+      const addNode2: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'ErrorHandler',
+          type: 'n8n-nodes-base.set',
+          position: [800, 400]
         }
+      };
+
+      // Connect to 'true' output at index 0
+      const addConnection1: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'SuccessHandler',
+        sourceOutput: 'true',
+        sourceIndex: 0
+      };
+
+      // Connect to 'false' output at index 0
+      const addConnection2: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'IF',
+        target: 'ErrorHandler',
+        sourceOutput: 'false',
+        sourceIndex: 0
       };
 
       const request: WorkflowDiffRequest = {
         id: 'test-workflow',
-        operations: [addNodeOp, addConnectionOp, updateConnectionOp]
+        operations: [addNodeOp, addNode1, addNode2, addConnection1, addConnection2]
       };
 
       const result = await diffEngine.applyDiff(baseWorkflow, request);
-      
+
       expect(result.success).toBe(true);
-      // After update, the connection should be on 'false' output only
-      expect(result.workflow!.connections['IF'].false).toBeDefined();
-      expect(result.workflow!.connections['IF'].false[0][0].node).toBe('Slack');
-      // The 'true' output should still have the original connection
-      // because updateConnection removes using the NEW output values, not the old ones
-      expect(result.workflow!.connections['IF'].true).toBeDefined();
-      expect(result.workflow!.connections['IF'].true[0][0].node).toBe('Slack');
+      // Verify connections are at correct indices
+      expect(result.workflow!.connections['IF']['true']).toBeDefined();
+      expect(result.workflow!.connections['IF']['true'][0]).toBeDefined();
+      expect(result.workflow!.connections['IF']['true'][0][0].node).toBe('SuccessHandler');
+
+      expect(result.workflow!.connections['IF']['false']).toBeDefined();
+      expect(result.workflow!.connections['IF']['false'][0]).toBeDefined();
+      expect(result.workflow!.connections['IF']['false'][0][0].node).toBe('ErrorHandler');
+    });
+
+    it('should support multiple connections at same sourceIndex (parallel execution)', async () => {
+      // Use a fresh workflow to avoid interference
+      const freshWorkflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+      // Add three target nodes
+      const addNode1: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Processor1',
+          type: 'n8n-nodes-base.set',
+          position: [600, 200]
+        }
+      };
+
+      const addNode2: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Processor2',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const addNode3: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Processor3',
+          type: 'n8n-nodes-base.set',
+          position: [600, 400]
+        }
+      };
+
+      // All connect from Webhook at sourceIndex 0 (parallel)
+      const addConnection1: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Webhook',
+        target: 'Processor1',
+        sourceIndex: 0
+      };
+
+      const addConnection2: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Webhook',
+        target: 'Processor2',
+        sourceIndex: 0
+      };
+
+      const addConnection3: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Webhook',
+        target: 'Processor3',
+        sourceIndex: 0
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addNode1, addNode2, addNode3, addConnection1, addConnection2, addConnection3]
+      };
+
+      const result = await diffEngine.applyDiff(freshWorkflow, request);
+
+      expect(result.success).toBe(true);
+      // All three new processors plus the existing HTTP Request should be at index 0
+      // So we expect 4 total connections
+      const connectionsAtIndex0 = result.workflow!.connections['Webhook']['main'][0];
+      expect(connectionsAtIndex0.length).toBeGreaterThanOrEqual(3);
+      const targets = connectionsAtIndex0.map((c: any) => c.node);
+      expect(targets).toContain('Processor1');
+      expect(targets).toContain('Processor2');
+      expect(targets).toContain('Processor3');
+    });
+
+    it('should support connections at different sourceIndices (Switch node pattern)', async () => {
+      // Add Switch node
+      const addSwitchNode: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Switch',
+          type: 'n8n-nodes-base.switch',
+          position: [400, 300]
+        }
+      };
+
+      // Add handlers for different cases
+      const addCase0: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Case0Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 200]
+        }
+      };
+
+      const addCase1: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Case1Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      const addCase2: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'Case2Handler',
+          type: 'n8n-nodes-base.set',
+          position: [600, 400]
+        }
+      };
+
+      // Connect to different sourceIndices
+      const conn0: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case0Handler',
+        sourceIndex: 0
+      };
+
+      const conn1: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case1Handler',
+        sourceIndex: 1
+      };
+
+      const conn2: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Switch',
+        target: 'Case2Handler',
+        sourceIndex: 2
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addSwitchNode, addCase0, addCase1, addCase2, conn0, conn1, conn2]
+      };
+
+      const result = await diffEngine.applyDiff(baseWorkflow, request);
+
+      expect(result.success).toBe(true);
+      // Verify each case routes to correct handler
+      expect(result.workflow!.connections['Switch']['main'][0][0].node).toBe('Case0Handler');
+      expect(result.workflow!.connections['Switch']['main'][1][0].node).toBe('Case1Handler');
+      expect(result.workflow!.connections['Switch']['main'][2][0].node).toBe('Case2Handler');
+    });
+
+    it('should properly handle sourceIndex 0 as explicit value vs default', async () => {
+      // Use a fresh workflow
+      const freshWorkflow = JSON.parse(JSON.stringify(baseWorkflow));
+
+      const addNode: AddNodeOperation = {
+        type: 'addNode',
+        node: {
+          name: 'TestNode',
+          type: 'n8n-nodes-base.set',
+          position: [600, 300]
+        }
+      };
+
+      // Explicit sourceIndex: 0
+      const connection1: AddConnectionOperation = {
+        type: 'addConnection',
+        source: 'Webhook',
+        target: 'TestNode',
+        sourceIndex: 0
+      };
+
+      const request: WorkflowDiffRequest = {
+        id: 'test-workflow',
+        operations: [addNode, connection1]
+      };
+
+      const result = await diffEngine.applyDiff(freshWorkflow, request);
+
+      expect(result.success).toBe(true);
+      expect(result.workflow!.connections['Webhook']['main'][0]).toBeDefined();
+      // TestNode should be in the connections (might not be first if HTTP Request already exists)
+      const targets = result.workflow!.connections['Webhook']['main'][0].map((c: any) => c.node);
+      expect(targets).toContain('TestNode');
     });
   });
 
@@ -2732,47 +3580,6 @@ describe('WorkflowDiffEngine', () => {
         expect(result.workflow).toBeUndefined();
       });
 
-      it('should handle updateConnection with complex output configurations', async () => {
-        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
-
-        // Add IF node
-        workflow.nodes.push({
-          id: 'if-1',
-          name: 'IF',
-          type: 'n8n-nodes-base.if',
-          typeVersion: 1,
-          position: [600, 400],
-          parameters: {}
-        });
-
-        // Add connection on 'true' output
-        workflow.connections['IF'] = {
-          'true': [[
-            { node: 'Slack', type: 'main', index: 0 }
-          ]]
-        };
-
-        const operations: UpdateConnectionOperation[] = [{
-          type: 'updateConnection',
-          source: 'IF',
-          target: 'Slack',
-          updates: {
-            sourceOutput: 'false',
-            targetInput: 'main',
-            sourceIndex: 0,
-            targetIndex: 0
-          }
-        }];
-
-        const request: WorkflowDiffRequest = {
-          id: 'test-workflow',
-          operations
-        };
-
-        const result = await diffEngine.applyDiff(workflow, request);
-
-        expect(result.success).toBe(true);
-      });
 
       it('should handle addConnection with all optional parameters specified', async () => {
         const workflow = JSON.parse(JSON.stringify(baseWorkflow));
