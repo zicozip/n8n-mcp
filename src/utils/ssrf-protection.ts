@@ -19,11 +19,16 @@ type SecurityMode = 'strict' | 'moderate' | 'permissive';
 
 // Cloud metadata endpoints (ALWAYS blocked in all modes)
 const CLOUD_METADATA = new Set([
-  // Localhost variants
+  // AWS/Azure
   '169.254.169.254', // AWS/Azure metadata
   '169.254.170.2',   // AWS ECS metadata
+  // Google Cloud
   'metadata.google.internal', // GCP metadata
   'metadata',
+  // Alibaba Cloud
+  '100.100.100.200', // Alibaba Cloud metadata
+  // Oracle Cloud
+  '192.0.0.192',     // Oracle Cloud metadata
 ]);
 
 // Localhost patterns
@@ -159,8 +164,13 @@ export class SSRFProtection {
         };
       }
 
-      // Step 7: IPv6 localhost check (strict & moderate modes)
-      if (resolvedIP === '::1' || resolvedIP.startsWith('fe80:') || resolvedIP.startsWith('fc00:')) {
+      // Step 7: IPv6 private address check (strict & moderate modes)
+      if (resolvedIP === '::1' ||         // Loopback
+          resolvedIP === '::' ||          // Unspecified address
+          resolvedIP.startsWith('fe80:') || // Link-local
+          resolvedIP.startsWith('fc00:') || // Unique local (fc00::/7)
+          resolvedIP.startsWith('fd00:') || // Unique local (fd00::/8)
+          resolvedIP.startsWith('::ffff:')) { // IPv4-mapped IPv6
         logger.warn('SSRF blocked: IPv6 private address', {
           hostname,
           resolvedIP,

@@ -84,6 +84,18 @@ describe('SSRFProtection', () => {
       expect(result.reason).toContain('Cloud metadata');
     });
 
+    it('should block Alibaba Cloud metadata endpoint', async () => {
+      const result = await SSRFProtection.validateWebhookUrl('http://100.100.100.200/latest/meta-data');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('Cloud metadata');
+    });
+
+    it('should block Oracle Cloud metadata endpoint', async () => {
+      const result = await SSRFProtection.validateWebhookUrl('http://192.0.0.192/opc/v2/instance/');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('Cloud metadata');
+    });
+
     it('should block private IP ranges', async () => {
       const privateIPs = [
         'http://10.0.0.1/webhook',
@@ -313,6 +325,39 @@ describe('SSRFProtection', () => {
       vi.mocked(dns.lookup).mockResolvedValue({ address: 'fc00::1', family: 6 } as any);
 
       const result = await SSRFProtection.validateWebhookUrl('http://ipv6-internal.com/webhook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('IPv6 private');
+    });
+
+    it('should block IPv6 unique local fd00::/8 (strict mode)', async () => {
+      delete process.env.WEBHOOK_SECURITY_MODE; // strict
+
+      // Mock DNS to return IPv6 unique local fd00::/8
+      vi.mocked(dns.lookup).mockResolvedValue({ address: 'fd00::1', family: 6 } as any);
+
+      const result = await SSRFProtection.validateWebhookUrl('http://ipv6-fd00.com/webhook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('IPv6 private');
+    });
+
+    it('should block IPv6 unspecified address (strict mode)', async () => {
+      delete process.env.WEBHOOK_SECURITY_MODE; // strict
+
+      // Mock DNS to return IPv6 unspecified address
+      vi.mocked(dns.lookup).mockResolvedValue({ address: '::', family: 6 } as any);
+
+      const result = await SSRFProtection.validateWebhookUrl('http://ipv6-unspecified.com/webhook');
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('IPv6 private');
+    });
+
+    it('should block IPv4-mapped IPv6 addresses (strict mode)', async () => {
+      delete process.env.WEBHOOK_SECURITY_MODE; // strict
+
+      // Mock DNS to return IPv4-mapped IPv6 address
+      vi.mocked(dns.lookup).mockResolvedValue({ address: '::ffff:127.0.0.1', family: 6 } as any);
+
+      const result = await SSRFProtection.validateWebhookUrl('http://ipv4-mapped.com/webhook');
       expect(result.valid).toBe(false);
       expect(result.reason).toContain('IPv6 private');
     });
