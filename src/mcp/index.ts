@@ -3,6 +3,7 @@
 import { N8NDocumentationMCPServer } from './server';
 import { logger } from '../utils/logger';
 import { TelemetryConfigManager } from '../telemetry/config-manager';
+import { existsSync } from 'fs';
 
 // Add error details to stderr for Claude Desktop debugging
 process.on('uncaughtException', (error) => {
@@ -20,6 +21,36 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection:', reason);
   process.exit(1);
 });
+
+/**
+ * Detects if running in a container environment (Docker, Podman, Kubernetes, etc.)
+ * Uses multiple detection methods for robustness:
+ * 1. Environment variables (IS_DOCKER, IS_CONTAINER with multiple formats)
+ * 2. Filesystem markers (/.dockerenv, /run/.containerenv)
+ */
+function isContainerEnvironment(): boolean {
+  // Check environment variables with multiple truthy formats
+  const dockerEnv = (process.env.IS_DOCKER || '').toLowerCase();
+  const containerEnv = (process.env.IS_CONTAINER || '').toLowerCase();
+
+  if (['true', '1', 'yes'].includes(dockerEnv)) {
+    return true;
+  }
+  if (['true', '1', 'yes'].includes(containerEnv)) {
+    return true;
+  }
+
+  // Fallback: Check filesystem markers
+  // /.dockerenv exists in Docker containers
+  // /run/.containerenv exists in Podman containers
+  try {
+    return existsSync('/.dockerenv') || existsSync('/run/.containerenv');
+  } catch (error) {
+    // If filesystem check fails, assume not in container
+    logger.debug('Container detection filesystem check failed:', error);
+    return false;
+  }
+}
 
 async function main() {
   // Handle telemetry CLI commands
@@ -91,6 +122,67 @@ Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
     } else {
       // Stdio mode - for local Claude Desktop
       const server = new N8NDocumentationMCPServer();
+
+      // Graceful shutdown handler (fixes Issue #277)
+      let isShuttingDown = false;
+      const shutdown = async (signal: string = 'UNKNOWN') => {
+        if (isShuttingDown) return; // Prevent multiple shutdown calls
+        isShuttingDown = true;
+
+        try {
+          logger.info(`Shutdown initiated by: ${signal}`);
+
+          await server.shutdown();
+
+          // Close stdin to signal we're done reading
+          if (process.stdin && !process.stdin.destroyed) {
+            process.stdin.pause();
+            process.stdin.destroy();
+          }
+
+          // Exit with timeout to ensure we don't hang
+          // Increased to 1000ms for slower systems
+          setTimeout(() => {
+            logger.warn('Shutdown timeout exceeded, forcing exit');
+            process.exit(0);
+          }, 1000).unref();
+
+          // Let the timeout handle the exit for graceful shutdown
+          // (removed immediate exit to allow cleanup to complete)
+        } catch (error) {
+          logger.error('Error during shutdown:', error);
+          process.exit(1);
+        }
+      };
+
+      // Handle termination signals (fixes Issue #277)
+      // Signal handling strategy:
+      // - Claude Desktop (Windows/macOS/Linux): stdin handlers + signal handlers
+      //   Primary: stdin close when Claude quits | Fallback: SIGTERM/SIGINT/SIGHUP
+      // - Container environments: signal handlers ONLY
+      //   stdin closed in detached mode would trigger immediate shutdown
+      //   Container detection via IS_DOCKER/IS_CONTAINER env vars + filesystem markers
+      // - Manual execution: Both stdin and signal handlers work
+      process.on('SIGTERM', () => shutdown('SIGTERM'));
+      process.on('SIGINT', () => shutdown('SIGINT'));
+      process.on('SIGHUP', () => shutdown('SIGHUP'));
+
+      // Handle stdio disconnect - PRIMARY shutdown mechanism for Claude Desktop
+      // Skip in container environments (Docker, Kubernetes, Podman) to prevent
+      // premature shutdown when stdin is closed in detached mode.
+      // Containers rely on signal handlers (SIGTERM/SIGINT/SIGHUP) for proper shutdown.
+      const isContainer = isContainerEnvironment();
+
+      if (!isContainer && process.stdin.readable && !process.stdin.destroyed) {
+        try {
+          process.stdin.on('end', () => shutdown('STDIN_END'));
+          process.stdin.on('close', () => shutdown('STDIN_CLOSE'));
+        } catch (error) {
+          logger.error('Failed to register stdin handlers, using signal handlers only:', error);
+          // Continue - signal handlers will still work
+        }
+      }
+
       await server.run();
     }
   } catch (error) {
