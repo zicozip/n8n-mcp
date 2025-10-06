@@ -28,9 +28,9 @@ describe('Integration: Rate Limiting', () => {
       stdio: 'pipe',
     });
 
-    // Wait for server to start
-    await new Promise(resolve => setTimeout(resolve, 3000));
-  }, 15000);
+    // Wait for server to start (longer wait for CI)
+    await new Promise(resolve => setTimeout(resolve, 8000));
+  }, 20000);
 
   afterAll(() => {
     if (serverProcess) {
