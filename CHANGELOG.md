@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.1] - 2025-10-06
+
+### Fixed
+
+- **🐛 Issue #277: Missing Signal Handlers in stdio Mode**
+  - **Problem**: Node.js processes remained orphaned when Claude Desktop quit
+  - **Platform**: Primarily affects Windows 11, but improves reliability on all platforms
+  - **Root Cause**: stdio mode never registered SIGTERM/SIGINT signal handlers
+  - **Impact**: Users had to manually kill processes via Task Manager after quitting Claude Desktop
+  - **Fix**: Added comprehensive graceful shutdown handlers for stdio mode
+    - SIGTERM, SIGINT, and SIGHUP signal handlers
+    - stdin end/close event handlers (PRIMARY shutdown mechanism for Claude Desktop)
+    - Robust container detection: Checks IS_DOCKER/IS_CONTAINER env vars + filesystem markers
+    - Supports Docker, Kubernetes, Podman, and other container runtimes
+    - Container mode: Signal handlers only (prevents detached mode premature shutdown)
+    - Claude Desktop mode: stdin + signal handlers (comprehensive coverage)
+    - Race condition protection with `isShuttingDown` guard
+    - stdin cleanup with null safety (pause + destroy)
+    - Graceful shutdown timeout (1000ms) to allow cleanup to complete
+    - Error handling with try-catch for stdin registration and shutdown
+    - Shutdown trigger logging for debugging (SIGTERM vs stdin close)
+    - Production-hardened based on comprehensive code review
+  - **Location**: `src/mcp/index.ts:91-132`
+  - **Resources Cleaned**: Cache timers and database connections properly closed via existing `shutdown()` method
+  - **Code Review**: Approved with recommendations implemented
+  - **Reporter**: @Eddy-Chahed
+
 ## [2.16.0] - 2025-10-06
 
 ### Added
