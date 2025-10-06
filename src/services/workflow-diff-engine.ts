@@ -20,7 +20,6 @@ import {
   DisableNodeOperation,
   AddConnectionOperation,
   RemoveConnectionOperation,
-  UpdateConnectionOperation,
   RewireConnectionOperation,
   UpdateSettingsOperation,
   UpdateNameOperation,
@@ -224,8 +223,6 @@ export class WorkflowDiffEngine {
         return this.validateAddConnection(workflow, operation);
       case 'removeConnection':
         return this.validateRemoveConnection(workflow, operation);
-      case 'updateConnection':
-        return this.validateUpdateConnection(workflow, operation);
       case 'rewireConnection':
         return this.validateRewireConnection(workflow, operation as RewireConnectionOperation);
       case 'updateSettings':
@@ -270,9 +267,6 @@ export class WorkflowDiffEngine {
         break;
       case 'removeConnection':
         this.applyRemoveConnection(workflow, operation);
-        break;
-      case 'updateConnection':
-        this.applyUpdateConnection(workflow, operation);
         break;
       case 'rewireConnection':
         this.applyRewireConnection(workflow, operation as RewireConnectionOperation);
@@ -453,40 +447,6 @@ export class WorkflowDiffEngine {
     const hasConnection = connections.some(conns =>
       conns.some(c => c.node === targetNode.name)
     );
-
-    if (!hasConnection) {
-      return `No connection exists from "${sourceNode.name}" to "${targetNode.name}"`;
-    }
-
-    return null;
-  }
-
-  private validateUpdateConnection(workflow: Workflow, operation: UpdateConnectionOperation): string | null {
-    const sourceNode = this.findNode(workflow, operation.source, operation.source);
-    const targetNode = this.findNode(workflow, operation.target, operation.target);
-
-    if (!sourceNode) {
-      return `Source node not found: ${operation.source}`;
-    }
-    if (!targetNode) {
-      return `Target node not found: ${operation.target}`;
-    }
-
-    // Check if connection exists to update
-    const existingConnections = workflow.connections[sourceNode.name];
-    if (!existingConnections) {
-      return `No connections found from "${sourceNode.name}"`;
-    }
-
-    // Check if any connection to target exists
-    let hasConnection = false;
-    Object.values(existingConnections).forEach(outputs => {
-      outputs.forEach(connections => {
-        if (connections.some(c => c.node === targetNode.name)) {
-          hasConnection = true;
-        }
-      });
-    });
 
     if (!hasConnection) {
       return `No connection exists from "${sourceNode.name}" to "${targetNode.name}"`;
@@ -741,53 +701,6 @@ export class WorkflowDiffEngine {
     if (Object.keys(workflow.connections[sourceNode.name]).length === 0) {
       delete workflow.connections[sourceNode.name];
     }
-  }
-
-  private applyUpdateConnection(workflow: Workflow, operation: UpdateConnectionOperation): void {
-    // Validate that updates object exists and is an object
-    if (!operation.updates || typeof operation.updates !== 'object') {
-      throw new Error(
-        `updateConnection operation requires 'updates' object.\n\n` +
-        `You provided: ${JSON.stringify(operation, null, 2)}\n\n` +
-        `The 'updates' property is missing or invalid. ` +
-        `This operation modifies connection properties (output type, input type, indices), ` +
-        `not connection targets.\n\n` +
-        `Correct format:\n` +
-        `{\n` +
-        `  type: "updateConnection",\n` +
-        `  source: "IF",\n` +
-        `  target: "EmailNode",\n` +
-        `  updates: {\n` +
-        `    sourceOutput: "false"  // Change from one output to another\n` +
-        `  }\n` +
-        `}\n\n` +
-        `💡 Note: If you want to change which node a connection goes to, ` +
-        `use removeConnection + addConnection instead:\n` +
-        `[\n` +
-        `  {type: "removeConnection", source: "${operation.source}", target: "${operation.target}"},\n` +
-        `  {type: "addConnection", source: "${operation.source}", target: "NewTarget"}\n` +
-        `]`
-      );
-    }
-
-    // Implement as remove + add with the updated properties
-    this.applyRemoveConnection(workflow, {
-      type: 'removeConnection',
-      source: operation.source,
-      target: operation.target,
-      sourceOutput: operation.updates.sourceOutput,
-      targetInput: operation.updates.targetInput
-    });
-
-    this.applyAddConnection(workflow, {
-      type: 'addConnection',
-      source: operation.source,
-      target: operation.target,
-      sourceOutput: operation.updates.sourceOutput,
-      targetInput: operation.updates.targetInput,
-      sourceIndex: operation.updates.sourceIndex,
-      targetIndex: operation.updates.targetIndex
-    });
   }
 
   /**

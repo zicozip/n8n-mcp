@@ -78,18 +78,6 @@ export interface RemoveConnectionOperation extends DiffOperation {
   ignoreErrors?: boolean; // If true, don't fail when connection doesn't exist (useful for cleanup)
 }
 
-export interface UpdateConnectionOperation extends DiffOperation {
-  type: 'updateConnection';
-  source: string;
-  target: string;
-  updates: {
-    sourceOutput?: string;
-    targetInput?: string;
-    sourceIndex?: number;
-    targetIndex?: number;
-  };
-}
-
 export interface RewireConnectionOperation extends DiffOperation {
   type: 'rewireConnection';
   source: string;      // Source node name or ID
@@ -155,7 +143,6 @@ export type WorkflowDiffOperation =
   | DisableNodeOperation
   | AddConnectionOperation
   | RemoveConnectionOperation
-  | UpdateConnectionOperation
   | RewireConnectionOperation
   | UpdateSettingsOperation
   | UpdateNameOperation
@@ -204,8 +191,8 @@ export function isNodeOperation(op: WorkflowDiffOperation): op is
 }
 
 export function isConnectionOperation(op: WorkflowDiffOperation): op is
-  AddConnectionOperation | RemoveConnectionOperation | UpdateConnectionOperation | RewireConnectionOperation | CleanStaleConnectionsOperation | ReplaceConnectionsOperation {
-  return ['addConnection', 'removeConnection', 'updateConnection', 'rewireConnection', 'cleanStaleConnections', 'replaceConnections'].includes(op.type);
+  AddConnectionOperation | RemoveConnectionOperation | RewireConnectionOperation | CleanStaleConnectionsOperation | ReplaceConnectionsOperation {
+  return ['addConnection', 'removeConnection', 'rewireConnection', 'cleanStaleConnections', 'replaceConnections'].includes(op.type);
 }
 
 export function isMetadataOperation(op: WorkflowDiffOperation): op is 

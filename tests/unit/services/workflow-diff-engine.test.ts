@@ -12,7 +12,6 @@ import {
   DisableNodeOperation,
   AddConnectionOperation,
   RemoveConnectionOperation,
-  UpdateConnectionOperation,
   UpdateSettingsOperation,
   UpdateNameOperation,
   AddTagOperation,
@@ -774,98 +773,6 @@ describe('WorkflowDiffEngine', () => {
     });
   });
 
-  describe('UpdateConnection Operation', () => {
-    it('should update connection properties', async () => {
-      // Add an IF node with multiple outputs
-      const addNodeOp: AddNodeOperation = {
-        type: 'addNode',
-        node: {
-          name: 'IF',
-          type: 'n8n-nodes-base.if',
-          position: [600, 300]
-        }
-      };
-
-      const addConnectionOp: AddConnectionOperation = {
-        type: 'addConnection',
-        source: 'IF',
-        target: 'slack-1',
-        sourceOutput: 'true'
-      };
-
-      const updateConnectionOp: UpdateConnectionOperation = {
-        type: 'updateConnection',
-        source: 'IF',
-        target: 'slack-1',
-        updates: {
-          sourceOutput: 'false',
-          sourceIndex: 0,
-          targetIndex: 0
-        }
-      };
-
-      const request: WorkflowDiffRequest = {
-        id: 'test-workflow',
-        operations: [addNodeOp, addConnectionOp, updateConnectionOp]
-      };
-
-      const result = await diffEngine.applyDiff(baseWorkflow, request);
-      
-      expect(result.success).toBe(true);
-      // After update, the connection should be on 'false' output only
-      expect(result.workflow!.connections['IF'].false).toBeDefined();
-      expect(result.workflow!.connections['IF'].false[0][0].node).toBe('Slack');
-      // The 'true' output should still have the original connection
-      // because updateConnection removes using the NEW output values, not the old ones
-      expect(result.workflow!.connections['IF'].true).toBeDefined();
-      expect(result.workflow!.connections['IF'].true[0][0].node).toBe('Slack');
-    });
-
-    it('should reject updateConnection without updates object (Issue #272, #204)', async () => {
-      const operation: any = {
-        type: 'updateConnection',
-        source: 'Webhook',
-        target: 'HTTP Request'
-        // Missing updates object - should fail with helpful error
-      };
-
-      const request: WorkflowDiffRequest = {
-        id: 'test-workflow',
-        operations: [operation]
-      };
-
-      const result = await diffEngine.applyDiff(baseWorkflow, request);
-
-      expect(result.success).toBe(false);
-      expect(result.errors).toBeDefined();
-      expect(result.errors![0].message).toContain('updates');
-      expect(result.errors![0].message).toContain('object');
-      // Should include helpful guidance
-      expect(result.errors![0].message).toContain('removeConnection');
-      expect(result.errors![0].message).toContain('addConnection');
-    });
-
-    it('should reject updateConnection with invalid updates type', async () => {
-      const operation: any = {
-        type: 'updateConnection',
-        source: 'Webhook',
-        target: 'HTTP Request',
-        updates: 'invalid'  // Should be object, not string
-      };
-
-      const request: WorkflowDiffRequest = {
-        id: 'test-workflow',
-        operations: [operation]
-      };
-
-      const result = await diffEngine.applyDiff(baseWorkflow, request);
-
-      expect(result.success).toBe(false);
-      expect(result.errors).toBeDefined();
-      expect(result.errors![0].message).toContain('updates');
-      expect(result.errors![0].message).toContain('object');
-    });
-  });
 
   describe('RewireConnection Operation (Phase 1)', () => {
     it('should rewire connection from one target to another', async () => {
@@ -3673,47 +3580,6 @@ describe('WorkflowDiffEngine', () => {
         expect(result.workflow).toBeUndefined();
       });
 
-      it('should handle updateConnection with complex output configurations', async () => {
-        const workflow = JSON.parse(JSON.stringify(baseWorkflow));
-
-        // Add IF node
-        workflow.nodes.push({
-          id: 'if-1',
-          name: 'IF',
-          type: 'n8n-nodes-base.if',
-          typeVersion: 1,
-          position: [600, 400],
-          parameters: {}
-        });
-
-        // Add connection on 'true' output
-        workflow.connections['IF'] = {
-          'true': [[
-            { node: 'Slack', type: 'main', index: 0 }
-          ]]
-        };
-
-        const operations: UpdateConnectionOperation[] = [{
-          type: 'updateConnection',
-          source: 'IF',
-          target: 'Slack',
-          updates: {
-            sourceOutput: 'false',
-            targetInput: 'main',
-            sourceIndex: 0,
-            targetIndex: 0
-          }
-        }];
-
-        const request: WorkflowDiffRequest = {
-          id: 'test-workflow',
-          operations
-        };
-
-        const result = await diffEngine.applyDiff(workflow, request);
-
-        expect(result.success).toBe(true);
-      });
 
       it('should handle addConnection with all optional parameters specified', async () => {
         const workflow = JSON.parse(JSON.stringify(baseWorkflow));
