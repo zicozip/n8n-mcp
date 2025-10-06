@@ -10,7 +10,7 @@ import {
   validateThinkTool,
   validateSerpApiTool,
   validateWikipediaTool,
-  validateSearXNGTool,
+  validateSearXngTool,
   validateWolframAlphaTool,
   type WorkflowNode
 } from '@/services/ai-tool-validators';
@@ -307,7 +307,9 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateVectorStoreTool(node);
+      const reverseMap = new Map();
+      const workflow = { nodes: [node], connections: {} };
+      const issues = validateVectorStoreTool(node, reverseMap, workflow);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -329,7 +331,9 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateVectorStoreTool(node);
+      const reverseMap = new Map();
+      const workflow = { nodes: [node], connections: {} };
+      const issues = validateVectorStoreTool(node, reverseMap, workflow);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -351,7 +355,9 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateVectorStoreTool(node);
+      const reverseMap = new Map();
+      const workflow = { nodes: [node], connections: {} };
+      const issues = validateVectorStoreTool(node, reverseMap, workflow);
 
       const errors = issues.filter(i => i.severity === 'error');
       expect(errors).toHaveLength(0);
@@ -368,7 +374,8 @@ return { cost: cost.toFixed(2) };`,
         parameters: {}
       };
 
-      const issues = validateWorkflowTool(node);
+      const reverseMap = new Map();
+      const issues = validateWorkflowTool(node, reverseMap);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -389,7 +396,8 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateWorkflowTool(node);
+      const reverseMap = new Map();
+      const issues = validateWorkflowTool(node, reverseMap);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -411,7 +419,8 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateWorkflowTool(node);
+      const reverseMap = new Map();
+      const issues = validateWorkflowTool(node, reverseMap);
 
       const errors = issues.filter(i => i.severity === 'error');
       expect(errors).toHaveLength(0);
@@ -428,7 +437,8 @@ return { cost: cost.toFixed(2) };`,
         parameters: {}
       };
 
-      const issues = validateAIAgentTool(node);
+      const reverseMap = new Map();
+      const issues = validateAIAgentTool(node, reverseMap);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -450,7 +460,8 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateAIAgentTool(node);
+      const reverseMap = new Map();
+      const issues = validateAIAgentTool(node, reverseMap);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -472,7 +483,8 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateAIAgentTool(node);
+      const reverseMap = new Map();
+      const issues = validateAIAgentTool(node, reverseMap);
 
       const errors = issues.filter(i => i.severity === 'error');
       expect(errors).toHaveLength(0);
@@ -717,7 +729,7 @@ return { cost: cost.toFixed(2) };`,
     });
   });
 
-  describe('validateSearXNGTool', () => {
+  describe('validateSearXngTool', () => {
     it('should error on missing toolDescription', () => {
       const node: WorkflowNode = {
         id: 'searx1',
@@ -727,7 +739,7 @@ return { cost: cost.toFixed(2) };`,
         parameters: {}
       };
 
-      const issues = validateSearXNGTool(node);
+      const issues = validateSearXngTool(node);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -748,7 +760,7 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateSearXNGTool(node);
+      const issues = validateSearXngTool(node);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -770,7 +782,7 @@ return { cost: cost.toFixed(2) };`,
         }
       };
 
-      const issues = validateSearXNGTool(node);
+      const issues = validateSearXngTool(node);
 
       const errors = issues.filter(i => i.severity === 'error');
       expect(errors).toHaveLength(0);
@@ -778,7 +790,7 @@ return { cost: cost.toFixed(2) };`,
   });
 
   describe('validateWolframAlphaTool', () => {
-    it('should error on missing toolDescription', () => {
+    it('should error on missing credentials', () => {
       const node: WorkflowNode = {
         id: 'wolfram1',
         name: 'Computational Knowledge',
@@ -792,19 +804,20 @@ return { cost: cost.toFixed(2) };`,
       expect(issues).toContainEqual(
         expect.objectContaining({
           severity: 'error',
-          code: 'MISSING_TOOL_DESCRIPTION'
+          code: 'MISSING_CREDENTIALS'
         })
       );
     });
 
-    it('should warn on missing credentials', () => {
+    it('should provide info on missing custom description', () => {
       const node: WorkflowNode = {
         id: 'wolfram1',
         name: 'WolframAlpha',
         type: '@n8n/n8n-nodes-langchain.toolWolframAlpha',
         position: [0, 0],
-        parameters: {
-          toolDescription: 'Answer computational and scientific questions'
+        parameters: {},
+        credentials: {
+          wolframAlpha: 'wolfram-credentials'
         }
       };
 
@@ -812,8 +825,8 @@ return { cost: cost.toFixed(2) };`,
 
       expect(issues).toContainEqual(
         expect.objectContaining({
-          severity: 'warning',
-          message: expect.stringContaining('credentials')
+          severity: 'info',
+          message: expect.stringContaining('description')
         })
       );
     });

@@ -21,6 +21,14 @@ import {
   validateAIToolSubNode
 } from './ai-tool-validators';
 
+// Re-export types for test files
+export type {
+  WorkflowNode,
+  WorkflowJson,
+  ReverseConnection,
+  ValidationIssue
+} from './ai-tool-validators';
+
 // Validation constants
 const MIN_SYSTEM_MESSAGE_LENGTH = 20;
 const MAX_ITERATIONS_WARNING_THRESHOLD = 50;
