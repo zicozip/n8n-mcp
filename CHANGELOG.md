@@ -64,6 +64,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Discovered by**: n8n-mcp-tester agent
   - **Commit**: aeaba3b
 
+- **🔥 CRITICAL Bug: Array Index Corruption in Multi-Output Nodes**
+  - **Bug #3**: `applyRemoveConnection()` filtered empty arrays, causing index shifting in multi-output nodes
+  - **Impact**: PRODUCTION-BREAKING for Switch, IF with multiple handlers, Merge nodes
+  - **Severity**: Connections routed to wrong outputs after rewiring
+  - **Example**: Switch with 4 outputs `[[H0], [H1], [H2], [H3]]` → remove H1 → `[[H0], [H2], [H3]]` (indices shifted!)
+  - **Root Cause**: Line 697 filtered empty arrays: `connections.filter(conns => conns.length > 0)`
+  - **Fix**: Only remove trailing empty arrays, preserve intermediate ones to maintain index integrity
+  - **Code Change**:
+    ```typescript
+    // Before (BUGGY):
+    workflow.connections[node][output] = connections.filter(conns => conns.length > 0);
+
+    // After (FIXED):
+    while (connections.length > 0 && connections[connections.length - 1].length === 0) {
+      connections.pop();
+    }
+    ```
+  - **Testing**: Added integration test verifying Switch node rewiring preserves all indices
+  - **Discovered by**: n8n-mcp-tester agent during comprehensive testing
+  - **Commit**: aeb7410
+
 - **TypeScript Compilation**: Added missing type annotations in workflow diff tests (Commit: 653f395)
 
 ### Improved
@@ -86,14 +107,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Test Coverage
 
-- **Total Tests**: 169 tests passing (158 unit + 11 integration)
+- **Total Tests**: 170 tests passing (158 unit + 12 integration)
 - **Coverage**: 90.98% statements, 89.86% branches, 93.02% functions
 - **Quality**: Integration tests against real n8n API prevent regression
 - **New Tests**:
   - 21 tests for TypeError prevention (Issue #275)
   - 8 tests for rewireConnection operation
   - 8 tests for smart parameters
-  - 11 integration tests against real n8n API
+  - 12 integration tests against real n8n API (including array index preservation)
 
 ### Technical Details
 
