@@ -1970,4 +1970,479 @@ describe('Integration: Smart Parameters with Real n8n API', () => {
       expect(fetchedWorkflow.connections.Filter.main[1][0].node).toBe('DiscardedHandler');
     });
   });
+
+  // ======================================================================
+  // TEST 16-19: Merge Node - Multiple Inputs (targetIndex preservation)
+  // ======================================================================
+  describe('Merge Node - Multiple Inputs (targetIndex Preservation)', () => {
+    it('should preserve targetIndex when removing connection to Merge input 0', async () => {
+      // CRITICAL: Merge has multiple INPUTS (unlike Switch which has multiple outputs)
+      // This tests that targetIndex preservation works for incoming connections
+      // Bug would cause: Remove input 0 → input 1 shifts to input 0
+
+      const workflowName = createTestWorkflowName('Merge - Remove Input 0');
+
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Start',
+            type: 'n8n-nodes-base.manualTrigger',
+            typeVersion: 1,
+            position: [0, 0],
+            parameters: {}
+          },
+          {
+            id: '2',
+            name: 'Source1',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [200, -50],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a1', name: 'source', value: '1', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'Source2',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [200, 50],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a2', name: 'source', value: '2', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '4',
+            name: 'Merge',
+            type: 'n8n-nodes-base.merge',
+            typeVersion: 3,
+            position: [400, 0],
+            parameters: {
+              mode: 'append'
+            }
+          },
+          {
+            id: '5',
+            name: 'Output',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [600, 0],
+            parameters: {}
+          }
+        ],
+        connections: {
+          Start: {
+            main: [[{ node: 'Source1', type: 'main', index: 0 }]]
+          },
+          Source1: {
+            main: [[{ node: 'Merge', type: 'main', index: 0 }]]  // to Merge input 0
+          },
+          Source2: {
+            main: [[{ node: 'Merge', type: 'main', index: 1 }]]  // to Merge input 1
+          },
+          Merge: {
+            main: [[{ node: 'Output', type: 'main', index: 0 }]]
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Remove connection from Source1 to Merge (input 0)
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'removeConnection',
+            source: 'Source1',
+            target: 'Merge'
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      // CRITICAL VERIFICATION: Source2 should STILL connect to Merge at targetIndex 1
+      // Bug would cause it to shift to targetIndex 0
+      expect(fetchedWorkflow.connections.Source2).toBeDefined();
+      expect(fetchedWorkflow.connections.Source2.main).toBeDefined();
+      expect(fetchedWorkflow.connections.Source2.main[0]).toBeDefined();
+      expect(fetchedWorkflow.connections.Source2.main[0].length).toBe(1);
+      expect(fetchedWorkflow.connections.Source2.main[0][0].node).toBe('Merge');
+      expect(fetchedWorkflow.connections.Source2.main[0][0].index).toBe(1); // STILL index 1!
+
+      // Source1 should no longer connect to Merge
+      expect(fetchedWorkflow.connections.Source1).toBeUndefined();
+    });
+
+    it('should preserve targetIndex when removing middle connection to Merge', async () => {
+      // MOST CRITICAL: Remove middle input, verify inputs 0 and 2 stay at their indices
+      // This is the multi-input equivalent of the Switch node bug
+
+      const workflowName = createTestWorkflowName('Merge - Remove Middle Input');
+
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Source0',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, -100],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a0', name: 'source', value: '0', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '2',
+            name: 'Source1',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, 0],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a1', name: 'source', value: '1', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'Source2',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, 100],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a2', name: 'source', value: '2', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '4',
+            name: 'Merge',
+            type: 'n8n-nodes-base.merge',
+            typeVersion: 3,
+            position: [200, 0],
+            parameters: {
+              mode: 'append'
+            }
+          }
+        ],
+        connections: {
+          Source0: {
+            main: [[{ node: 'Merge', type: 'main', index: 0 }]]  // input 0
+          },
+          Source1: {
+            main: [[{ node: 'Merge', type: 'main', index: 1 }]]  // input 1
+          },
+          Source2: {
+            main: [[{ node: 'Merge', type: 'main', index: 2 }]]  // input 2
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Remove connection from Source1 to Merge (middle input)
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'removeConnection',
+            source: 'Source1',
+            target: 'Merge'
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      // Source0 should STILL connect to Merge at targetIndex 0
+      expect(fetchedWorkflow.connections.Source0).toBeDefined();
+      expect(fetchedWorkflow.connections.Source0.main[0][0].node).toBe('Merge');
+      expect(fetchedWorkflow.connections.Source0.main[0][0].index).toBe(0); // STILL 0!
+
+      // Source2 should STILL connect to Merge at targetIndex 2 (NOT shifted to 1!)
+      expect(fetchedWorkflow.connections.Source2).toBeDefined();
+      expect(fetchedWorkflow.connections.Source2.main[0][0].node).toBe('Merge');
+      expect(fetchedWorkflow.connections.Source2.main[0][0].index).toBe(2); // STILL 2!
+
+      // Source1 should no longer connect to Merge
+      expect(fetchedWorkflow.connections.Source1).toBeUndefined();
+    });
+
+    it('should handle replacing source connection to Merge input', async () => {
+      // Test replacing which node connects to a Merge input
+      // Use remove + add pattern (not rewireConnection which changes target, not source)
+
+      const workflowName = createTestWorkflowName('Merge - Replace Source');
+
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Source1',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, -50],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a1', name: 'source', value: '1', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '2',
+            name: 'Source2',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, 50],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a2', name: 'source', value: '2', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'NewSource1',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, -100],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a3', name: 'source', value: 'new1', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '4',
+            name: 'Merge',
+            type: 'n8n-nodes-base.merge',
+            typeVersion: 3,
+            position: [200, 0],
+            parameters: {
+              mode: 'append'
+            }
+          }
+        ],
+        connections: {
+          Source1: {
+            main: [[{ node: 'Merge', type: 'main', index: 0 }]]
+          },
+          Source2: {
+            main: [[{ node: 'Merge', type: 'main', index: 1 }]]
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Replace Source1 with NewSource1 (both to Merge input 0)
+      // Use remove + add pattern
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'removeConnection',
+            source: 'Source1',
+            target: 'Merge'
+          },
+          {
+            type: 'addConnection',
+            source: 'NewSource1',
+            target: 'Merge',
+            targetInput: 'main',
+            targetIndex: 0
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      // NewSource1 should now connect to Merge at input 0
+      expect(fetchedWorkflow.connections.NewSource1).toBeDefined();
+      expect(fetchedWorkflow.connections.NewSource1.main[0][0].node).toBe('Merge');
+      expect(fetchedWorkflow.connections.NewSource1.main[0][0].index).toBe(0);
+
+      // Source2 should STILL connect to Merge at input 1 (unchanged)
+      expect(fetchedWorkflow.connections.Source2).toBeDefined();
+      expect(fetchedWorkflow.connections.Source2.main[0][0].node).toBe('Merge');
+      expect(fetchedWorkflow.connections.Source2.main[0][0].index).toBe(1);
+
+      // Source1 should no longer connect to Merge
+      expect(fetchedWorkflow.connections.Source1).toBeUndefined();
+    });
+
+    it('should preserve indices through sequential operations on Merge inputs', async () => {
+      // Complex scenario: Multiple operations on Merge inputs in sequence
+
+      const workflowName = createTestWorkflowName('Merge - Sequential Ops');
+
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Source1',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, -50],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a1', name: 'source', value: '1', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '2',
+            name: 'Source2',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, 50],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a2', name: 'source', value: '2', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'NewSource1',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, -100],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a3', name: 'source', value: 'new1', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '4',
+            name: 'Source3',
+            type: 'n8n-nodes-base.set',
+            typeVersion: 3.4,
+            position: [0, 150],
+            parameters: {
+              assignments: {
+                assignments: [
+                  { id: 'a4', name: 'source', value: '3', type: 'string' }
+                ]
+              }
+            }
+          },
+          {
+            id: '5',
+            name: 'Merge',
+            type: 'n8n-nodes-base.merge',
+            typeVersion: 3,
+            position: [200, 0],
+            parameters: {
+              mode: 'append'
+            }
+          }
+        ],
+        connections: {
+          Source1: {
+            main: [[{ node: 'Merge', type: 'main', index: 0 }]]
+          },
+          Source2: {
+            main: [[{ node: 'Merge', type: 'main', index: 1 }]]
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Sequential operations:
+      // 1. Replace input 0: Source1 → NewSource1 (remove + add)
+      // 2. Add Source3 → Merge input 2
+      // 3. Remove connection from Source2 (input 1)
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'removeConnection',
+            source: 'Source1',
+            target: 'Merge'
+          },
+          {
+            type: 'addConnection',
+            source: 'NewSource1',
+            target: 'Merge',
+            targetInput: 'main',
+            targetIndex: 0
+          },
+          {
+            type: 'addConnection',
+            source: 'Source3',
+            target: 'Merge',
+            targetInput: 'main',
+            targetIndex: 2
+          },
+          {
+            type: 'removeConnection',
+            source: 'Source2',
+            target: 'Merge'
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      // NewSource1 should connect to Merge at input 0 (rewired)
+      expect(fetchedWorkflow.connections.NewSource1).toBeDefined();
+      expect(fetchedWorkflow.connections.NewSource1.main[0][0].node).toBe('Merge');
+      expect(fetchedWorkflow.connections.NewSource1.main[0][0].index).toBe(0);
+
+      // Source2 removed, should not exist
+      expect(fetchedWorkflow.connections.Source2).toBeUndefined();
+
+      // Source3 should connect to Merge at input 2 (NOT shifted to 1!)
+      expect(fetchedWorkflow.connections.Source3).toBeDefined();
+      expect(fetchedWorkflow.connections.Source3.main[0][0].node).toBe('Merge');
+      expect(fetchedWorkflow.connections.Source3.main[0][0].index).toBe(2);
+    });
+  });
 });
