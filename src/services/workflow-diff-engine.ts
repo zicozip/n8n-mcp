@@ -691,12 +691,14 @@ export class WorkflowDiffEngine {
     workflow.connections[sourceNode.name][sourceOutput] = connections.map(conns =>
       conns.filter(conn => conn.node !== targetNode.name)
     );
-    
-    // Clean up empty arrays
-    workflow.connections[sourceNode.name][sourceOutput] = 
-      workflow.connections[sourceNode.name][sourceOutput].filter(conns => conns.length > 0);
-    
-    if (workflow.connections[sourceNode.name][sourceOutput].length === 0) {
+
+    // Remove trailing empty arrays only (preserve intermediate empty arrays to maintain indices)
+    const outputConnections = workflow.connections[sourceNode.name][sourceOutput];
+    while (outputConnections.length > 0 && outputConnections[outputConnections.length - 1].length === 0) {
+      outputConnections.pop();
+    }
+
+    if (outputConnections.length === 0) {
       delete workflow.connections[sourceNode.name][sourceOutput];
     }
     
