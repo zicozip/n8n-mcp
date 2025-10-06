@@ -560,35 +560,113 @@ export class EnhancedDocumentationFetcher {
 
   /**
    * Search for node documentation file
+   * SECURITY: Uses Node.js fs APIs instead of shell commands to prevent command injection
+   * See: https://github.com/czlonkowski/n8n-mcp/issues/265 (CRITICAL-01)
    */
   private async searchForNodeDoc(nodeType: string): Promise<string | null> {
     try {
-      // First try exact match with nodeType
-      let result = execSync(
-        `find ${this.docsPath}/docs/integrations/builtin -name "${nodeType}.md" -type f | grep -v credentials | head -1`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-      ).trim();
-      
-      if (result) return result;
-      
-      // Try lowercase nodeType
-      const lowerNodeType = nodeType.toLowerCase();
-      result = execSync(
-        `find ${this.docsPath}/docs/integrations/builtin -name "${lowerNodeType}.md" -type f | grep -v credentials | head -1`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-      ).trim();
-      
-      if (result) return result;
-      
-      // Try node name pattern but exclude trigger nodes
-      const nodeName = this.extractNodeName(nodeType);
-      result = execSync(
-        `find ${this.docsPath}/docs/integrations/builtin -name "*${nodeName}.md" -type f | grep -v credentials | grep -v trigger | head -1`,
-        { encoding: 'utf-8', stdio: 'pipe' }
-      ).trim();
-      
-      return result || null;
+      // SECURITY: Sanitize input to prevent command injection and directory traversal
+      const sanitized = nodeType.replace(/[^a-zA-Z0-9._-]/g, '');
+
+      if (!sanitized) {
+        logger.warn('Invalid nodeType after sanitization', { nodeType });
+        return null;
+      }
+
+      // SECURITY: Block directory traversal attacks
+      if (sanitized.includes('..') || sanitized.startsWith('.') || sanitized.startsWith('/')) {
+        logger.warn('Path traversal attempt blocked', { nodeType, sanitized });
+        return null;
+      }
+
+      // Log sanitization if it occurred
+      if (sanitized !== nodeType) {
+        logger.warn('nodeType was sanitized (potential injection attempt)', {
+          original: nodeType,
+          sanitized,
+        });
+      }
+
+      // SECURITY: Use path.basename to strip any path components
+      const safeName = path.basename(sanitized);
+      const searchPath = path.join(this.docsPath, 'docs', 'integrations', 'builtin');
+
+      // SECURITY: Read directory recursively using Node.js fs API (no shell execution!)
+      const files = await fs.readdir(searchPath, {
+        recursive: true,
+        encoding: 'utf-8'
+      }) as string[];
+
+      // Try exact match first
+      let match = files.find(f =>
+        f.endsWith(`${safeName}.md`) &&
+        !f.includes('credentials') &&
+        !f.includes('trigger')
+      );
+
+      if (match) {
+        const fullPath = path.join(searchPath, match);
+
+        // SECURITY: Verify final path is within expected directory
+        if (!fullPath.startsWith(searchPath)) {
+          logger.error('Path traversal blocked in final path', { fullPath, searchPath });
+          return null;
+        }
+
+        logger.info('Found documentation (exact match)', { path: fullPath });
+        return fullPath;
+      }
+
+      // Try lowercase match
+      const lowerSafeName = safeName.toLowerCase();
+      match = files.find(f =>
+        f.endsWith(`${lowerSafeName}.md`) &&
+        !f.includes('credentials') &&
+        !f.includes('trigger')
+      );
+
+      if (match) {
+        const fullPath = path.join(searchPath, match);
+
+        // SECURITY: Verify final path is within expected directory
+        if (!fullPath.startsWith(searchPath)) {
+          logger.error('Path traversal blocked in final path', { fullPath, searchPath });
+          return null;
+        }
+
+        logger.info('Found documentation (lowercase match)', { path: fullPath });
+        return fullPath;
+      }
+
+      // Try partial match with node name
+      const nodeName = this.extractNodeName(safeName);
+      match = files.find(f =>
+        f.toLowerCase().includes(nodeName.toLowerCase()) &&
+        f.endsWith('.md') &&
+        !f.includes('credentials') &&
+        !f.includes('trigger')
+      );
+
+      if (match) {
+        const fullPath = path.join(searchPath, match);
+
+        // SECURITY: Verify final path is within expected directory
+        if (!fullPath.startsWith(searchPath)) {
+          logger.error('Path traversal blocked in final path', { fullPath, searchPath });
+          return null;
+        }
+
+        logger.info('Found documentation (partial match)', { path: fullPath });
+        return fullPath;
+      }
+
+      logger.debug('No documentation found', { nodeType: safeName });
+      return null;
     } catch (error) {
+      logger.error('Error searching for node documentation:', {
+        error: error instanceof Error ? error.message : String(error),
+        nodeType,
+      });
       return null;
     }
   }

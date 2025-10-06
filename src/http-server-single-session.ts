@@ -10,6 +10,7 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { N8NDocumentationMCPServer } from './mcp/server';
 import { ConsoleManager } from './utils/console-manager';
 import { logger } from './utils/logger';
+import { AuthManager } from './utils/auth';
 import { readFileSync } from 'fs';
 import dotenv from 'dotenv';
 import { getStartupBaseUrl, formatEndpointUrls, detectBaseUrl } from './utils/url-detector';
@@ -1080,15 +1081,19 @@ export class SingleSessionHTTPServer {
       
       // Extract token and trim whitespace
       const token = authHeader.slice(7).trim();
-      
-      // Check if token matches
-      if (token !== this.authToken) {
-        logger.warn('Authentication failed: Invalid token', { 
+
+      // SECURITY: Use timing-safe comparison to prevent timing attacks
+      // See: https://github.com/czlonkowski/n8n-mcp/issues/265 (CRITICAL-02)
+      const isValidToken = this.authToken &&
+        AuthManager.timingSafeCompare(token, this.authToken);
+
+      if (!isValidToken) {
+        logger.warn('Authentication failed: Invalid token', {
           ip: req.ip,
           userAgent: req.get('user-agent'),
           reason: 'invalid_token'
         });
-        res.status(401).json({ 
+        res.status(401).json({
           jsonrpc: '2.0',
           error: {
             code: -32001,

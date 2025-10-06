@@ -9,6 +9,7 @@ import { n8nDocumentationToolsFinal } from './mcp/tools';
 import { n8nManagementTools } from './mcp/tools-n8n-manager';
 import { N8NDocumentationMCPServer } from './mcp/server';
 import { logger } from './utils/logger';
+import { AuthManager } from './utils/auth';
 import { PROJECT_VERSION } from './utils/version';
 import { isN8nApiConfigured } from './config/n8n-api';
 import dotenv from 'dotenv';
@@ -308,15 +309,19 @@ export async function startFixedHTTPServer() {
     
     // Extract token and trim whitespace
     const token = authHeader.slice(7).trim();
-    
-    // Check if token matches
-    if (token !== authToken) {
-      logger.warn('Authentication failed: Invalid token', { 
+
+    // SECURITY: Use timing-safe comparison to prevent timing attacks
+    // See: https://github.com/czlonkowski/n8n-mcp/issues/265 (CRITICAL-02)
+    const isValidToken = authToken &&
+      AuthManager.timingSafeCompare(token, authToken);
+
+    if (!isValidToken) {
+      logger.warn('Authentication failed: Invalid token', {
         ip: req.ip,
         userAgent: req.get('user-agent'),
         reason: 'invalid_token'
       });
-      res.status(401).json({ 
+      res.status(401).json({
         jsonrpc: '2.0',
         error: {
           code: -32001,

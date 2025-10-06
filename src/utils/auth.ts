@@ -22,8 +22,9 @@ export class AuthManager {
       return false;
     }
 
-    // Check static token
-    if (token === expectedToken) {
+    // SECURITY: Use timing-safe comparison for static token
+    // See: https://github.com/czlonkowski/n8n-mcp/issues/265 (CRITICAL-02)
+    if (AuthManager.timingSafeCompare(token, expectedToken)) {
       return true;
     }
 
@@ -96,5 +97,48 @@ export class AuthManager {
       Buffer.from(hashedPlainToken),
       Buffer.from(hashedToken)
     );
+  }
+
+  /**
+   * Compare two tokens using constant-time algorithm to prevent timing attacks
+   *
+   * @param plainToken - Token from request
+   * @param expectedToken - Expected token value
+   * @returns true if tokens match, false otherwise
+   *
+   * @security This uses crypto.timingSafeEqual to prevent timing attack vulnerabilities.
+   * Never use === or !== for token comparison as it allows attackers to discover
+   * tokens character-by-character through timing analysis.
+   *
+   * @example
+   * const isValid = AuthManager.timingSafeCompare(requestToken, serverToken);
+   * if (!isValid) {
+   *   return res.status(401).json({ error: 'Unauthorized' });
+   * }
+   *
+   * @see https://github.com/czlonkowski/n8n-mcp/issues/265 (CRITICAL-02)
+   */
+  static timingSafeCompare(plainToken: string, expectedToken: string): boolean {
+    try {
+      // Tokens must be non-empty
+      if (!plainToken || !expectedToken) {
+        return false;
+      }
+
+      // Convert to buffers
+      const plainBuffer = Buffer.from(plainToken, 'utf8');
+      const expectedBuffer = Buffer.from(expectedToken, 'utf8');
+
+      // Check length first (constant time not needed for length comparison)
+      if (plainBuffer.length !== expectedBuffer.length) {
+        return false;
+      }
+
+      // Constant-time comparison
+      return crypto.timingSafeEqual(plainBuffer, expectedBuffer);
+    } catch (error) {
+      // Buffer conversion or comparison failed
+      return false;
+    }
   }
 }
