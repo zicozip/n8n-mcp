@@ -107,14 +107,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Test Coverage
 
-- **Total Tests**: 170 tests passing (158 unit + 12 integration)
+- **Total Tests**: 174 tests passing (158 unit + 16 integration against real n8n API)
 - **Coverage**: 90.98% statements, 89.86% branches, 93.02% functions
 - **Quality**: Integration tests against real n8n API prevent regression
 - **New Tests**:
   - 21 tests for TypeError prevention (Issue #275)
   - 8 tests for rewireConnection operation
   - 8 tests for smart parameters
-  - 12 integration tests against real n8n API (including array index preservation)
+  - 16 integration tests against real n8n API:
+    - Array index preservation for Switch node rewiring
+    - IF node empty array preservation on removal
+    - Switch node removing first case (production-breaking bug scenario)
+    - Sequential operations on Switch node
+    - Filter node connection rewiring
 
 ### Technical Details
 

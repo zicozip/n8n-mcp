@@ -1501,5 +1501,473 @@ describe('Integration: Smart Parameters with Real n8n API', () => {
       expect(fetchedWorkflow.connections.Switch.main[3].length).toBe(1);
       expect(fetchedWorkflow.connections.Switch.main[3][0].node).toBe('Handler3');
     });
+
+    it('should preserve empty arrays when removing IF node connections', async () => {
+      // This test verifies that removing a connection creates an empty array
+      // rather than shifting indices (which would break the true/false semantics)
+
+      const workflowName = createTestWorkflowName('Array Preservation - IF Remove');
+
+      // Create workflow with IF node connected to both branches
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Start',
+            type: 'n8n-nodes-base.manualTrigger',
+            typeVersion: 1,
+            position: [0, 0],
+            parameters: {}
+          },
+          {
+            id: '2',
+            name: 'IF',
+            type: 'n8n-nodes-base.if',
+            typeVersion: 2,
+            position: [200, 0],
+            parameters: {
+              conditions: {
+                conditions: [
+                  {
+                    id: 'cond-1',
+                    leftValue: '={{ $json.value }}',
+                    rightValue: 'test',
+                    operation: 'equal'
+                  }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'TrueHandler',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, -50],
+            parameters: {}
+          },
+          {
+            id: '4',
+            name: 'FalseHandler',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, 50],
+            parameters: {}
+          }
+        ],
+        connections: {
+          Start: {
+            main: [[{ node: 'IF', type: 'main', index: 0 }]]
+          },
+          IF: {
+            main: [
+              [{ node: 'TrueHandler', type: 'main', index: 0 }],   // true branch (index 0)
+              [{ node: 'FalseHandler', type: 'main', index: 0 }]   // false branch (index 1)
+            ]
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Remove connection from true branch (index 0)
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'removeConnection',
+            source: 'IF',
+            target: 'TrueHandler',
+            branch: 'true'
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      // Verify structure: empty array at index 0, FalseHandler still at index 1
+      expect(fetchedWorkflow.connections.IF).toBeDefined();
+      expect(fetchedWorkflow.connections.IF.main).toBeDefined();
+      expect(fetchedWorkflow.connections.IF.main.length).toBe(2);
+
+      // Index 0 (true branch): Should be empty array (NOT removed!)
+      expect(fetchedWorkflow.connections.IF.main[0]).toBeDefined();
+      expect(fetchedWorkflow.connections.IF.main[0].length).toBe(0);
+
+      // Index 1 (false branch): Should STILL be FalseHandler (NOT shifted to index 0!)
+      expect(fetchedWorkflow.connections.IF.main[1]).toBeDefined();
+      expect(fetchedWorkflow.connections.IF.main[1].length).toBe(1);
+      expect(fetchedWorkflow.connections.IF.main[1][0].node).toBe('FalseHandler');
+    });
+
+    it('should preserve indices when removing first case from Switch node', async () => {
+      // MOST CRITICAL TEST: Verifies removing first output doesn't shift all others
+      // This is the exact bug scenario that was production-breaking
+
+      const workflowName = createTestWorkflowName('Array Preservation - Switch Remove First');
+
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Start',
+            type: 'n8n-nodes-base.manualTrigger',
+            typeVersion: 1,
+            position: [0, 0],
+            parameters: {}
+          },
+          {
+            id: '2',
+            name: 'Switch',
+            type: 'n8n-nodes-base.switch',
+            typeVersion: 3,
+            position: [200, 0],
+            parameters: {
+              options: {},
+              rules: {
+                rules: [
+                  { conditions: { conditions: [{ leftValue: '={{$json.case}}', rightValue: '0', operator: { type: 'string', operation: 'equals' } }] } },
+                  { conditions: { conditions: [{ leftValue: '={{$json.case}}', rightValue: '1', operator: { type: 'string', operation: 'equals' } }] } },
+                  { conditions: { conditions: [{ leftValue: '={{$json.case}}', rightValue: '2', operator: { type: 'string', operation: 'equals' } }] } }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'Handler0',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, -100],
+            parameters: {}
+          },
+          {
+            id: '4',
+            name: 'Handler1',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, 0],
+            parameters: {}
+          },
+          {
+            id: '5',
+            name: 'Handler2',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, 100],
+            parameters: {}
+          },
+          {
+            id: '6',
+            name: 'FallbackHandler',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, 200],
+            parameters: {}
+          }
+        ],
+        connections: {
+          Start: {
+            main: [[{ node: 'Switch', type: 'main', index: 0 }]]
+          },
+          Switch: {
+            main: [
+              [{ node: 'Handler0', type: 'main', index: 0 }],      // case 0
+              [{ node: 'Handler1', type: 'main', index: 0 }],      // case 1
+              [{ node: 'Handler2', type: 'main', index: 0 }],      // case 2
+              [{ node: 'FallbackHandler', type: 'main', index: 0 }] // fallback (case 3)
+            ]
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Remove connection from case 0 (first output)
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'removeConnection',
+            source: 'Switch',
+            target: 'Handler0',
+            case: 0
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      expect(fetchedWorkflow.connections.Switch).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main.length).toBe(4);
+
+      // case 0: Should be empty array (NOT removed!)
+      expect(fetchedWorkflow.connections.Switch.main[0]).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main[0].length).toBe(0);
+
+      // case 1: Should STILL be Handler1 at index 1 (NOT shifted to 0!)
+      expect(fetchedWorkflow.connections.Switch.main[1]).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main[1].length).toBe(1);
+      expect(fetchedWorkflow.connections.Switch.main[1][0].node).toBe('Handler1');
+
+      // case 2: Should STILL be Handler2 at index 2 (NOT shifted to 1!)
+      expect(fetchedWorkflow.connections.Switch.main[2]).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main[2].length).toBe(1);
+      expect(fetchedWorkflow.connections.Switch.main[2][0].node).toBe('Handler2');
+
+      // case 3: Should STILL be FallbackHandler at index 3 (NOT shifted to 2!)
+      expect(fetchedWorkflow.connections.Switch.main[3]).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main[3].length).toBe(1);
+      expect(fetchedWorkflow.connections.Switch.main[3][0].node).toBe('FallbackHandler');
+    });
+
+    it('should preserve indices through sequential operations on Switch node', async () => {
+      // Complex scenario: Multiple operations in sequence on the same Switch node
+      // This tests that our fix works correctly across multiple operations
+
+      const workflowName = createTestWorkflowName('Array Preservation - Sequential Ops');
+
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Start',
+            type: 'n8n-nodes-base.manualTrigger',
+            typeVersion: 1,
+            position: [0, 0],
+            parameters: {}
+          },
+          {
+            id: '2',
+            name: 'Switch',
+            type: 'n8n-nodes-base.switch',
+            typeVersion: 3,
+            position: [200, 0],
+            parameters: {
+              options: {},
+              rules: {
+                rules: [
+                  { conditions: { conditions: [{ leftValue: '={{$json.value}}', rightValue: '1', operator: { type: 'string', operation: 'equals' } }] } },
+                  { conditions: { conditions: [{ leftValue: '={{$json.value}}', rightValue: '2', operator: { type: 'string', operation: 'equals' } }] } }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'Handler0',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, -50],
+            parameters: {}
+          },
+          {
+            id: '4',
+            name: 'Handler1',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, 50],
+            parameters: {}
+          },
+          {
+            id: '5',
+            name: 'NewHandler0',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, -100],
+            parameters: {}
+          },
+          {
+            id: '6',
+            name: 'NewHandler2',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, 150],
+            parameters: {}
+          }
+        ],
+        connections: {
+          Start: {
+            main: [[{ node: 'Switch', type: 'main', index: 0 }]]
+          },
+          Switch: {
+            main: [
+              [{ node: 'Handler0', type: 'main', index: 0 }],  // case 0
+              [{ node: 'Handler1', type: 'main', index: 0 }]   // case 1
+            ]
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Sequential operations:
+      // 1. Rewire case 0: Handler0 → NewHandler0
+      // 2. Add connection to case 2 (new handler)
+      // 3. Remove connection from case 1 (Handler1)
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'rewireConnection',
+            source: 'Switch',
+            from: 'Handler0',
+            to: 'NewHandler0',
+            case: 0
+          },
+          {
+            type: 'addConnection',
+            source: 'Switch',
+            target: 'NewHandler2',
+            case: 2
+          },
+          {
+            type: 'removeConnection',
+            source: 'Switch',
+            target: 'Handler1',
+            case: 1
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      expect(fetchedWorkflow.connections.Switch).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main.length).toBe(3);
+
+      // case 0: Should be NewHandler0 (rewired)
+      expect(fetchedWorkflow.connections.Switch.main[0]).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main[0].length).toBe(1);
+      expect(fetchedWorkflow.connections.Switch.main[0][0].node).toBe('NewHandler0');
+
+      // case 1: Should be empty array (removed)
+      expect(fetchedWorkflow.connections.Switch.main[1]).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main[1].length).toBe(0);
+
+      // case 2: Should be NewHandler2 (added)
+      expect(fetchedWorkflow.connections.Switch.main[2]).toBeDefined();
+      expect(fetchedWorkflow.connections.Switch.main[2].length).toBe(1);
+      expect(fetchedWorkflow.connections.Switch.main[2][0].node).toBe('NewHandler2');
+    });
+
+    it('should preserve indices when rewiring Filter node connections', async () => {
+      // Filter node has 2 outputs: kept items (index 0) and discarded items (index 1)
+      // Test that rewiring one doesn't affect the other
+
+      const workflowName = createTestWorkflowName('Array Preservation - Filter');
+
+      const workflow: Workflow = await client.createWorkflow({
+        name: workflowName,
+        nodes: [
+          {
+            id: '1',
+            name: 'Start',
+            type: 'n8n-nodes-base.manualTrigger',
+            typeVersion: 1,
+            position: [0, 0],
+            parameters: {}
+          },
+          {
+            id: '2',
+            name: 'Filter',
+            type: 'n8n-nodes-base.filter',
+            typeVersion: 2,
+            position: [200, 0],
+            parameters: {
+              conditions: {
+                conditions: [
+                  {
+                    id: 'cond-1',
+                    leftValue: '={{ $json.value }}',
+                    rightValue: 10,
+                    operator: { type: 'number', operation: 'gt' }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            id: '3',
+            name: 'KeptHandler',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, -50],
+            parameters: {}
+          },
+          {
+            id: '4',
+            name: 'DiscardedHandler',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, 50],
+            parameters: {}
+          },
+          {
+            id: '5',
+            name: 'NewKeptHandler',
+            type: 'n8n-nodes-base.noOp',
+            typeVersion: 1,
+            position: [400, -100],
+            parameters: {}
+          }
+        ],
+        connections: {
+          Start: {
+            main: [[{ node: 'Filter', type: 'main', index: 0 }]]
+          },
+          Filter: {
+            main: [
+              [{ node: 'KeptHandler', type: 'main', index: 0 }],      // kept items (index 0)
+              [{ node: 'DiscardedHandler', type: 'main', index: 0 }]  // discarded items (index 1)
+            ]
+          }
+        }
+      });
+
+      expect(workflow.id).toBeTruthy();
+      if (!workflow.id) throw new Error('Workflow ID is missing');
+      context.trackWorkflow(workflow.id);
+
+      // Rewire kept items output (index 0) from KeptHandler to NewKeptHandler
+      await handleUpdatePartialWorkflow({
+        id: workflow.id,
+        operations: [
+          {
+            type: 'rewireConnection',
+            source: 'Filter',
+            from: 'KeptHandler',
+            to: 'NewKeptHandler',
+            sourceIndex: 0
+          }
+        ]
+      });
+
+      const fetchedWorkflow = await client.getWorkflow(workflow.id);
+
+      expect(fetchedWorkflow.connections.Filter).toBeDefined();
+      expect(fetchedWorkflow.connections.Filter.main).toBeDefined();
+      expect(fetchedWorkflow.connections.Filter.main.length).toBe(2);
+
+      // Index 0 (kept items): Should now be NewKeptHandler
+      expect(fetchedWorkflow.connections.Filter.main[0]).toBeDefined();
+      expect(fetchedWorkflow.connections.Filter.main[0].length).toBe(1);
+      expect(fetchedWorkflow.connections.Filter.main[0][0].node).toBe('NewKeptHandler');
+
+      // Index 1 (discarded items): Should STILL be DiscardedHandler (unchanged)
+      expect(fetchedWorkflow.connections.Filter.main[1]).toBeDefined();
+      expect(fetchedWorkflow.connections.Filter.main[1].length).toBe(1);
+      expect(fetchedWorkflow.connections.Filter.main[1][0].node).toBe('DiscardedHandler');
+    });
   });
 });
