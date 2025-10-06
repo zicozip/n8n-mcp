@@ -21,6 +21,10 @@ import {
   validateAIToolSubNode
 } from './ai-tool-validators';
 
+// Validation constants
+const MIN_SYSTEM_MESSAGE_LENGTH = 20;
+const MAX_ITERATIONS_WARNING_THRESHOLD = 50;
+
 /**
  * AI Connection Types
  * From spec lines 551-596
@@ -60,6 +64,11 @@ export function buildReverseConnectionMap(
 
   // Iterate through all connections
   for (const [sourceName, outputs] of Object.entries(workflow.connections)) {
+    // Validate source name is not empty
+    if (!sourceName || typeof sourceName !== 'string' || sourceName.trim() === '') {
+      continue;
+    }
+
     if (!outputs || typeof outputs !== 'object') continue;
 
     // Iterate through all output types (main, error, ai_tool, ai_languageModel, etc.)
@@ -71,6 +80,11 @@ export function buildReverseConnectionMap(
 
       for (const conn of connArray) {
         if (!conn || !conn.node) continue;
+
+        // Validate target node name is not empty
+        if (typeof conn.node !== 'string' || conn.node.trim() === '') {
+          continue;
+        }
 
         // Initialize array for target node if not exists
         if (!map.has(conn.node)) {
@@ -222,12 +236,12 @@ export function validateAIAgent(
       nodeName: node.name,
       message: `AI Agent "${node.name}" has no systemMessage. Consider adding one to define the agent's role, capabilities, and constraints.`
     });
-  } else if (node.parameters.systemMessage.trim().length < 20) {
+  } else if (node.parameters.systemMessage.trim().length < MIN_SYSTEM_MESSAGE_LENGTH) {
     issues.push({
       severity: 'info',
       nodeId: node.id,
       nodeName: node.name,
-      message: `AI Agent "${node.name}" systemMessage is very short. Provide more detail about the agent's role and capabilities.`
+      message: `AI Agent "${node.name}" systemMessage is very short (minimum ${MIN_SYSTEM_MESSAGE_LENGTH} characters recommended). Provide more detail about the agent's role and capabilities.`
     });
   }
 
@@ -291,12 +305,12 @@ export function validateAIAgent(
         message: `AI Agent "${node.name}" has maxIterations=${node.parameters.maxIterations}. Must be at least 1.`,
         code: 'MAX_ITERATIONS_TOO_LOW'
       });
-    } else if (node.parameters.maxIterations > 50) {
+    } else if (node.parameters.maxIterations > MAX_ITERATIONS_WARNING_THRESHOLD) {
       issues.push({
         severity: 'warning',
         nodeId: node.id,
         nodeName: node.name,
-        message: `AI Agent "${node.name}" has maxIterations=${node.parameters.maxIterations}. Very high iteration counts may cause long execution times and high costs.`
+        message: `AI Agent "${node.name}" has maxIterations=${node.parameters.maxIterations}. Very high iteration counts (>${MAX_ITERATIONS_WARNING_THRESHOLD}) may cause long execution times and high costs.`
       });
     }
   }

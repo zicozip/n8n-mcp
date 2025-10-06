@@ -10,6 +10,13 @@
 
 import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 
+// Validation constants
+const MIN_DESCRIPTION_LENGTH_SHORT = 10;
+const MIN_DESCRIPTION_LENGTH_MEDIUM = 15;
+const MIN_DESCRIPTION_LENGTH_LONG = 20;
+const MAX_ITERATIONS_WARNING_THRESHOLD = 50;
+const MAX_TOPK_WARNING_THRESHOLD = 20;
+
 export interface WorkflowNode {
   id: string;
   name: string;
@@ -59,12 +66,12 @@ export function validateHTTPRequestTool(node: WorkflowNode): ValidationIssue[] {
       message: `HTTP Request Tool "${node.name}" has no toolDescription. Add a clear description to help the LLM know when to use this API.`,
       code: 'MISSING_TOOL_DESCRIPTION'
     });
-  } else if (node.parameters.toolDescription.trim().length < 15) {
+  } else if (node.parameters.toolDescription.trim().length < MIN_DESCRIPTION_LENGTH_MEDIUM) {
     issues.push({
       severity: 'warning',
       nodeId: node.id,
       nodeName: node.name,
-      message: `HTTP Request Tool "${node.name}" toolDescription is too short. Explain what API this calls and when to use it.`
+      message: `HTTP Request Tool "${node.name}" toolDescription is too short (minimum ${MIN_DESCRIPTION_LENGTH_MEDIUM} characters). Explain what API this calls and when to use it.`
     });
   }
 
@@ -77,6 +84,31 @@ export function validateHTTPRequestTool(node: WorkflowNode): ValidationIssue[] {
       message: `HTTP Request Tool "${node.name}" has no URL. Add the API endpoint URL.`,
       code: 'MISSING_URL'
     });
+  } else {
+    // Validate URL protocol (must be http or https)
+    try {
+      const urlObj = new URL(node.parameters.url);
+      if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+        issues.push({
+          severity: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: `HTTP Request Tool "${node.name}" has invalid URL protocol "${urlObj.protocol}". Use http:// or https:// only.`,
+          code: 'INVALID_URL_PROTOCOL'
+        });
+      }
+    } catch (e) {
+      // URL parsing failed - invalid format
+      // Only warn if it's not an n8n expression
+      if (!node.parameters.url.includes('{{')) {
+        issues.push({
+          severity: 'warning',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: `HTTP Request Tool "${node.name}" has potentially invalid URL format. Ensure it's a valid URL or n8n expression.`
+        });
+      }
+    }
   }
 
   // 3. Validate placeholders match definitions
@@ -205,12 +237,12 @@ export function validateCodeTool(node: WorkflowNode): ValidationIssue[] {
       message: `Code Tool "${node.name}" has no description. Add one to help the LLM understand the tool's purpose.`,
       code: 'MISSING_DESCRIPTION'
     });
-  } else if (node.parameters.description.trim().length < 10) {
+  } else if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_SHORT) {
     issues.push({
       severity: 'warning',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Code Tool "${node.name}" description is too short. Provide more detail about what the tool does.`
+      message: `Code Tool "${node.name}" description is too short (minimum ${MIN_DESCRIPTION_LENGTH_SHORT} characters). Provide more detail about what the tool does.`
     });
   }
 
@@ -362,12 +394,12 @@ export function validateVectorStoreTool(
       message: `Vector Store Tool "${node.name}" has no description. Add one to explain what data it searches.`,
       code: 'MISSING_DESCRIPTION'
     });
-  } else if (node.parameters.description.trim().length < 15) {
+  } else if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_MEDIUM) {
     issues.push({
       severity: 'warning',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Vector Store Tool "${node.name}" description is too short. Explain what knowledge base is being searched.`
+      message: `Vector Store Tool "${node.name}" description is too short (minimum ${MIN_DESCRIPTION_LENGTH_MEDIUM} characters). Explain what knowledge base is being searched.`
     });
   }
 
@@ -434,12 +466,12 @@ export function validateVectorStoreTool(
         message: `Vector Store Tool "${node.name}" has invalid topK value. Must be a positive number.`,
         code: 'INVALID_TOPK'
       });
-    } else if (node.parameters.topK > 20) {
+    } else if (node.parameters.topK > MAX_TOPK_WARNING_THRESHOLD) {
       issues.push({
         severity: 'warning',
         nodeId: node.id,
         nodeName: node.name,
-        message: `Vector Store Tool "${node.name}" has topK=${node.parameters.topK}. Large values may overwhelm the LLM context. Consider reducing to 10 or less.`
+        message: `Vector Store Tool "${node.name}" has topK=${node.parameters.topK}. Large values (>${MAX_TOPK_WARNING_THRESHOLD}) may overwhelm the LLM context. Consider reducing to 10 or less.`
       });
     }
   }
@@ -626,12 +658,12 @@ export function validateAIAgentTool(
       message: `AI Agent Tool "${node.name}" has no description. Add one to help the parent agent know when to use this sub-agent.`,
       code: 'MISSING_DESCRIPTION'
     });
-  } else if (node.parameters.description.trim().length < 20) {
+  } else if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_LONG) {
     issues.push({
       severity: 'warning',
       nodeId: node.id,
       nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" description is too short. Explain the sub-agent's specific expertise and capabilities.`
+      message: `AI Agent Tool "${node.name}" description is too short (minimum ${MIN_DESCRIPTION_LENGTH_LONG} characters). Explain the sub-agent's specific expertise and capabilities.`
     });
   }
 
@@ -795,12 +827,12 @@ export function validateCalculatorTool(node: WorkflowNode): ValidationIssue[] {
   // Calculator is self-contained and requires no configuration
   // Optional: Check for custom description
   if (node.parameters.description) {
-    if (node.parameters.description.trim().length < 10) {
+    if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_SHORT) {
       issues.push({
         severity: 'info',
         nodeId: node.id,
         nodeName: node.name,
-        message: `Calculator Tool "${node.name}" has a very short description. Consider being more specific about when to use it.`
+        message: `Calculator Tool "${node.name}" has a very short description (minimum ${MIN_DESCRIPTION_LENGTH_SHORT} characters). Consider being more specific about when to use it.`
       });
     }
   }
@@ -814,12 +846,12 @@ export function validateThinkTool(node: WorkflowNode): ValidationIssue[] {
   // Think tool is self-contained and requires no configuration
   // Optional: Check for custom description
   if (node.parameters.description) {
-    if (node.parameters.description.trim().length < 15) {
+    if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_MEDIUM) {
       issues.push({
         severity: 'info',
         nodeId: node.id,
         nodeName: node.name,
-        message: `Think Tool "${node.name}" has a very short description. Explain when the agent should use thinking vs. action.`
+        message: `Think Tool "${node.name}" has a very short description (minimum ${MIN_DESCRIPTION_LENGTH_MEDIUM} characters). Explain when the agent should use thinking vs. action.`
       });
     }
   }
@@ -977,20 +1009,34 @@ export function validateAIToolSubNode(
   workflow: WorkflowJson
 ): ValidationIssue[] {
   const normalized = NodeTypeNormalizer.normalizeToFullForm(nodeType);
-  const validator = AI_TOOL_VALIDATORS[normalized as keyof typeof AI_TOOL_VALIDATORS];
 
-  if (!validator) {
-    return [];
-  }
-
-  // Some validators need reverseConnections and workflow
-  if (normalized === '@n8n/n8n-nodes-langchain.toolVectorStore') {
-    return validateVectorStoreTool(node, reverseConnections, workflow);
-  } else if (normalized === '@n8n/n8n-nodes-langchain.agentTool') {
-    return validateAIAgentTool(node, reverseConnections);
-  } else {
-    // Simple validators that only need the node
-    // Cast to any to handle different validator signatures
-    return (validator as any)(node);
+  // Route to appropriate validator based on node type
+  switch (normalized) {
+    case '@n8n/n8n-nodes-langchain.toolHttpRequest':
+      return validateHTTPRequestTool(node);
+    case '@n8n/n8n-nodes-langchain.toolCode':
+      return validateCodeTool(node);
+    case '@n8n/n8n-nodes-langchain.toolVectorStore':
+      return validateVectorStoreTool(node, reverseConnections, workflow);
+    case '@n8n/n8n-nodes-langchain.toolWorkflow':
+      return validateWorkflowTool(node);
+    case '@n8n/n8n-nodes-langchain.agentTool':
+      return validateAIAgentTool(node, reverseConnections);
+    case '@n8n/n8n-nodes-langchain.mcpClientTool':
+      return validateMCPClientTool(node);
+    case '@n8n/n8n-nodes-langchain.toolCalculator':
+      return validateCalculatorTool(node);
+    case '@n8n/n8n-nodes-langchain.toolThink':
+      return validateThinkTool(node);
+    case '@n8n/n8n-nodes-langchain.toolSerpApi':
+      return validateSerpApiTool(node);
+    case '@n8n/n8n-nodes-langchain.toolWikipedia':
+      return validateWikipediaTool(node);
+    case '@n8n/n8n-nodes-langchain.toolSearXng':
+      return validateSearXngTool(node);
+    case '@n8n/n8n-nodes-langchain.toolWolframAlpha':
+      return validateWolframAlphaTool(node);
+    default:
+      return [];
   }
 }
