@@ -126,31 +126,44 @@ export function validateHTTPRequestTool(node: WorkflowNode): ValidationIssue[] {
       }
     });
 
-    // Check if placeholders are defined
-    const definitions = node.parameters.placeholderDefinitions?.values || [];
-    const definedNames = new Set(definitions.map((d: any) => d.name));
+    // If placeholders exist in URL/body/headers
+    if (placeholders.size > 0) {
+      const definitions = node.parameters.placeholderDefinitions?.values || [];
+      const definedNames = new Set(definitions.map((d: any) => d.name));
 
-    for (const placeholder of placeholders) {
-      if (!definedNames.has(placeholder)) {
-        issues.push({
-          severity: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `HTTP Request Tool "${node.name}" uses placeholder {${placeholder}} but it's not defined in placeholderDefinitions.`,
-          code: 'UNDEFINED_PLACEHOLDER'
-        });
-      }
-    }
-
-    // Check for defined but unused placeholders
-    for (const def of definitions) {
-      if (!placeholders.has(def.name)) {
+      // If no placeholderDefinitions at all, warn
+      if (!node.parameters.placeholderDefinitions) {
         issues.push({
           severity: 'warning',
           nodeId: node.id,
           nodeName: node.name,
-          message: `HTTP Request Tool "${node.name}" defines placeholder "${def.name}" but doesn't use it.`
+          message: `HTTP Request Tool "${node.name}" uses placeholders but has no placeholderDefinitions. Add definitions to describe the expected inputs.`
         });
+      } else {
+        // Has placeholderDefinitions, check each placeholder
+        for (const placeholder of placeholders) {
+          if (!definedNames.has(placeholder)) {
+            issues.push({
+              severity: 'error',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: `HTTP Request Tool "${node.name}" Placeholder "${placeholder}" in URL but it's not defined in placeholderDefinitions.`,
+              code: 'UNDEFINED_PLACEHOLDER'
+            });
+          }
+        }
+
+        // Check for defined but unused placeholders
+        for (const def of definitions) {
+          if (!placeholders.has(def.name)) {
+            issues.push({
+              severity: 'warning',
+              nodeId: node.id,
+              nodeName: node.name,
+              message: `HTTP Request Tool "${node.name}" defines placeholder "${def.name}" but doesn't use it.`
+            });
+          }
+        }
       }
     }
   }
@@ -201,163 +214,36 @@ export function validateHTTPRequestTool(node: WorkflowNode): ValidationIssue[] {
 export function validateCodeTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // 1. Check function name (REQUIRED)
-  if (!node.parameters.name) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Code Tool "${node.name}" has no function name. Add a name property.`,
-      code: 'MISSING_FUNCTION_NAME'
-    });
-  } else if (!/^[a-zA-Z0-9_]+$/.test(node.parameters.name)) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Code Tool "${node.name}" function name "${node.parameters.name}" contains invalid characters. Use only letters, numbers, and underscores.`,
-      code: 'INVALID_FUNCTION_NAME'
-    });
-  } else if (/^\d/.test(node.parameters.name)) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Code Tool "${node.name}" function name "${node.parameters.name}" cannot start with a number.`,
-      code: 'FUNCTION_NAME_STARTS_WITH_NUMBER'
+      message: `Code Tool "${node.name}" has no toolDescription. Add one to help the LLM understand the tool's purpose.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
   }
 
-  // 2. Check description (REQUIRED)
-  if (!node.parameters.description) {
+  // 2. Check jsCode exists (REQUIRED)
+  if (!node.parameters.jsCode || node.parameters.jsCode.trim().length === 0) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Code Tool "${node.name}" has no description. Add one to help the LLM understand the tool's purpose.`,
-      code: 'MISSING_DESCRIPTION'
-    });
-  } else if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_SHORT) {
-    issues.push({
-      severity: 'warning',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Code Tool "${node.name}" description is too short (minimum ${MIN_DESCRIPTION_LENGTH_SHORT} characters). Provide more detail about what the tool does.`
-    });
-  }
-
-  // 3. Check code exists (REQUIRED)
-  if (!node.parameters.code || node.parameters.code.trim().length === 0) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Code Tool "${node.name}" has no code. Add the JavaScript or Python code to execute.`,
+      message: `Code Tool "${node.name}" code is empty. Add the JavaScript code to execute.`,
       code: 'MISSING_CODE'
     });
   }
 
-  // 4. Check language validity
-  if (node.parameters.language && !['javaScript', 'python'].includes(node.parameters.language)) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Code Tool "${node.name}" has invalid language "${node.parameters.language}". Use "javaScript" or "python".`,
-      code: 'INVALID_LANGUAGE'
-    });
-  }
-
-  // 5. Recommend input schema
-  if (!node.parameters.specifyInputSchema) {
+  // 3. Recommend input/output schema
+  if (!node.parameters.inputSchema && !node.parameters.specifyInputSchema) {
     issues.push({
       severity: 'warning',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Code Tool "${node.name}" does not specify an input schema. Consider adding one to validate LLM inputs.`
+      message: `Code Tool "${node.name}" has no input schema. Consider adding one to validate LLM inputs.`
     });
-  } else {
-    // 6. Validate schema if specified
-    if (node.parameters.schemaType === 'fromJson') {
-      if (!node.parameters.jsonSchemaExample) {
-        issues.push({
-          severity: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `Code Tool "${node.name}" uses schemaType="fromJson" but has no jsonSchemaExample.`,
-          code: 'MISSING_JSON_SCHEMA_EXAMPLE'
-        });
-      } else {
-        try {
-          JSON.parse(node.parameters.jsonSchemaExample);
-        } catch (e) {
-          issues.push({
-            severity: 'error',
-            nodeId: node.id,
-            nodeName: node.name,
-            message: `Code Tool "${node.name}" has invalid JSON schema example.`,
-            code: 'INVALID_JSON_SCHEMA'
-          });
-        }
-      }
-    } else if (node.parameters.schemaType === 'manual') {
-      if (!node.parameters.inputSchema) {
-        issues.push({
-          severity: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `Code Tool "${node.name}" uses schemaType="manual" but has no inputSchema.`,
-          code: 'MISSING_INPUT_SCHEMA'
-        });
-      } else {
-        try {
-          const schema = JSON.parse(node.parameters.inputSchema);
-          if (!schema.type) {
-            issues.push({
-              severity: 'warning',
-              nodeId: node.id,
-              nodeName: node.name,
-              message: `Code Tool "${node.name}" manual schema should have a 'type' field.`
-            });
-          }
-          if (!schema.properties && schema.type === 'object') {
-            issues.push({
-              severity: 'warning',
-              nodeId: node.id,
-              nodeName: node.name,
-              message: `Code Tool "${node.name}" object schema should have 'properties' field.`
-            });
-          }
-        } catch (e) {
-          issues.push({
-            severity: 'error',
-            nodeId: node.id,
-            nodeName: node.name,
-            message: `Code Tool "${node.name}" has invalid JSON schema.`,
-            code: 'INVALID_JSON_SCHEMA'
-          });
-        }
-      }
-    }
-  }
-
-  // 7. Check for common code mistakes
-  if (node.parameters.code) {
-    const lang = node.parameters.language || 'javaScript';
-    if (lang === 'javaScript') {
-      // Check if code has return statement or expression
-      const hasReturn = /\breturn\b/.test(node.parameters.code);
-      const isSingleExpression = !node.parameters.code.includes(';') &&
-                                 !node.parameters.code.includes('\n');
-      if (!hasReturn && !isSingleExpression) {
-        issues.push({
-          severity: 'warning',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `Code Tool "${node.name}" JavaScript code should return a value. Add a return statement.`
-        });
-      }
-    }
   }
 
   return issues;
@@ -374,89 +260,18 @@ export function validateVectorStoreTool(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // 1. Check tool name (REQUIRED)
-  if (!node.parameters.name) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Vector Store Tool "${node.name}" has no tool name. Add a name property.`,
-      code: 'MISSING_TOOL_NAME'
+      message: `Vector Store Tool "${node.name}" has no toolDescription. Add one to explain what data it searches.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
   }
 
-  // 2. Check description (REQUIRED)
-  if (!node.parameters.description) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Vector Store Tool "${node.name}" has no description. Add one to explain what data it searches.`,
-      code: 'MISSING_DESCRIPTION'
-    });
-  } else if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_MEDIUM) {
-    issues.push({
-      severity: 'warning',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Vector Store Tool "${node.name}" description is too short (minimum ${MIN_DESCRIPTION_LENGTH_MEDIUM} characters). Explain what knowledge base is being searched.`
-    });
-  }
-
-  // 3. Check ai_vectorStore connection (REQUIRED)
-  const incoming = reverseConnections.get(node.name) || [];
-  const vectorStoreConn = incoming.find(c => c.type === 'ai_vectorStore');
-
-  if (!vectorStoreConn) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Vector Store Tool "${node.name}" requires an ai_vectorStore connection. Connect a Vector Store node (e.g., Pinecone, In-Memory Vector Store).`,
-      code: 'MISSING_VECTOR_STORE_CONNECTION'
-    });
-    return issues;  // Can't continue without this
-  }
-
-  // 4. Validate Vector Store node exists
-  const vectorStoreNode = workflow.nodes.find(n => n.name === vectorStoreConn.sourceName);
-  if (!vectorStoreNode) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Vector Store Tool "${node.name}" connects to non-existent node "${vectorStoreConn.sourceName}".`,
-      code: 'INVALID_VECTOR_STORE_NODE'
-    });
-    return issues;
-  }
-
-  // 5. Validate Vector Store has embedding (REQUIRED)
-  const vsIncoming = reverseConnections.get(vectorStoreNode.name) || [];
-  const embeddingConn = vsIncoming.find(c => c.type === 'ai_embedding');
-
-  if (!embeddingConn) {
-    issues.push({
-      severity: 'error',
-      nodeId: vectorStoreNode.id,
-      nodeName: vectorStoreNode.name,
-      message: `Vector Store "${vectorStoreNode.name}" requires an ai_embedding connection. Connect an Embeddings node (e.g., Embeddings OpenAI, Embeddings Google Gemini).`,
-      code: 'MISSING_EMBEDDING_CONNECTION'
-    });
-  }
-
-  // 6. Check for document loader (RECOMMENDED)
-  const documentConn = vsIncoming.find(c => c.type === 'ai_document');
-  if (!documentConn) {
-    issues.push({
-      severity: 'warning',
-      nodeId: vectorStoreNode.id,
-      nodeName: vectorStoreNode.name,
-      message: `Vector Store "${vectorStoreNode.name}" has no ai_document connection. Without documents, the vector store will be empty. Connect a Document Loader to populate it.`
-    });
-  }
-
-  // 7. Validate topK parameter if specified
+  // 2. Validate topK parameter if specified
   if (node.parameters.topK !== undefined) {
     if (typeof node.parameters.topK !== 'number' || node.parameters.topK < 1) {
       issues.push({
@@ -483,120 +298,28 @@ export function validateVectorStoreTool(
  * 4. Workflow Tool Validator
  * From spec lines 1622-1831 (already complete in spec)
  */
-export function validateWorkflowTool(node: WorkflowNode): ValidationIssue[] {
+export function validateWorkflowTool(node: WorkflowNode, reverseConnections?: Map<string, ReverseConnection[]>): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // 1. Check description (REQUIRED for LLM to understand tool)
-  if (!node.parameters.description) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Workflow Tool "${node.name}" has no description. Add a clear description to help the LLM know when to use this sub-workflow.`,
-      code: 'MISSING_DESCRIPTION'
+      message: `Workflow Tool "${node.name}" has no toolDescription. Add one to help the LLM know when to use this tool.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
   }
 
-  // 2. Check source parameter exists
-  if (!node.parameters.source) {
+  // 2. Check workflowId (REQUIRED)
+  if (!node.parameters.workflowId) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Workflow Tool "${node.name}" has no source parameter. Set source to "database" or "parameter".`,
-      code: 'MISSING_SOURCE'
-    });
-    return issues;  // Can't continue without source
-  }
-
-  // 3. Validate based on source type
-  if (node.parameters.source === 'database') {
-    // When using database, workflowId is required
-    if (!node.parameters.workflowId) {
-      issues.push({
-        severity: 'error',
-        nodeId: node.id,
-        nodeName: node.name,
-        message: `Workflow Tool "${node.name}" has source="database" but no workflowId specified. Select a sub-workflow to execute.`,
-        code: 'MISSING_WORKFLOW_ID'
-      });
-    }
-  } else if (node.parameters.source === 'parameter') {
-    // When using parameter, workflowJson is required
-    if (!node.parameters.workflowJson) {
-      issues.push({
-        severity: 'error',
-        nodeId: node.id,
-        nodeName: node.name,
-        message: `Workflow Tool "${node.name}" has source="parameter" but no workflowJson specified. Provide the inline workflow definition.`,
-        code: 'MISSING_WORKFLOW_JSON'
-      });
-    } else {
-      // Validate workflow structure
-      try {
-        const workflow = typeof node.parameters.workflowJson === 'string'
-          ? JSON.parse(node.parameters.workflowJson)
-          : node.parameters.workflowJson;
-
-        if (!workflow.nodes || !Array.isArray(workflow.nodes)) {
-          issues.push({
-            severity: 'error',
-            nodeId: node.id,
-            nodeName: node.name,
-            message: `Workflow Tool "${node.name}" workflowJson has invalid structure. Must have a nodes array.`,
-            code: 'INVALID_WORKFLOW_STRUCTURE'
-          });
-        } else {
-          // Check for Execute Workflow Trigger
-          const hasTrigger = workflow.nodes.some((n: any) =>
-            n.type.includes('executeWorkflowTrigger')
-          );
-          if (!hasTrigger) {
-            issues.push({
-              severity: 'error',
-              nodeId: node.id,
-              nodeName: node.name,
-              message: `Workflow Tool "${node.name}" sub-workflow must start with Execute Workflow Trigger node.`,
-              code: 'MISSING_WORKFLOW_TRIGGER'
-            });
-          }
-        }
-      } catch (e) {
-        issues.push({
-          severity: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `Workflow Tool "${node.name}" has invalid JSON in workflowJson.`,
-          code: 'INVALID_WORKFLOW_JSON'
-        });
-      }
-    }
-  }
-
-  // 4. Validate input schema if specified
-  if (node.parameters.specifyInputSchema) {
-    if (node.parameters.jsonSchemaExample) {
-      try {
-        JSON.parse(node.parameters.jsonSchemaExample);
-      } catch (e) {
-        issues.push({
-          severity: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `Workflow Tool "${node.name}" has invalid JSON schema example.`,
-          code: 'INVALID_JSON_SCHEMA'
-        });
-      }
-    }
-  }
-
-  // 5. Check workflowInputs configuration
-  if (!node.parameters.workflowInputs) {
-    issues.push({
-      severity: 'info',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Workflow Tool "${node.name}" has no workflowInputs defined. Map fields to help LLM provide correct data to sub-workflow.`
+      message: `Workflow Tool "${node.name}" has no workflowId. Select a workflow to execute.`,
+      code: 'MISSING_WORKFLOW_ID'
     });
   }
 
@@ -613,95 +336,18 @@ export function validateAIAgentTool(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // This is an AI Agent packaged as a tool
-  // It has the same requirements as a regular AI Agent
-
-  // 1. Check ai_languageModel connection (REQUIRED, exactly 1)
-  const incoming = reverseConnections.get(node.name) || [];
-  const languageModelConn = incoming.filter(c => c.type === 'ai_languageModel');
-
-  if (languageModelConn.length === 0) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" requires an ai_languageModel connection. Connect a language model node.`,
-      code: 'MISSING_LANGUAGE_MODEL'
-    });
-  } else if (languageModelConn.length > 1) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" has ${languageModelConn.length} ai_languageModel connections. AI Agent Tool only supports 1 language model (no fallback).`,
-      code: 'MULTIPLE_LANGUAGE_MODELS'
+      message: `AI Agent Tool "${node.name}" has no toolDescription. Add one to help the LLM know when to use this tool.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
   }
 
-  // 2. Check tool name (REQUIRED)
-  if (!node.parameters.name) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" has no tool name. Add a name so the parent agent can invoke this sub-agent.`,
-      code: 'MISSING_TOOL_NAME'
-    });
-  }
-
-  // 3. Check description (REQUIRED)
-  if (!node.parameters.description) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" has no description. Add one to help the parent agent know when to use this sub-agent.`,
-      code: 'MISSING_DESCRIPTION'
-    });
-  } else if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_LONG) {
-    issues.push({
-      severity: 'warning',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" description is too short (minimum ${MIN_DESCRIPTION_LENGTH_LONG} characters). Explain the sub-agent's specific expertise and capabilities.`
-    });
-  }
-
-  // 4. Check system message (RECOMMENDED)
-  if (!node.parameters.systemMessage && node.parameters.promptType !== 'define') {
-    issues.push({
-      severity: 'warning',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" has no systemMessage. Add one to define the sub-agent's specialized role and constraints.`
-    });
-  }
-
-  // 5. Validate promptType configuration
-  if (node.parameters.promptType === 'define') {
-    if (!node.parameters.text || node.parameters.text.trim() === '') {
-      issues.push({
-        severity: 'error',
-        nodeId: node.id,
-        nodeName: node.name,
-        message: `AI Agent Tool "${node.name}" has promptType="define" but no text field. Provide the custom prompt.`,
-        code: 'MISSING_PROMPT_TEXT'
-      });
-    }
-  }
-
-  // 6. Check if sub-agent has its own tools
-  const toolConnections = incoming.filter(c => c.type === 'ai_tool');
-  if (toolConnections.length === 0) {
-    issues.push({
-      severity: 'info',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `AI Agent Tool "${node.name}" has no ai_tool connections. Consider giving the sub-agent tools to enhance its capabilities.`
-    });
-  }
-
-  // 7. Validate maxIterations if specified
+  // 2. Validate maxIterations if specified
   if (node.parameters.maxIterations !== undefined) {
     if (typeof node.parameters.maxIterations !== 'number' || node.parameters.maxIterations < 1) {
       issues.push({
@@ -710,6 +356,13 @@ export function validateAIAgentTool(
         nodeName: node.name,
         message: `AI Agent Tool "${node.name}" has invalid maxIterations. Must be a positive number.`,
         code: 'INVALID_MAX_ITERATIONS'
+      });
+    } else if (node.parameters.maxIterations > MAX_ITERATIONS_WARNING_THRESHOLD) {
+      issues.push({
+        severity: 'warning',
+        nodeId: node.id,
+        nodeName: node.name,
+        message: `AI Agent Tool "${node.name}" has maxIterations=${node.parameters.maxIterations}. Large values (>${MAX_ITERATIONS_WARNING_THRESHOLD}) may lead to long execution times.`
       });
     }
   }
@@ -724,93 +377,25 @@ export function validateAIAgentTool(
 export function validateMCPClientTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // 1. Check mcpServer configuration (REQUIRED)
-  if (!node.parameters.mcpServer) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `MCP Client Tool "${node.name}" has no mcpServer configuration. Configure the MCP server connection.`,
-      code: 'MISSING_MCP_SERVER'
+      message: `MCP Client Tool "${node.name}" has no toolDescription. Add one to help the LLM know when to use this tool.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
-    return issues;
   }
 
-  const mcpServer = node.parameters.mcpServer;
-
-  // 2. Validate transport type
-  if (!mcpServer.transport) {
+  // 2. Check serverUrl (REQUIRED)
+  if (!node.parameters.serverUrl) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `MCP Client Tool "${node.name}" has no transport configured. Use "stdio" or "sse".`,
-      code: 'MISSING_TRANSPORT'
-    });
-  } else {
-    // Transport-specific validation
-    if (mcpServer.transport === 'stdio') {
-      if (!mcpServer.command) {
-        issues.push({
-          severity: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `MCP Client Tool "${node.name}" stdio transport requires command. Specify the executable command.`,
-          code: 'MISSING_STDIO_COMMAND'
-        });
-      }
-    } else if (mcpServer.transport === 'sse') {
-      if (!mcpServer.url) {
-        issues.push({
-          severity: 'error',
-          nodeId: node.id,
-          nodeName: node.name,
-          message: `MCP Client Tool "${node.name}" SSE transport requires URL. Specify the server URL.`,
-          code: 'MISSING_SSE_URL'
-        });
-      } else {
-        // Validate URL format
-        try {
-          new URL(mcpServer.url);
-        } catch (e) {
-          issues.push({
-            severity: 'error',
-            nodeId: node.id,
-            nodeName: node.name,
-            message: `MCP Client Tool "${node.name}" has invalid server URL.`,
-            code: 'INVALID_URL'
-          });
-        }
-      }
-    } else {
-      issues.push({
-        severity: 'error',
-        nodeId: node.id,
-        nodeName: node.name,
-        message: `MCP Client Tool "${node.name}" has invalid transport "${mcpServer.transport}". Use "stdio" or "sse".`,
-        code: 'INVALID_TRANSPORT'
-      });
-    }
-  }
-
-  // 3. Check tool selection (REQUIRED)
-  if (!node.parameters.tool) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `MCP Client Tool "${node.name}" has no tool selected from MCP server. Select a tool to use.`,
-      code: 'MISSING_TOOL_SELECTION'
-    });
-  }
-
-  // 4. Check description (RECOMMENDED)
-  if (!node.parameters.description) {
-    issues.push({
-      severity: 'warning',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `MCP Client Tool "${node.name}" has no description. Add one to help the LLM know when to use this MCP tool.`
+      message: `MCP Client Tool "${node.name}" has no serverUrl. Configure the MCP server URL.`,
+      code: 'MISSING_SERVER_URL'
     });
   }
 
@@ -824,17 +409,22 @@ export function validateMCPClientTool(node: WorkflowNode): ValidationIssue[] {
 export function validateCalculatorTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // Calculator is self-contained and requires no configuration
-  // Optional: Check for custom description
-  if (node.parameters.description) {
-    if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_SHORT) {
-      issues.push({
-        severity: 'info',
-        nodeId: node.id,
-        nodeName: node.name,
-        message: `Calculator Tool "${node.name}" has a very short description (minimum ${MIN_DESCRIPTION_LENGTH_SHORT} characters). Consider being more specific about when to use it.`
-      });
-    }
+  // Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
+    issues.push({
+      severity: 'error',
+      nodeId: node.id,
+      nodeName: node.name,
+      message: `Calculator Tool "${node.name}" has no toolDescription. Add one to help the LLM know when to use this tool.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
+    });
+  } else if (node.parameters.toolDescription.trim().length < MIN_DESCRIPTION_LENGTH_SHORT) {
+    issues.push({
+      severity: 'info',
+      nodeId: node.id,
+      nodeName: node.name,
+      message: `Calculator Tool "${node.name}" has a very short toolDescription (minimum ${MIN_DESCRIPTION_LENGTH_SHORT} characters). Consider being more specific about when to use it.`
+    });
   }
 
   return issues;
@@ -843,17 +433,22 @@ export function validateCalculatorTool(node: WorkflowNode): ValidationIssue[] {
 export function validateThinkTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // Think tool is self-contained and requires no configuration
-  // Optional: Check for custom description
-  if (node.parameters.description) {
-    if (node.parameters.description.trim().length < MIN_DESCRIPTION_LENGTH_MEDIUM) {
-      issues.push({
-        severity: 'info',
-        nodeId: node.id,
-        nodeName: node.name,
-        message: `Think Tool "${node.name}" has a very short description (minimum ${MIN_DESCRIPTION_LENGTH_MEDIUM} characters). Explain when the agent should use thinking vs. action.`
-      });
-    }
+  // Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
+    issues.push({
+      severity: 'error',
+      nodeId: node.id,
+      nodeName: node.name,
+      message: `Think Tool "${node.name}" has no toolDescription. Add one to help the LLM know when to use thinking.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
+    });
+  } else if (node.parameters.toolDescription.trim().length < MIN_DESCRIPTION_LENGTH_MEDIUM) {
+    issues.push({
+      severity: 'info',
+      nodeId: node.id,
+      nodeName: node.name,
+      message: `Think Tool "${node.name}" has a very short toolDescription (minimum ${MIN_DESCRIPTION_LENGTH_MEDIUM} characters). Explain when the agent should use thinking vs. action.`
+    });
   }
 
   return issues;
@@ -866,24 +461,24 @@ export function validateThinkTool(node: WorkflowNode): ValidationIssue[] {
 export function validateSerpApiTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // 1. Check credentials (REQUIRED)
-  if (!node.credentials || !node.credentials.serpApi) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `SerpApi Tool "${node.name}" requires SerpApi credentials. Configure your API key.`,
-      code: 'MISSING_CREDENTIALS'
+      message: `SerpApi Tool "${node.name}" has no toolDescription. Add one to explain when to use Google search.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
   }
 
-  // 2. Check description (RECOMMENDED)
-  if (!node.parameters.description) {
+  // 2. Check credentials (RECOMMENDED)
+  if (!node.credentials || !node.credentials.serpApiApi) {
     issues.push({
-      severity: 'info',
+      severity: 'warning',
       nodeId: node.id,
       nodeName: node.name,
-      message: `SerpApi Tool "${node.name}" has no custom description. Add one to explain when to use Google search vs. other search tools.`
+      message: `SerpApi Tool "${node.name}" requires SerpApi credentials. Configure your API key.`
     });
   }
 
@@ -893,13 +488,14 @@ export function validateSerpApiTool(node: WorkflowNode): ValidationIssue[] {
 export function validateWikipediaTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // 1. Check description (RECOMMENDED)
-  if (!node.parameters.description) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
-      severity: 'info',
+      severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `Wikipedia Tool "${node.name}" has no custom description. Add one to explain when to use Wikipedia vs. other knowledge sources.`
+      message: `Wikipedia Tool "${node.name}" has no toolDescription. Add one to explain when to use Wikipedia.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
   }
 
@@ -922,24 +518,25 @@ export function validateWikipediaTool(node: WorkflowNode): ValidationIssue[] {
 export function validateSearXngTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // 1. Check credentials (REQUIRED)
-  if (!node.credentials || !node.credentials.searXng) {
+  // 1. Check toolDescription (REQUIRED)
+  if (!node.parameters.toolDescription) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `SearXNG Tool "${node.name}" requires SearXNG instance credentials. Configure your instance URL.`,
-      code: 'MISSING_CREDENTIALS'
+      message: `SearXNG Tool "${node.name}" has no toolDescription. Add one to explain when to use SearXNG.`,
+      code: 'MISSING_TOOL_DESCRIPTION'
     });
   }
 
-  // 2. Check description (RECOMMENDED)
-  if (!node.parameters.description) {
+  // 2. Check baseUrl (REQUIRED)
+  if (!node.parameters.baseUrl) {
     issues.push({
-      severity: 'info',
+      severity: 'error',
       nodeId: node.id,
       nodeName: node.name,
-      message: `SearXNG Tool "${node.name}" has no custom description. Add one to explain when to use SearXNG vs. other search tools.`
+      message: `SearXNG Tool "${node.name}" has no baseUrl. Configure your SearXNG instance URL.`,
+      code: 'MISSING_BASE_URL'
     });
   }
 
@@ -950,7 +547,7 @@ export function validateWolframAlphaTool(node: WorkflowNode): ValidationIssue[] 
   const issues: ValidationIssue[] = [];
 
   // 1. Check credentials (REQUIRED)
-  if (!node.credentials || !node.credentials.wolframAlpha) {
+  if (!node.credentials || (!node.credentials.wolframAlpha && !node.credentials.wolframAlphaApi)) {
     issues.push({
       severity: 'error',
       nodeId: node.id,
@@ -960,8 +557,8 @@ export function validateWolframAlphaTool(node: WorkflowNode): ValidationIssue[] 
     });
   }
 
-  // 2. Check description (RECOMMENDED)
-  if (!node.parameters.description) {
+  // 2. Check description (INFO)
+  if (!node.parameters.description && !node.parameters.toolDescription) {
     issues.push({
       severity: 'info',
       nodeId: node.id,
