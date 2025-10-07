@@ -210,7 +210,7 @@ describe('Integration: End-to-End AI Workflow Validation', () => {
     expect(validationData.errors!.length).toBeGreaterThan(3);
 
     // Verify specific errors are detected
-    const errorCodes = validationData.errors!.map(e => e.code);
+    const errorCodes = validationData.errors!.map(e => e.details?.code || e.code);
 
     expect(errorCodes).toContain('MISSING_LANGUAGE_MODEL'); // AI Agent
     expect(errorCodes).toContain('MISSING_PROMPT_TEXT'); // AI Agent

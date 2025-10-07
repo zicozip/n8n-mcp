@@ -84,7 +84,7 @@ describe('Integration: Basic LLM Chain Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('MISSING_LANGUAGE_MODEL');
   });
 
@@ -127,7 +127,7 @@ describe('Integration: Basic LLM Chain Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('MISSING_PROMPT_TEXT');
   });
 
@@ -267,7 +267,7 @@ describe('Integration: Basic LLM Chain Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('MULTIPLE_LANGUAGE_MODELS');
   });
 
@@ -323,7 +323,7 @@ describe('Integration: Basic LLM Chain Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('TOOLS_NOT_SUPPORTED');
 
     const errorMessages = data.errors!.map(e => e.message).join(' ');

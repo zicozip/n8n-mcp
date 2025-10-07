@@ -99,7 +99,7 @@ describe('Integration: Chat Trigger Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('STREAMING_WRONG_TARGET');
 
     const errorMessages = data.errors!.map(e => e.message).join(' ');
@@ -139,7 +139,7 @@ describe('Integration: Chat Trigger Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('MISSING_CONNECTIONS');
   });
 

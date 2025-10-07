@@ -89,7 +89,7 @@ describe('Integration: AI Agent Validation', () => {
     expect(data.errors).toBeDefined();
     expect(data.errors!.length).toBeGreaterThan(0);
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('MISSING_LANGUAGE_MODEL');
 
     const errorMessages = data.errors!.map(e => e.message).join(' ');
@@ -298,7 +298,7 @@ describe('Integration: AI Agent Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('STREAMING_WITH_MAIN_OUTPUT');
   });
 
@@ -352,7 +352,7 @@ describe('Integration: AI Agent Validation', () => {
     expect(data.valid).toBe(false);
     expect(data.errors).toBeDefined();
 
-    const errorCodes = data.errors!.map(e => e.code);
+    const errorCodes = data.errors!.map(e => e.details?.code || e.code);
     expect(errorCodes).toContain('MULTIPLE_MEMORY_CONNECTIONS');
   });
 

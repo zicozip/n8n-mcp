@@ -86,7 +86,7 @@ describe('Integration: AI Tool Validation', () => {
       expect(data.valid).toBe(false);
       expect(data.errors).toBeDefined();
 
-      const errorCodes = data.errors!.map(e => e.code);
+      const errorCodes = data.errors!.map(e => e.details?.code || e.code);
       expect(errorCodes).toContain('MISSING_TOOL_DESCRIPTION');
     });
 
@@ -122,7 +122,7 @@ describe('Integration: AI Tool Validation', () => {
       expect(data.valid).toBe(false);
       expect(data.errors).toBeDefined();
 
-      const errorCodes = data.errors!.map(e => e.code);
+      const errorCodes = data.errors!.map(e => e.details?.code || e.code);
       expect(errorCodes).toContain('MISSING_URL');
     });
 
@@ -196,7 +196,7 @@ describe('Integration: AI Tool Validation', () => {
       expect(data.valid).toBe(false);
       expect(data.errors).toBeDefined();
 
-      const errorCodes = data.errors!.map(e => e.code);
+      const errorCodes = data.errors!.map(e => e.details?.code || e.code);
       expect(errorCodes).toContain('MISSING_CODE');
     });
 
@@ -268,7 +268,7 @@ describe('Integration: AI Tool Validation', () => {
       expect(data.valid).toBe(false);
       expect(data.errors).toBeDefined();
 
-      const errorCodes = data.errors!.map(e => e.code);
+      const errorCodes = data.errors!.map(e => e.details?.code || e.code);
       expect(errorCodes).toContain('MISSING_TOOL_DESCRIPTION');
     });
 
@@ -340,7 +340,7 @@ describe('Integration: AI Tool Validation', () => {
       expect(data.valid).toBe(false);
       expect(data.errors).toBeDefined();
 
-      const errorCodes = data.errors!.map(e => e.code);
+      const errorCodes = data.errors!.map(e => e.details?.code || e.code);
       expect(errorCodes).toContain('MISSING_WORKFLOW_ID');
     });
 
