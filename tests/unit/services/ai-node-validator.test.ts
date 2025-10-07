@@ -586,7 +586,7 @@ describe('AI Node Validator', () => {
       };
 
       const reverseMap = buildReverseConnectionMap(workflow);
-      const issues = validateBasicLLMChain(chain, reverseMap, workflow);
+      const issues = validateBasicLLMChain(chain, reverseMap);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
@@ -617,7 +617,7 @@ describe('AI Node Validator', () => {
       };
 
       const reverseMap = buildReverseConnectionMap(workflow);
-      const issues = validateBasicLLMChain(chain, reverseMap, workflow);
+      const issues = validateBasicLLMChain(chain, reverseMap);
 
       const errors = issues.filter(i => i.severity === 'error');
       expect(errors).toHaveLength(0);

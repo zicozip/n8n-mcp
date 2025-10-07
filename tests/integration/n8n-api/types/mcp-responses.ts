@@ -24,14 +24,32 @@ export interface ValidationResponse {
   };
   errors?: Array<{
     node: string;
+    nodeName?: string;
     message: string;
-    details?: unknown;
+    details?: {
+      code?: string;
+      [key: string]: unknown;
+    };
+    code?: string;
   }>;
   warnings?: Array<{
     node: string;
+    nodeName?: string;
     message: string;
+    details?: {
+      code?: string;
+      [key: string]: unknown;
+    };
+    code?: string;
+  }>;
+  info?: Array<{
+    node: string;
+    nodeName?: string;
+    message: string;
+    severity?: string;
     details?: unknown;
   }>;
+  suggestions?: string[];
 }
 
 /**
