@@ -582,13 +582,14 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-base.webhook');
     });
 
-    it('should skip node repository lookup for langchain nodes', async () => {
+    it('should validate typeVersion but skip parameter validation for langchain nodes', async () => {
       const workflow = {
         nodes: [
           {
             id: '1',
             name: 'Agent',
             type: '@n8n/n8n-nodes-langchain.agent',
+            typeVersion: 1,
             position: [100, 100],
             parameters: {}
           }
@@ -598,9 +599,39 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const result = await validator.validateWorkflow(workflow as any);
 
-      // Langchain nodes should skip node repository validation
-      // They are validated by dedicated AI validators instead
-      expect(mockNodeRepository.getNode).not.toHaveBeenCalledWith('nodes-langchain.agent');
+      // After v2.17.4 fix: Langchain nodes SHOULD call getNode for typeVersion validation
+      // This prevents invalid typeVersion values from bypassing validation
+      // But they skip parameter validation (handled by dedicated AI validators)
+      expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-langchain.agent');
+
+      // Should not have typeVersion validation errors (other AI-specific errors may exist)
+      const typeVersionErrors = result.errors.filter(e => e.message.includes('typeVersion'));
+      expect(typeVersionErrors).toEqual([]);
+    });
+
+    it('should catch invalid typeVersion for langchain nodes (v2.17.4 bug fix)', async () => {
+      const workflow = {
+        nodes: [
+          {
+            id: '1',
+            name: 'Agent',
+            type: '@n8n/n8n-nodes-langchain.agent',
+            typeVersion: 99999, // Invalid - exceeds maximum
+            position: [100, 100],
+            parameters: {}
+          }
+        ],
+        connections: {}
+      } as any;
+
+      const result = await validator.validateWorkflow(workflow as any);
+
+      // Critical: Before v2.17.4, this would pass validation but fail at runtime
+      // After v2.17.4: Invalid typeVersion is caught during validation
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e =>
+        e.message.includes('typeVersion 99999 exceeds maximum')
+      )).toBe(true);
     });
 
     it('should validate typeVersion for versioned nodes', async () => {

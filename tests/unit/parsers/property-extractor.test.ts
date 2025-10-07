@@ -30,7 +30,7 @@ describe('PropertyExtractor', () => {
       const nodeDefinition = programmaticNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toHaveLength(nodeDefinition.properties.length);
       expect(properties).toEqual(expect.arrayContaining(
@@ -50,7 +50,7 @@ describe('PropertyExtractor', () => {
         baseDescription = versionedDef.baseDescription;
       };
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       // Should get properties from version 2 (latest)
       expect(properties).toHaveLength(versionedDef.nodeVersions![2].description.properties.length);
@@ -78,7 +78,7 @@ describe('PropertyExtractor', () => {
         }
       };
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toHaveLength(2);
       expect(properties[0].name).toBe('v2prop1');
@@ -108,7 +108,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties[0]).toEqual({
         displayName: 'Field 1',
@@ -135,7 +135,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toEqual([]);
     });
@@ -151,7 +151,7 @@ describe('PropertyExtractor', () => {
         }
       };
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toHaveLength(1); // Should get static description property
     });
@@ -165,7 +165,7 @@ describe('PropertyExtractor', () => {
         };
       };
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toHaveLength(1);
       expect(properties[0].name).toBe('baseProp');
@@ -180,7 +180,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toHaveLength(1);
       expect(properties[0].type).toBe('collection');
@@ -193,9 +193,9 @@ describe('PropertyExtractor', () => {
           properties: [propertyFactory.build()]
         }
       };
-      
-      const properties = extractor.extractProperties(nodeInstance);
-      
+
+      const properties = extractor.extractProperties(nodeInstance as any);
+
       expect(properties).toHaveLength(1);
     });
   });
@@ -205,7 +205,7 @@ describe('PropertyExtractor', () => {
       const nodeDefinition = declarativeNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       // Declarative node has 2 resources with 2 operations each = 4 total
       expect(operations.length).toBe(4);
@@ -235,7 +235,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       expect(operations.length).toBe(operationProp.options!.length);
       operations.forEach((op, idx) => {
@@ -261,7 +261,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       // routing.operations is not currently extracted by the property extractor
       // It only extracts from routing.request structure
@@ -292,7 +292,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       // PropertyExtractor only extracts operations, not resources
       // It should find the operation property and extract its options
@@ -317,7 +317,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       expect(operations).toEqual([]);
     });
@@ -353,7 +353,7 @@ describe('PropertyExtractor', () => {
         };
       };
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       expect(operations).toHaveLength(1);
       expect(operations[0]).toMatchObject({
@@ -382,7 +382,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       expect(operations).toHaveLength(2);
       expect(operations[0].operation).toBe('send');
@@ -398,7 +398,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const isAITool = extractor.detectAIToolCapability(NodeClass);
+      const isAITool = extractor.detectAIToolCapability(NodeClass as any);
       
       expect(isAITool).toBe(true);
     });
@@ -414,7 +414,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const isAITool = extractor.detectAIToolCapability(NodeClass);
+      const isAITool = extractor.detectAIToolCapability(NodeClass as any);
       
       expect(isAITool).toBe(true);
     });
@@ -431,7 +431,7 @@ describe('PropertyExtractor', () => {
         }
       };
       
-      const isAITool = extractor.detectAIToolCapability(NodeClass);
+      const isAITool = extractor.detectAIToolCapability(NodeClass as any);
       
       expect(isAITool).toBe(true);
     });
@@ -444,7 +444,7 @@ describe('PropertyExtractor', () => {
           description: { name }
         });
         
-        const isAITool = extractor.detectAIToolCapability(NodeClass);
+        const isAITool = extractor.detectAIToolCapability(NodeClass as any);
         
         expect(isAITool).toBe(true);
       });
@@ -458,7 +458,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const isAITool = extractor.detectAIToolCapability(NodeClass);
+      const isAITool = extractor.detectAIToolCapability(NodeClass as any);
       
       expect(isAITool).toBe(false);
     });
@@ -466,7 +466,7 @@ describe('PropertyExtractor', () => {
     it('should return false when node has no description', () => {
       const NodeClass = class {};
       
-      const isAITool = extractor.detectAIToolCapability(NodeClass);
+      const isAITool = extractor.detectAIToolCapability(NodeClass as any);
       
       expect(isAITool).toBe(false);
     });
@@ -486,7 +486,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const extracted = extractor.extractCredentials(NodeClass);
+      const extracted = extractor.extractCredentials(NodeClass as any);
       
       expect(extracted).toEqual(credentials);
     });
@@ -510,7 +510,7 @@ describe('PropertyExtractor', () => {
         };
       };
       
-      const credentials = extractor.extractCredentials(NodeClass);
+      const credentials = extractor.extractCredentials(NodeClass as any);
       
       expect(credentials).toHaveLength(2);
       expect(credentials[0].name).toBe('oauth2');
@@ -525,7 +525,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const credentials = extractor.extractCredentials(NodeClass);
+      const credentials = extractor.extractCredentials(NodeClass as any);
       
       expect(credentials).toEqual([]);
     });
@@ -537,7 +537,7 @@ describe('PropertyExtractor', () => {
         };
       };
       
-      const credentials = extractor.extractCredentials(NodeClass);
+      const credentials = extractor.extractCredentials(NodeClass as any);
       
       expect(credentials).toHaveLength(1);
       expect(credentials[0].name).toBe('token');
@@ -554,7 +554,7 @@ describe('PropertyExtractor', () => {
         }
       };
       
-      const credentials = extractor.extractCredentials(NodeClass);
+      const credentials = extractor.extractCredentials(NodeClass as any);
       
       expect(credentials).toHaveLength(1);
       expect(credentials[0].name).toBe('jwt');
@@ -567,7 +567,7 @@ describe('PropertyExtractor', () => {
         }
       };
       
-      const credentials = extractor.extractCredentials(NodeClass);
+      const credentials = extractor.extractCredentials(NodeClass as any);
       
       expect(credentials).toEqual([]);
     });
@@ -605,7 +605,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toHaveLength(1);
       expect(properties[0].name).toBe('deepOptions');
@@ -627,7 +627,7 @@ describe('PropertyExtractor', () => {
       };
       
       // Should not throw or hang
-      const properties = extractor.extractProperties(NodeClass);
+      const properties = extractor.extractProperties(NodeClass as any);
       
       expect(properties).toBeDefined();
     });
@@ -652,7 +652,7 @@ describe('PropertyExtractor', () => {
         }
       });
       
-      const operations = extractor.extractOperations(NodeClass);
+      const operations = extractor.extractOperations(NodeClass as any);
       
       // Should extract from all sources
       expect(operations.length).toBeGreaterThan(1);

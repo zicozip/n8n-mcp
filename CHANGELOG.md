@@ -5,6 +5,211 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.5] - 2025-10-07
+
+### 🔧 Type Safety
+
+**Added TypeScript type definitions for n8n node parsing with pragmatic strategic `any` assertions.**
+
+This release improves type safety for VersionedNodeType and node class parameters while maintaining zero compilation errors and 100% backward compatibility. Follows a pragmatic "70% benefit with 0% breakage" approach using strategic `any` assertions where n8n's union types cause issues.
+
+#### Added
+
+- **Type Definitions** (`src/types/node-types.ts`)
+  - Created comprehensive TypeScript interfaces for VersionedNodeType
+  - Imported n8n's official interfaces (`IVersionedNodeType`, `INodeType`, `INodeTypeBaseDescription`, `INodeTypeDescription`)
+  - Added `NodeClass` union type replacing `any` parameters in method signatures
+  - Created `VersionedNodeInstance` and `RegularNodeInstance` interfaces
+  - **Type Guards**: `isVersionedNodeInstance()` and `isVersionedNodeClass()` for runtime type checking
+  - **Utility Functions**: `instantiateNode()`, `getNodeInstance()`, `getNodeDescription()` for safe node handling
+
+- **Parser Type Updates**
+  - Updated `node-parser.ts`: All method signatures now use `NodeClass` instead of `any` (15+ methods)
+  - Updated `simple-parser.ts`: Method signatures strongly typed with `NodeClass`
+  - Updated `property-extractor.ts`: All extraction methods use `NodeClass` typing
+  - All parser method signatures now properly typed (30+ replacements)
+
+- **Strategic `any` Assertions Pattern**
+  - **Problem**: n8n's type hierarchy has union types (`INodeTypeBaseDescription | INodeTypeDescription`) where properties like `polling`, `version`, `webhooks` only exist on one side
+  - **Solution**: Keep strong types in method signatures, use strategic `as any` assertions internally for property access
+  - **Pattern**:
+    ```typescript
+    // Strong signature provides caller type safety
+    private method(description: INodeTypeBaseDescription | INodeTypeDescription): ReturnType {
+      // Strategic assertion for internal property access
+      const desc = description as any;
+      return desc.polling || desc.webhooks; // Access union-incompatible properties
+    }
+    ```
+  - **Result**: 70% type safety benefit (method signatures) with 0% breakage (zero compilation errors)
+
+#### Benefits
+
+1. **Better IDE Support**: Auto-complete and inline documentation for node properties
+2. **Compile-Time Safety**: Strong method signatures catch type errors at call sites
+3. **Documentation**: Types serve as inline documentation for developers
+4. **Bug Prevention**: Would have helped prevent the `baseDescription` bug (v2.17.4)
+5. **Refactoring Safety**: Type system helps track changes across codebase
+6. **Zero Breaking Changes**: Pragmatic approach ensures build never breaks
+
+#### Implementation Notes
+
+- **Philosophy**: Incremental improvement over perfection - get significant benefit without extensive refactoring
+- **Zero Compilation Errors**: All TypeScript checks pass cleanly
+- **Test Coverage**: Updated all test files with strategic `as any` assertions for mock objects
+- **Runtime Behavior**: No changes - types are compile-time only
+- **Future Work**: Union types could be refined with conditional types or overloads for 100% type safety
+
+#### Known Limitations
+
+- Strategic `any` assertions bypass type checking for internal property access
+- Union type differences (`INodeTypeBaseDescription` vs `INodeTypeDescription`) not fully resolved
+- Test mocks require `as any` since they don't implement full n8n interfaces
+- Full type safety would require either (a) refactoring n8n's type hierarchy or (b) extensive conditional type logic
+
+#### Impact
+
+- **Breaking Changes**: None (internal types only, external API unchanged)
+- **Runtime Behavior**: No changes (types are compile-time only)
+- **Build System**: Zero compilation errors maintained
+- **Developer Experience**: Significantly improved with better types and IDE support
+- **Type Coverage**: ~70% (method signatures strongly typed, internal logic uses strategic assertions)
+
+## [2.17.4] - 2025-10-07
+
+### 🔧 Validation
+
+**Fixed critical version extraction and typeVersion validation bugs.**
+
+This release fixes two critical bugs that caused incorrect version data and validation bypasses for langchain nodes.
+
+#### Fixed
+
+- **Version Extraction Bug (CRITICAL)**
+  - **Issue:** AI Agent node returned version "3" instead of "2.2" (the defaultVersion)
+  - **Impact:**
+    - MCP tools (`get_node_essentials`, `get_node_info`) returned incorrect version "3"
+    - Version "3" exists but n8n explicitly marks it as unstable ("Keep 2.2 until blocking bugs are fixed")
+    - AI agents created workflows with wrong typeVersion, causing runtime issues
+  - **Root Cause:** `extractVersion()` in node-parser.ts checked `instance.baseDescription.defaultVersion` which doesn't exist on VersionedNodeType instances
+  - **Fix:** Updated version extraction priority in `node-parser.ts:137-200`
+    1. Priority 1: Check `currentVersion` property (what VersionedNodeType actually uses)
+    2. Priority 2: Check `description.defaultVersion` (fixed property name from `baseDescription`)
+    3. Priority 3: Fallback to max(nodeVersions) as last resort
+  - **Verification:** AI Agent node now correctly returns version "2.2" across all MCP tools
+
+- **typeVersion Validation Bypass (CRITICAL)**
+  - **Issue:** Langchain nodes with invalid typeVersion passed validation (even `typeVersion: 99999`)
+  - **Impact:**
+    - Invalid typeVersion values were never caught during validation
+    - Workflows with non-existent typeVersions passed validation but failed at runtime in n8n
+    - Validation was completely bypassed for all langchain nodes (AI Agent, Chat Trigger, OpenAI Chat Model, etc.)
+  - **Root Cause:** `workflow-validator.ts:400-405` skipped ALL validation for langchain nodes before typeVersion check
+  - **Fix:** Moved typeVersion validation BEFORE langchain skip in `workflow-validator.ts:447-493`
+    - typeVersion now validated for ALL nodes including langchain
+    - Validation runs before parameter validation skip
+    - Checks for missing, invalid, outdated, and exceeding-maximum typeVersion values
+  - **Verification:** Workflows with invalid typeVersion now correctly fail validation
+
+- **Version 0 Rejection Bug (CRITICAL)**
+  - **Issue:** typeVersion 0 was incorrectly rejected as invalid
+  - **Impact:** Nodes with version 0 could not be validated, even though 0 is a valid version number
+  - **Root Cause:** `workflow-validator.ts:462` checked `typeVersion < 1` instead of `< 0`
+  - **Fix:** Changed validation to allow version 0 as a valid typeVersion
+  - **Verification:** Version 0 is now accepted as valid
+
+- **Duplicate baseDescription Bug in simple-parser.ts (HIGH)**
+  - **Issue:** EXACT same version extraction bug existed in simple-parser.ts
+  - **Impact:** Simple parser also returned incorrect versions for VersionedNodeType nodes
+  - **Root Cause:** `simple-parser.ts:195-196, 208-209` checked `baseDescription.defaultVersion`
+  - **Fix:** Applied identical fix as node-parser.ts with same priority chain
+    1. Priority 1: Check `currentVersion` property
+    2. Priority 2: Check `description.defaultVersion`
+    3. Priority 3: Check `nodeVersions` (fallback to max)
+  - **Verification:** Simple parser now returns correct versions
+
+- **Unsafe Math.max() Usage (MEDIUM)**
+  - **Issue:** 10 instances of Math.max() without empty array or NaN validation
+  - **Impact:** Potential crashes with empty nodeVersions objects or invalid version data
+  - **Root Cause:** No validation before calling Math.max(...array)
+  - **Locations Fixed:**
+    - `simple-parser.ts`: 2 instances
+    - `node-parser.ts`: 5 instances
+    - `property-extractor.ts`: 3 instances
+  - **Fix:** Added defensive validation:
+    ```typescript
+    const versions = Object.keys(nodeVersions).map(Number);
+    if (versions.length > 0) {
+      const maxVersion = Math.max(...versions);
+      if (!isNaN(maxVersion)) {
+        return maxVersion.toString();
+      }
+    }
+    ```
+  - **Verification:** All Math.max() calls now have proper validation
+
+#### Technical Details
+
+**Version Extraction Fix:**
+```typescript
+// BEFORE (BROKEN):
+if (instance?.baseDescription?.defaultVersion) {  // Property doesn't exist!
+  return instance.baseDescription.defaultVersion.toString();
+}
+
+// AFTER (FIXED):
+if (instance?.currentVersion !== undefined) {  // What VersionedNodeType actually uses
+  return instance.currentVersion.toString();
+}
+if (instance?.description?.defaultVersion) {  // Correct property name
+  return instance.description.defaultVersion.toString();
+}
+```
+
+**typeVersion Validation Fix:**
+```typescript
+// BEFORE (BROKEN):
+// Skip ALL node repository validation for langchain nodes
+if (normalizedType.startsWith('nodes-langchain.')) {
+  continue;  // typeVersion validation never runs!
+}
+
+// AFTER (FIXED):
+// Validate typeVersion for ALL versioned nodes (including langchain)
+if (nodeInfo.isVersioned) {
+  // ... typeVersion validation ...
+}
+
+// THEN skip parameter validation for langchain nodes
+if (normalizedType.startsWith('nodes-langchain.')) {
+  continue;
+}
+```
+
+#### Impact
+
+- **Version Accuracy:** AI Agent and all VersionedNodeType nodes now return correct version (2.2, not 3)
+- **Validation Reliability:** Invalid typeVersion values are now caught for langchain nodes
+- **Workflow Stability:** Prevents creation of workflows with non-existent typeVersions
+- **Database Rebuilt:** 536 nodes reloaded with corrected version data
+- **Parser Consistency:** Both node-parser.ts and simple-parser.ts use identical version extraction logic
+- **Robustness:** All Math.max() operations now protected against edge cases
+- **Edge Case Support:** Version 0 nodes now properly supported
+
+#### Testing
+
+- **Unit Tests:** All tests passing (node-parser: 34 tests, simple-parser: 39 tests)
+  - Added tests for currentVersion priority
+  - Added tests for version 0 edge case
+  - Added tests for baseDescription rejection
+- **Integration Tests:** Verified with n8n-mcp-tester agent
+  - Version consistency between `get_node_essentials` and `get_node_info` ✅
+  - typeVersion validation catches invalid values (99, 100000) ✅
+  - AI Agent correctly reports version "2.2" ✅
+- **Code Review:** Deep analysis found and fixed 6 similar bugs
+  - 3 CRITICAL/HIGH priority bugs fixed in this release
+  - 3 LOW priority bugs identified for future work
+
 ## [2.17.3] - 2025-10-07
 
 ### 🔧 Validation

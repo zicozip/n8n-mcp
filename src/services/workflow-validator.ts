@@ -397,14 +397,7 @@ export class WorkflowValidator {
           node.type = normalizedType;
         }
 
-        // Skip ALL node repository validation for langchain nodes
-        // They have dedicated AI-specific validators in validateAISpecificNodes()
-        // This prevents parameter validation conflicts and ensures proper AI validation
-        if (normalizedType.startsWith('nodes-langchain.')) {
-          continue;
-        }
-
-        // Get node definition using normalized type
+        // Get node definition using normalized type (needed for typeVersion validation)
         const nodeInfo = this.nodeRepository.getNode(normalizedType);
 
         if (!nodeInfo) {
@@ -451,7 +444,10 @@ export class WorkflowValidator {
           continue;
         }
 
-        // Validate typeVersion for versioned nodes
+        // Validate typeVersion for ALL versioned nodes (including langchain nodes)
+        // CRITICAL: This MUST run BEFORE the langchain skip below!
+        // Otherwise, langchain nodes with invalid typeVersion (e.g., 99999) would pass validation
+        // but fail at runtime in n8n. This was the bug fixed in v2.17.4.
         if (nodeInfo.isVersioned) {
           // Check if typeVersion is missing
           if (!node.typeVersion) {
@@ -461,14 +457,14 @@ export class WorkflowValidator {
               nodeName: node.name,
               message: `Missing required property 'typeVersion'. Add typeVersion: ${nodeInfo.version || 1}`
             });
-          } 
-          // Check if typeVersion is invalid
-          else if (typeof node.typeVersion !== 'number' || node.typeVersion < 1) {
+          }
+          // Check if typeVersion is invalid (must be non-negative number, version 0 is valid)
+          else if (typeof node.typeVersion !== 'number' || node.typeVersion < 0) {
             result.errors.push({
               type: 'error',
               nodeId: node.id,
               nodeName: node.name,
-              message: `Invalid typeVersion: ${node.typeVersion}. Must be a positive number`
+              message: `Invalid typeVersion: ${node.typeVersion}. Must be a non-negative number`
             });
           }
           // Check if typeVersion is outdated (less than latest)
@@ -489,6 +485,13 @@ export class WorkflowValidator {
               message: `typeVersion ${node.typeVersion} exceeds maximum supported version ${nodeInfo.version}`
             });
           }
+        }
+
+        // Skip PARAMETER validation for langchain nodes (but NOT typeVersion validation above!)
+        // Langchain nodes have dedicated AI-specific validators in validateAISpecificNodes()
+        // which handle their unique parameter structures (AI connections, tool ports, etc.)
+        if (normalizedType.startsWith('nodes-langchain.')) {
+          continue;
         }
 
         // Validate node configuration

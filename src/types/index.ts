@@ -1,3 +1,6 @@
+// Export n8n node type definitions and utilities
+export * from './node-types';
+
 export interface MCPServerConfig {
   port: number;
   host: string;

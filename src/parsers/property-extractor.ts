@@ -1,8 +1,10 @@
+import type { NodeClass } from '../types/node-types';
+
 export class PropertyExtractor {
   /**
    * Extract properties with proper handling of n8n's complex structures
    */
-  extractProperties(nodeClass: any): any[] {
+  extractProperties(nodeClass: NodeClass): any[] {
     const properties: any[] = [];
     
     // First try to get instance-level properties
@@ -15,12 +17,16 @@ export class PropertyExtractor {
     
     // Handle versioned nodes - check instance for nodeVersions
     if (instance?.nodeVersions) {
-      const versions = Object.keys(instance.nodeVersions);
-      const latestVersion = Math.max(...versions.map(Number));
-      const versionedNode = instance.nodeVersions[latestVersion];
-      
-      if (versionedNode?.description?.properties) {
-        return this.normalizeProperties(versionedNode.description.properties);
+      const versions = Object.keys(instance.nodeVersions).map(Number);
+      if (versions.length > 0) {
+        const latestVersion = Math.max(...versions);
+        if (!isNaN(latestVersion)) {
+          const versionedNode = instance.nodeVersions[latestVersion];
+
+          if (versionedNode?.description?.properties) {
+            return this.normalizeProperties(versionedNode.description.properties);
+          }
+        }
       }
     }
     
@@ -35,30 +41,36 @@ export class PropertyExtractor {
     return properties;
   }
   
-  private getNodeDescription(nodeClass: any): any {
+  private getNodeDescription(nodeClass: NodeClass): any {
     // Try to get description from the class first
     let description: any;
-    
+
     if (typeof nodeClass === 'function') {
       // Try to instantiate to get description
       try {
         const instance = new nodeClass();
-        description = instance.description || instance.baseDescription || {};
+        // Strategic any assertion for instance properties
+        const inst = instance as any;
+        description = inst.description || inst.baseDescription || {};
       } catch (e) {
         // Some nodes might require parameters to instantiate
-        description = nodeClass.description || {};
+        // Strategic any assertion for class-level properties
+        const nodeClassAny = nodeClass as any;
+        description = nodeClassAny.description || {};
       }
     } else {
-      description = nodeClass.description || {};
+      // Strategic any assertion for instance properties
+      const inst = nodeClass as any;
+      description = inst.description || {};
     }
-    
+
     return description;
   }
   
   /**
    * Extract operations from both declarative and programmatic nodes
    */
-  extractOperations(nodeClass: any): any[] {
+  extractOperations(nodeClass: NodeClass): any[] {
     const operations: any[] = [];
     
     // First try to get instance-level data
@@ -71,12 +83,16 @@ export class PropertyExtractor {
     
     // Handle versioned nodes
     if (instance?.nodeVersions) {
-      const versions = Object.keys(instance.nodeVersions);
-      const latestVersion = Math.max(...versions.map(Number));
-      const versionedNode = instance.nodeVersions[latestVersion];
-      
-      if (versionedNode?.description) {
-        return this.extractOperationsFromDescription(versionedNode.description);
+      const versions = Object.keys(instance.nodeVersions).map(Number);
+      if (versions.length > 0) {
+        const latestVersion = Math.max(...versions);
+        if (!isNaN(latestVersion)) {
+          const versionedNode = instance.nodeVersions[latestVersion];
+
+          if (versionedNode?.description) {
+            return this.extractOperationsFromDescription(versionedNode.description);
+          }
+        }
       }
     }
     
@@ -138,33 +154,35 @@ export class PropertyExtractor {
   /**
    * Deep search for AI tool capability
    */
-  detectAIToolCapability(nodeClass: any): boolean {
+  detectAIToolCapability(nodeClass: NodeClass): boolean {
     const description = this.getNodeDescription(nodeClass);
-    
+
     // Direct property check
     if (description?.usableAsTool === true) return true;
-    
+
     // Check in actions for declarative nodes
     if (description?.actions?.some((a: any) => a.usableAsTool === true)) return true;
-    
+
     // Check versioned nodes
-    if (nodeClass.nodeVersions) {
-      for (const version of Object.values(nodeClass.nodeVersions)) {
+    // Strategic any assertion for nodeVersions property
+    const nodeClassAny = nodeClass as any;
+    if (nodeClassAny.nodeVersions) {
+      for (const version of Object.values(nodeClassAny.nodeVersions)) {
         if ((version as any).description?.usableAsTool === true) return true;
       }
     }
-    
+
     // Check for specific AI-related properties
     const aiIndicators = ['openai', 'anthropic', 'huggingface', 'cohere', 'ai'];
     const nodeName = description?.name?.toLowerCase() || '';
-    
+
     return aiIndicators.some(indicator => nodeName.includes(indicator));
   }
   
   /**
    * Extract credential requirements with proper structure
    */
-  extractCredentials(nodeClass: any): any[] {
+  extractCredentials(nodeClass: NodeClass): any[] {
     const credentials: any[] = [];
     
     // First try to get instance-level data
@@ -177,12 +195,16 @@ export class PropertyExtractor {
     
     // Handle versioned nodes
     if (instance?.nodeVersions) {
-      const versions = Object.keys(instance.nodeVersions);
-      const latestVersion = Math.max(...versions.map(Number));
-      const versionedNode = instance.nodeVersions[latestVersion];
-      
-      if (versionedNode?.description?.credentials) {
-        return versionedNode.description.credentials;
+      const versions = Object.keys(instance.nodeVersions).map(Number);
+      if (versions.length > 0) {
+        const latestVersion = Math.max(...versions);
+        if (!isNaN(latestVersion)) {
+          const versionedNode = instance.nodeVersions[latestVersion];
+
+          if (versionedNode?.description?.credentials) {
+            return versionedNode.description.credentials;
+          }
+        }
       }
     }
     
