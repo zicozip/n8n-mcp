@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.4] - 2025-10-07
+
+### 🔧 Validation
+
+**Fixed critical version extraction and typeVersion validation bugs.**
+
+This release fixes two critical bugs that caused incorrect version data and validation bypasses for langchain nodes.
+
+#### Fixed
+
+- **Version Extraction Bug (CRITICAL)**
+  - **Issue:** AI Agent node returned version "3" instead of "2.2" (the defaultVersion)
+  - **Impact:**
+    - MCP tools (`get_node_essentials`, `get_node_info`) returned incorrect version "3"
+    - Version "3" exists but n8n explicitly marks it as unstable ("Keep 2.2 until blocking bugs are fixed")
+    - AI agents created workflows with wrong typeVersion, causing runtime issues
+  - **Root Cause:** `extractVersion()` in node-parser.ts checked `instance.baseDescription.defaultVersion` which doesn't exist on VersionedNodeType instances
+  - **Fix:** Updated version extraction priority in `node-parser.ts:137-200`
+    1. Priority 1: Check `currentVersion` property (what VersionedNodeType actually uses)
+    2. Priority 2: Check `description.defaultVersion` (fixed property name from `baseDescription`)
+    3. Priority 3: Fallback to max(nodeVersions) as last resort
+  - **Verification:** AI Agent node now correctly returns version "2.2" across all MCP tools
+
+- **typeVersion Validation Bypass (CRITICAL)**
+  - **Issue:** Langchain nodes with invalid typeVersion passed validation (even `typeVersion: 99999`)
+  - **Impact:**
+    - Invalid typeVersion values were never caught during validation
+    - Workflows with non-existent typeVersions passed validation but failed at runtime in n8n
+    - Validation was completely bypassed for all langchain nodes (AI Agent, Chat Trigger, OpenAI Chat Model, etc.)
+  - **Root Cause:** `workflow-validator.ts:400-405` skipped ALL validation for langchain nodes before typeVersion check
+  - **Fix:** Moved typeVersion validation BEFORE langchain skip in `workflow-validator.ts:447-493`
+    - typeVersion now validated for ALL nodes including langchain
+    - Validation runs before parameter validation skip
+    - Checks for missing, invalid, outdated, and exceeding-maximum typeVersion values
+  - **Verification:** Workflows with invalid typeVersion now correctly fail validation
+
+#### Technical Details
+
+**Version Extraction Fix:**
+```typescript
+// BEFORE (BROKEN):
+if (instance?.baseDescription?.defaultVersion) {  // Property doesn't exist!
+  return instance.baseDescription.defaultVersion.toString();
+}
+
+// AFTER (FIXED):
+if (instance?.currentVersion !== undefined) {  // What VersionedNodeType actually uses
+  return instance.currentVersion.toString();
+}
+if (instance?.description?.defaultVersion) {  // Correct property name
+  return instance.description.defaultVersion.toString();
+}
+```
+
+**typeVersion Validation Fix:**
+```typescript
+// BEFORE (BROKEN):
+// Skip ALL node repository validation for langchain nodes
+if (normalizedType.startsWith('nodes-langchain.')) {
+  continue;  // typeVersion validation never runs!
+}
+
+// AFTER (FIXED):
+// Validate typeVersion for ALL versioned nodes (including langchain)
+if (nodeInfo.isVersioned) {
+  // ... typeVersion validation ...
+}
+
+// THEN skip parameter validation for langchain nodes
+if (normalizedType.startsWith('nodes-langchain.')) {
+  continue;
+}
+```
+
+#### Impact
+
+- **Version Accuracy:** AI Agent and all VersionedNodeType nodes now return correct version (2.2, not 3)
+- **Validation Reliability:** Invalid typeVersion values are now caught for langchain nodes
+- **Workflow Stability:** Prevents creation of workflows with non-existent typeVersions
+- **Database Rebuilt:** 536 nodes reloaded with corrected version data
+
+#### Testing
+
+- **Unit Tests:** All existing tests passing
+- **Integration Tests:** Verified with n8n-mcp-tester agent
+  - Version consistency between `get_node_essentials` and `get_node_info` ✅
+  - typeVersion validation catches invalid values (99, 100000) ✅
+  - AI Agent correctly reports version "2.2" ✅
+
 ## [2.17.3] - 2025-10-07
 
 ### 🔧 Validation

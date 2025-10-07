@@ -135,26 +135,32 @@ export class NodeParser {
   }
   
   private extractVersion(nodeClass: any): string {
-    // Check instance for baseDescription first
+    // Check instance properties first
     try {
       const instance = typeof nodeClass === 'function' ? new nodeClass() : nodeClass;
-      
-      // Handle instance-level baseDescription
-      if (instance?.baseDescription?.defaultVersion) {
-        return instance.baseDescription.defaultVersion.toString();
+
+      // PRIORITY 1: Check currentVersion (what VersionedNodeType actually uses)
+      // For VersionedNodeType, currentVersion = defaultVersion ?? max(nodeVersions)
+      if (instance?.currentVersion !== undefined) {
+        return instance.currentVersion.toString();
       }
-      
-      // Handle instance-level nodeVersions
+
+      // PRIORITY 2: Handle instance-level description.defaultVersion
+      // VersionedNodeType stores baseDescription as 'description', not 'baseDescription'
+      if (instance?.description?.defaultVersion) {
+        return instance.description.defaultVersion.toString();
+      }
+
+      // PRIORITY 3: Handle instance-level nodeVersions (fallback to max)
       if (instance?.nodeVersions) {
         const versions = Object.keys(instance.nodeVersions);
         return Math.max(...versions.map(Number)).toString();
       }
-      
+
       // Handle version array in description (e.g., [1, 1.1, 1.2])
       if (instance?.description?.version) {
         const version = instance.description.version;
         if (Array.isArray(version)) {
-          // Find the maximum version from the array
           const maxVersion = Math.max(...version.map((v: any) => parseFloat(v.toString())));
           return maxVersion.toString();
         } else if (typeof version === 'number' || typeof version === 'string') {
@@ -165,18 +171,19 @@ export class NodeParser {
       // Some nodes might require parameters to instantiate
       // Try class-level properties
     }
-    
+
     // Handle class-level VersionedNodeType with defaultVersion
-    if (nodeClass.baseDescription?.defaultVersion) {
-      return nodeClass.baseDescription.defaultVersion.toString();
+    // Note: Most VersionedNodeType classes don't have static properties
+    if (nodeClass.description?.defaultVersion) {
+      return nodeClass.description.defaultVersion.toString();
     }
-    
+
     // Handle class-level VersionedNodeType with nodeVersions
     if (nodeClass.nodeVersions) {
       const versions = Object.keys(nodeClass.nodeVersions);
       return Math.max(...versions.map(Number)).toString();
     }
-    
+
     // Also check class-level description for version array
     const description = this.getNodeDescription(nodeClass);
     if (description?.version) {
@@ -187,7 +194,7 @@ export class NodeParser {
         return description.version.toString();
       }
     }
-    
+
     // Default to version 1
     return '1';
   }

@@ -397,14 +397,7 @@ export class WorkflowValidator {
           node.type = normalizedType;
         }
 
-        // Skip ALL node repository validation for langchain nodes
-        // They have dedicated AI-specific validators in validateAISpecificNodes()
-        // This prevents parameter validation conflicts and ensures proper AI validation
-        if (normalizedType.startsWith('nodes-langchain.')) {
-          continue;
-        }
-
-        // Get node definition using normalized type
+        // Get node definition using normalized type (needed for typeVersion validation)
         const nodeInfo = this.nodeRepository.getNode(normalizedType);
 
         if (!nodeInfo) {
@@ -451,7 +444,8 @@ export class WorkflowValidator {
           continue;
         }
 
-        // Validate typeVersion for versioned nodes
+        // Validate typeVersion for ALL versioned nodes (including langchain nodes)
+        // This validation runs BEFORE the langchain skip to ensure typeVersion is checked
         if (nodeInfo.isVersioned) {
           // Check if typeVersion is missing
           if (!node.typeVersion) {
@@ -461,7 +455,7 @@ export class WorkflowValidator {
               nodeName: node.name,
               message: `Missing required property 'typeVersion'. Add typeVersion: ${nodeInfo.version || 1}`
             });
-          } 
+          }
           // Check if typeVersion is invalid
           else if (typeof node.typeVersion !== 'number' || node.typeVersion < 1) {
             result.errors.push({
@@ -489,6 +483,13 @@ export class WorkflowValidator {
               message: `typeVersion ${node.typeVersion} exceeds maximum supported version ${nodeInfo.version}`
             });
           }
+        }
+
+        // Skip parameter validation for langchain nodes
+        // They have dedicated AI-specific validators in validateAISpecificNodes()
+        // This prevents parameter validation conflicts and ensures proper AI validation
+        if (normalizedType.startsWith('nodes-langchain.')) {
+          continue;
         }
 
         // Validate node configuration
