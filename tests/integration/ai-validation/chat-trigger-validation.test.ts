@@ -308,10 +308,11 @@ describe('Integration: Chat Trigger Validation', () => {
     expect(data.errors).toBeDefined();
 
     // Should detect streaming agent has output
-    const streamingErrors = data.errors!.filter(e =>
-      e.code === 'STREAMING_AGENT_HAS_OUTPUT' ||
-      e.message.toLowerCase().includes('streaming')
-    );
+    const streamingErrors = data.errors!.filter(e => {
+      const code = e.details?.code || e.code;
+      return code === 'STREAMING_AGENT_HAS_OUTPUT' ||
+             e.message.toLowerCase().includes('streaming');
+    });
     expect(streamingErrors.length).toBeGreaterThan(0);
   });
 });

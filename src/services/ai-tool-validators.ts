@@ -409,48 +409,16 @@ export function validateMCPClientTool(node: WorkflowNode): ValidationIssue[] {
 export function validateCalculatorTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // Check toolDescription (REQUIRED)
-  if (!node.parameters.toolDescription) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Calculator Tool "${node.name}" has no toolDescription. Add one to help the LLM know when to use this tool.`,
-      code: 'MISSING_TOOL_DESCRIPTION'
-    });
-  } else if (node.parameters.toolDescription.trim().length < MIN_DESCRIPTION_LENGTH_SHORT) {
-    issues.push({
-      severity: 'info',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Calculator Tool "${node.name}" has a very short toolDescription (minimum ${MIN_DESCRIPTION_LENGTH_SHORT} characters). Consider being more specific about when to use it.`
-    });
-  }
-
+  // Calculator Tool has a built-in description and is self-explanatory
+  // toolDescription is optional - no validation needed
   return issues;
 }
 
 export function validateThinkTool(node: WorkflowNode): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  // Check toolDescription (REQUIRED)
-  if (!node.parameters.toolDescription) {
-    issues.push({
-      severity: 'error',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Think Tool "${node.name}" has no toolDescription. Add one to help the LLM know when to use thinking.`,
-      code: 'MISSING_TOOL_DESCRIPTION'
-    });
-  } else if (node.parameters.toolDescription.trim().length < MIN_DESCRIPTION_LENGTH_MEDIUM) {
-    issues.push({
-      severity: 'info',
-      nodeId: node.id,
-      nodeName: node.name,
-      message: `Think Tool "${node.name}" has a very short toolDescription (minimum ${MIN_DESCRIPTION_LENGTH_MEDIUM} characters). Explain when the agent should use thinking vs. action.`
-    });
-  }
-
+  // Think Tool has a built-in description and is self-explanatory
+  // toolDescription is optional - no validation needed
   return issues;
 }
 

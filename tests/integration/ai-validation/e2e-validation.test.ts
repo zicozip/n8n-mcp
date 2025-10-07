@@ -219,10 +219,11 @@ describe('Integration: End-to-End AI Workflow Validation', () => {
     expect(errorCodes).toContain('MISSING_CODE'); // Code Tool
 
     // Should also have streaming error
-    const streamingErrors = validationData.errors!.filter(e =>
-      e.code === 'STREAMING_WITH_MAIN_OUTPUT' ||
-      e.code === 'STREAMING_AGENT_HAS_OUTPUT'
-    );
+    const streamingErrors = validationData.errors!.filter(e => {
+      const code = e.details?.code || e.code;
+      return code === 'STREAMING_WITH_MAIN_OUTPUT' ||
+             code === 'STREAMING_AGENT_HAS_OUTPUT';
+    });
     expect(streamingErrors.length).toBeGreaterThan(0);
 
     // Verify error messages are actionable

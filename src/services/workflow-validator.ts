@@ -327,8 +327,9 @@ export class WorkflowValidator {
     // Count trigger nodes - normalize type names first
     const triggerNodes = workflow.nodes.filter(n => {
       const normalizedType = NodeTypeNormalizer.normalizeToFullForm(n.type);
-      return normalizedType.toLowerCase().includes('trigger') ||
-             normalizedType.toLowerCase().includes('webhook') ||
+      const lowerType = normalizedType.toLowerCase();
+      return lowerType.includes('trigger') ||
+             (lowerType.includes('webhook') && !lowerType.includes('respond')) ||
              normalizedType === 'nodes-base.start' ||
              normalizedType === 'nodes-base.manualTrigger' ||
              normalizedType === 'nodes-base.formTrigger';
