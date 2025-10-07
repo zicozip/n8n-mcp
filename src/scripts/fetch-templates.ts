@@ -417,12 +417,28 @@ async function generateTemplateMetadata(db: any, service: TemplateService) {
       } catch (error) {
         console.warn(`Failed to parse workflow for template ${t.id}:`, error);
       }
-      
+
+      // Parse nodes_used safely
+      let nodes: string[] = [];
+      try {
+        if (t.nodes_used) {
+          nodes = JSON.parse(t.nodes_used);
+          // Ensure it's an array
+          if (!Array.isArray(nodes)) {
+            console.warn(`Template ${t.id} has invalid nodes_used (not an array), using empty array`);
+            nodes = [];
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to parse nodes_used for template ${t.id}:`, error);
+        nodes = [];
+      }
+
       return {
         templateId: t.id,
         name: t.name,
         description: t.description,
-        nodes: JSON.parse(t.nodes_used),
+        nodes: nodes,
         workflow
       };
     });
