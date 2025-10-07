@@ -234,8 +234,56 @@ export class ConfigValidator {
           message: `Property '${key}' must be a boolean, got ${typeof value}`,
           fix: `Change ${key} to true or false`
         });
+      } else if (prop.type === 'resourceLocator') {
+        // resourceLocator validation: Used by AI model nodes (OpenAI, Anthropic, etc.)
+        // Must be an object with required properties:
+        //   - mode: string ('list' | 'id' | 'url')
+        //   - value: any (the actual model/resource identifier)
+        // Common mistake: passing string directly instead of object structure
+        if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+          const fixValue = typeof value === 'string' ? value : JSON.stringify(value);
+          errors.push({
+            type: 'invalid_type',
+            property: key,
+            message: `Property '${key}' is a resourceLocator and must be an object with 'mode' and 'value' properties, got ${typeof value}`,
+            fix: `Change ${key} to { mode: "list", value: ${JSON.stringify(fixValue)} } or { mode: "id", value: ${JSON.stringify(fixValue)} }`
+          });
+        } else {
+          // Check required properties
+          if (!value.mode) {
+            errors.push({
+              type: 'missing_required',
+              property: `${key}.mode`,
+              message: `resourceLocator '${key}' is missing required property 'mode'`,
+              fix: `Add mode property: { mode: "list", value: ${JSON.stringify(value.value || '')} }`
+            });
+          } else if (typeof value.mode !== 'string') {
+            errors.push({
+              type: 'invalid_type',
+              property: `${key}.mode`,
+              message: `resourceLocator '${key}.mode' must be a string, got ${typeof value.mode}`,
+              fix: `Set mode to "list" or "id"`
+            });
+          } else if (!['list', 'id', 'url'].includes(value.mode)) {
+            errors.push({
+              type: 'invalid_value',
+              property: `${key}.mode`,
+              message: `resourceLocator '${key}.mode' must be 'list', 'id', or 'url', got '${value.mode}'`,
+              fix: `Change mode to "list", "id", or "url"`
+            });
+          }
+
+          if (value.value === undefined) {
+            errors.push({
+              type: 'missing_required',
+              property: `${key}.value`,
+              message: `resourceLocator '${key}' is missing required property 'value'`,
+              fix: `Add value property to specify the ${prop.displayName || key}`
+            });
+          }
+        }
       }
-      
+
       // Options validation
       if (prop.type === 'options' && prop.options) {
         const validValues = prop.options.map((opt: any) => 

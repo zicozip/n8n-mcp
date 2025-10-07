@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.3] - 2025-10-07
+
+### 🔧 Validation
+
+**Fixed critical validation gap for AI model nodes with resourceLocator properties.**
+
+This release adds validation for `resourceLocator` type properties, fixing a critical issue where AI agents could create invalid configurations that passed validation but failed at runtime.
+
+#### Fixed
+
+- **resourceLocator Property Validation**
+  - **Issue:** No validation existed for `resourceLocator` type properties used in AI model nodes
+  - **Impact:**
+    - AI agents could create invalid configurations like `model: "gpt-4o-mini"` (string) instead of `model: {mode: "list", value: "gpt-4o-mini"}` (object)
+    - Invalid configs passed validation but failed at runtime in n8n
+    - Affected many langchain nodes: OpenAI Chat Model (v1.2+), Anthropic, Cohere, DeepSeek, Groq, Mistral, OpenRouter, xAI Grok, and embeddings nodes
+  - **Root Cause:** `validatePropertyTypes()` method in ConfigValidator only validated `string`, `number`, `boolean`, and `options` types - `resourceLocator` was completely missing
+  - **Fix:** Added comprehensive resourceLocator validation in `config-validator.ts:237-274`
+    - Validates value is an object (not string, number, null, or array)
+    - Validates required `mode` property exists and is a string
+    - Validates required `value` property exists
+    - Provides helpful error messages with exact fix suggestions
+    - Example error: `Property 'model' is a resourceLocator and must be an object with 'mode' and 'value' properties, got string`
+    - Example fix: `Change model to { mode: "list", value: "gpt-4o-mini" } or { mode: "id", value: "gpt-4o-mini" }`
+
+#### Added
+
+- Comprehensive resourceLocator validation with 14 test cases covering:
+  - String value rejection with helpful fix suggestions
+  - Null and array value rejection
+  - Missing `mode` or `value` property detection
+  - Invalid `mode` type detection (e.g., number instead of string)
+  - Invalid `mode` value validation (must be 'list', 'id', or 'url')
+  - Empty object detection (missing both mode and value)
+  - Extra properties handling (ignored gracefully)
+  - Valid resourceLocator acceptance for "list", "id", and "url" modes
+  - JSDoc documentation explaining resourceLocator structure and common mistakes
+  - All 29 tests passing (100% coverage for new validation logic)
+
 ## [2.17.1] - 2025-10-07
 
 ### 🔧 Telemetry
