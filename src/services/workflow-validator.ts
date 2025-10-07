@@ -458,13 +458,13 @@ export class WorkflowValidator {
               message: `Missing required property 'typeVersion'. Add typeVersion: ${nodeInfo.version || 1}`
             });
           }
-          // Check if typeVersion is invalid
-          else if (typeof node.typeVersion !== 'number' || node.typeVersion < 1) {
+          // Check if typeVersion is invalid (must be non-negative number, version 0 is valid)
+          else if (typeof node.typeVersion !== 'number' || node.typeVersion < 0) {
             result.errors.push({
               type: 'error',
               nodeId: node.id,
               nodeName: node.name,
-              message: `Invalid typeVersion: ${node.typeVersion}. Must be a positive number`
+              message: `Invalid typeVersion: ${node.typeVersion}. Must be a non-negative number`
             });
           }
           // Check if typeVersion is outdated (less than latest)

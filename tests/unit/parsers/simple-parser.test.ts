@@ -28,7 +28,7 @@ describe('SimpleParser', () => {
       const nodeDefinition = programmaticNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result).toMatchObject({
         style: 'programmatic',
@@ -58,7 +58,7 @@ describe('SimpleParser', () => {
       } as any;
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.style).toBe('declarative');
       expect(result.operations.length).toBeGreaterThan(0);
@@ -68,7 +68,7 @@ describe('SimpleParser', () => {
       const nodeDefinition = triggerNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isTrigger).toBe(true);
     });
@@ -77,7 +77,7 @@ describe('SimpleParser', () => {
       const nodeDefinition = webhookNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isWebhook).toBe(true);
     });
@@ -92,7 +92,7 @@ describe('SimpleParser', () => {
       } as any;
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isAITool).toBe(true);
     });
@@ -112,7 +112,7 @@ describe('SimpleParser', () => {
         }
       };
       
-      const result = parser.parse(VersionedNodeClass);
+      const result = parser.parse(VersionedNodeClass as any);
       
       expect(result.isVersioned).toBe(true);
       expect(result.nodeType).toBe(versionedDef.baseDescription!.name);
@@ -147,7 +147,7 @@ describe('SimpleParser', () => {
         }
       };
       
-      const result = parser.parse(VersionedNodeClass);
+      const result = parser.parse(VersionedNodeClass as any);
       
       // Should merge baseDescription with version description
       expect(result.nodeType).toBe('mergedNode'); // From base
@@ -159,7 +159,7 @@ describe('SimpleParser', () => {
       const nodeDefinition = malformedNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      expect(() => parser.parse(NodeClass)).toThrow('Node is missing name property');
+      expect(() => parser.parse(NodeClass as any)).toThrow('Node is missing name property');
     });
 
     it('should handle nodes that fail to instantiate', () => {
@@ -169,7 +169,7 @@ describe('SimpleParser', () => {
         }
       };
       
-      expect(() => parser.parse(NodeClass)).toThrow('Node is missing name property');
+      expect(() => parser.parse(NodeClass as any)).toThrow('Node is missing name property');
     });
 
     it('should handle static description property', () => {
@@ -180,7 +180,7 @@ describe('SimpleParser', () => {
       
       // Since it can't instantiate and has no static description accessible,
       // it should throw for missing name
-      expect(() => parser.parse(NodeClass)).toThrow();
+      expect(() => parser.parse(NodeClass as any)).toThrow();
     });
 
     it('should handle instance-based nodes', () => {
@@ -189,7 +189,7 @@ describe('SimpleParser', () => {
         description: nodeDefinition
       };
       
-      const result = parser.parse(nodeInstance);
+      const result = parser.parse(nodeInstance as any);
       
       expect(result.displayName).toBe(nodeDefinition.displayName);
     });
@@ -199,7 +199,7 @@ describe('SimpleParser', () => {
       delete (nodeDefinition as any).displayName;
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.displayName).toBe(nodeDefinition.name);
     });
@@ -233,7 +233,7 @@ describe('SimpleParser', () => {
         };
         const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
         
-        const result = parser.parse(NodeClass);
+        const result = parser.parse(NodeClass as any);
         
         expect(result.category).toBe(expected);
       });
@@ -247,7 +247,7 @@ describe('SimpleParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isTrigger).toBe(true);
     });
@@ -258,7 +258,7 @@ describe('SimpleParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isTrigger).toBe(true);
     });
@@ -269,7 +269,7 @@ describe('SimpleParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isTrigger).toBe(true);
     });
@@ -280,7 +280,7 @@ describe('SimpleParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isTrigger).toBe(true);
     });
@@ -291,7 +291,7 @@ describe('SimpleParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isTrigger).toBe(true);
     });
@@ -309,7 +309,7 @@ describe('SimpleParser', () => {
       };
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       // Should have resource operations
       const resourceOps = result.operations.filter(op => op.resource);
@@ -335,7 +335,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.operations).toHaveLength(4);
       expect(result.operations).toEqual(expect.arrayContaining([
@@ -355,7 +355,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       const resourceOps = result.operations.filter(op => op.type === 'resource');
       expect(resourceOps).toHaveLength(resourceProp.options!.length);
@@ -377,7 +377,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       const operationOps = result.operations.filter(op => op.type === 'operation');
       expect(operationOps).toHaveLength(operationProp.options!.length);
@@ -407,7 +407,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       const operationOps = result.operations.filter(op => op.type === 'operation');
       expect(operationOps[0].resources).toEqual(['user', 'post', 'comment']);
@@ -434,7 +434,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       const operationOps = result.operations.filter(op => op.type === 'operation');
       expect(operationOps[0].resources).toEqual(['user']);
@@ -442,10 +442,38 @@ describe('SimpleParser', () => {
   });
 
   describe('version extraction', () => {
-    it('should extract version from baseDescription.defaultVersion', () => {
-      // Simple parser needs a proper versioned node structure
+    it('should prioritize currentVersion over description.defaultVersion', () => {
       const NodeClass = class {
-        baseDescription = {
+        currentVersion = 2.2;  // Should be returned
+        description = {
+          name: 'test',
+          displayName: 'Test',
+          defaultVersion: 3  // Should be ignored when currentVersion exists
+        };
+      };
+
+      const result = parser.parse(NodeClass as any);
+      expect(result.version).toBe('2.2');
+    });
+
+    it('should extract version from description.defaultVersion', () => {
+      const NodeClass = class {
+        description = {
+          name: 'test',
+          displayName: 'Test',
+          defaultVersion: 3
+        };
+      };
+
+      const result = parser.parse(NodeClass as any);
+      expect(result.version).toBe('3');
+    });
+
+    it('should NOT extract version from non-existent baseDescription (legacy bug)', () => {
+      // This test verifies the bug fix from v2.17.4
+      // baseDescription.defaultVersion doesn't exist on VersionedNodeType instances
+      const NodeClass = class {
+        baseDescription = {  // This property doesn't exist on VersionedNodeType!
           name: 'test',
           displayName: 'Test',
           defaultVersion: 3
@@ -458,10 +486,11 @@ describe('SimpleParser', () => {
           });
         }
       };
-      
-      const result = parser.parse(NodeClass);
-      
-      expect(result.version).toBe('3');
+
+      const result = parser.parse(NodeClass as any);
+
+      // Should fallback to default version '1' since baseDescription.defaultVersion doesn't exist
+      expect(result.version).toBe('1');
     });
 
     it('should extract version from description.version', () => {
@@ -473,7 +502,7 @@ describe('SimpleParser', () => {
         };
       };
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.version).toBe('2');
     });
@@ -485,7 +514,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.version).toBe('1');
     });
@@ -509,7 +538,7 @@ describe('SimpleParser', () => {
         }
       };
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isVersioned).toBe(true);
     });
@@ -522,7 +551,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isVersioned).toBe(true);
     });
@@ -535,7 +564,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isVersioned).toBe(true);
     });
@@ -548,7 +577,7 @@ describe('SimpleParser', () => {
         };
       };
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.isVersioned).toBe(true);
     });
@@ -563,7 +592,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.style).toBe('declarative');
       expect(result.operations).toEqual([]);
@@ -576,7 +605,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.properties).toEqual([]);
     });
@@ -586,7 +615,7 @@ describe('SimpleParser', () => {
       delete (nodeDefinition as any).credentials;
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.credentials).toEqual([]);
     });
@@ -600,7 +629,7 @@ describe('SimpleParser', () => {
         };
       };
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.nodeType).toBe('baseNode');
       expect(result.displayName).toBe('Base Node');
@@ -624,7 +653,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       expect(result.operations).toEqual([]);
     });
@@ -649,7 +678,7 @@ describe('SimpleParser', () => {
         }
       });
       
-      const result = parser.parse(NodeClass);
+      const result = parser.parse(NodeClass as any);
       
       // Should handle missing names gracefully
       expect(result.operations).toHaveLength(2);

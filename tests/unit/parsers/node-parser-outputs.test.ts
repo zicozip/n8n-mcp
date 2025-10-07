@@ -41,7 +41,7 @@ describe('NodeParser - Output Extraction', () => {
         description = nodeDescription;
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual(outputs);
       expect(result.outputNames).toBeUndefined();
@@ -60,7 +60,7 @@ describe('NodeParser - Output Extraction', () => {
         description = nodeDescription;
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputNames).toEqual(outputNames);
       expect(result.outputs).toBeUndefined();
@@ -84,7 +84,7 @@ describe('NodeParser - Output Extraction', () => {
         description = nodeDescription;
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual(outputs);
       expect(result.outputNames).toEqual(outputNames);
@@ -103,7 +103,7 @@ describe('NodeParser - Output Extraction', () => {
         description = nodeDescription;
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual([singleOutput]);
     });
@@ -119,7 +119,7 @@ describe('NodeParser - Output Extraction', () => {
         description = nodeDescription;
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputNames).toEqual(['main']);
     });
@@ -152,7 +152,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       // Should get outputs from latest version (2)
       expect(result.outputs).toEqual(versionedOutputs);
@@ -172,7 +172,7 @@ describe('NodeParser - Output Extraction', () => {
         }
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toBeUndefined();
       expect(result.outputNames).toBeUndefined();
@@ -189,7 +189,7 @@ describe('NodeParser - Output Extraction', () => {
         description = nodeDescription;
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toBeUndefined();
       expect(result.outputNames).toBeUndefined();
@@ -229,7 +229,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       // Should use latest version (3)
       expect(result.outputs).toEqual([
@@ -259,7 +259,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual(baseOutputs);
     });
@@ -279,7 +279,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual(ifOutputs);
       expect(result.outputNames).toEqual(['true', 'false']);
@@ -300,7 +300,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual(splitInBatchesOutputs);
       expect(result.outputNames).toEqual(['done', 'loop']);
@@ -331,7 +331,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual(switchOutputs);
       expect(result.outputNames).toEqual(['0', '1', '2', 'fallback']);
@@ -347,7 +347,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual([]);
       expect(result.outputNames).toEqual([]);
@@ -369,7 +369,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toEqual(outputs);
       expect(result.outputNames).toEqual(outputNames);
@@ -405,7 +405,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toHaveLength(2);
       expect(result.outputs).toBeDefined();
@@ -442,7 +442,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toHaveLength(2);
       expect(result.outputs).toBeDefined();
@@ -464,7 +464,7 @@ describe('NodeParser - Output Extraction', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.outputs).toBeUndefined();
       expect(result.outputNames).toBeUndefined();

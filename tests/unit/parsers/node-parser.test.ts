@@ -47,7 +47,7 @@ describe('NodeParser', () => {
       mockPropertyExtractor.extractProperties.mockReturnValue(nodeDefinition.properties);
       mockPropertyExtractor.extractCredentials.mockReturnValue(nodeDefinition.credentials);
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result).toMatchObject({
         style: 'programmatic',
@@ -70,7 +70,7 @@ describe('NodeParser', () => {
       const nodeDefinition = declarativeNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.style).toBe('declarative');
       expect(result.nodeType).toBe(`nodes-base.${nodeDefinition.name}`);
@@ -82,7 +82,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.nodeType).toBe('nodes-base.slack');
     });
@@ -91,7 +91,7 @@ describe('NodeParser', () => {
       const nodeDefinition = triggerNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isTrigger).toBe(true);
     });
@@ -100,7 +100,7 @@ describe('NodeParser', () => {
       const nodeDefinition = webhookNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isWebhook).toBe(true);
     });
@@ -111,7 +111,7 @@ describe('NodeParser', () => {
       
       mockPropertyExtractor.detectAIToolCapability.mockReturnValue(true);
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isAITool).toBe(true);
     });
@@ -137,7 +137,7 @@ describe('NodeParser', () => {
         propertyFactory.build()
       ]);
       
-      const result = parser.parse(VersionedNodeClass, 'n8n-nodes-base');
+      const result = parser.parse(VersionedNodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(true);
       expect(result.version).toBe('2');
@@ -151,7 +151,7 @@ describe('NodeParser', () => {
         baseDescription = versionedDef.baseDescription;
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(true);
       expect(result.version).toBe('2');
@@ -163,7 +163,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(true);
       expect(result.version).toBe('2'); // Should return max version
@@ -173,7 +173,7 @@ describe('NodeParser', () => {
       const nodeDefinition = malformedNodeFactory.build();
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      expect(() => parser.parse(NodeClass, 'n8n-nodes-base')).toThrow('Node is missing name property');
+      expect(() => parser.parse(NodeClass as any, 'n8n-nodes-base')).toThrow('Node is missing name property');
     });
 
     it('should use static description when instantiation fails', () => {
@@ -184,7 +184,7 @@ describe('NodeParser', () => {
         }
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.displayName).toBe(NodeClass.description.displayName);
     });
@@ -205,7 +205,7 @@ describe('NodeParser', () => {
         } as any);
         const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
         
-        const result = parser.parse(NodeClass, 'n8n-nodes-base');
+        const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
         
         expect(result.category).toBe(expected);
       });
@@ -217,7 +217,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isTrigger).toBe(true);
     });
@@ -228,7 +228,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isTrigger).toBe(true);
     });
@@ -239,7 +239,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isTrigger).toBe(true);
     });
@@ -250,7 +250,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isWebhook).toBe(true);
     });
@@ -262,8 +262,8 @@ describe('NodeParser', () => {
       };
       
       mockPropertyExtractor.extractProperties.mockReturnValue(nodeDefinition.properties);
-      
-      const result = parser.parse(nodeInstance, 'n8n-nodes-base');
+
+      const result = parser.parse(nodeInstance as any, 'n8n-nodes-base');
       
       expect(result.displayName).toBe(nodeDefinition.displayName);
     });
@@ -279,7 +279,7 @@ describe('NodeParser', () => {
       ];
       
       testCases.forEach(({ packageName, expectedPrefix }) => {
-        const result = parser.parse(NodeClass, packageName);
+        const result = parser.parse(NodeClass as any, packageName);
         expect(result.nodeType).toBe(`${expectedPrefix}.${nodeDefinition.name}`);
       });
     });
@@ -296,7 +296,7 @@ describe('NodeParser', () => {
         };
       };
 
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
 
       expect(result.version).toBe('2.2');
     });
@@ -310,7 +310,7 @@ describe('NodeParser', () => {
         };
       };
 
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
 
       expect(result.version).toBe('3');
     });
@@ -325,7 +325,7 @@ describe('NodeParser', () => {
         };
       };
 
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
 
       expect(result.version).toBe('0');
     });
@@ -339,7 +339,7 @@ describe('NodeParser', () => {
         };
       };
 
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
 
       expect(result.version).toBe('1');  // Should fallback to default
     });
@@ -354,7 +354,7 @@ describe('NodeParser', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.version).toBe('3');
     });
@@ -372,7 +372,7 @@ describe('NodeParser', () => {
         }
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.version).toBe('4');
     });
@@ -383,7 +383,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.version).toBe('2');
     });
@@ -394,7 +394,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.version).toBe('1.5');
     });
@@ -404,7 +404,7 @@ describe('NodeParser', () => {
       delete (nodeDefinition as any).version;
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.version).toBe('1');
     });
@@ -417,7 +417,7 @@ describe('NodeParser', () => {
         nodeVersions = { 1: {}, 2: {} };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(true);
     });
@@ -431,7 +431,7 @@ describe('NodeParser', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(true);
     });
@@ -445,7 +445,7 @@ describe('NodeParser', () => {
         };
       };
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(true);
     });
@@ -456,7 +456,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(false);
     });
@@ -468,7 +468,7 @@ describe('NodeParser', () => {
         description = null;
       };
       
-      expect(() => parser.parse(NodeClass, 'n8n-nodes-base')).toThrow();
+      expect(() => parser.parse(NodeClass as any, 'n8n-nodes-base')).toThrow();
     });
 
     it('should handle empty routing object for declarative nodes', () => {
@@ -477,7 +477,7 @@ describe('NodeParser', () => {
       });
       const NodeClass = nodeClassFactory.build({ description: nodeDefinition });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.style).toBe('declarative');
     });
@@ -503,7 +503,7 @@ describe('NodeParser', () => {
         value: 'VersionedNodeType'
       });
       
-      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+      const result = parser.parse(NodeClass as any, 'n8n-nodes-base');
       
       expect(result.isVersioned).toBe(true);
       expect(result.version).toBe('3');
