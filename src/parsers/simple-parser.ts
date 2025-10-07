@@ -35,12 +35,22 @@ export class SimpleParser {
       if (isVersionedNodeClass(nodeClass)) {
         // This is a VersionedNodeType class - instantiate it
         const instance = new (nodeClass as new () => VersionedNodeInstance)();
-        description = instance.description;
+        // Strategic any assertion for accessing both description and baseDescription
+        const inst = instance as any;
+        // Try description first (real VersionedNodeType with getter)
+        // Only fallback to baseDescription if nodeVersions exists (complete VersionedNodeType mock)
+        // This prevents using baseDescription for incomplete mocks that test edge cases
+        description = inst.description || (inst.nodeVersions ? inst.baseDescription : undefined);
+
+        // If still undefined (incomplete mock), use empty object to allow graceful failure later
+        if (!description) {
+          description = {} as any;
+        }
         isVersioned = true;
 
         // For versioned nodes, try to get properties from the current version
-        if (instance.nodeVersions && instance.currentVersion) {
-          const currentVersionNode = instance.nodeVersions[instance.currentVersion];
+        if (inst.nodeVersions && inst.currentVersion) {
+          const currentVersionNode = inst.nodeVersions[inst.currentVersion];
           if (currentVersionNode && currentVersionNode.description) {
             // Merge baseDescription with version-specific description
             description = { ...description, ...currentVersionNode.description };
@@ -51,6 +61,13 @@ export class SimpleParser {
         try {
           const instance = new nodeClass();
           description = instance.description;
+          // If description is empty or missing name, check for baseDescription fallback
+          if (!description || !description.name) {
+            const inst = instance as any;
+            if (inst.baseDescription?.name) {
+              description = inst.baseDescription;
+            }
+          }
         } catch (e) {
           // Some nodes might require parameters to instantiate
           // Try to access static properties or look for common patterns
@@ -59,12 +76,19 @@ export class SimpleParser {
       } else {
         // Maybe it's already an instance
         description = nodeClass.description;
+        // If description is empty or missing name, check for baseDescription fallback
+        if (!description || !description.name) {
+          const inst = nodeClass as any;
+          if (inst.baseDescription?.name) {
+            description = inst.baseDescription;
+          }
+        }
       }
     } catch (error) {
       // If instantiation fails, try to get static description
       description = (nodeClass as any).description || ({} as any);
     }
-    
+
     // Strategic any assertion for properties that don't exist on both union sides
     const desc = description as any;
     const isDeclarative = !!desc.routing;
@@ -273,7 +297,7 @@ export class SimpleParser {
     // Strategic any assertion for class-level properties
     const nodeClassAny = nodeClass as any;
 
-    // Check for VersionedNodeType pattern
+    // Check for VersionedNodeType pattern at class level
     if (nodeClassAny.baseDescription && nodeClassAny.nodeVersions) {
       return true;
     }
@@ -283,6 +307,12 @@ export class SimpleParser {
       const instance = typeof nodeClass === 'function' ? new nodeClass() : nodeClass;
       // Strategic any assertion for instance properties
       const inst = instance as any;
+
+      // Check for VersionedNodeType pattern at instance level
+      if (inst.baseDescription && inst.nodeVersions) {
+        return true;
+      }
+
       const description = inst.description || {};
 
       // If version is an array, it's versioned
