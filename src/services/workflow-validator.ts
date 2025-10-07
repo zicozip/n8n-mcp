@@ -395,16 +395,17 @@ export class WorkflowValidator {
           node.type = normalizedType;
         }
 
+        // Skip ALL node repository validation for langchain nodes
+        // They have dedicated AI-specific validators in validateAISpecificNodes()
+        // This prevents parameter validation conflicts and ensures proper AI validation
+        if (normalizedType.startsWith('nodes-langchain.')) {
+          continue;
+        }
+
         // Get node definition using normalized type
         const nodeInfo = this.nodeRepository.getNode(normalizedType);
 
         if (!nodeInfo) {
-          // Skip validation for langchain nodes - they're validated by AI-specific validators
-          // This prevents database dependency issues while still ensuring proper validation
-          if (normalizedType.startsWith('nodes-langchain.')) {
-            // Langchain nodes are validated separately by validateAISpecificNodes()
-            continue;
-          }
 
           // Use NodeSimilarityService to find suggestions
           const suggestions = await this.similarityService.findSimilarNodes(node.type, 3);
