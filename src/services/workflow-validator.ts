@@ -272,13 +272,15 @@ export class WorkflowValidator {
       const normalizedType = NodeTypeNormalizer.normalizeToFullForm(singleNode.type);
       const isWebhook = normalizedType === 'nodes-base.webhook' ||
                        normalizedType === 'nodes-base.webhookTrigger';
-      
-      if (!isWebhook) {
+      const isLangchainNode = normalizedType.startsWith('nodes-langchain.');
+
+      // Langchain nodes can be validated standalone for AI tool purposes
+      if (!isWebhook && !isLangchainNode) {
         result.errors.push({
           type: 'error',
           message: 'Single-node workflows are only valid for webhook endpoints. Add at least one more connected node to create a functional workflow.'
         });
-      } else if (Object.keys(workflow.connections).length === 0) {
+      } else if (isWebhook && Object.keys(workflow.connections).length === 0) {
         result.warnings.push({
           type: 'warning',
           message: 'Webhook node has no connections. Consider adding nodes to process the webhook data.'
@@ -960,6 +962,13 @@ export class WorkflowValidator {
 
     for (const node of workflow.nodes) {
       if (node.disabled || this.isStickyNote(node)) continue;
+
+      // Skip expression validation for langchain nodes
+      // They have AI-specific validators and different expression rules
+      const normalizedType = NodeTypeNormalizer.normalizeToFullForm(node.type);
+      if (normalizedType.startsWith('nodes-langchain.')) {
+        continue;
+      }
 
       // Create expression context
       const context = {
