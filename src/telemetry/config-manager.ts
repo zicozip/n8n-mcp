@@ -37,10 +37,133 @@ export class TelemetryConfigManager {
 
   /**
    * Generate a deterministic anonymous user ID based on machine characteristics
+   * Uses Docker/cloud-specific method for containerized environments
    */
   private generateUserId(): string {
+    // Use boot_id for all Docker/cloud environments (stable across container updates)
+    if (process.env.IS_DOCKER === 'true' || this.isCloudEnvironment()) {
+      return this.generateDockerStableId();
+    }
+
+    // Local installations use file-based method with hostname
     const machineId = `${hostname()}-${platform()}-${arch()}-${homedir()}`;
     return createHash('sha256').update(machineId).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * Generate stable user ID for Docker/cloud environments
+   * Priority: boot_id → combined signals → generic fallback
+   */
+  private generateDockerStableId(): string {
+    // Priority 1: Try boot_id (stable across container recreations)
+    const bootId = this.readBootId();
+    if (bootId) {
+      const fingerprint = `${bootId}-${platform()}-${arch()}`;
+      return createHash('sha256').update(fingerprint).digest('hex').substring(0, 16);
+    }
+
+    // Priority 2: Try combined host signals
+    const combinedFingerprint = this.generateCombinedFingerprint();
+    if (combinedFingerprint) {
+      return combinedFingerprint;
+    }
+
+    // Priority 3: Generic Docker ID (allows aggregate statistics)
+    const genericId = `docker-${platform()}-${arch()}`;
+    return createHash('sha256').update(genericId).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * Read host boot_id from /proc (available in Linux containers)
+   * Returns null if not available or invalid format
+   */
+  private readBootId(): string | null {
+    try {
+      const bootIdPath = '/proc/sys/kernel/random/boot_id';
+
+      if (!existsSync(bootIdPath)) {
+        return null;
+      }
+
+      const bootId = readFileSync(bootIdPath, 'utf-8').trim();
+
+      // Validate UUID format (8-4-4-4-12 hex digits)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(bootId)) {
+        return null;
+      }
+
+      return bootId;
+    } catch (error) {
+      // File not readable or other error
+      return null;
+    }
+  }
+
+  /**
+   * Generate fingerprint from combined host signals
+   * Fallback for environments where boot_id is not available
+   */
+  private generateCombinedFingerprint(): string | null {
+    try {
+      const signals: string[] = [];
+
+      // CPU cores (stable)
+      if (existsSync('/proc/cpuinfo')) {
+        const cpuinfo = readFileSync('/proc/cpuinfo', 'utf-8');
+        const cores = (cpuinfo.match(/processor\s*:/g) || []).length;
+        if (cores > 0) {
+          signals.push(`cores:${cores}`);
+        }
+      }
+
+      // Memory (stable)
+      if (existsSync('/proc/meminfo')) {
+        const meminfo = readFileSync('/proc/meminfo', 'utf-8');
+        const totalMatch = meminfo.match(/MemTotal:\s+(\d+)/);
+        if (totalMatch) {
+          signals.push(`mem:${totalMatch[1]}`);
+        }
+      }
+
+      // Kernel version (stable)
+      if (existsSync('/proc/version')) {
+        const version = readFileSync('/proc/version', 'utf-8');
+        const kernelMatch = version.match(/Linux version ([\d.]+)/);
+        if (kernelMatch) {
+          signals.push(`kernel:${kernelMatch[1]}`);
+        }
+      }
+
+      // Platform and arch
+      signals.push(platform(), arch());
+
+      // Need at least 3 signals for reasonable uniqueness
+      if (signals.length < 3) {
+        return null;
+      }
+
+      const fingerprint = signals.join('-');
+      return createHash('sha256').update(fingerprint).digest('hex').substring(0, 16);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Check if running in a cloud environment
+   */
+  private isCloudEnvironment(): boolean {
+    return !!(
+      process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RENDER ||
+      process.env.FLY_APP_NAME ||
+      process.env.HEROKU_APP_NAME ||
+      process.env.AWS_EXECUTION_ENV ||
+      process.env.KUBERNETES_SERVICE_HOST ||
+      process.env.GOOGLE_CLOUD_PROJECT ||
+      process.env.AZURE_FUNCTIONS_ENVIRONMENT
+    );
   }
 
   /**
