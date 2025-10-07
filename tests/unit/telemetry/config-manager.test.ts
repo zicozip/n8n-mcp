@@ -504,4 +504,362 @@ describe('TelemetryConfigManager', () => {
       expect(typeof status).toBe('string');
     });
   });
+
+  describe('Docker/Cloud user ID generation', () => {
+    let originalIsDocker: string | undefined;
+    let originalRailway: string | undefined;
+
+    beforeEach(() => {
+      originalIsDocker = process.env.IS_DOCKER;
+      originalRailway = process.env.RAILWAY_ENVIRONMENT;
+    });
+
+    afterEach(() => {
+      if (originalIsDocker === undefined) {
+        delete process.env.IS_DOCKER;
+      } else {
+        process.env.IS_DOCKER = originalIsDocker;
+      }
+
+      if (originalRailway === undefined) {
+        delete process.env.RAILWAY_ENVIRONMENT;
+      } else {
+        process.env.RAILWAY_ENVIRONMENT = originalRailway;
+      }
+    });
+
+    describe('boot_id reading', () => {
+      it('should read valid boot_id from /proc/sys/kernel/random/boot_id', () => {
+        const mockBootId = 'f3c371fe-8a77-4592-8332-7a4d0d88d4ac';
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return true;
+          return false;
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return mockBootId;
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+        expect(vi.mocked(readFileSync)).toHaveBeenCalledWith(
+          '/proc/sys/kernel/random/boot_id',
+          'utf-8'
+        );
+      });
+
+      it('should validate boot_id UUID format', () => {
+        const invalidBootId = 'not-a-valid-uuid';
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return true;
+          if (path === '/proc/cpuinfo') return true;
+          if (path === '/proc/meminfo') return true;
+          return false;
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return invalidBootId;
+          if (path === '/proc/cpuinfo') return 'processor: 0\nprocessor: 1\n';
+          if (path === '/proc/meminfo') return 'MemTotal: 8040052 kB\n';
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        // Should fallback to combined fingerprint, not use invalid boot_id
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+      });
+
+      it('should handle boot_id file not existing', () => {
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return false;
+          if (path === '/proc/cpuinfo') return true;
+          if (path === '/proc/meminfo') return true;
+          return false;
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/cpuinfo') return 'processor: 0\nprocessor: 1\n';
+          if (path === '/proc/meminfo') return 'MemTotal: 8040052 kB\n';
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        // Should fallback to combined fingerprint
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+      });
+
+      it('should handle boot_id read errors gracefully', () => {
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return true;
+          return false;
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') {
+            throw new Error('Permission denied');
+          }
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        // Should fallback gracefully
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+      });
+
+      it('should generate consistent user ID from same boot_id', () => {
+        const mockBootId = 'f3c371fe-8a77-4592-8332-7a4d0d88d4ac';
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return true;
+          return false;
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return mockBootId;
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        const manager1 = TelemetryConfigManager.getInstance();
+        const userId1 = manager1.getUserId();
+
+        (TelemetryConfigManager as any).instance = null;
+        const manager2 = TelemetryConfigManager.getInstance();
+        const userId2 = manager2.getUserId();
+
+        // Same boot_id should produce same user_id
+        expect(userId1).toBe(userId2);
+      });
+    });
+
+    describe('combined fingerprint fallback', () => {
+      it('should generate fingerprint from CPU, memory, and kernel', () => {
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return false;
+          if (path === '/proc/cpuinfo') return true;
+          if (path === '/proc/meminfo') return true;
+          if (path === '/proc/version') return true;
+          return false;
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/cpuinfo') return 'processor: 0\nprocessor: 1\nprocessor: 2\nprocessor: 3\n';
+          if (path === '/proc/meminfo') return 'MemTotal: 8040052 kB\n';
+          if (path === '/proc/version') return 'Linux version 5.15.49-linuxkit';
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+      });
+
+      it('should require at least 3 signals for combined fingerprint', () => {
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return false;
+          // Only platform and arch available (2 signals)
+          return false;
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        // Should fallback to generic Docker ID
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+      });
+
+      it('should handle partial /proc data', () => {
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return false;
+          if (path === '/proc/cpuinfo') return true;
+          // meminfo missing
+          return false;
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/cpuinfo') return 'processor: 0\nprocessor: 1\n';
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        // Should include platform and arch, so 4 signals total
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+      });
+    });
+
+    describe('environment detection', () => {
+      it('should use Docker method when IS_DOCKER=true', () => {
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockReturnValue(false);
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+        // Should attempt to read boot_id
+        expect(vi.mocked(existsSync)).toHaveBeenCalledWith('/proc/sys/kernel/random/boot_id');
+      });
+
+      it('should use Docker method for Railway environment', () => {
+        process.env.RAILWAY_ENVIRONMENT = 'production';
+        delete process.env.IS_DOCKER;
+
+        vi.mocked(existsSync).mockReturnValue(false);
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+        // Should attempt to read boot_id
+        expect(vi.mocked(existsSync)).toHaveBeenCalledWith('/proc/sys/kernel/random/boot_id');
+      });
+
+      it('should use file-based method for local installation', () => {
+        delete process.env.IS_DOCKER;
+        delete process.env.RAILWAY_ENVIRONMENT;
+
+        vi.mocked(existsSync).mockReturnValue(false);
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+        // Should NOT attempt to read boot_id
+        const calls = vi.mocked(existsSync).mock.calls;
+        const bootIdCalls = calls.filter(call => call[0] === '/proc/sys/kernel/random/boot_id');
+        expect(bootIdCalls.length).toBe(0);
+      });
+
+      it('should detect cloud platforms', () => {
+        const cloudEnvVars = [
+          'RAILWAY_ENVIRONMENT',
+          'RENDER',
+          'FLY_APP_NAME',
+          'HEROKU_APP_NAME',
+          'AWS_EXECUTION_ENV',
+          'KUBERNETES_SERVICE_HOST',
+          'GOOGLE_CLOUD_PROJECT',
+          'AZURE_FUNCTIONS_ENVIRONMENT'
+        ];
+
+        cloudEnvVars.forEach(envVar => {
+          // Clear all env vars
+          cloudEnvVars.forEach(v => delete process.env[v]);
+          delete process.env.IS_DOCKER;
+
+          // Set one cloud env var
+          process.env[envVar] = 'true';
+
+          vi.mocked(existsSync).mockReturnValue(false);
+
+          (TelemetryConfigManager as any).instance = null;
+          manager = TelemetryConfigManager.getInstance();
+          const userId = manager.getUserId();
+
+          expect(userId).toMatch(/^[a-f0-9]{16}$/);
+
+          // Should attempt to read boot_id
+          const calls = vi.mocked(existsSync).mock.calls;
+          const bootIdCalls = calls.filter(call => call[0] === '/proc/sys/kernel/random/boot_id');
+          expect(bootIdCalls.length).toBeGreaterThan(0);
+
+          // Clean up
+          delete process.env[envVar];
+        });
+      });
+    });
+
+    describe('fallback chain execution', () => {
+      it('should fallback from boot_id → combined → generic', () => {
+        process.env.IS_DOCKER = 'true';
+
+        // All methods fail
+        vi.mocked(existsSync).mockReturnValue(false);
+        vi.mocked(readFileSync).mockImplementation(() => {
+          throw new Error('File not found');
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        manager = TelemetryConfigManager.getInstance();
+        const userId = manager.getUserId();
+
+        // Should still generate a generic Docker ID
+        expect(userId).toMatch(/^[a-f0-9]{16}$/);
+      });
+
+      it('should use boot_id if available (highest priority)', () => {
+        const mockBootId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+        process.env.IS_DOCKER = 'true';
+
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return true;
+          return true; // All other files available too
+        });
+
+        vi.mocked(readFileSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return mockBootId;
+          if (path === '/proc/cpuinfo') return 'processor: 0\n';
+          if (path === '/proc/meminfo') return 'MemTotal: 1000000 kB\n';
+          return 'mock data';
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        const manager1 = TelemetryConfigManager.getInstance();
+        const userId1 = manager1.getUserId();
+
+        // Now break boot_id but keep combined signals
+        vi.mocked(existsSync).mockImplementation((path: any) => {
+          if (path === '/proc/sys/kernel/random/boot_id') return false;
+          return true;
+        });
+
+        (TelemetryConfigManager as any).instance = null;
+        const manager2 = TelemetryConfigManager.getInstance();
+        const userId2 = manager2.getUserId();
+
+        // Different methods should produce different IDs
+        expect(userId1).not.toBe(userId2);
+        expect(userId1).toMatch(/^[a-f0-9]{16}$/);
+        expect(userId2).toMatch(/^[a-f0-9]{16}$/);
+      });
+    });
+  });
 });

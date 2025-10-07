@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.1] - 2025-10-07
+
+### 🔧 Telemetry
+
+**Critical fix: Docker and cloud deployments now maintain stable anonymous user IDs.**
+
+This release fixes a critical telemetry issue where Docker and cloud deployments generated new user IDs on every container recreation, causing 100-200x inflation in unique user counts and preventing accurate retention metrics.
+
+#### Fixed
+
+- **Docker/Cloud User ID Stability**
+  - **Issue:** Docker containers and cloud deployments generated new anonymous user ID on every container recreation
+  - **Impact:**
+    - Stdio mode: ~1000x user ID inflation per month (with --rm flag)
+    - HTTP mode: ~180x user ID inflation per month (6 releases/day)
+    - Telemetry showed 3,996 "unique users" when actual number was likely ~2,400-2,800
+    - 78% single-session rate and 5.97% Week 1 retention were inflated by duplicates
+  - **Root Cause:** Container hostnames change on recreation, persistent config files lost with ephemeral containers
+  - **Fix:** Use host's `/proc/sys/kernel/random/boot_id` for stable identification
+    - boot_id is stable across container recreations (only changes on host reboot)
+    - Available in all Linux containers (Alpine, Ubuntu, Node, etc.)
+    - Readable by non-root users
+    - Defensive fallback chain:
+      1. boot_id (stable across container updates)
+      2. Combined host signals (CPU cores, memory, kernel version)
+      3. Generic Docker ID (allows aggregate statistics)
+  - **Environment Detection:**
+    - IS_DOCKER=true triggers boot_id method
+    - Auto-detects cloud platforms: Railway, Render, Fly.io, Heroku, AWS, Kubernetes, GCP, Azure
+    - Local installations continue using file-based method with hostname
+  - **Zero Configuration:** No user action required, automatic environment detection
+
+#### Added
+
+- `TelemetryConfigManager.generateDockerStableId()` - Docker/cloud-specific ID generation
+- `TelemetryConfigManager.readBootId()` - Read and validate boot_id from /proc
+- `TelemetryConfigManager.generateCombinedFingerprint()` - Fallback fingerprinting
+- `TelemetryConfigManager.isCloudEnvironment()` - Auto-detect 8 cloud platforms
+
+### Testing
+
+- **Unit Tests:** 18 new tests for boot_id functionality, environment detection, fallback chain
+- **Integration Tests:** 16 new tests for actual file system operations, Docker detection, cloud platforms
+- **Coverage:** All 34 new tests passing (100%)
+
 ## [2.17.0] - 2025-01-06
 
 ### 🤖 AI Workflow Validation
