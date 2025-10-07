@@ -45,19 +45,22 @@ export class TemplateFetcher {
    * Fetch all templates and filter to last 12 months
    * This fetches ALL pages first, then applies date filter locally
    */
-  async fetchTemplates(progressCallback?: (current: number, total: number) => void): Promise<TemplateWorkflow[]> {
+  async fetchTemplates(progressCallback?: (current: number, total: number) => void, sinceDate?: Date): Promise<TemplateWorkflow[]> {
     const allTemplates = await this.fetchAllTemplates(progressCallback);
-    
-    // Apply date filter locally after fetching all
-    const oneYearAgo = new Date();
-    oneYearAgo.setMonth(oneYearAgo.getMonth() - 12);
-    
+
+    // Use provided date or default to 12 months ago
+    const cutoffDate = sinceDate || (() => {
+      const oneYearAgo = new Date();
+      oneYearAgo.setMonth(oneYearAgo.getMonth() - 12);
+      return oneYearAgo;
+    })();
+
     const recentTemplates = allTemplates.filter((w: TemplateWorkflow) => {
       const createdDate = new Date(w.createdAt);
-      return createdDate >= oneYearAgo;
+      return createdDate >= cutoffDate;
     });
-    
-    logger.info(`Filtered to ${recentTemplates.length} templates from last 12 months (out of ${allTemplates.length} total)`);
+
+    logger.info(`Filtered to ${recentTemplates.length} templates since ${cutoffDate.toISOString().split('T')[0]} (out of ${allTemplates.length} total)`);
     return recentTemplates;
   }
   

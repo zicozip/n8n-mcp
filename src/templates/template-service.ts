@@ -319,22 +319,38 @@ export class TemplateService {
       
       // Get existing template IDs if in update mode
       let existingIds: Set<number> = new Set();
+      let sinceDate: Date | undefined;
+
       if (mode === 'update') {
         existingIds = this.repository.getExistingTemplateIds();
         logger.info(`Update mode: Found ${existingIds.size} existing templates in database`);
+
+        // Get most recent template date and fetch only templates from last 2 weeks
+        const mostRecentDate = this.repository.getMostRecentTemplateDate();
+        if (mostRecentDate) {
+          // Fetch templates from 2 weeks before the most recent template
+          sinceDate = new Date(mostRecentDate);
+          sinceDate.setDate(sinceDate.getDate() - 14);
+          logger.info(`Update mode: Fetching templates since ${sinceDate.toISOString().split('T')[0]} (2 weeks before most recent)`);
+        } else {
+          // No templates yet, fetch from last 2 weeks
+          sinceDate = new Date();
+          sinceDate.setDate(sinceDate.getDate() - 14);
+          logger.info(`Update mode: No existing templates, fetching from last 2 weeks`);
+        }
       } else {
         // Clear existing templates in rebuild mode
         this.repository.clearTemplates();
         logger.info('Rebuild mode: Cleared existing templates');
       }
-      
+
       // Fetch template list
       logger.info(`Fetching template list from n8n.io (mode: ${mode})`);
       const templates = await fetcher.fetchTemplates((current, total) => {
         progressCallback?.('Fetching template list', current, total);
-      });
+      }, sinceDate);
       
-      logger.info(`Found ${templates.length} templates from last 12 months`);
+      logger.info(`Found ${templates.length} templates matching date criteria`);
       
       // Filter to only new templates if in update mode
       let templatesToFetch = templates;

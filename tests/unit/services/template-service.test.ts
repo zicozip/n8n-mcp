@@ -79,6 +79,7 @@ describe('TemplateService', () => {
       getTemplateCount: vi.fn(),
       getTemplateStats: vi.fn(),
       getExistingTemplateIds: vi.fn(),
+      getMostRecentTemplateDate: vi.fn(),
       clearTemplates: vi.fn(),
       saveTemplate: vi.fn(),
       rebuildTemplateFTS: vi.fn(),
@@ -471,6 +472,7 @@ describe('TemplateService', () => {
       }));
 
       mockRepository.getExistingTemplateIds = vi.fn().mockReturnValue(new Set([1, 2]));
+      mockRepository.getMostRecentTemplateDate = vi.fn().mockReturnValue(new Date('2025-09-01'));
       mockRepository.saveTemplate = vi.fn();
       mockRepository.rebuildTemplateFTS = vi.fn();
 
@@ -498,6 +500,7 @@ describe('TemplateService', () => {
       }));
 
       mockRepository.getExistingTemplateIds = vi.fn().mockReturnValue(new Set([1, 2]));
+      mockRepository.getMostRecentTemplateDate = vi.fn().mockReturnValue(new Date('2025-09-01'));
       mockRepository.saveTemplate = vi.fn();
       mockRepository.rebuildTemplateFTS = vi.fn();
 
