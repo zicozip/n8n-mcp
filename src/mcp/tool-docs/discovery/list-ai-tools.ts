@@ -4,26 +4,30 @@ export const listAiToolsDoc: ToolDocumentation = {
   name: 'list_ai_tools',
   category: 'discovery',
   essentials: {
-    description: 'Returns 263 nodes with built-in AI features. CRITICAL: Any of the 525 n8n nodes can be used as an AI tool by connecting it to an AI Agent node\'s tool port. This list only shows nodes with AI-specific features, not all usable nodes.',
+    description: 'DEPRECATED: Basic list of 263 AI nodes. For comprehensive AI Agent guidance, use tools_documentation({topic: "ai_agents_guide"}). That guide covers architecture, connections, tools, validation, and best practices. Use search_nodes({query: "AI", includeExamples: true}) for AI nodes with working examples.',
     keyParameters: [],
-    example: 'list_ai_tools()',
+    example: 'tools_documentation({topic: "ai_agents_guide"}) // Recommended alternative',
     performance: 'Instant (cached)',
     tips: [
-      'ANY node can be an AI tool - not limited to this list',
-      'Connect Slack, Database, HTTP Request, etc. to AI Agent tool port',
+      'NEW: Use ai_agents_guide for comprehensive AI workflow documentation',
+      'Use search_nodes({includeExamples: true}) for AI nodes with real-world examples',
+      'ANY node can be an AI tool - not limited to AI-specific nodes',
       'Use get_node_as_tool_info for guidance on any node'
     ]
   },
   full: {
-    description: 'Lists 263 nodes that have built-in AI capabilities or are optimized for AI workflows. IMPORTANT: This is NOT a complete list of nodes usable as AI tools. Any of the 525 n8n nodes can be connected to an AI Agent node\'s tool port to function as an AI tool. This includes Slack, Google Sheets, databases, HTTP requests, and more.',
+    description: '**DEPRECATED in favor of ai_agents_guide**. Lists 263 nodes with built-in AI capabilities. For comprehensive documentation on building AI Agent workflows, use tools_documentation({topic: "ai_agents_guide"}) which covers architecture, the 8 AI connection types, validation, and best practices with real examples. IMPORTANT: This basic list is NOT a complete guide - use the full AI Agents guide instead.',
     parameters: {},
-    returns: 'Array of 263 AI-optimized nodes including: OpenAI (GPT-3/4), Anthropic (Claude), Google AI (Gemini/PaLM), Cohere, HuggingFace, Pinecone, Qdrant, Supabase Vector Store, LangChain nodes, embeddings processors, vector stores, chat models, and AI-specific utilities. Each entry includes nodeType, displayName, and AI-specific capabilities.',
+    returns: 'Array of 263 AI-optimized nodes. RECOMMENDED: Use ai_agents_guide for comprehensive guidance, or search_nodes({query: "AI", includeExamples: true}) for AI nodes with working configuration examples.',
     examples: [
-      'list_ai_tools() - Returns all 263 AI-optimized nodes',
-      '// To use ANY node as AI tool:',
-      '// 1. Add any node (e.g., Slack, MySQL, HTTP Request)',  
-      '// 2. Connect it to AI Agent node\'s "Tool" input port',
-      '// 3. The AI agent can now use that node\'s functionality'
+      '// RECOMMENDED: Use the comprehensive AI Agents guide',
+      'tools_documentation({topic: "ai_agents_guide"})',
+      '',
+      '// Or search for AI nodes with real-world examples',
+      'search_nodes({query: "AI Agent", includeExamples: true})',
+      '',
+      '// Basic list (deprecated)',
+      'list_ai_tools() - Returns 263 AI-optimized nodes'
     ],
     useCases: [
       'Discover AI model integrations (OpenAI, Anthropic, Google AI)',

@@ -582,7 +582,7 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
       expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-base.webhook');
     });
 
-    it('should try normalized types for langchain nodes', async () => {
+    it('should skip node repository lookup for langchain nodes', async () => {
       const workflow = {
         nodes: [
           {
@@ -598,7 +598,9 @@ describe('WorkflowValidator - Comprehensive Tests', () => {
 
       const result = await validator.validateWorkflow(workflow as any);
 
-      expect(mockNodeRepository.getNode).toHaveBeenCalledWith('nodes-langchain.agent');
+      // Langchain nodes should skip node repository validation
+      // They are validated by dedicated AI validators instead
+      expect(mockNodeRepository.getNode).not.toHaveBeenCalledWith('nodes-langchain.agent');
     });
 
     it('should validate typeVersion for versioned nodes', async () => {

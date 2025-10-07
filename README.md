@@ -699,6 +699,11 @@ This tool was created to benefit everyone in the n8n community without friction.
 - **📖 Essential Properties**: Get only the 10-20 properties that matter
 - **💡 Real-World Examples**: 2,646 pre-extracted configurations from popular templates
 - **✅ Config Validation**: Validate node configurations before deployment
+- **🤖 AI Workflow Validation**: Comprehensive validation for AI Agent workflows (NEW in v2.17.0!)
+  - Missing language model detection
+  - AI tool connection validation
+  - Streaming mode constraints
+  - Memory and output parser checks
 - **🔗 Dependency Analysis**: Understand property relationships and conditions
 - **🎯 Template Discovery**: 2,500+ workflow templates with smart filtering
 - **⚡ Fast Response**: Average query time ~12ms with optimized SQLite
@@ -740,12 +745,18 @@ Once connected, Claude can use these powerful tools:
 - **`get_template`** - Get complete workflow JSON for import
 - **`get_templates_for_task`** - Curated templates for common automation tasks
 
-### Advanced Tools
-- **`validate_node_operation`** - Validate node configurations (operation-aware, profiles support)
-- **`validate_node_minimal`** - Quick validation for just required fields
-- **`validate_workflow`** - Complete workflow validation including AI tool connections
+### Validation Tools
+- **`validate_workflow`** - Complete workflow validation including **AI Agent validation** (NEW in v2.17.0!)
+  - Detects missing language model connections
+  - Validates AI tool connections (no false warnings)
+  - Enforces streaming mode constraints
+  - Checks memory and output parser configurations
 - **`validate_workflow_connections`** - Check workflow structure and AI tool connections
 - **`validate_workflow_expressions`** - Validate n8n expressions including $fromAI()
+- **`validate_node_operation`** - Validate node configurations (operation-aware, profiles support)
+- **`validate_node_minimal`** - Quick validation for just required fields
+
+### Advanced Tools
 - **`get_property_dependencies`** - Analyze property visibility conditions
 - **`get_node_documentation`** - Get parsed documentation from n8n-docs
 - **`get_database_statistics`** - View database metrics and coverage

@@ -10,6 +10,7 @@ import { ExpressionFormatValidator } from './expression-format-validator';
 import { NodeSimilarityService, NodeSuggestion } from './node-similarity-service';
 import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 import { Logger } from '../utils/logger';
+import { validateAISpecificNodes, hasAINodes } from './ai-node-validator';
 const logger = new Logger({ prefix: '[WorkflowValidator]' });
 
 interface WorkflowNode {
@@ -174,9 +175,30 @@ export class WorkflowValidator {
           this.checkWorkflowPatterns(workflow, result, profile);
         }
 
+        // Validate AI-specific nodes (AI Agent, Chat Trigger, AI tools)
+        if (workflow.nodes.length > 0 && hasAINodes(workflow)) {
+          const aiIssues = validateAISpecificNodes(workflow);
+          // Convert AI validation issues to workflow validation format
+          for (const issue of aiIssues) {
+            const validationIssue: ValidationIssue = {
+              type: issue.severity === 'error' ? 'error' : 'warning',
+              nodeId: issue.nodeId,
+              nodeName: issue.nodeName,
+              message: issue.message,
+              details: issue.code ? { code: issue.code } : undefined
+            };
+
+            if (issue.severity === 'error') {
+              result.errors.push(validationIssue);
+            } else {
+              result.warnings.push(validationIssue);
+            }
+          }
+        }
+
         // Add suggestions based on findings
         this.generateSuggestions(workflow, result);
-        
+
         // Add AI-specific recovery suggestions if there are errors
         if (result.errors.length > 0) {
           this.addErrorRecoverySuggestions(result);
@@ -250,13 +272,15 @@ export class WorkflowValidator {
       const normalizedType = NodeTypeNormalizer.normalizeToFullForm(singleNode.type);
       const isWebhook = normalizedType === 'nodes-base.webhook' ||
                        normalizedType === 'nodes-base.webhookTrigger';
-      
-      if (!isWebhook) {
+      const isLangchainNode = normalizedType.startsWith('nodes-langchain.');
+
+      // Langchain nodes can be validated standalone for AI tool purposes
+      if (!isWebhook && !isLangchainNode) {
         result.errors.push({
           type: 'error',
           message: 'Single-node workflows are only valid for webhook endpoints. Add at least one more connected node to create a functional workflow.'
         });
-      } else if (Object.keys(workflow.connections).length === 0) {
+      } else if (isWebhook && Object.keys(workflow.connections).length === 0) {
         result.warnings.push({
           type: 'warning',
           message: 'Webhook node has no connections. Consider adding nodes to process the webhook data.'
@@ -305,8 +329,9 @@ export class WorkflowValidator {
     // Count trigger nodes - normalize type names first
     const triggerNodes = workflow.nodes.filter(n => {
       const normalizedType = NodeTypeNormalizer.normalizeToFullForm(n.type);
-      return normalizedType.toLowerCase().includes('trigger') ||
-             normalizedType.toLowerCase().includes('webhook') ||
+      const lowerType = normalizedType.toLowerCase();
+      return lowerType.includes('trigger') ||
+             (lowerType.includes('webhook') && !lowerType.includes('respond')) ||
              normalizedType === 'nodes-base.start' ||
              normalizedType === 'nodes-base.manualTrigger' ||
              normalizedType === 'nodes-base.formTrigger';
@@ -372,10 +397,18 @@ export class WorkflowValidator {
           node.type = normalizedType;
         }
 
+        // Skip ALL node repository validation for langchain nodes
+        // They have dedicated AI-specific validators in validateAISpecificNodes()
+        // This prevents parameter validation conflicts and ensures proper AI validation
+        if (normalizedType.startsWith('nodes-langchain.')) {
+          continue;
+        }
+
         // Get node definition using normalized type
         const nodeInfo = this.nodeRepository.getNode(normalizedType);
 
         if (!nodeInfo) {
+
           // Use NodeSimilarityService to find suggestions
           const suggestions = await this.similarityService.findSimilarNodes(node.type, 3);
 
@@ -929,6 +962,13 @@ export class WorkflowValidator {
 
     for (const node of workflow.nodes) {
       if (node.disabled || this.isStickyNote(node)) continue;
+
+      // Skip expression validation for langchain nodes
+      // They have AI-specific validators and different expression rules
+      const normalizedType = NodeTypeNormalizer.normalizeToFullForm(node.type);
+      if (normalizedType.startsWith('nodes-langchain.')) {
+        continue;
+      }
 
       // Create expression context
       const context = {

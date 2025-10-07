@@ -25,12 +25,15 @@ import {
   searchTemplatesByMetadataDoc,
   getTemplatesForTaskDoc
 } from './templates';
-import { 
+import {
   toolsDocumentationDoc,
   n8nDiagnosticDoc,
   n8nHealthCheckDoc,
   n8nListAvailableToolsDoc
 } from './system';
+import {
+  aiAgentsGuide
+} from './guides';
 import {
   n8nCreateWorkflowDoc,
   n8nGetWorkflowDoc,
@@ -56,7 +59,10 @@ export const toolsDocumentation: Record<string, ToolDocumentation> = {
   n8n_diagnostic: n8nDiagnosticDoc,
   n8n_health_check: n8nHealthCheckDoc,
   n8n_list_available_tools: n8nListAvailableToolsDoc,
-  
+
+  // Guides
+  ai_agents_guide: aiAgentsGuide,
+
   // Discovery tools
   search_nodes: searchNodesDoc,
   list_nodes: listNodesDoc,

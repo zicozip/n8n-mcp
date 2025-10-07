@@ -980,6 +980,7 @@ describe('handlers-n8n-manager', () => {
           warnings: [
             {
               node: 'node1',
+              nodeName: 'node1',
               message: 'Consider using newer version',
               details: { currentVersion: 1, latestVersion: 2 },
             },

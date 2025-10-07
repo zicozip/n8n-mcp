@@ -750,14 +750,16 @@ export async function handleValidateWorkflow(
     if (validationResult.errors.length > 0) {
       response.errors = validationResult.errors.map(e => ({
         node: e.nodeName || 'workflow',
+        nodeName: e.nodeName, // Also set nodeName for compatibility
         message: e.message,
         details: e.details
       }));
     }
-    
+
     if (validationResult.warnings.length > 0) {
       response.warnings = validationResult.warnings.map(w => ({
         node: w.nodeName || 'workflow',
+        nodeName: w.nodeName, // Also set nodeName for compatibility
         message: w.message,
         details: w.details
       }));

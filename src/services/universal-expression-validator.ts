@@ -21,8 +21,18 @@ export class UniversalExpressionValidator {
   private static readonly EXPRESSION_PREFIX = '=';
 
   /**
-   * Universal Rule 1: Any field containing {{ }} MUST have = prefix
-   * This is an absolute rule in n8n - no exceptions
+   * Universal Rule 1: Any field containing {{ }} MUST have = prefix to be evaluated
+   * This applies to BOTH pure expressions and mixed content
+   *
+   * Examples:
+   * - "{{ $json.value }}" -> literal text (NOT evaluated)
+   * - "={{ $json.value }}" -> evaluated expression
+   * - "Hello {{ $json.name }}!" -> literal text (NOT evaluated)
+   * - "=Hello {{ $json.name }}!" -> evaluated (expression in mixed content)
+   * - "=https://api.com/{{ $json.id }}/data" -> evaluated (real example from n8n)
+   *
+   * EXCEPTION: Some langchain node fields auto-evaluate without = prefix
+   * (validated separately by AI-specific validators)
    */
   static validateExpressionPrefix(value: any): UniversalValidationResult {
     // Only validate strings
@@ -52,6 +62,10 @@ export class UniversalExpressionValidator {
 
     const hasPrefix = value.startsWith(this.EXPRESSION_PREFIX);
     const isMixedContent = this.hasMixedContent(value);
+
+    // For langchain nodes, we don't validate expression prefixes
+    // They have AI-specific validators that handle their expression rules
+    // This is checked at the node level, not here
 
     if (!hasPrefix) {
       return {
