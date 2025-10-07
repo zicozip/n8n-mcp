@@ -445,7 +445,9 @@ export class WorkflowValidator {
         }
 
         // Validate typeVersion for ALL versioned nodes (including langchain nodes)
-        // This validation runs BEFORE the langchain skip to ensure typeVersion is checked
+        // CRITICAL: This MUST run BEFORE the langchain skip below!
+        // Otherwise, langchain nodes with invalid typeVersion (e.g., 99999) would pass validation
+        // but fail at runtime in n8n. This was the bug fixed in v2.17.4.
         if (nodeInfo.isVersioned) {
           // Check if typeVersion is missing
           if (!node.typeVersion) {
@@ -485,9 +487,9 @@ export class WorkflowValidator {
           }
         }
 
-        // Skip parameter validation for langchain nodes
-        // They have dedicated AI-specific validators in validateAISpecificNodes()
-        // This prevents parameter validation conflicts and ensures proper AI validation
+        // Skip PARAMETER validation for langchain nodes (but NOT typeVersion validation above!)
+        // Langchain nodes have dedicated AI-specific validators in validateAISpecificNodes()
+        // which handle their unique parameter structures (AI connections, tool ports, etc.)
         if (normalizedType.startsWith('nodes-langchain.')) {
           continue;
         }

@@ -286,18 +286,62 @@ describe('NodeParser', () => {
   });
 
   describe('version extraction', () => {
-    it('should extract version from baseDescription.defaultVersion', () => {
+    it('should prioritize currentVersion over description.defaultVersion', () => {
       const NodeClass = class {
-        baseDescription = {
+        currentVersion = 2.2;  // Should be returned
+        description = {
+          name: 'AI Agent',
+          displayName: 'AI Agent',
+          defaultVersion: 3  // Should be ignored when currentVersion exists
+        };
+      };
+
+      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+
+      expect(result.version).toBe('2.2');
+    });
+
+    it('should extract version from description.defaultVersion', () => {
+      const NodeClass = class {
+        description = {
           name: 'test',
           displayName: 'Test',
           defaultVersion: 3
         };
       };
-      
+
       const result = parser.parse(NodeClass, 'n8n-nodes-base');
-      
+
       expect(result.version).toBe('3');
+    });
+
+    it('should handle currentVersion = 0 correctly', () => {
+      const NodeClass = class {
+        currentVersion = 0;  // Edge case: version 0 should be valid
+        description = {
+          name: 'test',
+          displayName: 'Test',
+          defaultVersion: 5  // Should be ignored
+        };
+      };
+
+      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+
+      expect(result.version).toBe('0');
+    });
+
+    it('should NOT extract version from non-existent baseDescription (legacy bug)', () => {
+      const NodeClass = class {
+        baseDescription = {  // This property doesn't exist on VersionedNodeType!
+          name: 'test',
+          displayName: 'Test',
+          defaultVersion: 3
+        };
+      };
+
+      const result = parser.parse(NodeClass, 'n8n-nodes-base');
+
+      expect(result.version).toBe('1');  // Should fallback to default
     });
 
     it('should extract version from nodeVersions keys', () => {

@@ -134,6 +134,24 @@ export class NodeParser {
            description.name?.toLowerCase().includes('webhook');
   }
   
+  /**
+   * Extracts the version from a node class.
+   *
+   * Priority Chain:
+   * 1. Instance currentVersion (VersionedNodeType's computed property)
+   * 2. Instance description.defaultVersion (explicit default)
+   * 3. Instance nodeVersions (fallback to max available version)
+   * 4. Description version array (legacy nodes)
+   * 5. Description version scalar (simple versioning)
+   * 6. Class-level properties (if instantiation fails)
+   * 7. Default to "1"
+   *
+   * Critical Fix (v2.17.4): Removed check for non-existent instance.baseDescription.defaultVersion
+   * which caused AI Agent to incorrectly return version "3" instead of "2.2"
+   *
+   * @param nodeClass - The node class or instance to extract version from
+   * @returns The version as a string
+   */
   private extractVersion(nodeClass: any): string {
     // Check instance properties first
     try {
