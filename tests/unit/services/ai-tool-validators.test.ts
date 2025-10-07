@@ -554,7 +554,7 @@ return { cost: cost.toFixed(2) };`,
   });
 
   describe('validateCalculatorTool', () => {
-    it('should error on missing toolDescription', () => {
+    it('should not require toolDescription (has built-in description)', () => {
       const node: WorkflowNode = {
         id: 'calc1',
         name: 'Math Operations',
@@ -565,12 +565,8 @@ return { cost: cost.toFixed(2) };`,
 
       const issues = validateCalculatorTool(node);
 
-      expect(issues).toContainEqual(
-        expect.objectContaining({
-          severity: 'error',
-          code: 'MISSING_TOOL_DESCRIPTION'
-        })
-      );
+      // Calculator Tool has built-in description, no validation needed
+      expect(issues).toHaveLength(0);
     });
 
     it('should pass valid Calculator Tool configuration', () => {
@@ -592,7 +588,7 @@ return { cost: cost.toFixed(2) };`,
   });
 
   describe('validateThinkTool', () => {
-    it('should error on missing toolDescription', () => {
+    it('should not require toolDescription (has built-in description)', () => {
       const node: WorkflowNode = {
         id: 'think1',
         name: 'Think',
@@ -603,12 +599,8 @@ return { cost: cost.toFixed(2) };`,
 
       const issues = validateThinkTool(node);
 
-      expect(issues).toContainEqual(
-        expect.objectContaining({
-          severity: 'error',
-          code: 'MISSING_TOOL_DESCRIPTION'
-        })
-      );
+      // Think Tool has built-in description, no validation needed
+      expect(issues).toHaveLength(0);
     });
 
     it('should pass valid Think Tool configuration', () => {
