@@ -442,7 +442,19 @@ export class TemplateRepository {
     const rows = this.db.prepare('SELECT id FROM templates').all() as { id: number }[];
     return new Set(rows.map(r => r.id));
   }
-  
+
+  /**
+   * Get the most recent template creation date
+   * Used in update mode to fetch only newer templates
+   */
+  getMostRecentTemplateDate(): Date | null {
+    const result = this.db.prepare('SELECT MAX(created_at) as max_date FROM templates').get() as { max_date: string | null } | undefined;
+    if (!result || !result.max_date) {
+      return null;
+    }
+    return new Date(result.max_date);
+  }
+
   /**
    * Check if a template exists in the database
    */
