@@ -677,5 +677,97 @@ describe('ConfigValidator - Basic Validation', () => {
       expect(result.errors[0].fix).toContain('{ mode: "list", value: "gpt-4o-mini" }');
       expect(result.errors[0].fix).toContain('{ mode: "id", value: "gpt-4o-mini" }');
     });
+
+    it('should reject invalid mode values', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'invalid-mode',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some(e =>
+        e.property === 'model.mode' &&
+        e.type === 'invalid_value' &&
+        e.message.includes("must be 'list', 'id', or 'url'")
+      )).toBe(true);
+    });
+
+    it('should accept resourceLocator with mode "url"', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'url',
+          value: 'https://api.example.com/models/custom'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should detect empty resourceLocator object', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {} // Empty object, missing both mode and value
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThanOrEqual(2); // Both mode and value missing
+      expect(result.errors.some(e => e.property === 'model.mode')).toBe(true);
+      expect(result.errors.some(e => e.property === 'model.value')).toBe(true);
+    });
+
+    it('should handle resourceLocator with extra properties gracefully', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'list',
+          value: 'gpt-4o-mini',
+          extraProperty: 'ignored' // Extra properties should be ignored
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      expect(result.valid).toBe(true); // Should pass with extra properties
+      expect(result.errors).toHaveLength(0);
+    });
   });
 });

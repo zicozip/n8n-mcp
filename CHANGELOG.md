@@ -32,13 +32,17 @@ This release adds validation for `resourceLocator` type properties, fixing a cri
 
 #### Added
 
-- 10 comprehensive test cases for resourceLocator validation covering:
+- Comprehensive resourceLocator validation with 14 test cases covering:
   - String value rejection with helpful fix suggestions
   - Null and array value rejection
   - Missing `mode` or `value` property detection
   - Invalid `mode` type detection (e.g., number instead of string)
-  - Valid resourceLocator acceptance for both "list" and "id" modes
-  - All tests passing (100% coverage for new validation logic)
+  - Invalid `mode` value validation (must be 'list', 'id', or 'url')
+  - Empty object detection (missing both mode and value)
+  - Extra properties handling (ignored gracefully)
+  - Valid resourceLocator acceptance for "list", "id", and "url" modes
+  - JSDoc documentation explaining resourceLocator structure and common mistakes
+  - All 29 tests passing (100% coverage for new validation logic)
 
 ## [2.17.1] - 2025-10-07
 
