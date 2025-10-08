@@ -175,7 +175,25 @@ export class TelemetryEventTracker {
       platform: process.platform,
       arch: process.arch,
       nodeVersion: process.version,
+      isDocker: process.env.IS_DOCKER === 'true',
+      cloudPlatform: this.detectCloudPlatform(),
     });
+  }
+
+  /**
+   * Detect cloud platform from environment variables
+   * Returns platform name or null if not in cloud
+   */
+  private detectCloudPlatform(): string | null {
+    if (process.env.RAILWAY_ENVIRONMENT) return 'railway';
+    if (process.env.RENDER) return 'render';
+    if (process.env.FLY_APP_NAME) return 'fly';
+    if (process.env.HEROKU_APP_NAME) return 'heroku';
+    if (process.env.AWS_EXECUTION_ENV) return 'aws';
+    if (process.env.KUBERNETES_SERVICE_HOST) return 'kubernetes';
+    if (process.env.GOOGLE_CLOUD_PROJECT) return 'gcp';
+    if (process.env.AZURE_FUNCTIONS_ENVIRONMENT) return 'azure';
+    return null;
   }
 
   /**

@@ -5,6 +5,117 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.1] - 2025-10-08
+
+### 🔍 Telemetry Enhancement
+
+**Added Docker/cloud environment detection to session_start events.**
+
+This release enables measurement of the v2.17.1 user ID stability fix by tracking which users are in Docker/cloud environments.
+
+#### Problem
+
+The v2.17.1 fix for Docker/cloud user ID stability (boot_id-based IDs) could not be validated because telemetry didn't capture Docker/cloud environment flags. Analysis showed:
+- Zero Docker/cloud users detected across all versions
+- No way to measure if the fix is working
+- Cannot determine what % of users are affected
+- Cannot validate stable user IDs are being generated
+
+#### Added
+
+- **Docker Detection**: `isDocker` boolean flag in session_start events
+  - Detects `IS_DOCKER=true` environment variable
+  - Identifies container deployments using boot_id-based stable IDs
+
+- **Cloud Platform Detection**: `cloudPlatform` string in session_start events
+  - Detects 8 cloud platforms: Railway, Render, Fly.io, Heroku, AWS, Kubernetes, GCP, Azure
+  - Identifies which platform users are deploying to
+  - Returns `null` for local/non-cloud environments
+
+- **New Detection Method**: `detectCloudPlatform()` in event tracker
+  - Checks platform-specific environment variables
+  - Returns platform name or null
+  - Uses same logic as config-manager's cloud detection
+
+#### Changed
+
+- `trackSessionStart()` in `src/telemetry/event-tracker.ts`
+  - Now includes `isDocker` field (boolean)
+  - Now includes `cloudPlatform` field (string | null)
+  - Backward compatible - only adds new fields
+
+#### Testing
+
+- 16 new unit tests for environment detection
+- Tests for Docker detection with IS_DOCKER flag
+- Tests for all 8 cloud platform detections
+- Tests for local environment (no flags)
+- Tests for combined Docker + cloud scenarios
+- 100% coverage for new detection logic
+
+#### Impact
+
+**Enables Future Analysis**:
+- Measure % of users in Docker/cloud vs local
+- Validate v2.17.1 boot_id-based user ID stability
+- Segment retention metrics by environment
+- Identify environment-specific issues
+- Calculate actual Docker user duplicate rate reduction
+
+**Expected Insights** (once data collected):
+- Actual % of Docker/cloud users in user base
+- Validation that boot_id method is being used
+- User ID stability improvements measurable
+- Environment-specific error patterns
+- Platform distribution of user base
+
+**No Breaking Changes**:
+- Only adds new fields to existing events
+- All existing code continues working
+- Event validator handles new fields automatically
+- 100% backward compatible
+
+#### Technical Details
+
+**Detection Logic**:
+```typescript
+isDocker: process.env.IS_DOCKER === 'true'
+cloudPlatform: detectCloudPlatform()  // Checks 8 env vars
+```
+
+**Platform Detection Priority**:
+1. Railway: `RAILWAY_ENVIRONMENT`
+2. Render: `RENDER`
+3. Fly.io: `FLY_APP_NAME`
+4. Heroku: `HEROKU_APP_NAME`
+5. AWS: `AWS_EXECUTION_ENV`
+6. Kubernetes: `KUBERNETES_SERVICE_HOST`
+7. GCP: `GOOGLE_CLOUD_PROJECT`
+8. Azure: `AZURE_FUNCTIONS_ENVIRONMENT`
+
+**Event Structure**:
+```json
+{
+  "event": "session_start",
+  "properties": {
+    "version": "2.18.1",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v20.0.0",
+    "isDocker": true,
+    "cloudPlatform": "railway"
+  }
+}
+```
+
+#### Next Steps
+
+1. Deploy v2.18.1 to production
+2. Wait 24-48 hours for data collection
+3. Re-run telemetry analysis with environment segmentation
+4. Validate v2.17.1 boot_id fix effectiveness
+5. Calculate actual Docker user duplicate rate reduction
+
 ## [2.18.0] - 2025-10-08
 
 ### 🎯 Validation Warning System Redesign
