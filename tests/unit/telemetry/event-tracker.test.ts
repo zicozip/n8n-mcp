@@ -774,4 +774,197 @@ describe('TelemetryEventTracker', () => {
       expect(events[0].properties.context).toHaveLength(100);
     });
   });
+
+  describe('trackSessionStart()', () => {
+    // Store original env vars
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      // Restore original env vars after each test
+      process.env = { ...originalEnv };
+      eventTracker.clearEventQueue();
+    });
+
+    it('should track session start with basic environment info', () => {
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        user_id: 'test-user-123',
+        event: 'session_start',
+      });
+
+      const props = events[0].properties;
+      expect(props.version).toBeDefined();
+      expect(typeof props.version).toBe('string');
+      expect(props.platform).toBeDefined();
+      expect(props.arch).toBeDefined();
+      expect(props.nodeVersion).toBeDefined();
+      expect(props.isDocker).toBe(false);
+      expect(props.cloudPlatform).toBeNull();
+    });
+
+    it('should detect Docker environment', () => {
+      process.env.IS_DOCKER = 'true';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(true);
+      expect(events[0].properties.cloudPlatform).toBeNull();
+    });
+
+    it('should detect Railway cloud platform', () => {
+      process.env.RAILWAY_ENVIRONMENT = 'production';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('railway');
+    });
+
+    it('should detect Render cloud platform', () => {
+      process.env.RENDER = 'true';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('render');
+    });
+
+    it('should detect Fly.io cloud platform', () => {
+      process.env.FLY_APP_NAME = 'my-app';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('fly');
+    });
+
+    it('should detect Heroku cloud platform', () => {
+      process.env.HEROKU_APP_NAME = 'my-app';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('heroku');
+    });
+
+    it('should detect AWS cloud platform', () => {
+      process.env.AWS_EXECUTION_ENV = 'AWS_ECS_FARGATE';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('aws');
+    });
+
+    it('should detect Kubernetes cloud platform', () => {
+      process.env.KUBERNETES_SERVICE_HOST = '10.0.0.1';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('kubernetes');
+    });
+
+    it('should detect GCP cloud platform', () => {
+      process.env.GOOGLE_CLOUD_PROJECT = 'my-project';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('gcp');
+    });
+
+    it('should detect Azure cloud platform', () => {
+      process.env.AZURE_FUNCTIONS_ENVIRONMENT = 'Production';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBe('azure');
+    });
+
+    it('should detect Docker + cloud platform combination', () => {
+      process.env.IS_DOCKER = 'true';
+      process.env.RAILWAY_ENVIRONMENT = 'production';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(true);
+      expect(events[0].properties.cloudPlatform).toBe('railway');
+    });
+
+    it('should handle local environment (no Docker, no cloud)', () => {
+      // Ensure no Docker or cloud env vars are set
+      delete process.env.IS_DOCKER;
+      delete process.env.RAILWAY_ENVIRONMENT;
+      delete process.env.RENDER;
+      delete process.env.FLY_APP_NAME;
+      delete process.env.HEROKU_APP_NAME;
+      delete process.env.AWS_EXECUTION_ENV;
+      delete process.env.KUBERNETES_SERVICE_HOST;
+      delete process.env.GOOGLE_CLOUD_PROJECT;
+      delete process.env.AZURE_FUNCTIONS_ENVIRONMENT;
+
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+      expect(events[0].properties.cloudPlatform).toBeNull();
+    });
+
+    it('should prioritize Railway over other cloud platforms', () => {
+      // Set multiple cloud env vars - Railway should win (first in detection chain)
+      process.env.RAILWAY_ENVIRONMENT = 'production';
+      process.env.RENDER = 'true';
+      process.env.FLY_APP_NAME = 'my-app';
+
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.cloudPlatform).toBe('railway');
+    });
+
+    it('should not track when disabled', () => {
+      mockIsEnabled.mockReturnValue(false);
+      process.env.IS_DOCKER = 'true';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events).toHaveLength(0);
+    });
+
+    it('should treat IS_DOCKER=false as not Docker', () => {
+      process.env.IS_DOCKER = 'false';
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      expect(events[0].properties.isDocker).toBe(false);
+    });
+
+    it('should include version, platform, arch, and nodeVersion', () => {
+      eventTracker.trackSessionStart();
+
+      const events = eventTracker.getEventQueue();
+      const props = events[0].properties;
+
+      // Check all expected fields are present
+      expect(props).toHaveProperty('version');
+      expect(props).toHaveProperty('platform');
+      expect(props).toHaveProperty('arch');
+      expect(props).toHaveProperty('nodeVersion');
+      expect(props).toHaveProperty('isDocker');
+      expect(props).toHaveProperty('cloudPlatform');
+
+      // Verify types
+      expect(typeof props.version).toBe('string');
+      expect(typeof props.platform).toBe('string');
+      expect(typeof props.arch).toBe('string');
+      expect(typeof props.nodeVersion).toBe('string');
+      expect(typeof props.isDocker).toBe('boolean');
+      expect(props.cloudPlatform === null || typeof props.cloudPlatform === 'string').toBe(true);
+    });
+  });
 });
