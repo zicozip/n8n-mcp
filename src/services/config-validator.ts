@@ -539,7 +539,7 @@ export class ConfigValidator {
         warnings.push({
           type: 'inefficient',
           property: key,
-          message: `Property '${prop?.displayName || key}' is not visible with current settings`,
+          message: `Property '${prop?.displayName || key}' won't be used - not visible with current settings`,
           suggestion: visibilityReq || 'Remove this property or adjust other settings to make it visible'
         });
       }
