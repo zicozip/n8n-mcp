@@ -4,6 +4,17 @@ import { SQLiteStorageService } from '../../src/services/sqlite-storage-service'
 import { NodeFactory } from '../factories/node-factory';
 import { PropertyDefinitionFactory } from '../factories/property-definition-factory';
 
+/**
+ * Database Query Performance Benchmarks
+ *
+ * NOTE: These benchmarks use MOCK DATA (500 artificial test nodes)
+ * created with factories, not the real production database.
+ *
+ * This is useful for tracking database layer performance in isolation,
+ * but may not reflect real-world performance characteristics.
+ *
+ * For end-to-end MCP tool performance with real data, see mcp-tools.bench.ts
+ */
 describe('Database Query Performance', () => {
   let repository: NodeRepository;
   let storage: SQLiteStorageService;
