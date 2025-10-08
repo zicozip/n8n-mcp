@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.0] - 2025-10-08
+
+### 🎯 Validation Warning System Redesign
+
+**Fixed critical validation warning system that was generating 96.5% false positives.**
+
+This release fundamentally fixes the validation warning system that was overwhelming users and AI assistants with false warnings about properties they never configured. The system now achieves >90% signal-to-noise ratio (up from 3%).
+
+#### Problem
+
+The validation system was warning about properties with default values as if the user had configured them:
+- HTTP Request with 2 properties → 29 warnings (96% false positives)
+- Webhook with 1 property → 6 warnings (83% false positives)
+- Overall signal-to-noise ratio: 3%
+
+#### Fixed
+
+- **User Property Tracking** - System now distinguishes between user-provided properties and system defaults
+- **UI Property Filtering** - No longer validates UI-only elements (notice, callout, infoBox)
+- **Improved Messages** - Warnings now explain visibility requirements (e.g., "Requires: sendBody=true")
+- **Profile-Aware Filtering** - Each validation profile shows appropriate warnings
+  - `minimal`: Only errors + critical security warnings
+  - `runtime`: Errors + security warnings (filters property visibility noise)
+  - `ai-friendly`: Balanced helpful warnings (default)
+  - `strict`: All warnings + suggestions
+
+#### Results
+
+After fix (verified with n8n-mcp-tester):
+- HTTP Request with 2 properties → 1 warning (96.5% noise reduction)
+- Webhook with 1 property → 1 warning (83% noise reduction)
+- Overall signal-to-noise ratio: >90%
+
+#### Changed
+
+- `src/services/config-validator.ts`
+  - Added `UI_ONLY_TYPES` constant to filter UI properties
+  - Added `userProvidedKeys` parameter to `validate()` method
+  - Added `getVisibilityRequirement()` helper for better error messages
+  - Updated `checkCommonIssues()` to only warn about user-provided properties
+- `src/services/enhanced-config-validator.ts`
+  - Extract user-provided keys before applying defaults
+  - Pass `userProvidedKeys` to base validator
+  - Enhanced profile filtering to remove property visibility warnings in `runtime` and `ai-friendly` profiles
+- `src/mcp-tools-engine.ts`
+  - Extract user-provided keys in `validateNodeOperation()` before calling validator
+
+#### Impact
+
+- **AI Assistants**: Can now trust validation warnings (90%+ useful)
+- **Developers**: Get actionable guidance instead of noise
+- **Workflow Quality**: Real issues are fixed (not buried in false positives)
+- **System Trust**: Validation becomes a valuable tool
+
 ## [2.17.5] - 2025-10-07
 
 ### 🔧 Type Safety

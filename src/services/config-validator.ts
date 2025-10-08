@@ -32,12 +32,18 @@ export interface ValidationWarning {
 
 export class ConfigValidator {
   /**
+   * UI-only property types that should not be validated as configuration
+   */
+  private static readonly UI_ONLY_TYPES = ['notice', 'callout', 'infoBox', 'info'];
+
+  /**
    * Validate a node configuration
    */
   static validate(
-    nodeType: string, 
-    config: Record<string, any>, 
-    properties: any[]
+    nodeType: string,
+    config: Record<string, any>,
+    properties: any[],
+    userProvidedKeys?: Set<string> // NEW: Track user-provided properties to avoid warning about defaults
   ): ValidationResult {
     // Input validation
     if (!config || typeof config !== 'object') {
@@ -46,7 +52,7 @@ export class ConfigValidator {
     if (!properties || !Array.isArray(properties)) {
       throw new TypeError('Properties must be a non-null array');
     }
-    
+
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
     const suggestions: string[] = [];
@@ -69,8 +75,8 @@ export class ConfigValidator {
     this.performNodeSpecificValidation(nodeType, config, errors, warnings, suggestions, autofix);
     
     // Check for common issues
-    this.checkCommonIssues(nodeType, config, properties, warnings, suggestions);
-    
+    this.checkCommonIssues(nodeType, config, properties, warnings, suggestions, userProvidedKeys);
+
     // Security checks
     this.performSecurityChecks(nodeType, config, warnings);
     
@@ -493,30 +499,48 @@ export class ConfigValidator {
     config: Record<string, any>,
     properties: any[],
     warnings: ValidationWarning[],
-    suggestions: string[]
+    suggestions: string[],
+    userProvidedKeys?: Set<string> // NEW: Only warn about user-provided properties
   ): void {
     // Skip visibility checks for Code nodes as they have simple property structure
     if (nodeType === 'nodes-base.code') {
       // Code nodes don't have complex displayOptions, so skip visibility warnings
       return;
     }
-    
+
     // Check for properties that won't be used
     const visibleProps = properties.filter(p => this.isPropertyVisible(p, config));
     const configuredKeys = Object.keys(config);
-    
+
     for (const key of configuredKeys) {
       // Skip internal properties that are always present
       if (key === '@version' || key.startsWith('_')) {
         continue;
       }
-      
+
+      // CRITICAL FIX: Only warn about properties the user actually provided, not defaults
+      if (userProvidedKeys && !userProvidedKeys.has(key)) {
+        continue; // Skip properties that were added as defaults
+      }
+
+      // Find the property definition
+      const prop = properties.find(p => p.name === key);
+
+      // Skip UI-only properties (notice, callout, etc.) - they're not configuration
+      if (prop && this.UI_ONLY_TYPES.includes(prop.type)) {
+        continue;
+      }
+
+      // Check if property is visible with current settings
       if (!visibleProps.find(p => p.name === key)) {
+        // Get visibility requirements for better error message
+        const visibilityReq = this.getVisibilityRequirement(prop, config);
+
         warnings.push({
           type: 'inefficient',
           property: key,
-          message: `Property '${key}' is configured but won't be used due to current settings`,
-          suggestion: 'Remove this property or adjust other settings to make it visible'
+          message: `Property '${prop?.displayName || key}' won't be used - not visible with current settings`,
+          suggestion: visibilityReq || 'Remove this property or adjust other settings to make it visible'
         });
       }
     }
@@ -565,6 +589,36 @@ export class ConfigValidator {
     }
   }
   
+  /**
+   * Get visibility requirement for a property
+   * Explains what needs to be set for the property to be visible
+   */
+  private static getVisibilityRequirement(prop: any, config: Record<string, any>): string | undefined {
+    if (!prop || !prop.displayOptions?.show) {
+      return undefined;
+    }
+
+    const requirements: string[] = [];
+    for (const [field, values] of Object.entries(prop.displayOptions.show)) {
+      const expectedValues = Array.isArray(values) ? values : [values];
+      const currentValue = config[field];
+
+      // Only include if the current value doesn't match
+      if (!expectedValues.includes(currentValue)) {
+        const valueStr = expectedValues.length === 1
+          ? `"${expectedValues[0]}"`
+          : expectedValues.map(v => `"${v}"`).join(' or ');
+        requirements.push(`${field}=${valueStr}`);
+      }
+    }
+
+    if (requirements.length === 0) {
+      return undefined;
+    }
+
+    return `Requires: ${requirements.join(', ')}`;
+  }
+
   /**
    * Basic JavaScript syntax validation
    */

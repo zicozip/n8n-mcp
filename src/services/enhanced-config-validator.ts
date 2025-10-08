@@ -78,6 +78,9 @@ export class EnhancedConfigValidator extends ConfigValidator {
     // Extract operation context from config
     const operationContext = this.extractOperationContext(config);
 
+    // Extract user-provided keys before applying defaults (CRITICAL FIX for warning system)
+    const userProvidedKeys = new Set(Object.keys(config));
+
     // Filter properties based on mode and operation, and get config with defaults
     const { properties: filteredProperties, configWithDefaults } = this.filterPropertiesByMode(
       properties,
@@ -87,7 +90,8 @@ export class EnhancedConfigValidator extends ConfigValidator {
     );
 
     // Perform base validation on filtered properties with defaults applied
-    const baseResult = super.validate(nodeType, configWithDefaults, filteredProperties);
+    // Pass userProvidedKeys to prevent warnings about default values
+    const baseResult = super.validate(nodeType, configWithDefaults, filteredProperties, userProvidedKeys);
     
     // Enhance the result
     const enhancedResult: EnhancedValidationResult = {
@@ -469,22 +473,32 @@ export class EnhancedConfigValidator extends ConfigValidator {
       case 'minimal':
         // Only keep missing required errors
         result.errors = result.errors.filter(e => e.type === 'missing_required');
-        result.warnings = [];
+        // Keep ONLY critical warnings (security and deprecated)
+        result.warnings = result.warnings.filter(w =>
+          w.type === 'security' || w.type === 'deprecated'
+        );
         result.suggestions = [];
         break;
-        
+
       case 'runtime':
         // Keep critical runtime errors only
-        result.errors = result.errors.filter(e => 
-          e.type === 'missing_required' || 
+        result.errors = result.errors.filter(e =>
+          e.type === 'missing_required' ||
           e.type === 'invalid_value' ||
           (e.type === 'invalid_type' && e.message.includes('undefined'))
         );
-        // Keep only security warnings
-        result.warnings = result.warnings.filter(w => w.type === 'security');
+        // Keep security and deprecated warnings, REMOVE property visibility warnings
+        result.warnings = result.warnings.filter(w => {
+          if (w.type === 'security' || w.type === 'deprecated') return true;
+          // FILTER OUT property visibility warnings (too noisy)
+          if (w.type === 'inefficient' && w.message && w.message.includes('not visible')) {
+            return false;
+          }
+          return false;
+        });
         result.suggestions = [];
         break;
-        
+
       case 'strict':
         // Keep everything, add more suggestions
         if (result.warnings.length === 0 && result.errors.length === 0) {
@@ -494,14 +508,28 @@ export class EnhancedConfigValidator extends ConfigValidator {
         // Require error handling for external service nodes
         this.enforceErrorHandlingForProfile(result, profile);
         break;
-        
+
       case 'ai-friendly':
       default:
         // Current behavior - balanced for AI agents
         // Filter out noise but keep helpful warnings
-        result.warnings = result.warnings.filter(w => 
-          w.type !== 'inefficient' || !w.property?.startsWith('_')
-        );
+        result.warnings = result.warnings.filter(w => {
+          // Keep security and deprecated warnings
+          if (w.type === 'security' || w.type === 'deprecated') return true;
+          // Keep missing common properties
+          if (w.type === 'missing_common') return true;
+          // Keep best practice warnings
+          if (w.type === 'best_practice') return true;
+          // FILTER OUT inefficient warnings about property visibility (now fixed at source)
+          if (w.type === 'inefficient' && w.message && w.message.includes('not visible')) {
+            return false; // These are now rare due to userProvidedKeys fix
+          }
+          // Filter out internal property warnings
+          if (w.type === 'inefficient' && w.property?.startsWith('_')) {
+            return false;
+          }
+          return true;
+        });
         // Add error handling suggestions for AI-friendly profile
         this.addErrorHandlingSuggestions(result);
         break;
