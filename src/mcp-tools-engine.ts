@@ -62,8 +62,12 @@ export class MCPEngine {
         hiddenProperties: []
       };
     }
-    
-    return ConfigValidator.validate(args.nodeType, args.config, node.properties || []);
+
+    // CRITICAL FIX: Extract user-provided keys before validation
+    // This prevents false warnings about default values
+    const userProvidedKeys = new Set(Object.keys(args.config || {}));
+
+    return ConfigValidator.validate(args.nodeType, args.config, node.properties || [], userProvidedKeys);
   }
 
   async validateNodeMinimal(args: any) {
