@@ -7,11 +7,12 @@ export class NodeRepository {
   private db: DatabaseAdapter;
   
   constructor(dbOrService: DatabaseAdapter | SQLiteStorageService) {
-    if ('db' in dbOrService) {
+    if (dbOrService instanceof SQLiteStorageService) {
       this.db = dbOrService.db;
-    } else {
-      this.db = dbOrService;
+      return;
     }
+
+    this.db = dbOrService;
   }
   
   /**
