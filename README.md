@@ -681,8 +681,6 @@ n8n_update_partial_workflow({
 
 ### Most Popular n8n Nodes (for get_node_essentials):
 
-Based on real-world usage data from 16,211 workflows across 4,280 users:
-
 1. **n8n-nodes-base.code** - JavaScript/Python scripting
 2. **n8n-nodes-base.httpRequest** - HTTP API calls
 3. **n8n-nodes-base.webhook** - Event-driven triggers
@@ -706,7 +704,7 @@ Based on real-world usage data from 16,211 workflows across 4,280 users:
 
 **Note:** LangChain nodes use the `@n8n/n8n-nodes-langchain.` prefix, core nodes use `n8n-nodes-base.`
 
-```
+````
 
 Save these instructions in your Claude Project for optimal n8n workflow assistance with intelligent template discovery.
 
