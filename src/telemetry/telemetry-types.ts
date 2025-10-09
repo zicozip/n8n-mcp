@@ -3,11 +3,58 @@
  * Centralized type definitions for the telemetry system
  */
 
+import { StartupCheckpoint } from './startup-checkpoints';
+
 export interface TelemetryEvent {
   user_id: string;
   event: string;
   properties: Record<string, any>;
   created_at?: string;
+}
+
+/**
+ * Startup error event - captures pre-handshake failures
+ */
+export interface StartupErrorEvent extends TelemetryEvent {
+  event: 'startup_error';
+  properties: {
+    checkpoint: StartupCheckpoint;
+    errorMessage: string;
+    errorType: string;
+    checkpointsPassed: StartupCheckpoint[];
+    checkpointsPassedCount: number;
+    startupDuration: number;
+    platform: string;
+    arch: string;
+    nodeVersion: string;
+    isDocker: boolean;
+  };
+}
+
+/**
+ * Startup completed event - confirms server is functional
+ */
+export interface StartupCompletedEvent extends TelemetryEvent {
+  event: 'startup_completed';
+  properties: {
+    version: string;
+  };
+}
+
+/**
+ * Enhanced session start properties with startup tracking
+ */
+export interface SessionStartProperties {
+  version: string;
+  platform: string;
+  arch: string;
+  nodeVersion: string;
+  isDocker: boolean;
+  cloudPlatform: string | null;
+  // NEW: Startup tracking fields (v2.18.2)
+  startupDurationMs?: number;
+  checkpointsPassed?: StartupCheckpoint[];
+  startupErrorCount?: number;
 }
 
 export interface WorkflowTelemetry {

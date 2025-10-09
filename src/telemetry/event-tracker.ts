@@ -1,6 +1,7 @@
 /**
- * Event Tracker for Telemetry
+ * Event Tracker for Telemetry (v2.18.3)
  * Handles all event tracking logic extracted from TelemetryManager
+ * Now uses shared sanitization utilities to avoid code duplication
  */
 
 import { TelemetryEvent, WorkflowTelemetry } from './telemetry-types';
@@ -11,6 +12,7 @@ import { TelemetryError, TelemetryErrorType } from './telemetry-error';
 import { logger } from '../utils/logger';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
+import { sanitizeErrorMessageCore } from './error-sanitization-utils';
 
 export class TelemetryEventTracker {
   private rateLimiter: TelemetryRateLimiter;
@@ -165,9 +167,13 @@ export class TelemetryEventTracker {
   }
 
   /**
-   * Track session start
+   * Track session start with optional startup tracking data (v2.18.2)
    */
-  trackSessionStart(): void {
+  trackSessionStart(startupData?: {
+    durationMs?: number;
+    checkpoints?: string[];
+    errorCount?: number;
+  }): void {
     if (!this.isEnabled()) return;
 
     this.trackEvent('session_start', {
@@ -177,6 +183,22 @@ export class TelemetryEventTracker {
       nodeVersion: process.version,
       isDocker: process.env.IS_DOCKER === 'true',
       cloudPlatform: this.detectCloudPlatform(),
+      // NEW: Startup tracking fields (v2.18.2)
+      startupDurationMs: startupData?.durationMs,
+      checkpointsPassed: startupData?.checkpoints,
+      startupErrorCount: startupData?.errorCount || 0,
+    });
+  }
+
+  /**
+   * Track startup completion (v2.18.2)
+   * Called after first successful tool call to confirm server is functional
+   */
+  trackStartupComplete(): void {
+    if (!this.isEnabled()) return;
+
+    this.trackEvent('startup_completed', {
+      version: this.getPackageVersion(),
     });
   }
 
@@ -450,53 +472,10 @@ export class TelemetryEventTracker {
 
   /**
    * Sanitize error message
+   * Now uses shared sanitization core from error-sanitization-utils.ts (v2.18.3)
+   * This eliminates code duplication and the ReDoS vulnerability
    */
   private sanitizeErrorMessage(errorMessage: string): string {
-    try {
-      // Early truncate to prevent ReDoS and performance issues
-      const maxLength = 1500;
-      const trimmed = errorMessage.length > maxLength
-        ? errorMessage.substring(0, maxLength)
-        : errorMessage;
-
-      // Handle stack traces - keep only first 3 lines (message + top stack frames)
-      const lines = trimmed.split('\n');
-      let sanitized = lines.slice(0, 3).join('\n');
-
-      // Sanitize sensitive data in correct order to prevent leakage
-      // 1. URLs first (most encompassing) - fully redact to prevent path leakage
-      sanitized = sanitized.replace(/https?:\/\/\S+/gi, '[URL]');
-
-      // 2. Specific credential patterns (before generic patterns)
-      sanitized = sanitized
-        .replace(/AKIA[A-Z0-9]{16}/g, '[AWS_KEY]')
-        .replace(/ghp_[a-zA-Z0-9]{36,}/g, '[GITHUB_TOKEN]')
-        .replace(/eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+/g, '[JWT]')
-        .replace(/Bearer\s+[^\s]+/gi, 'Bearer [TOKEN]');
-
-      // 3. Emails (after URLs to avoid partial matches)
-      sanitized = sanitized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL]');
-
-      // 4. Long keys and quoted tokens
-      sanitized = sanitized
-        .replace(/\b[a-zA-Z0-9_-]{32,}\b/g, '[KEY]')
-        .replace(/(['"])[a-zA-Z0-9_-]{16,}\1/g, '$1[TOKEN]$1');
-
-      // 5. Generic credential patterns (after specific ones to avoid conflicts)
-      sanitized = sanitized
-        .replace(/password\s*[=:]\s*\S+/gi, 'password=[REDACTED]')
-        .replace(/api[_-]?key\s*[=:]\s*\S+/gi, 'api_key=[REDACTED]')
-        .replace(/(?<!Bearer\s)token\s*[=:]\s*\S+/gi, 'token=[REDACTED]');  // Negative lookbehind to avoid Bearer tokens
-
-      // Final truncate to 500 chars
-      if (sanitized.length > 500) {
-        sanitized = sanitized.substring(0, 500) + '...';
-      }
-
-      return sanitized;
-    } catch (error) {
-      logger.debug('Error message sanitization failed:', error);
-      return '[SANITIZATION_FAILED]';
-    }
+    return sanitizeErrorMessageCore(errorMessage);
   }
 }
