@@ -678,7 +678,35 @@ n8n_update_partial_workflow({
 - **Avoid when possible** - Prefer standard nodes
 - **Only when necessary** - Use code node as last resort
 - **AI tool capability** - ANY node can be an AI tool (not just marked ones)
-````
+
+### Most Popular n8n Nodes (for get_node_essentials):
+
+Based on real-world usage data from 16,211 workflows across 4,280 users:
+
+1. **n8n-nodes-base.code** - JavaScript/Python scripting
+2. **n8n-nodes-base.httpRequest** - HTTP API calls
+3. **n8n-nodes-base.webhook** - Event-driven triggers
+4. **n8n-nodes-base.set** - Data transformation
+5. **n8n-nodes-base.if** - Conditional routing
+6. **n8n-nodes-base.manualTrigger** - Manual workflow execution
+7. **n8n-nodes-base.respondToWebhook** - Webhook responses
+8. **n8n-nodes-base.scheduleTrigger** - Time-based triggers
+9. **@n8n/n8n-nodes-langchain.agent** - AI agents
+10. **n8n-nodes-base.googleSheets** - Spreadsheet integration
+11. **n8n-nodes-base.merge** - Data merging
+12. **n8n-nodes-base.switch** - Multi-branch routing
+13. **n8n-nodes-base.telegram** - Telegram bot integration
+14. **@n8n/n8n-nodes-langchain.lmChatOpenAi** - OpenAI chat models
+15. **n8n-nodes-base.splitInBatches** - Batch processing
+16. **n8n-nodes-base.openAi** - OpenAI legacy node
+17. **n8n-nodes-base.gmail** - Email automation
+18. **n8n-nodes-base.function** - Custom functions
+19. **n8n-nodes-base.stickyNote** - Workflow documentation
+20. **n8n-nodes-base.executeWorkflowTrigger** - Sub-workflow calls
+
+**Note:** LangChain nodes use the `@n8n/n8n-nodes-langchain.` prefix, core nodes use `n8n-nodes-base.`
+
+```
 
 Save these instructions in your Claude Project for optimal n8n workflow assistance with intelligent template discovery.
 
