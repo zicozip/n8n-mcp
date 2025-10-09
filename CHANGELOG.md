@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.4] - 2025-10-09
+
+### 🐛 Bug Fixes
+
+**Issue #296: sql.js Adapter Bypass Causing MCP Tool Failures**
+
+This release fixes a critical constructor bug in `NodeRepository` that caused the sql.js database adapter to be bypassed, resulting in empty object returns and MCP tool failures.
+
+#### Problem
+
+When using the sql.js fallback adapter (pure JavaScript implementation without native dependencies), three critical MCP tools were failing with "Cannot read properties of undefined" errors:
+- `get_node_essentials`
+- `get_node_info`
+- `validate_node_operation`
+
+**Root Cause:**
+The `NodeRepository` constructor used duck typing (`'db' in object`) to determine whether to unwrap the database adapter. This check incorrectly matched BOTH `SQLiteStorageService` AND `DatabaseAdapter` instances because both have a `.db` property.
+
+When sql.js was used:
+1. `createDatabaseAdapter()` returned a `SQLJSAdapter` instance (wrapped)
+2. `NodeRepository` constructor saw `'db' in adapter` was true
+3. Constructor unwrapped it: `this.db = adapter.db`
+4. This exposed the raw sql.js `Database` object, bypassing all wrapper logic
+5. Raw sql.js API has completely different behavior (returns typed arrays instead of objects)
+6. Result: Empty objects `{}` with no properties, causing undefined property access errors
+
+#### Fixed
+
+**NodeRepository Constructor Type Discrimination**
+- Changed from duck typing (`'db' in object`) to precise instanceof check
+- Only unwrap `SQLiteStorageService` instances (intended behavior)
+- Keep `DatabaseAdapter` instances intact (preserves wrapper logic)
+- File: `src/database/node-repository.ts`
+
+#### Technical Details
+
+**Before (Broken):**
+```typescript
+constructor(dbOrService: DatabaseAdapter | SQLiteStorageService) {
+  if ('db' in dbOrService) {           // ❌ Matches EVERYTHING with .db property
+    this.db = dbOrService.db;          // Unwraps both SQLiteStorageService AND DatabaseAdapter
+  } else {
+    this.db = dbOrService;
+  }
+}
+```
+
+**After (Fixed):**
+```typescript
+constructor(dbOrService: DatabaseAdapter | SQLiteStorageService) {
+  if (dbOrService instanceof SQLiteStorageService) {  // ✅ Only matches SQLiteStorageService
+    this.db = dbOrService.db;
+    return;
+  }
+
+  this.db = dbOrService;  // ✅ Keep DatabaseAdapter intact
+}
+```
+
+**Why instanceof is Critical:**
+- `'db' in object` is property checking (duck typing) - too permissive
+- `instanceof` is class hierarchy checking - precise type discrimination
+- With instanceof, sql.js queries flow through `SQLJSAdapter` → `SQLJSStatement` wrapper chain
+- Wrapper normalizes sql.js behavior to match better-sqlite3 API (object returns)
+
+**Impact:**
+- Fixes MCP tool failures on systems where better-sqlite3 cannot compile (Node.js version mismatches, ARM architectures)
+- Ensures sql.js fallback works correctly with proper data normalization
+- No performance impact (same code path, just preserved wrapper)
+
+#### Related
+
+- Closes issue #296
+- Affects environments where better-sqlite3 falls back to sql.js
+- Common in Docker containers, CI environments, and ARM-based systems
+
 ## [2.18.3] - 2025-10-09
 
 ### 🔒 Critical Safety Fixes
