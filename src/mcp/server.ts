@@ -37,6 +37,8 @@ import {
 } from '../utils/protocol-version';
 import { InstanceContext } from '../types/instance-context';
 import { telemetry } from '../telemetry';
+import { EarlyErrorLogger } from '../telemetry/early-error-logger';
+import { STARTUP_CHECKPOINTS } from '../telemetry/startup-checkpoints';
 
 interface NodeRow {
   node_type: string;
@@ -67,9 +69,11 @@ export class N8NDocumentationMCPServer {
   private instanceContext?: InstanceContext;
   private previousTool: string | null = null;
   private previousToolTimestamp: number = Date.now();
+  private earlyLogger: EarlyErrorLogger | null = null;
 
-  constructor(instanceContext?: InstanceContext) {
+  constructor(instanceContext?: InstanceContext, earlyLogger?: EarlyErrorLogger) {
     this.instanceContext = instanceContext;
+    this.earlyLogger = earlyLogger || null;
     // Check for test environment first
     const envDbPath = process.env.NODE_DB_PATH;
     let dbPath: string | null = null;
@@ -100,17 +104,26 @@ export class N8NDocumentationMCPServer {
     }
     
     // Initialize database asynchronously
-    this.initialized = this.initializeDatabase(dbPath);
-    
+    this.initialized = this.initializeDatabase(dbPath).then(() => {
+      // After database is ready, check n8n API configuration (v2.18.3)
+      if (this.earlyLogger) {
+        this.earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.N8N_API_CHECKING);
+      }
+
+      // Log n8n API configuration status at startup
+      const apiConfigured = isN8nApiConfigured();
+      const totalTools = apiConfigured ?
+        n8nDocumentationToolsFinal.length + n8nManagementTools.length :
+        n8nDocumentationToolsFinal.length;
+
+      logger.info(`MCP server initialized with ${totalTools} tools (n8n API: ${apiConfigured ? 'configured' : 'not configured'})`);
+
+      if (this.earlyLogger) {
+        this.earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.N8N_API_READY);
+      }
+    });
+
     logger.info('Initializing n8n Documentation MCP server');
-    
-    // Log n8n API configuration status at startup
-    const apiConfigured = isN8nApiConfigured();
-    const totalTools = apiConfigured ? 
-      n8nDocumentationToolsFinal.length + n8nManagementTools.length : 
-      n8nDocumentationToolsFinal.length;
-    
-    logger.info(`MCP server initialized with ${totalTools} tools (n8n API: ${apiConfigured ? 'configured' : 'not configured'})`);
     
     this.server = new Server(
       {
@@ -129,20 +142,38 @@ export class N8NDocumentationMCPServer {
   
   private async initializeDatabase(dbPath: string): Promise<void> {
     try {
+      // Checkpoint: Database connecting (v2.18.3)
+      if (this.earlyLogger) {
+        this.earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.DATABASE_CONNECTING);
+      }
+
+      logger.debug('Database initialization starting...', { dbPath });
+
       this.db = await createDatabaseAdapter(dbPath);
-      
+      logger.debug('Database adapter created');
+
       // If using in-memory database for tests, initialize schema
       if (dbPath === ':memory:') {
         await this.initializeInMemorySchema();
+        logger.debug('In-memory schema initialized');
       }
-      
+
       this.repository = new NodeRepository(this.db);
+      logger.debug('Node repository initialized');
+
       this.templateService = new TemplateService(this.db);
+      logger.debug('Template service initialized');
 
       // Initialize similarity services for enhanced validation
       EnhancedConfigValidator.initializeSimilarityServices(this.repository);
+      logger.debug('Similarity services initialized');
 
-      logger.info(`Initialized database from: ${dbPath}`);
+      // Checkpoint: Database connected (v2.18.3)
+      if (this.earlyLogger) {
+        this.earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.DATABASE_CONNECTED);
+      }
+
+      logger.info(`Database initialized successfully from: ${dbPath}`);
     } catch (error) {
       logger.error('Failed to initialize database:', error);
       throw new Error(`Failed to open database: ${error instanceof Error ? error.message : 'Unknown error'}`);

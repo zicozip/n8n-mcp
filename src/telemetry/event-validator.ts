@@ -104,12 +104,33 @@ const performanceMetricPropertiesSchema = z.object({
   metadata: z.record(z.any()).optional()
 });
 
+// Schema for startup_error event properties (v2.18.2)
+const startupErrorPropertiesSchema = z.object({
+  checkpoint: z.string().max(100),
+  errorMessage: z.string().max(500),
+  errorType: z.string().max(100),
+  checkpointsPassed: z.array(z.string()).max(20),
+  checkpointsPassedCount: z.number().int().min(0).max(20),
+  startupDuration: z.number().min(0).max(300000), // Max 5 minutes
+  platform: z.string().max(50),
+  arch: z.string().max(50),
+  nodeVersion: z.string().max(50),
+  isDocker: z.boolean()
+});
+
+// Schema for startup_completed event properties (v2.18.2)
+const startupCompletedPropertiesSchema = z.object({
+  version: z.string().max(50)
+});
+
 // Map of event names to their specific schemas
 const EVENT_SCHEMAS: Record<string, z.ZodSchema<any>> = {
   'tool_used': toolUsagePropertiesSchema,
   'search_query': searchQueryPropertiesSchema,
   'validation_details': validationDetailsPropertiesSchema,
   'performance_metric': performanceMetricPropertiesSchema,
+  'startup_error': startupErrorPropertiesSchema,
+  'startup_completed': startupCompletedPropertiesSchema,
 };
 
 /**

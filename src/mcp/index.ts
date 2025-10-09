@@ -3,6 +3,8 @@
 import { N8NDocumentationMCPServer } from './server';
 import { logger } from '../utils/logger';
 import { TelemetryConfigManager } from '../telemetry/config-manager';
+import { EarlyErrorLogger } from '../telemetry/early-error-logger';
+import { STARTUP_CHECKPOINTS, findFailedCheckpoint, StartupCheckpoint } from '../telemetry/startup-checkpoints';
 import { existsSync } from 'fs';
 
 // Add error details to stderr for Claude Desktop debugging
@@ -53,8 +55,19 @@ function isContainerEnvironment(): boolean {
 }
 
 async function main() {
-  // Handle telemetry CLI commands
-  const args = process.argv.slice(2);
+  // Initialize early error logger for pre-handshake error capture (v2.18.3)
+  // Now using singleton pattern with defensive initialization
+  const startTime = Date.now();
+  const earlyLogger = EarlyErrorLogger.getInstance();
+  const checkpoints: StartupCheckpoint[] = [];
+
+  try {
+    // Checkpoint: Process started (fire-and-forget, no await)
+    earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.PROCESS_STARTED);
+    checkpoints.push(STARTUP_CHECKPOINTS.PROCESS_STARTED);
+
+    // Handle telemetry CLI commands
+    const args = process.argv.slice(2);
   if (args.length > 0 && args[0] === 'telemetry') {
     const telemetryConfig = TelemetryConfigManager.getInstance();
     const action = args[1];
@@ -89,6 +102,15 @@ Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
 
   const mode = process.env.MCP_MODE || 'stdio';
 
+    // Checkpoint: Telemetry initializing (fire-and-forget, no await)
+    earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.TELEMETRY_INITIALIZING);
+    checkpoints.push(STARTUP_CHECKPOINTS.TELEMETRY_INITIALIZING);
+
+    // Telemetry is already initialized by TelemetryConfigManager in imports
+    // Mark as ready (fire-and-forget, no await)
+    earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.TELEMETRY_READY);
+    checkpoints.push(STARTUP_CHECKPOINTS.TELEMETRY_READY);
+
   try {
     // Only show debug messages in HTTP mode to avoid corrupting stdio communication
     if (mode === 'http') {
@@ -96,6 +118,10 @@ Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
       console.error('Current directory:', process.cwd());
       console.error('Node version:', process.version);
     }
+
+    // Checkpoint: MCP handshake starting (fire-and-forget, no await)
+    earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.MCP_HANDSHAKE_STARTING);
+    checkpoints.push(STARTUP_CHECKPOINTS.MCP_HANDSHAKE_STARTING);
     
     if (mode === 'http') {
       // Check if we should use the fixed implementation
@@ -121,7 +147,7 @@ Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
       }
     } else {
       // Stdio mode - for local Claude Desktop
-      const server = new N8NDocumentationMCPServer();
+      const server = new N8NDocumentationMCPServer(undefined, earlyLogger);
 
       // Graceful shutdown handler (fixes Issue #277)
       let isShuttingDown = false;
@@ -185,12 +211,31 @@ Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
 
       await server.run();
     }
+
+    // Checkpoint: MCP handshake complete (fire-and-forget, no await)
+    earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.MCP_HANDSHAKE_COMPLETE);
+    checkpoints.push(STARTUP_CHECKPOINTS.MCP_HANDSHAKE_COMPLETE);
+
+    // Checkpoint: Server ready (fire-and-forget, no await)
+    earlyLogger.logCheckpoint(STARTUP_CHECKPOINTS.SERVER_READY);
+    checkpoints.push(STARTUP_CHECKPOINTS.SERVER_READY);
+
+    // Log successful startup (fire-and-forget, no await)
+    const startupDuration = Date.now() - startTime;
+    earlyLogger.logStartupSuccess(checkpoints, startupDuration);
+
+    logger.info(`Server startup completed in ${startupDuration}ms (${checkpoints.length} checkpoints passed)`);
+
   } catch (error) {
+    // Log startup error with checkpoint context (fire-and-forget, no await)
+    const failedCheckpoint = findFailedCheckpoint(checkpoints);
+    earlyLogger.logStartupError(failedCheckpoint, error);
+
     // In stdio mode, we cannot output to console at all
     if (mode !== 'stdio') {
       console.error('Failed to start MCP server:', error);
       logger.error('Failed to start MCP server', error);
-      
+
       // Provide helpful error messages
       if (error instanceof Error && error.message.includes('nodes.db not found')) {
         console.error('\nTo fix this issue:');
@@ -204,7 +249,12 @@ Learn more: https://github.com/czlonkowski/n8n-mcp/blob/main/PRIVACY.md
         console.error('3. If that doesn\'t work, try: rm -rf node_modules && npm install');
       }
     }
-    
+
+    process.exit(1);
+  }
+  } catch (outerError) {
+    // Outer error catch for early initialization failures
+    logger.error('Critical startup error:', outerError);
     process.exit(1);
   }
 }
