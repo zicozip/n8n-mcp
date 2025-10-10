@@ -201,6 +201,48 @@ export class N8NDocumentationMCPServer {
     if (!this.db || !this.repository) {
       throw new Error('Database not initialized');
     }
+
+    // Validate database health on first access
+    if (!this.dbHealthChecked) {
+      await this.validateDatabaseHealth();
+      this.dbHealthChecked = true;
+    }
+  }
+
+  private dbHealthChecked: boolean = false;
+
+  private async validateDatabaseHealth(): Promise<void> {
+    if (!this.db) return;
+
+    try {
+      // Check if nodes table has data
+      const nodeCount = this.db.prepare('SELECT COUNT(*) as count FROM nodes').get() as { count: number };
+
+      if (nodeCount.count === 0) {
+        logger.error('CRITICAL: Database is empty - no nodes found! Please run: npm run rebuild');
+        throw new Error('Database is empty. Run "npm run rebuild" to populate node data.');
+      }
+
+      // Check if FTS5 table exists
+      const ftsExists = this.db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='nodes_fts'
+      `).get();
+
+      if (!ftsExists) {
+        logger.warn('FTS5 table missing - search performance will be degraded. Please run: npm run rebuild');
+      } else {
+        const ftsCount = this.db.prepare('SELECT COUNT(*) as count FROM nodes_fts').get() as { count: number };
+        if (ftsCount.count === 0) {
+          logger.warn('FTS5 index is empty - search will not work properly. Please run: npm run rebuild');
+        }
+      }
+
+      logger.info(`Database health check passed: ${nodeCount.count} nodes loaded`);
+    } catch (error) {
+      logger.error('Database health check failed:', error);
+      throw error;
+    }
   }
 
   private setupHandlers(): void {

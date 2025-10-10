@@ -167,29 +167,81 @@ async function rebuild() {
 
 function validateDatabase(repository: NodeRepository): { passed: boolean; issues: string[] } {
   const issues = [];
-  
-  // Check critical nodes
-  const criticalNodes = ['nodes-base.httpRequest', 'nodes-base.code', 'nodes-base.webhook', 'nodes-base.slack'];
-  
-  for (const nodeType of criticalNodes) {
-    const node = repository.getNode(nodeType);
-    
-    if (!node) {
-      issues.push(`Critical node ${nodeType} not found`);
-      continue;
+
+  try {
+    const db = (repository as any).db;
+
+    // CRITICAL: Check if database has any nodes at all
+    const nodeCount = db.prepare('SELECT COUNT(*) as count FROM nodes').get() as { count: number };
+    if (nodeCount.count === 0) {
+      issues.push('CRITICAL: Database is empty - no nodes found! Rebuild failed or was interrupted.');
+      return { passed: false, issues };
     }
-    
-    if (node.properties.length === 0) {
-      issues.push(`Node ${nodeType} has no properties`);
+
+    // Check minimum expected node count (should have at least 500 nodes from both packages)
+    if (nodeCount.count < 500) {
+      issues.push(`WARNING: Only ${nodeCount.count} nodes found - expected at least 500 (both n8n packages)`);
     }
+
+    // Check critical nodes
+    const criticalNodes = ['nodes-base.httpRequest', 'nodes-base.code', 'nodes-base.webhook', 'nodes-base.slack'];
+
+    for (const nodeType of criticalNodes) {
+      const node = repository.getNode(nodeType);
+
+      if (!node) {
+        issues.push(`Critical node ${nodeType} not found`);
+        continue;
+      }
+
+      if (node.properties.length === 0) {
+        issues.push(`Node ${nodeType} has no properties`);
+      }
+    }
+
+    // Check AI tools
+    const aiTools = repository.getAITools();
+    if (aiTools.length === 0) {
+      issues.push('No AI tools found - check detection logic');
+    }
+
+    // Check FTS5 table existence and population
+    const ftsTableCheck = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='nodes_fts'
+    `).get();
+
+    if (!ftsTableCheck) {
+      issues.push('CRITICAL: FTS5 table (nodes_fts) does not exist - searches will fail or be very slow');
+    } else {
+      // Check if FTS5 table is properly populated
+      const ftsCount = db.prepare('SELECT COUNT(*) as count FROM nodes_fts').get() as { count: number };
+
+      if (ftsCount.count === 0) {
+        issues.push('CRITICAL: FTS5 index is empty - searches will return zero results');
+      } else if (nodeCount.count !== ftsCount.count) {
+        issues.push(`FTS5 index out of sync: ${nodeCount.count} nodes but ${ftsCount.count} FTS5 entries`);
+      }
+
+      // Verify critical nodes are searchable via FTS5
+      const searchableNodes = ['webhook', 'merge', 'split'];
+      for (const searchTerm of searchableNodes) {
+        const searchResult = db.prepare(`
+          SELECT COUNT(*) as count FROM nodes_fts
+          WHERE nodes_fts MATCH ?
+        `).get(searchTerm);
+
+        if (searchResult.count === 0) {
+          issues.push(`CRITICAL: Search for "${searchTerm}" returns zero results in FTS5 index`);
+        }
+      }
+    }
+  } catch (error) {
+    // Catch any validation errors
+    const errorMessage = (error as Error).message;
+    issues.push(`Validation error: ${errorMessage}`);
   }
-  
-  // Check AI tools
-  const aiTools = repository.getAITools();
-  if (aiTools.length === 0) {
-    issues.push('No AI tools found - check detection logic');
-  }
-  
+
   return {
     passed: issues.length === 0,
     issues
