@@ -30,7 +30,7 @@ import { NodeRepository } from '../database/node-repository';
 import { InstanceContext, validateInstanceContext } from '../types/instance-context';
 import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 import { WorkflowAutoFixer, AutoFixConfig } from '../services/workflow-auto-fixer';
-import { ExpressionFormatValidator } from '../services/expression-format-validator';
+import { ExpressionFormatValidator, ExpressionFormatIssue } from '../services/expression-format-validator';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { telemetry } from '../telemetry';
 import {
@@ -42,7 +42,145 @@ import {
   getCacheStatistics
 } from '../utils/cache-utils';
 import { processExecution } from '../services/execution-processor';
+import { checkNpmVersion, formatVersionMessage } from '../utils/npm-version-checker';
 
+// ========================================================================
+// TypeScript Interfaces for Type Safety
+// ========================================================================
+
+/**
+ * Health Check Response Data Structure
+ */
+interface HealthCheckResponseData {
+  status: string;
+  instanceId?: string;
+  n8nVersion?: string;
+  features?: Record<string, unknown>;
+  apiUrl?: string;
+  mcpVersion: string;
+  supportedN8nVersion?: string;
+  versionCheck: {
+    current: string;
+    latest: string | null;
+    upToDate: boolean;
+    message: string;
+    updateCommand?: string;
+  };
+  performance: {
+    responseTimeMs: number;
+    cacheHitRate: string;
+    cachedInstances: number;
+  };
+  nextSteps?: string[];
+  updateWarning?: string;
+}
+
+/**
+ * Cloud Platform Guide Structure
+ */
+interface CloudPlatformGuide {
+  name: string;
+  troubleshooting: string[];
+}
+
+/**
+ * Workflow Validation Response Data
+ */
+interface WorkflowValidationResponse {
+  valid: boolean;
+  workflowId?: string;
+  workflowName?: string;
+  summary: {
+    totalNodes: number;
+    enabledNodes: number;
+    triggerNodes: number;
+    validConnections: number;
+    invalidConnections: number;
+    expressionsValidated: number;
+    errorCount: number;
+    warningCount: number;
+  };
+  errors?: Array<{
+    node: string;
+    nodeName?: string;
+    message: string;
+    details?: Record<string, unknown>;
+  }>;
+  warnings?: Array<{
+    node: string;
+    nodeName?: string;
+    message: string;
+    details?: Record<string, unknown>;
+  }>;
+  suggestions?: unknown[];
+}
+
+/**
+ * Diagnostic Response Data Structure
+ */
+interface DiagnosticResponseData {
+  timestamp: string;
+  environment: {
+    N8N_API_URL: string | null;
+    N8N_API_KEY: string | null;
+    NODE_ENV: string;
+    MCP_MODE: string;
+    isDocker: boolean;
+    cloudPlatform: string | null;
+    nodeVersion: string;
+    platform: string;
+  };
+  apiConfiguration: {
+    configured: boolean;
+    status: {
+      configured: boolean;
+      connected: boolean;
+      error: string | null;
+      version: string | null;
+    };
+    config: {
+      baseUrl: string;
+      timeout: number;
+      maxRetries: number;
+    } | null;
+  };
+  versionInfo: {
+    current: string;
+    latest: string | null;
+    upToDate: boolean;
+    message: string;
+    updateCommand?: string;
+  };
+  toolsAvailability: {
+    documentationTools: {
+      count: number;
+      enabled: boolean;
+      description: string;
+    };
+    managementTools: {
+      count: number;
+      enabled: boolean;
+      description: string;
+    };
+    totalAvailable: number;
+  };
+  performance: {
+    diagnosticResponseTimeMs: number;
+    cacheHitRate: string;
+    cachedInstances: number;
+  };
+  modeSpecificDebug: Record<string, unknown>;
+  dockerDebug?: Record<string, unknown>;
+  cloudPlatformDebug?: CloudPlatformGuide;
+  nextSteps?: Record<string, unknown>;
+  troubleshooting?: Record<string, unknown>;
+  setupGuide?: Record<string, unknown>;
+  updateWarning?: Record<string, unknown>;
+  debug?: Record<string, unknown>;
+  [key: string]: unknown; // Allow dynamic property access for optional fields
+}
+
+// ========================================================================
 // Singleton n8n API client instance (backward compatibility)
 let defaultApiClient: N8nApiClient | null = null;
 let lastDefaultConfigUrl: string | null = null;
@@ -731,7 +869,7 @@ export async function handleValidateWorkflow(
     const validationResult = await validator.validateWorkflow(workflow, input.options);
     
     // Format the response (same format as the regular validate_workflow tool)
-    const response: any = {
+    const response: WorkflowValidationResponse = {
       valid: validationResult.valid,
       workflowId: workflow.id,
       workflowName: workflow.name,
@@ -832,7 +970,7 @@ export async function handleAutofixWorkflow(
     });
 
     // Check for expression format issues
-    const allFormatIssues: any[] = [];
+    const allFormatIssues: ExpressionFormatIssue[] = [];
     for (const node of workflow.nodes) {
       const formatContext = {
         nodeType: node.type,
@@ -1226,29 +1364,86 @@ export async function handleDeleteExecution(args: unknown, context?: InstanceCon
 // System Tools Handlers
 
 export async function handleHealthCheck(context?: InstanceContext): Promise<McpToolResponse> {
+  const startTime = Date.now();
+
   try {
     const client = ensureApiConfigured(context);
     const health = await client.healthCheck();
-    
+
     // Get MCP version from package.json
     const packageJson = require('../../package.json');
     const mcpVersion = packageJson.version;
     const supportedN8nVersion = packageJson.dependencies?.n8n?.replace(/[^0-9.]/g, '');
-    
-    return {
-      success: true,
-      data: {
-        status: health.status,
-        instanceId: health.instanceId,
-        n8nVersion: health.n8nVersion,
-        features: health.features,
-        apiUrl: getN8nApiConfig()?.baseUrl,
-        mcpVersion,
-        supportedN8nVersion,
-        versionNote: 'AI Agent: Please inform the user to verify their n8n instance version matches or is compatible with the supported version listed above. The n8n API currently does not expose version information, so manual verification is required.'
+
+    // Check npm for latest version (async, non-blocking)
+    const versionCheck = await checkNpmVersion();
+
+    // Get cache metrics for performance monitoring
+    const cacheMetricsData = getInstanceCacheMetrics();
+
+    // Calculate response time
+    const responseTime = Date.now() - startTime;
+
+    // Build response data
+    const responseData: HealthCheckResponseData = {
+      status: health.status,
+      instanceId: health.instanceId,
+      n8nVersion: health.n8nVersion,
+      features: health.features,
+      apiUrl: getN8nApiConfig()?.baseUrl,
+      mcpVersion,
+      supportedN8nVersion,
+      versionCheck: {
+        current: versionCheck.currentVersion,
+        latest: versionCheck.latestVersion,
+        upToDate: !versionCheck.isOutdated,
+        message: formatVersionMessage(versionCheck),
+        ...(versionCheck.updateCommand ? { updateCommand: versionCheck.updateCommand } : {})
+      },
+      performance: {
+        responseTimeMs: responseTime,
+        cacheHitRate: (cacheMetricsData.hits + cacheMetricsData.misses) > 0
+          ? ((cacheMetricsData.hits / (cacheMetricsData.hits + cacheMetricsData.misses)) * 100).toFixed(2) + '%'
+          : 'N/A',
+        cachedInstances: cacheMetricsData.size
       }
     };
+
+    // Add next steps guidance based on telemetry insights
+    responseData.nextSteps = [
+      '• Create workflow: n8n_create_workflow',
+      '• List workflows: n8n_list_workflows',
+      '• Search nodes: search_nodes',
+      '• Browse templates: search_templates'
+    ];
+
+    // Add update warning if outdated
+    if (versionCheck.isOutdated && versionCheck.latestVersion) {
+      responseData.updateWarning = `⚠️  n8n-mcp v${versionCheck.latestVersion} is available (you have v${versionCheck.currentVersion}). Update recommended.`;
+    }
+
+    // Track result in telemetry
+    telemetry.trackEvent('health_check_completed', {
+      success: true,
+      responseTimeMs: responseTime,
+      upToDate: !versionCheck.isOutdated,
+      apiConnected: true
+    });
+
+    return {
+      success: true,
+      data: responseData
+    };
   } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Track failure in telemetry
+    telemetry.trackEvent('health_check_failed', {
+      success: false,
+      responseTimeMs: responseTime,
+      errorType: error instanceof N8nApiError ? error.code : 'unknown'
+    });
+
     if (error instanceof N8nApiError) {
       return {
         success: false,
@@ -1256,11 +1451,17 @@ export async function handleHealthCheck(context?: InstanceContext): Promise<McpT
         code: error.code,
         details: {
           apiUrl: getN8nApiConfig()?.baseUrl,
-          hint: 'Check if n8n is running and API is enabled'
+          hint: 'Check if n8n is running and API is enabled',
+          troubleshooting: [
+            '1. Verify n8n instance is running',
+            '2. Check N8N_API_URL is correct',
+            '3. Verify N8N_API_KEY has proper permissions',
+            '4. Run n8n_diagnostic for detailed analysis'
+          ]
         }
       };
     }
-    
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -1326,23 +1527,208 @@ export async function handleListAvailableTools(context?: InstanceContext): Promi
   };
 }
 
+// Environment-aware debugging helpers
+
+/**
+ * Detect cloud platform from environment variables
+ * Returns platform name or null if not in cloud
+ */
+function detectCloudPlatform(): string | null {
+  if (process.env.RAILWAY_ENVIRONMENT) return 'railway';
+  if (process.env.RENDER) return 'render';
+  if (process.env.FLY_APP_NAME) return 'fly';
+  if (process.env.HEROKU_APP_NAME) return 'heroku';
+  if (process.env.AWS_EXECUTION_ENV) return 'aws';
+  if (process.env.KUBERNETES_SERVICE_HOST) return 'kubernetes';
+  if (process.env.GOOGLE_CLOUD_PROJECT) return 'gcp';
+  if (process.env.AZURE_FUNCTIONS_ENVIRONMENT) return 'azure';
+  return null;
+}
+
+/**
+ * Get mode-specific debugging suggestions
+ */
+function getModeSpecificDebug(mcpMode: string) {
+  if (mcpMode === 'http') {
+    const port = process.env.MCP_PORT || process.env.PORT || 3000;
+    return {
+      mode: 'HTTP Server',
+      port,
+      authTokenConfigured: !!(process.env.MCP_AUTH_TOKEN || process.env.AUTH_TOKEN),
+      corsEnabled: true,
+      serverUrl: `http://localhost:${port}`,
+      healthCheckUrl: `http://localhost:${port}/health`,
+      troubleshooting: [
+        `1. Test server health: curl http://localhost:${port}/health`,
+        '2. Check browser console for CORS errors',
+        '3. Verify MCP_AUTH_TOKEN or AUTH_TOKEN if authentication enabled',
+        `4. Ensure port ${port} is not in use: lsof -i :${port} (macOS/Linux) or netstat -ano | findstr :${port} (Windows)`,
+        '5. Check firewall settings for port access',
+        '6. Review server logs for connection errors'
+      ],
+      commonIssues: [
+        'CORS policy blocking browser requests',
+        'Port already in use by another application',
+        'Authentication token mismatch',
+        'Network firewall blocking connections'
+      ]
+    };
+  } else {
+    // stdio mode
+    const configLocation = process.platform === 'darwin'
+      ? '~/Library/Application Support/Claude/claude_desktop_config.json'
+      : process.platform === 'win32'
+      ? '%APPDATA%\\Claude\\claude_desktop_config.json'
+      : '~/.config/Claude/claude_desktop_config.json';
+
+    return {
+      mode: 'Standard I/O (Claude Desktop)',
+      configLocation,
+      troubleshooting: [
+        '1. Verify Claude Desktop config file exists and is valid JSON',
+        '2. Check MCP server entry: {"mcpServers": {"n8n": {"command": "npx", "args": ["-y", "n8n-mcp"]}}}',
+        '3. Restart Claude Desktop after config changes',
+        '4. Check Claude Desktop logs for startup errors',
+        '5. Test npx can run: npx -y n8n-mcp --version',
+        '6. Verify executable permissions if using local installation'
+      ],
+      commonIssues: [
+        'Invalid JSON in claude_desktop_config.json',
+        'Incorrect command or args in MCP server config',
+        'Claude Desktop not restarted after config changes',
+        'npx unable to download or run package',
+        'Missing execute permissions on local binary'
+      ]
+    };
+  }
+}
+
+/**
+ * Get Docker-specific debugging suggestions
+ */
+function getDockerDebug(isDocker: boolean) {
+  if (!isDocker) return null;
+
+  return {
+    containerDetected: true,
+    troubleshooting: [
+      '1. Verify volume mounts for data/nodes.db',
+      '2. Check network connectivity to n8n instance',
+      '3. Ensure ports are correctly mapped',
+      '4. Review container logs: docker logs <container-name>',
+      '5. Verify environment variables passed to container',
+      '6. Check IS_DOCKER=true is set correctly'
+    ],
+    commonIssues: [
+      'Volume mount not persisting database',
+      'Network isolation preventing n8n API access',
+      'Port mapping conflicts',
+      'Missing environment variables in container'
+    ]
+  };
+}
+
+/**
+ * Get cloud platform-specific suggestions
+ */
+function getCloudPlatformDebug(cloudPlatform: string | null) {
+  if (!cloudPlatform) return null;
+
+  const platformGuides: Record<string, CloudPlatformGuide> = {
+    railway: {
+      name: 'Railway',
+      troubleshooting: [
+        '1. Check Railway environment variables are set',
+        '2. Verify deployment logs in Railway dashboard',
+        '3. Ensure PORT matches Railway assigned port (automatic)',
+        '4. Check networking configuration for external access'
+      ]
+    },
+    render: {
+      name: 'Render',
+      troubleshooting: [
+        '1. Verify Render environment variables',
+        '2. Check Render logs for startup errors',
+        '3. Ensure health check endpoint is responding',
+        '4. Verify instance type has sufficient resources'
+      ]
+    },
+    fly: {
+      name: 'Fly.io',
+      troubleshooting: [
+        '1. Check Fly.io logs: flyctl logs',
+        '2. Verify fly.toml configuration',
+        '3. Ensure volumes are properly mounted',
+        '4. Check app status: flyctl status'
+      ]
+    },
+    heroku: {
+      name: 'Heroku',
+      troubleshooting: [
+        '1. Check Heroku logs: heroku logs --tail',
+        '2. Verify Procfile configuration',
+        '3. Ensure dynos are running: heroku ps',
+        '4. Check environment variables: heroku config'
+      ]
+    },
+    kubernetes: {
+      name: 'Kubernetes',
+      troubleshooting: [
+        '1. Check pod logs: kubectl logs <pod-name>',
+        '2. Verify service and ingress configuration',
+        '3. Check persistent volume claims',
+        '4. Verify resource limits and requests'
+      ]
+    },
+    aws: {
+      name: 'AWS',
+      troubleshooting: [
+        '1. Check CloudWatch logs',
+        '2. Verify IAM roles and permissions',
+        '3. Check security groups and networking',
+        '4. Verify environment variables in service config'
+      ]
+    }
+  };
+
+  return platformGuides[cloudPlatform] || {
+    name: cloudPlatform.toUpperCase(),
+    troubleshooting: [
+      '1. Check cloud platform logs',
+      '2. Verify environment variables are set',
+      '3. Check networking and port configuration',
+      '4. Review platform-specific documentation'
+    ]
+  };
+}
+
 // Handler: n8n_diagnostic
 export async function handleDiagnostic(request: any, context?: InstanceContext): Promise<McpToolResponse> {
+  const startTime = Date.now();
   const verbose = request.params?.arguments?.verbose || false;
-  
+
+  // Detect environment for targeted debugging
+  const mcpMode = process.env.MCP_MODE || 'stdio';
+  const isDocker = process.env.IS_DOCKER === 'true';
+  const cloudPlatform = detectCloudPlatform();
+
   // Check environment variables
   const envVars = {
     N8N_API_URL: process.env.N8N_API_URL || null,
     N8N_API_KEY: process.env.N8N_API_KEY ? '***configured***' : null,
     NODE_ENV: process.env.NODE_ENV || 'production',
-    MCP_MODE: process.env.MCP_MODE || 'stdio'
+    MCP_MODE: mcpMode,
+    isDocker,
+    cloudPlatform,
+    nodeVersion: process.version,
+    platform: process.platform
   };
-  
+
   // Check API configuration
   const apiConfig = getN8nApiConfig();
   const apiConfigured = apiConfig !== null;
   const apiClient = getN8nApiClient(context);
-  
+
   // Test API connectivity if configured
   let apiStatus = {
     configured: apiConfigured,
@@ -1350,7 +1736,7 @@ export async function handleDiagnostic(request: any, context?: InstanceContext):
     error: null as string | null,
     version: null as string | null
   };
-  
+
   if (apiClient) {
     try {
       const health = await apiClient.healthCheck();
@@ -1360,14 +1746,21 @@ export async function handleDiagnostic(request: any, context?: InstanceContext):
       apiStatus.error = error instanceof Error ? error.message : 'Unknown error';
     }
   }
-  
+
   // Check which tools are available
   const documentationTools = 22; // Base documentation tools
   const managementTools = apiConfigured ? 16 : 0;
   const totalTools = documentationTools + managementTools;
-  
+
+  // Check npm version
+  const versionCheck = await checkNpmVersion();
+
+  // Get performance metrics
+  const cacheMetricsData = getInstanceCacheMetrics();
+  const responseTime = Date.now() - startTime;
+
   // Build diagnostic report
-  const diagnostic: any = {
+  const diagnostic: DiagnosticResponseData = {
     timestamp: new Date().toISOString(),
     environment: envVars,
     apiConfiguration: {
@@ -1379,6 +1772,13 @@ export async function handleDiagnostic(request: any, context?: InstanceContext):
         maxRetries: apiConfig.maxRetries
       } : null
     },
+    versionInfo: {
+      current: versionCheck.currentVersion,
+      latest: versionCheck.latestVersion,
+      upToDate: !versionCheck.isOutdated,
+      message: formatVersionMessage(versionCheck),
+      ...(versionCheck.updateCommand ? { updateCommand: versionCheck.updateCommand } : {})
+    },
     toolsAvailability: {
       documentationTools: {
         count: documentationTools,
@@ -1388,43 +1788,175 @@ export async function handleDiagnostic(request: any, context?: InstanceContext):
       managementTools: {
         count: managementTools,
         enabled: apiConfigured,
-        description: apiConfigured ? 
-          'Management tools are ENABLED - create, update, execute workflows' : 
+        description: apiConfigured ?
+          'Management tools are ENABLED - create, update, execute workflows' :
           'Management tools are DISABLED - configure N8N_API_URL and N8N_API_KEY to enable'
       },
       totalAvailable: totalTools
     },
-    troubleshooting: {
-      steps: apiConfigured ? [
-        'API is configured and should work',
-        'If tools are not showing in Claude Desktop:',
-        '1. Restart Claude Desktop completely',
-        '2. Check if using latest Docker image',
-        '3. Verify environment variables are passed correctly',
-        '4. Try running n8n_health_check to test connectivity'
-      ] : [
-        'To enable management tools:',
-        '1. Set N8N_API_URL environment variable (e.g., https://your-n8n-instance.com)',
-        '2. Set N8N_API_KEY environment variable (get from n8n API settings)',
-        '3. Restart the MCP server',
-        '4. Management tools will automatically appear'
-      ],
-      documentation: 'For detailed setup instructions, see: https://github.com/czlonkowski/n8n-mcp?tab=readme-ov-file#n8n-management-tools-optional---requires-api-configuration'
-    }
+    performance: {
+      diagnosticResponseTimeMs: responseTime,
+      cacheHitRate: (cacheMetricsData.hits + cacheMetricsData.misses) > 0
+        ? ((cacheMetricsData.hits / (cacheMetricsData.hits + cacheMetricsData.misses)) * 100).toFixed(2) + '%'
+        : 'N/A',
+      cachedInstances: cacheMetricsData.size
+    },
+    modeSpecificDebug: getModeSpecificDebug(mcpMode)
   };
-  
+
+  // Enhanced guidance based on telemetry insights
+  if (apiConfigured && apiStatus.connected) {
+    // API is working - provide next steps
+    diagnostic.nextSteps = {
+      message: '✓ API connected! Here\'s what you can do:',
+      recommended: [
+        {
+          action: 'n8n_list_workflows',
+          description: 'See your existing workflows',
+          timing: 'Fast (6 seconds median)'
+        },
+        {
+          action: 'n8n_create_workflow',
+          description: 'Create a new workflow',
+          timing: 'Typically 6-14 minutes to build'
+        },
+        {
+          action: 'search_nodes',
+          description: 'Discover available nodes',
+          timing: 'Fast - explore 500+ nodes'
+        },
+        {
+          action: 'search_templates',
+          description: 'Browse pre-built workflows',
+          timing: 'Find examples quickly'
+        }
+      ],
+      tips: [
+        '82% of users start creating workflows after diagnostics - you\'re ready to go!',
+        'Most common first action: n8n_update_partial_workflow (managing existing workflows)',
+        'Use n8n_validate_workflow before deploying to catch issues early'
+      ]
+    };
+  } else if (apiConfigured && !apiStatus.connected) {
+    // API configured but not connecting - troubleshooting
+    diagnostic.troubleshooting = {
+      issue: '⚠️ API configured but connection failed',
+      error: apiStatus.error,
+      steps: [
+        '1. Verify n8n instance is running and accessible',
+        '2. Check N8N_API_URL is correct (currently: ' + apiConfig?.baseUrl + ')',
+        '3. Test URL in browser: ' + apiConfig?.baseUrl + '/healthz',
+        '4. Verify N8N_API_KEY has proper permissions',
+        '5. Check firewall/network settings if using remote n8n',
+        '6. Try running n8n_health_check again after fixes'
+      ],
+      commonIssues: [
+        'Wrong port number in N8N_API_URL',
+        'API key doesn\'t have sufficient permissions',
+        'n8n instance not running or crashed',
+        'Network firewall blocking connection'
+      ],
+      documentation: 'https://github.com/czlonkowski/n8n-mcp?tab=readme-ov-file#n8n-management-tools-optional---requires-api-configuration'
+    };
+  } else {
+    // API not configured - setup guidance
+    diagnostic.setupGuide = {
+      message: 'n8n API not configured. You can still use documentation tools!',
+      whatYouCanDoNow: {
+        documentation: [
+          {
+            tool: 'search_nodes',
+            description: 'Search 500+ n8n nodes',
+            example: 'search_nodes({query: "slack"})'
+          },
+          {
+            tool: 'get_node_essentials',
+            description: 'Get node configuration details',
+            example: 'get_node_essentials({nodeType: "nodes-base.httpRequest"})'
+          },
+          {
+            tool: 'search_templates',
+            description: 'Browse workflow templates',
+            example: 'search_templates({query: "chatbot"})'
+          },
+          {
+            tool: 'validate_workflow',
+            description: 'Validate workflow JSON',
+            example: 'validate_workflow({workflow: {...}})'
+          }
+        ],
+        note: '22 documentation tools available without API configuration'
+      },
+      whatYouCannotDo: [
+        '✗ Create/update workflows in n8n instance',
+        '✗ List your workflows',
+        '✗ Execute workflows',
+        '✗ View execution results'
+      ],
+      howToEnable: {
+        steps: [
+          '1. Get your n8n API key: [Your n8n instance]/settings/api',
+          '2. Set environment variables:',
+          '   N8N_API_URL=https://your-n8n-instance.com',
+          '   N8N_API_KEY=your_api_key_here',
+          '3. Restart the MCP server',
+          '4. Run n8n_diagnostic again to verify',
+          '5. All 38 tools will be available!'
+        ],
+        documentation: 'https://github.com/czlonkowski/n8n-mcp?tab=readme-ov-file#n8n-management-tools-optional---requires-api-configuration'
+      }
+    };
+  }
+
+  // Add version warning if outdated
+  if (versionCheck.isOutdated && versionCheck.latestVersion) {
+    diagnostic.updateWarning = {
+      message: `⚠️ Update available: v${versionCheck.currentVersion} → v${versionCheck.latestVersion}`,
+      command: versionCheck.updateCommand,
+      benefits: [
+        'Latest bug fixes and improvements',
+        'New features and tools',
+        'Better performance and reliability'
+      ]
+    };
+  }
+
+  // Add Docker-specific debugging if in container
+  const dockerDebug = getDockerDebug(isDocker);
+  if (dockerDebug) {
+    diagnostic.dockerDebug = dockerDebug;
+  }
+
+  // Add cloud platform-specific debugging if detected
+  const cloudDebug = getCloudPlatformDebug(cloudPlatform);
+  if (cloudDebug) {
+    diagnostic.cloudPlatformDebug = cloudDebug;
+  }
+
   // Add verbose debug info if requested
   if (verbose) {
-    diagnostic['debug'] = {
-      processEnv: Object.keys(process.env).filter(key => 
+    diagnostic.debug = {
+      processEnv: Object.keys(process.env).filter(key =>
         key.startsWith('N8N_') || key.startsWith('MCP_')
       ),
       nodeVersion: process.version,
       platform: process.platform,
-      workingDirectory: process.cwd()
+      workingDirectory: process.cwd(),
+      cacheMetrics: cacheMetricsData
     };
   }
-  
+
+  // Track diagnostic usage with result data
+  telemetry.trackEvent('diagnostic_completed', {
+    success: true,
+    apiConfigured,
+    apiConnected: apiStatus.connected,
+    toolsAvailable: totalTools,
+    responseTimeMs: responseTime,
+    upToDate: !versionCheck.isOutdated,
+    verbose
+  });
+
   return {
     success: true,
     data: diagnostic

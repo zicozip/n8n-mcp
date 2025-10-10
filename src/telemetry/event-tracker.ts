@@ -138,6 +138,9 @@ export class TelemetryEventTracker {
       context: this.sanitizeContext(context),
       tool: toolName ? toolName.replace(/[^a-zA-Z0-9_-]/g, '_') : undefined,
       error: errorMessage ? this.sanitizeErrorMessage(errorMessage) : undefined,
+      // Add environment context for better error analysis
+      mcpMode: process.env.MCP_MODE || 'stdio',
+      platform: process.platform
     }, false); // Skip rate limiting for errors
   }
 
@@ -183,6 +186,7 @@ export class TelemetryEventTracker {
       nodeVersion: process.version,
       isDocker: process.env.IS_DOCKER === 'true',
       cloudPlatform: this.detectCloudPlatform(),
+      mcpMode: process.env.MCP_MODE || 'stdio',
       // NEW: Startup tracking fields (v2.18.2)
       startupDurationMs: startupData?.durationMs,
       checkpointsPassed: startupData?.checkpoints,

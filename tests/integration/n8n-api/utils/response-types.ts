@@ -77,6 +77,10 @@ export interface DiagnosticResponse {
     N8N_API_KEY: string | null;
     NODE_ENV: string;
     MCP_MODE: string;
+    isDocker: boolean;
+    cloudPlatform: string | null;
+    nodeVersion: string;
+    platform: string;
   };
   apiConfiguration: {
     configured: boolean;
@@ -88,10 +92,43 @@ export interface DiagnosticResponse {
     } | null;
   };
   toolsAvailability: ToolsAvailability;
-  troubleshooting: {
+  versionInfo?: {
+    current: string;
+    latest: string | null;
+    upToDate: boolean;
+    message: string;
+    updateCommand?: string;
+  };
+  performance?: {
+    diagnosticResponseTimeMs: number;
+    cacheHitRate: string;
+    cachedInstances: number;
+  };
+  modeSpecificDebug: {
+    mode: string;
+    troubleshooting: string[];
+    commonIssues: string[];
+    [key: string]: any; // For mode-specific fields like port, configLocation, etc.
+  };
+  dockerDebug?: {
+    containerDetected: boolean;
+    troubleshooting: string[];
+    commonIssues: string[];
+  };
+  cloudPlatformDebug?: {
+    name: string;
+    troubleshooting: string[];
+  };
+  troubleshooting?: {
+    issue?: string;
+    error?: string;
     steps: string[];
+    commonIssues?: string[];
     documentation: string;
   };
+  nextSteps?: any;
+  setupGuide?: any;
+  updateWarning?: any;
   debug?: DebugInfo;
   [key: string]: any; // Allow dynamic property access for optional field checks
 }

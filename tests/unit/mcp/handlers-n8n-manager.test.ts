@@ -1027,6 +1027,12 @@ describe('handlers-n8n-manager', () => {
         details: {
           apiUrl: 'https://n8n.test.com',
           hint: 'Check if n8n is running and API is enabled',
+          troubleshooting: [
+            '1. Verify n8n instance is running',
+            '2. Check N8N_API_URL is correct',
+            '3. Verify N8N_API_KEY has proper permissions',
+            '4. Run n8n_diagnostic for detailed analysis',
+          ],
         },
       });
     });

@@ -35,6 +35,9 @@ describe('Integration: handleHealthCheck', () => {
       expect(data).toHaveProperty('status');
       expect(data).toHaveProperty('apiUrl');
       expect(data).toHaveProperty('mcpVersion');
+      expect(data).toHaveProperty('versionCheck');
+      expect(data).toHaveProperty('performance');
+      expect(data).toHaveProperty('nextSteps');
 
       // Status should be a string (e.g., "ok", "healthy")
       if (data.status) {
@@ -48,6 +51,22 @@ describe('Integration: handleHealthCheck', () => {
       // MCP version should be defined
       expect(data.mcpVersion).toBeDefined();
       expect(typeof data.mcpVersion).toBe('string');
+
+      // Version check should be present
+      expect(data.versionCheck).toBeDefined();
+      expect(data.versionCheck).toHaveProperty('current');
+      expect(data.versionCheck).toHaveProperty('upToDate');
+      expect(typeof data.versionCheck.upToDate).toBe('boolean');
+
+      // Performance metrics should be present
+      expect(data.performance).toBeDefined();
+      expect(data.performance).toHaveProperty('responseTimeMs');
+      expect(typeof data.performance.responseTimeMs).toBe('number');
+      expect(data.performance.responseTimeMs).toBeGreaterThan(0);
+
+      // Next steps should be present
+      expect(data.nextSteps).toBeDefined();
+      expect(Array.isArray(data.nextSteps)).toBe(true);
     });
 
     it('should include feature availability information', async () => {
