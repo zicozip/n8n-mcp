@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.6] - 2025-10-10
+
+### 🐛 Bug Fixes
+
+**PR #303: Environment-Aware Debugging Test Fix**
+
+This release fixes a unit test failure that occurred after implementing environment-aware debugging improvements. The handleHealthCheck error handler now includes troubleshooting guidance in error responses, and the test expectations have been updated to match.
+
+#### Fixed
+
+- **Unit Test Failure in handleHealthCheck**
+  - **Issue**: Test expected error response without `troubleshooting` array field
+  - **Impact**: CI pipeline failing on PR #303 after adding environment-aware debugging
+  - **Root Cause**: Environment-aware debugging improvements added a `troubleshooting` array to error responses, but unit test wasn't updated
+  - **Fix**: Updated test expectation to include the new troubleshooting field (lines 1030-1035 in `tests/unit/mcp/handlers-n8n-manager.test.ts`)
+  - **Error Response Structure** (now includes):
+    ```typescript
+    details: {
+      apiUrl: 'https://n8n.test.com',
+      hint: 'Check if n8n is running and API is enabled',
+      troubleshooting: [
+        '1. Verify n8n instance is running',
+        '2. Check N8N_API_URL is correct',
+        '3. Verify N8N_API_KEY has proper permissions',
+        '4. Run n8n_diagnostic for detailed analysis'
+      ]
+    }
+    ```
+
+#### Testing
+
+- **Unit Test**: Test now passes with troubleshooting array expectation
+- **MCP Testing**: Extensively validated with n8n-mcp-tester agent
+  - Health check successful connections: ✅
+  - Error responses include troubleshooting guidance: ✅
+  - Diagnostic tool environment detection: ✅
+  - Mode-specific debugging (stdio/HTTP): ✅
+  - All environment-aware debugging features working correctly: ✅
+
+#### Impact
+
+- **CI Pipeline**: PR #303 now passes all tests
+- **Error Guidance**: Users receive actionable troubleshooting steps when API errors occur
+- **Environment Detection**: Comprehensive debugging guidance based on deployment environment
+- **Zero Breaking Changes**: Only internal test expectations updated
+
+#### Related
+
+- **PR #303**: feat: Add environment-aware debugging to diagnostic tools
+- **Implementation**: `src/mcp/handlers-n8n-manager.ts` lines 1447-1462
+- **Diagnostic Tool**: Enhanced with mode-specific, Docker-specific, and cloud platform-specific debugging
+
 ## [2.18.5] - 2025-10-10
 
 ### 🔍 Search Performance & Reliability
