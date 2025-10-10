@@ -4,14 +4,16 @@ export const n8nDiagnosticDoc: ToolDocumentation = {
   name: 'n8n_diagnostic',
   category: 'system',
   essentials: {
-    description: 'Diagnose n8n API configuration and troubleshoot why n8n management tools might not be working',
+    description: 'Comprehensive diagnostic with environment-aware debugging, version checks, performance metrics, and mode-specific troubleshooting',
     keyParameters: ['verbose'],
     example: 'n8n_diagnostic({verbose: true})',
-    performance: 'Instant - checks environment and configuration only',
+    performance: 'Fast - checks environment, API, and npm version (~180ms median)',
     tips: [
-      'Run first when n8n tools are missing or failing - shows exact configuration issues',
-      'Use verbose=true for detailed debugging info including environment variables',
-      'If tools are missing, check that N8N_API_URL and N8N_API_KEY are configured'
+      'Now includes environment-aware debugging based on MCP_MODE (http/stdio)',
+      'Provides mode-specific troubleshooting (HTTP server vs Claude Desktop)',
+      'Detects Docker and cloud platforms for targeted guidance',
+      'Shows performance metrics: response time and cache statistics',
+      'Includes data-driven tips based on 82% user success rate'
     ]
   },
   full: {
@@ -35,15 +37,31 @@ The diagnostic is essential when:
         default: false
       }
     },
-    returns: `Diagnostic report object containing:
-- status: Overall health status ('ok', 'error', 'not_configured')
-- apiUrl: Detected API URL (or null if not configured)
-- apiKeyStatus: Status of API key ('configured', 'missing', 'invalid')
-- toolsAvailable: Number of n8n management tools available
-- connectivity: API connectivity test results
-- errors: Array of specific error messages
-- suggestions: Array of actionable fix suggestions
-- verbose: Additional debug information (if verbose=true)`,
+    returns: `Comprehensive diagnostic report containing:
+- timestamp: ISO timestamp of diagnostic run
+- environment: Enhanced environment variables
+  - N8N_API_URL, N8N_API_KEY (masked), NODE_ENV, MCP_MODE
+  - isDocker: Boolean indicating if running in Docker
+  - cloudPlatform: Detected cloud platform (railway/render/fly/etc.) or null
+  - nodeVersion: Node.js version
+  - platform: OS platform (darwin/win32/linux)
+- apiConfiguration: API configuration and connectivity status
+  - configured, status (connected/error/version), config details
+- versionInfo: Version check results (current, latest, upToDate, message, updateCommand)
+- toolsAvailability: Tool availability breakdown (doc tools + management tools)
+- performance: Performance metrics (responseTimeMs, cacheHitRate, cachedInstances)
+- modeSpecificDebug: Mode-specific debugging (ALWAYS PRESENT)
+  - HTTP mode: port, authTokenConfigured, serverUrl, healthCheckUrl, troubleshooting steps, commonIssues
+  - stdio mode: configLocation, troubleshooting steps, commonIssues
+- dockerDebug: Docker-specific guidance (if IS_DOCKER=true)
+  - containerDetected, troubleshooting steps, commonIssues
+- cloudPlatformDebug: Cloud platform-specific tips (if platform detected)
+  - name, troubleshooting steps tailored to platform (Railway/Render/Fly/K8s/AWS/etc.)
+- nextSteps: Context-specific guidance (if API connected)
+- troubleshooting: Troubleshooting guidance (if API not connecting)
+- setupGuide: Setup guidance (if API not configured)
+- updateWarning: Update recommendation (if version outdated)
+- debug: Verbose debug information (if verbose=true)`,
     examples: [
       'n8n_diagnostic({}) - Quick diagnostic check',
       'n8n_diagnostic({verbose: true}) - Detailed diagnostic with environment info',

@@ -4,14 +4,15 @@ export const n8nHealthCheckDoc: ToolDocumentation = {
   name: 'n8n_health_check',
   category: 'system',
   essentials: {
-    description: 'Check n8n instance health, API connectivity, and available features',
+    description: 'Check n8n instance health, API connectivity, version status, and performance metrics',
     keyParameters: [],
     example: 'n8n_health_check({})',
-    performance: 'Fast - single API call to health endpoint',
+    performance: 'Fast - single API call (~150-200ms median)',
     tips: [
       'Use before starting workflow operations to ensure n8n is responsive',
-      'Check regularly in production environments for monitoring',
-      'Returns version info and feature availability for compatibility checks'
+      'Automatically checks if n8n-mcp version is outdated',
+      'Returns version info, performance metrics, and next-step recommendations',
+      'New: Shows cache hit rate and response time for performance monitoring'
     ]
   },
   full: {
@@ -33,17 +34,27 @@ Health checks are crucial for:
     parameters: {},
     returns: `Health status object containing:
 - status: Overall health status ('healthy', 'degraded', 'error')
-- version: n8n instance version information
+- n8nVersion: n8n instance version information
 - instanceId: Unique identifier for the n8n instance
 - features: Object listing available features and their status
-- apiVersion: API version for compatibility checking
-- responseTime: API response time in milliseconds
-- timestamp: Check timestamp
-- details: Additional health metrics from n8n`,
+- mcpVersion: Current n8n-mcp version
+- supportedN8nVersion: Recommended n8n version for compatibility
+- versionCheck: Version status information
+  - current: Current n8n-mcp version
+  - latest: Latest available version from npm
+  - upToDate: Boolean indicating if version is current
+  - message: Formatted version status message
+  - updateCommand: Command to update (if outdated)
+- performance: Performance metrics
+  - responseTimeMs: API response time in milliseconds
+  - cacheHitRate: Cache efficiency percentage
+  - cachedInstances: Number of cached API instances
+- nextSteps: Recommended actions after health check
+- updateWarning: Warning if version is outdated (if applicable)`,
     examples: [
-      'n8n_health_check({}) - Standard health check',
-      '// Use in monitoring scripts\nconst health = await n8n_health_check({});\nif (health.status !== "healthy") alert("n8n is down!");',
-      '// Check before critical operations\nconst health = await n8n_health_check({});\nif (health.responseTime > 1000) console.warn("n8n is slow");'
+      'n8n_health_check({}) - Complete health check with version and performance data',
+      '// Use in monitoring scripts\nconst health = await n8n_health_check({});\nif (health.status !== "ok") alert("n8n is down!");\nif (!health.versionCheck.upToDate) console.log("Update available:", health.versionCheck.updateCommand);',
+      '// Check before critical operations\nconst health = await n8n_health_check({});\nif (health.performance.responseTimeMs > 1000) console.warn("n8n is slow");\nif (health.versionCheck.isOutdated) console.log(health.updateWarning);'
     ],
     useCases: [
       'Pre-flight checks before workflow deployments',

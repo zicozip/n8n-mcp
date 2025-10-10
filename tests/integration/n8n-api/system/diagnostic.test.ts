@@ -39,12 +39,28 @@ describe('Integration: handleDiagnostic', () => {
       expect(data).toHaveProperty('environment');
       expect(data).toHaveProperty('apiConfiguration');
       expect(data).toHaveProperty('toolsAvailability');
-      expect(data).toHaveProperty('troubleshooting');
+      expect(data).toHaveProperty('versionInfo');
+      expect(data).toHaveProperty('performance');
 
       // Verify timestamp format
       expect(typeof data.timestamp).toBe('string');
       const timestamp = new Date(data.timestamp);
       expect(timestamp.toString()).not.toBe('Invalid Date');
+
+      // Verify version info
+      expect(data.versionInfo).toBeDefined();
+      if (data.versionInfo) {
+        expect(data.versionInfo).toHaveProperty('current');
+        expect(data.versionInfo).toHaveProperty('upToDate');
+        expect(typeof data.versionInfo.upToDate).toBe('boolean');
+      }
+
+      // Verify performance metrics
+      expect(data.performance).toBeDefined();
+      if (data.performance) {
+        expect(data.performance).toHaveProperty('diagnosticResponseTimeMs');
+        expect(typeof data.performance.diagnosticResponseTimeMs).toBe('number');
+      }
     });
 
     it('should include environment variables', async () => {
@@ -60,11 +76,20 @@ describe('Integration: handleDiagnostic', () => {
       expect(data.environment).toHaveProperty('N8N_API_KEY');
       expect(data.environment).toHaveProperty('NODE_ENV');
       expect(data.environment).toHaveProperty('MCP_MODE');
+      expect(data.environment).toHaveProperty('isDocker');
+      expect(data.environment).toHaveProperty('cloudPlatform');
+      expect(data.environment).toHaveProperty('nodeVersion');
+      expect(data.environment).toHaveProperty('platform');
 
       // API key should be masked
       if (data.environment.N8N_API_KEY) {
         expect(data.environment.N8N_API_KEY).toBe('***configured***');
       }
+
+      // Environment detection types
+      expect(typeof data.environment.isDocker).toBe('boolean');
+      expect(typeof data.environment.nodeVersion).toBe('string');
+      expect(typeof data.environment.platform).toBe('string');
     });
 
     it('should check API configuration and connectivity', async () => {
@@ -147,17 +172,118 @@ describe('Integration: handleDiagnostic', () => {
 
       const data = response.data as DiagnosticResponse;
 
-      expect(data.troubleshooting).toBeDefined();
-      expect(data.troubleshooting).toHaveProperty('steps');
-      expect(data.troubleshooting).toHaveProperty('documentation');
+      // Should have either nextSteps (if API connected) or setupGuide (if not configured)
+      const hasGuidance = data.nextSteps || data.setupGuide || data.troubleshooting;
+      expect(hasGuidance).toBeDefined();
 
-      // Troubleshooting steps should be an array
-      expect(Array.isArray(data.troubleshooting.steps)).toBe(true);
-      expect(data.troubleshooting.steps.length).toBeGreaterThan(0);
+      if (data.nextSteps) {
+        expect(data.nextSteps).toHaveProperty('message');
+        expect(data.nextSteps).toHaveProperty('recommended');
+        expect(Array.isArray(data.nextSteps.recommended)).toBe(true);
+      }
 
-      // Documentation link should be present
-      expect(typeof data.troubleshooting.documentation).toBe('string');
-      expect(data.troubleshooting.documentation).toContain('https://');
+      if (data.setupGuide) {
+        expect(data.setupGuide).toHaveProperty('message');
+        expect(data.setupGuide).toHaveProperty('whatYouCanDoNow');
+        expect(data.setupGuide).toHaveProperty('whatYouCannotDo');
+        expect(data.setupGuide).toHaveProperty('howToEnable');
+      }
+
+      if (data.troubleshooting) {
+        expect(data.troubleshooting).toHaveProperty('issue');
+        expect(data.troubleshooting).toHaveProperty('steps');
+        expect(Array.isArray(data.troubleshooting.steps)).toBe(true);
+      }
+    });
+  });
+
+  // ======================================================================
+  // Environment Detection
+  // ======================================================================
+
+  describe('Environment Detection', () => {
+    it('should provide mode-specific debugging suggestions', async () => {
+      const response = await handleDiagnostic(
+        { params: { arguments: {} } },
+        mcpContext
+      );
+
+      const data = response.data as DiagnosticResponse;
+
+      // Mode-specific debug should always be present
+      expect(data).toHaveProperty('modeSpecificDebug');
+      expect(data.modeSpecificDebug).toBeDefined();
+      expect(data.modeSpecificDebug).toHaveProperty('mode');
+      expect(data.modeSpecificDebug).toHaveProperty('troubleshooting');
+      expect(data.modeSpecificDebug).toHaveProperty('commonIssues');
+
+      // Verify troubleshooting is an array with content
+      expect(Array.isArray(data.modeSpecificDebug.troubleshooting)).toBe(true);
+      expect(data.modeSpecificDebug.troubleshooting.length).toBeGreaterThan(0);
+
+      // Verify common issues is an array with content
+      expect(Array.isArray(data.modeSpecificDebug.commonIssues)).toBe(true);
+      expect(data.modeSpecificDebug.commonIssues.length).toBeGreaterThan(0);
+
+      // Mode should be either 'HTTP Server' or 'Standard I/O (Claude Desktop)'
+      expect(['HTTP Server', 'Standard I/O (Claude Desktop)']).toContain(data.modeSpecificDebug.mode);
+    });
+
+    it('should include Docker debugging if IS_DOCKER is true', async () => {
+      // Save original value
+      const originalIsDocker = process.env.IS_DOCKER;
+
+      try {
+        // Set IS_DOCKER for this test
+        process.env.IS_DOCKER = 'true';
+
+        const response = await handleDiagnostic(
+          { params: { arguments: {} } },
+          mcpContext
+        );
+
+        const data = response.data as DiagnosticResponse;
+
+        // Should have Docker debug section
+        expect(data).toHaveProperty('dockerDebug');
+        expect(data.dockerDebug).toBeDefined();
+        expect(data.dockerDebug?.containerDetected).toBe(true);
+        expect(data.dockerDebug?.troubleshooting).toBeDefined();
+        expect(Array.isArray(data.dockerDebug?.troubleshooting)).toBe(true);
+        expect(data.dockerDebug?.commonIssues).toBeDefined();
+      } finally {
+        // Restore original value
+        if (originalIsDocker) {
+          process.env.IS_DOCKER = originalIsDocker;
+        } else {
+          delete process.env.IS_DOCKER;
+        }
+      }
+    });
+
+    it('should not include Docker debugging if IS_DOCKER is false', async () => {
+      // Save original value
+      const originalIsDocker = process.env.IS_DOCKER;
+
+      try {
+        // Unset IS_DOCKER for this test
+        delete process.env.IS_DOCKER;
+
+        const response = await handleDiagnostic(
+          { params: { arguments: {} } },
+          mcpContext
+        );
+
+        const data = response.data as DiagnosticResponse;
+
+        // Should not have Docker debug section
+        expect(data.dockerDebug).toBeUndefined();
+      } finally {
+        // Restore original value
+        if (originalIsDocker) {
+          process.env.IS_DOCKER = originalIsDocker;
+        }
+      }
     });
   });
 
@@ -245,13 +371,14 @@ describe('Integration: handleDiagnostic', () => {
 
       const data = response.data as DiagnosticResponse;
 
-      // Verify all required fields
+      // Verify all required fields (always present)
       const requiredFields = [
         'timestamp',
         'environment',
         'apiConfiguration',
         'toolsAvailability',
-        'troubleshooting'
+        'versionInfo',
+        'performance'
       ];
 
       requiredFields.forEach(field => {
@@ -259,12 +386,17 @@ describe('Integration: handleDiagnostic', () => {
         expect(data[field]).toBeDefined();
       });
 
+      // Context-specific fields (at least one should be present)
+      const hasContextualGuidance = data.nextSteps || data.setupGuide || data.troubleshooting;
+      expect(hasContextualGuidance).toBeDefined();
+
       // Verify data types
       expect(typeof data.timestamp).toBe('string');
       expect(typeof data.environment).toBe('object');
       expect(typeof data.apiConfiguration).toBe('object');
       expect(typeof data.toolsAvailability).toBe('object');
-      expect(typeof data.troubleshooting).toBe('object');
+      expect(typeof data.versionInfo).toBe('object');
+      expect(typeof data.performance).toBe('object');
     });
   });
 });
