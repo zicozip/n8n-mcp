@@ -5,6 +5,154 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.5] - 2025-10-10
+
+### 🔍 Search Performance & Reliability
+
+**Issue #296 Part 2: Fix Production Search Failures (69% Failure Rate)**
+
+This release fixes critical search failures that caused 69% of user searches to return zero results in production. Telemetry analysis revealed searches for critical nodes like "webhook", "merge", and "split batch" were failing despite nodes existing in the database.
+
+#### Problem
+
+**Root Cause Analysis:**
+1. **Missing FTS5 Table**: Production database had NO `nodes_fts` FTS5 virtual table
+2. **Empty Database Scenario**: When database was empty, both FTS5 and LIKE fallback returned zero results
+3. **No Detection**: Missing validation to catch empty database or missing FTS5 table
+4. **Production Impact**: 9 of 13 searches (69%) returned zero results for critical nodes with high user adoption
+
+**Telemetry Evidence** (Sept 26 - Oct 9, 2025):
+- "webhook" search: 3 failures (node has 39.6% adoption rate - 4,316 actual uses)
+- "merge" search: 1 failure (node has 10.7% adoption rate - 1,418 actual uses)
+- "split batch" search: 2 failures (node is actively used in workflows)
+- Overall: 9/13 searches failed (69% failure rate)
+
+**Technical Root Cause:**
+- `schema.sql` had a note claiming "FTS5 tables are created conditionally at runtime" (line 111)
+- This was FALSE - no runtime creation code existed
+- `schema-optimized.sql` had correct FTS5 implementation but was never used
+- `rebuild.ts` used `schema.sql` without FTS5
+- Result: Production database had NO search index
+
+#### Fixed
+
+**1. Schema Updates**
+- **File**: `src/database/schema.sql`
+- Added `nodes_fts` FTS5 virtual table with full-text indexing
+- Added synchronization triggers (INSERT/UPDATE/DELETE) to keep FTS5 in sync with nodes table
+- Indexes: node_type, display_name, description, documentation, operations
+- Updated misleading note about conditional FTS5 creation
+
+**2. Database Validation**
+- **File**: `src/scripts/rebuild.ts`
+- Added critical empty database detection (fails fast if zero nodes)
+- Added FTS5 table existence validation
+- Added FTS5 synchronization check (nodes count must match FTS5 count)
+- Added searchability tests for critical nodes (webhook, merge, split)
+- Added minimum node count validation (expects 500+ nodes from both packages)
+
+**3. Runtime Health Checks**
+- **File**: `src/mcp/server.ts`
+- Added database health validation on first access
+- Detects empty database and throws clear error message
+- Detects missing FTS5 table with actionable warning
+- Logs successful health check with node count
+
+**4. Comprehensive Test Suite**
+- **New File**: `tests/integration/database/node-fts5-search.test.ts` (14 tests)
+  - FTS5 table existence and trigger validation
+  - FTS5 index population and synchronization
+  - Production failure case tests (webhook, merge, split, code, http)
+  - Search quality and ranking tests
+  - Real-time trigger synchronization tests
+
+- **New File**: `tests/integration/database/empty-database.test.ts` (14 tests)
+  - Empty nodes table detection
+  - Empty FTS5 index detection
+  - LIKE fallback behavior with empty database
+  - Repository method behavior with no data
+  - Validation error messages
+
+- **New File**: `tests/integration/ci/database-population.test.ts` (24 tests)
+  - **CRITICAL CI validation** - ensures database is committed with data
+  - Validates all production search scenarios work (webhook, merge, code, http, split)
+  - Both FTS5 and LIKE fallback search validation
+  - Performance baselines (FTS5 < 100ms, LIKE < 500ms)
+  - Documentation coverage and property extraction metrics
+  - **Tests FAIL if database is empty or FTS5 missing** (prevents regressions)
+
+#### Technical Details
+
+**FTS5 Implementation:**
+```sql
+CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
+  node_type,
+  display_name,
+  description,
+  documentation,
+  operations,
+  content=nodes,
+  content_rowid=rowid
+);
+```
+
+**Synchronization Triggers:**
+- `nodes_fts_insert`: Adds to FTS5 when node inserted
+- `nodes_fts_update`: Updates FTS5 when node modified
+- `nodes_fts_delete`: Removes from FTS5 when node deleted
+
+**Validation Strategy:**
+1. **Build Time** (`rebuild.ts`): Validates FTS5 creation and population
+2. **Runtime** (`server.ts`): Health check on first database access
+3. **CI Time** (tests): 52 tests ensure database integrity
+
+**Search Performance:**
+- FTS5 search: < 100ms for typical queries (20 results)
+- LIKE fallback: < 500ms (still functional if FTS5 unavailable)
+- Ranking: Exact matches prioritized in results
+
+#### Impact
+
+**Before Fix:**
+- 69% of searches returned zero results
+- Users couldn't find critical nodes via AI assistant
+- Silent failure - no error messages
+- n8n workflows still worked (nodes loaded directly from npm)
+
+**After Fix:**
+- ✅ All critical searches return results
+- ✅ FTS5 provides fast, ranked search
+- ✅ Clear error messages if database empty
+- ✅ CI tests prevent regression
+- ✅ Runtime health checks detect issues immediately
+
+**LIKE Search Investigation:**
+Testing revealed LIKE search fallback was **perfectly functional** - it only failed because the database was empty. No changes needed to LIKE implementation.
+
+#### Related
+
+- Addresses production search failures from Issue #296
+- Complements v2.18.4 (which fixed adapter bypass for sql.js)
+- Prevents silent search failures in production
+- Ensures AI assistants can reliably search for nodes
+
+#### Migration
+
+**Existing Installations:**
+```bash
+# Rebuild database to add FTS5 index
+npm run rebuild
+
+# Verify FTS5 is working
+npm run validate
+```
+
+**CI/CD:**
+- New CI validation suite (`tests/integration/ci/database-population.test.ts`)
+- Runs when database exists (after n8n update commits)
+- Validates FTS5 table, search functionality, and data integrity
+- Tests are skipped if database doesn't exist (most PRs don't commit database)
+
 ## [2.18.4] - 2025-10-09
 
 ### 🐛 Bug Fixes

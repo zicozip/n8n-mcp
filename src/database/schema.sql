@@ -25,6 +25,40 @@ CREATE INDEX IF NOT EXISTS idx_package ON nodes(package_name);
 CREATE INDEX IF NOT EXISTS idx_ai_tool ON nodes(is_ai_tool);
 CREATE INDEX IF NOT EXISTS idx_category ON nodes(category);
 
+-- FTS5 full-text search index for nodes
+CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
+  node_type,
+  display_name,
+  description,
+  documentation,
+  operations,
+  content=nodes,
+  content_rowid=rowid
+);
+
+-- Triggers to keep FTS5 in sync with nodes table
+CREATE TRIGGER IF NOT EXISTS nodes_fts_insert AFTER INSERT ON nodes
+BEGIN
+  INSERT INTO nodes_fts(rowid, node_type, display_name, description, documentation, operations)
+  VALUES (new.rowid, new.node_type, new.display_name, new.description, new.documentation, new.operations);
+END;
+
+CREATE TRIGGER IF NOT EXISTS nodes_fts_update AFTER UPDATE ON nodes
+BEGIN
+  UPDATE nodes_fts
+  SET node_type = new.node_type,
+      display_name = new.display_name,
+      description = new.description,
+      documentation = new.documentation,
+      operations = new.operations
+  WHERE rowid = new.rowid;
+END;
+
+CREATE TRIGGER IF NOT EXISTS nodes_fts_delete AFTER DELETE ON nodes
+BEGIN
+  DELETE FROM nodes_fts WHERE rowid = old.rowid;
+END;
+
 -- Templates table for n8n workflow templates
 CREATE TABLE IF NOT EXISTS templates (
   id INTEGER PRIMARY KEY,
@@ -108,5 +142,6 @@ FROM template_node_configs
 WHERE rank <= 5  -- Top 5 per node type
 ORDER BY node_type, rank;
 
--- Note: FTS5 tables are created conditionally at runtime if FTS5 is supported
+-- Note: Template FTS5 tables are created conditionally at runtime if FTS5 is supported
 -- See template-repository.ts initializeFTS5() method
+-- Node FTS5 table (nodes_fts) is created above during schema initialization

@@ -269,8 +269,9 @@ describeDocker('Docker Config File Integration', () => {
       fs.writeFileSync(configPath, JSON.stringify(config));
 
       // Run container in detached mode to check environment after initialization
+      // Set MCP_MODE=http so the server keeps running (stdio mode exits when stdin is closed in detached mode)
       await exec(
-        `docker run -d --name ${containerName} -v "${configPath}:/app/config.json:ro" ${imageName}`
+        `docker run -d --name ${containerName} -e MCP_MODE=http -e AUTH_TOKEN=test -v "${configPath}:/app/config.json:ro" ${imageName}`
       );
       
       // Give it time to load config and start

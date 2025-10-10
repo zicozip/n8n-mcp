@@ -103,16 +103,62 @@ export class TestDatabase {
 
     const schemaPath = path.join(__dirname, '../../../src/database/schema.sql');
     const schema = fs.readFileSync(schemaPath, 'utf-8');
-    
-    // Execute schema statements one by one
-    const statements = schema
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
+
+    // Parse SQL statements properly (handles BEGIN...END blocks in triggers)
+    const statements = this.parseSQLStatements(schema);
 
     for (const statement of statements) {
       this.db.exec(statement);
     }
+  }
+
+  /**
+   * Parse SQL statements from schema file, properly handling multi-line statements
+   * including triggers with BEGIN...END blocks
+   */
+  private parseSQLStatements(sql: string): string[] {
+    const statements: string[] = [];
+    let current = '';
+    let inBlock = false;
+
+    const lines = sql.split('\n');
+
+    for (const line of lines) {
+      const trimmed = line.trim().toUpperCase();
+
+      // Skip comments and empty lines
+      if (trimmed.startsWith('--') || trimmed === '') {
+        continue;
+      }
+
+      // Track BEGIN...END blocks (triggers, procedures)
+      if (trimmed.includes('BEGIN')) {
+        inBlock = true;
+      }
+
+      current += line + '\n';
+
+      // End of block (trigger/procedure)
+      if (inBlock && trimmed === 'END;') {
+        statements.push(current.trim());
+        current = '';
+        inBlock = false;
+        continue;
+      }
+
+      // Regular statement end (not in block)
+      if (!inBlock && trimmed.endsWith(';')) {
+        statements.push(current.trim());
+        current = '';
+      }
+    }
+
+    // Add any remaining content
+    if (current.trim()) {
+      statements.push(current.trim());
+    }
+
+    return statements.filter(s => s.length > 0);
   }
 
   /**

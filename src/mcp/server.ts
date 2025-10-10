@@ -182,24 +182,121 @@ export class N8NDocumentationMCPServer {
   
   private async initializeInMemorySchema(): Promise<void> {
     if (!this.db) return;
-    
+
     // Read and execute schema
     const schemaPath = path.join(__dirname, '../../src/database/schema.sql');
     const schema = await fs.readFile(schemaPath, 'utf-8');
-    
-    // Execute schema statements
-    const statements = schema.split(';').filter(stmt => stmt.trim());
+
+    // Parse SQL statements properly (handles BEGIN...END blocks in triggers)
+    const statements = this.parseSQLStatements(schema);
+
     for (const statement of statements) {
       if (statement.trim()) {
-        this.db.exec(statement);
+        try {
+          this.db.exec(statement);
+        } catch (error) {
+          logger.error(`Failed to execute SQL statement: ${statement.substring(0, 100)}...`, error);
+          throw error;
+        }
       }
     }
+  }
+
+  /**
+   * Parse SQL statements from schema file, properly handling multi-line statements
+   * including triggers with BEGIN...END blocks
+   */
+  private parseSQLStatements(sql: string): string[] {
+    const statements: string[] = [];
+    let current = '';
+    let inBlock = false;
+
+    const lines = sql.split('\n');
+
+    for (const line of lines) {
+      const trimmed = line.trim().toUpperCase();
+
+      // Skip comments and empty lines
+      if (trimmed.startsWith('--') || trimmed === '') {
+        continue;
+      }
+
+      // Track BEGIN...END blocks (triggers, procedures)
+      if (trimmed.includes('BEGIN')) {
+        inBlock = true;
+      }
+
+      current += line + '\n';
+
+      // End of block (trigger/procedure)
+      if (inBlock && trimmed === 'END;') {
+        statements.push(current.trim());
+        current = '';
+        inBlock = false;
+        continue;
+      }
+
+      // Regular statement end (not in block)
+      if (!inBlock && trimmed.endsWith(';')) {
+        statements.push(current.trim());
+        current = '';
+      }
+    }
+
+    // Add any remaining content
+    if (current.trim()) {
+      statements.push(current.trim());
+    }
+
+    return statements.filter(s => s.length > 0);
   }
   
   private async ensureInitialized(): Promise<void> {
     await this.initialized;
     if (!this.db || !this.repository) {
       throw new Error('Database not initialized');
+    }
+
+    // Validate database health on first access
+    if (!this.dbHealthChecked) {
+      await this.validateDatabaseHealth();
+      this.dbHealthChecked = true;
+    }
+  }
+
+  private dbHealthChecked: boolean = false;
+
+  private async validateDatabaseHealth(): Promise<void> {
+    if (!this.db) return;
+
+    try {
+      // Check if nodes table has data
+      const nodeCount = this.db.prepare('SELECT COUNT(*) as count FROM nodes').get() as { count: number };
+
+      if (nodeCount.count === 0) {
+        logger.error('CRITICAL: Database is empty - no nodes found! Please run: npm run rebuild');
+        throw new Error('Database is empty. Run "npm run rebuild" to populate node data.');
+      }
+
+      // Check if FTS5 table exists
+      const ftsExists = this.db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='nodes_fts'
+      `).get();
+
+      if (!ftsExists) {
+        logger.warn('FTS5 table missing - search performance will be degraded. Please run: npm run rebuild');
+      } else {
+        const ftsCount = this.db.prepare('SELECT COUNT(*) as count FROM nodes_fts').get() as { count: number };
+        if (ftsCount.count === 0) {
+          logger.warn('FTS5 index is empty - search will not work properly. Please run: npm run rebuild');
+        }
+      }
+
+      logger.info(`Database health check passed: ${nodeCount.count} nodes loaded`);
+    } catch (error) {
+      logger.error('Database health check failed:', error);
+      throw error;
     }
   }
 
@@ -1065,6 +1162,15 @@ export class N8NDocumentationMCPServer {
     };
   }
 
+  /**
+   * Primary search method used by ALL MCP search tools.
+   *
+   * This method automatically detects and uses FTS5 full-text search when available
+   * (lines 1189-1203), falling back to LIKE queries only if FTS5 table doesn't exist.
+   *
+   * NOTE: This is separate from NodeRepository.searchNodes() which is legacy LIKE-based.
+   * All MCP tool invocations route through this method to leverage FTS5 performance.
+   */
   private async searchNodes(
     query: string,
     limit: number = 20,
@@ -1076,7 +1182,7 @@ export class N8NDocumentationMCPServer {
   ): Promise<any> {
     await this.ensureInitialized();
     if (!this.db) throw new Error('Database not initialized');
-    
+
     // Normalize the query if it looks like a full node type
     let normalizedQuery = query;
     

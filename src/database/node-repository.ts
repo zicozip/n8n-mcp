@@ -123,10 +123,22 @@ export class NodeRepository {
     return rows.map(row => this.parseNodeRow(row));
   }
 
+  /**
+   * Legacy LIKE-based search method for direct repository usage.
+   *
+   * NOTE: MCP tools do NOT use this method. They use MCPServer.searchNodes()
+   * which automatically detects and uses FTS5 full-text search when available.
+   * See src/mcp/server.ts:1135-1148 for FTS5 implementation.
+   *
+   * This method remains for:
+   * - Direct repository access in scripts/benchmarks
+   * - Fallback when FTS5 table doesn't exist
+   * - Legacy compatibility
+   */
   searchNodes(query: string, mode: 'OR' | 'AND' | 'FUZZY' = 'OR', limit: number = 20): any[] {
     let sql = '';
     const params: any[] = [];
-    
+
     if (mode === 'FUZZY') {
       // Simple fuzzy search
       sql = `
