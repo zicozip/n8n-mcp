@@ -7,6 +7,15 @@
 
 import { logger } from './logger';
 
+/**
+ * NPM Registry Response structure
+ * Based on npm registry JSON format for package metadata
+ */
+interface NpmRegistryResponse {
+  version: string;
+  [key: string]: unknown;
+}
+
 export interface VersionCheckResult {
   currentVersion: string;
   latestVersion: string | null;
@@ -71,8 +80,26 @@ export async function checkNpmVersion(forceRefresh: boolean = false): Promise<Ve
       return result;
     }
 
-    const data: any = await response.json();
-    const latestVersion = data.version as string;
+    // Parse and validate JSON response
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new Error('Failed to parse npm registry response as JSON');
+    }
+
+    // Validate response structure
+    if (!data || typeof data !== 'object' || !('version' in data)) {
+      throw new Error('Invalid response format from npm registry');
+    }
+
+    const registryData = data as NpmRegistryResponse;
+    const latestVersion = registryData.version;
+
+    // Validate version format (semver: x.y.z or x.y.z-prerelease)
+    if (!latestVersion || !/^\d+\.\d+\.\d+/.test(latestVersion)) {
+      throw new Error(`Invalid version format from npm registry: ${latestVersion}`);
+    }
 
     // Compare versions
     const isOutdated = compareVersions(currentVersion, latestVersion) < 0;

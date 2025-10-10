@@ -30,7 +30,7 @@ import { NodeRepository } from '../database/node-repository';
 import { InstanceContext, validateInstanceContext } from '../types/instance-context';
 import { NodeTypeNormalizer } from '../utils/node-type-normalizer';
 import { WorkflowAutoFixer, AutoFixConfig } from '../services/workflow-auto-fixer';
-import { ExpressionFormatValidator } from '../services/expression-format-validator';
+import { ExpressionFormatValidator, ExpressionFormatIssue } from '../services/expression-format-validator';
 import { handleUpdatePartialWorkflow } from './handlers-workflow-diff';
 import { telemetry } from '../telemetry';
 import {
@@ -44,6 +44,143 @@ import {
 import { processExecution } from '../services/execution-processor';
 import { checkNpmVersion, formatVersionMessage } from '../utils/npm-version-checker';
 
+// ========================================================================
+// TypeScript Interfaces for Type Safety
+// ========================================================================
+
+/**
+ * Health Check Response Data Structure
+ */
+interface HealthCheckResponseData {
+  status: string;
+  instanceId?: string;
+  n8nVersion?: string;
+  features?: Record<string, unknown>;
+  apiUrl?: string;
+  mcpVersion: string;
+  supportedN8nVersion?: string;
+  versionCheck: {
+    current: string;
+    latest: string | null;
+    upToDate: boolean;
+    message: string;
+    updateCommand?: string;
+  };
+  performance: {
+    responseTimeMs: number;
+    cacheHitRate: string;
+    cachedInstances: number;
+  };
+  nextSteps?: string[];
+  updateWarning?: string;
+}
+
+/**
+ * Cloud Platform Guide Structure
+ */
+interface CloudPlatformGuide {
+  name: string;
+  troubleshooting: string[];
+}
+
+/**
+ * Workflow Validation Response Data
+ */
+interface WorkflowValidationResponse {
+  valid: boolean;
+  workflowId?: string;
+  workflowName?: string;
+  summary: {
+    totalNodes: number;
+    enabledNodes: number;
+    triggerNodes: number;
+    validConnections: number;
+    invalidConnections: number;
+    expressionsValidated: number;
+    errorCount: number;
+    warningCount: number;
+  };
+  errors?: Array<{
+    node: string;
+    nodeName?: string;
+    message: string;
+    details?: Record<string, unknown>;
+  }>;
+  warnings?: Array<{
+    node: string;
+    nodeName?: string;
+    message: string;
+    details?: Record<string, unknown>;
+  }>;
+  suggestions?: unknown[];
+}
+
+/**
+ * Diagnostic Response Data Structure
+ */
+interface DiagnosticResponseData {
+  timestamp: string;
+  environment: {
+    N8N_API_URL: string | null;
+    N8N_API_KEY: string | null;
+    NODE_ENV: string;
+    MCP_MODE: string;
+    isDocker: boolean;
+    cloudPlatform: string | null;
+    nodeVersion: string;
+    platform: string;
+  };
+  apiConfiguration: {
+    configured: boolean;
+    status: {
+      configured: boolean;
+      connected: boolean;
+      error: string | null;
+      version: string | null;
+    };
+    config: {
+      baseUrl: string;
+      timeout: number;
+      maxRetries: number;
+    } | null;
+  };
+  versionInfo: {
+    current: string;
+    latest: string | null;
+    upToDate: boolean;
+    message: string;
+    updateCommand?: string;
+  };
+  toolsAvailability: {
+    documentationTools: {
+      count: number;
+      enabled: boolean;
+      description: string;
+    };
+    managementTools: {
+      count: number;
+      enabled: boolean;
+      description: string;
+    };
+    totalAvailable: number;
+  };
+  performance: {
+    diagnosticResponseTimeMs: number;
+    cacheHitRate: string;
+    cachedInstances: number;
+  };
+  modeSpecificDebug: Record<string, unknown>;
+  dockerDebug?: Record<string, unknown>;
+  cloudPlatformDebug?: CloudPlatformGuide;
+  nextSteps?: Record<string, unknown>;
+  troubleshooting?: Record<string, unknown>;
+  setupGuide?: Record<string, unknown>;
+  updateWarning?: Record<string, unknown>;
+  debug?: Record<string, unknown>;
+  [key: string]: unknown; // Allow dynamic property access for optional fields
+}
+
+// ========================================================================
 // Singleton n8n API client instance (backward compatibility)
 let defaultApiClient: N8nApiClient | null = null;
 let lastDefaultConfigUrl: string | null = null;
@@ -732,7 +869,7 @@ export async function handleValidateWorkflow(
     const validationResult = await validator.validateWorkflow(workflow, input.options);
     
     // Format the response (same format as the regular validate_workflow tool)
-    const response: any = {
+    const response: WorkflowValidationResponse = {
       valid: validationResult.valid,
       workflowId: workflow.id,
       workflowName: workflow.name,
@@ -833,7 +970,7 @@ export async function handleAutofixWorkflow(
     });
 
     // Check for expression format issues
-    const allFormatIssues: any[] = [];
+    const allFormatIssues: ExpressionFormatIssue[] = [];
     for (const node of workflow.nodes) {
       const formatContext = {
         nodeType: node.type,
@@ -1248,7 +1385,7 @@ export async function handleHealthCheck(context?: InstanceContext): Promise<McpT
     const responseTime = Date.now() - startTime;
 
     // Build response data
-    const responseData: any = {
+    const responseData: HealthCheckResponseData = {
       status: health.status,
       instanceId: health.instanceId,
       n8nVersion: health.n8nVersion,
@@ -1265,7 +1402,7 @@ export async function handleHealthCheck(context?: InstanceContext): Promise<McpT
       },
       performance: {
         responseTimeMs: responseTime,
-        cacheHitRate: cacheMetricsData.size > 0
+        cacheHitRate: (cacheMetricsData.hits + cacheMetricsData.misses) > 0
           ? ((cacheMetricsData.hits / (cacheMetricsData.hits + cacheMetricsData.misses)) * 100).toFixed(2) + '%'
           : 'N/A',
         cachedInstances: cacheMetricsData.size
@@ -1497,7 +1634,7 @@ function getDockerDebug(isDocker: boolean) {
 function getCloudPlatformDebug(cloudPlatform: string | null) {
   if (!cloudPlatform) return null;
 
-  const platformGuides: Record<string, any> = {
+  const platformGuides: Record<string, CloudPlatformGuide> = {
     railway: {
       name: 'Railway',
       troubleshooting: [
@@ -1623,7 +1760,7 @@ export async function handleDiagnostic(request: any, context?: InstanceContext):
   const responseTime = Date.now() - startTime;
 
   // Build diagnostic report
-  const diagnostic: any = {
+  const diagnostic: DiagnosticResponseData = {
     timestamp: new Date().toISOString(),
     environment: envVars,
     apiConfiguration: {
@@ -1659,11 +1796,12 @@ export async function handleDiagnostic(request: any, context?: InstanceContext):
     },
     performance: {
       diagnosticResponseTimeMs: responseTime,
-      cacheHitRate: cacheMetricsData.size > 0
+      cacheHitRate: (cacheMetricsData.hits + cacheMetricsData.misses) > 0
         ? ((cacheMetricsData.hits / (cacheMetricsData.hits + cacheMetricsData.misses)) * 100).toFixed(2) + '%'
         : 'N/A',
       cachedInstances: cacheMetricsData.size
-    }
+    },
+    modeSpecificDebug: getModeSpecificDebug(mcpMode)
   };
 
   // Enhanced guidance based on telemetry insights
@@ -1783,17 +1921,16 @@ export async function handleDiagnostic(request: any, context?: InstanceContext):
     };
   }
 
-  // Add environment-aware debugging guidance
-  diagnostic.modeSpecificDebug = getModeSpecificDebug(mcpMode);
-
   // Add Docker-specific debugging if in container
-  if (isDocker) {
-    diagnostic.dockerDebug = getDockerDebug(true);
+  const dockerDebug = getDockerDebug(isDocker);
+  if (dockerDebug) {
+    diagnostic.dockerDebug = dockerDebug;
   }
 
   // Add cloud platform-specific debugging if detected
-  if (cloudPlatform) {
-    diagnostic.cloudPlatformDebug = getCloudPlatformDebug(cloudPlatform);
+  const cloudDebug = getCloudPlatformDebug(cloudPlatform);
+  if (cloudDebug) {
+    diagnostic.cloudPlatformDebug = cloudDebug;
   }
 
   // Add verbose debug info if requested
