@@ -240,8 +240,9 @@ describeDocker('Docker Entrypoint Script', () => {
 
       // Use a path that the nodejs user can create
       // We need to check the environment inside the running process, not the initial shell
+      // Set MCP_MODE=http so the server keeps running (stdio mode exits when stdin is closed in detached mode)
       await exec(
-        `docker run -d --name ${containerName} -e NODE_DB_PATH=/tmp/custom/test.db -e AUTH_TOKEN=test ${imageName}`
+        `docker run -d --name ${containerName} -e NODE_DB_PATH=/tmp/custom/test.db -e MCP_MODE=http -e AUTH_TOKEN=test ${imageName}`
       );
       
       // Give it more time to start and stabilize
