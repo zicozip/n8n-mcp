@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logger } from './logger';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 
 // Enhanced documentation structure with rich content
 export interface EnhancedNodeDocumentation {
@@ -61,36 +61,136 @@ export interface DocumentationMetadata {
 
 export class EnhancedDocumentationFetcher {
   private docsPath: string;
-  private docsRepoUrl = 'https://github.com/n8n-io/n8n-docs.git';
+  private readonly docsRepoUrl = 'https://github.com/n8n-io/n8n-docs.git';
   private cloned = false;
 
   constructor(docsPath?: string) {
-    this.docsPath = docsPath || path.join(__dirname, '../../temp', 'n8n-docs');
+    // SECURITY: Validate and sanitize docsPath to prevent command injection
+    // See: https://github.com/czlonkowski/n8n-mcp/issues/265 (CRITICAL-01 Part 2)
+    const defaultPath = path.join(__dirname, '../../temp', 'n8n-docs');
+
+    if (!docsPath) {
+      this.docsPath = defaultPath;
+    } else {
+      // SECURITY: Block directory traversal and malicious paths
+      const sanitized = this.sanitizePath(docsPath);
+
+      if (!sanitized) {
+        logger.error('Invalid docsPath rejected in constructor', { docsPath });
+        throw new Error('Invalid docsPath: path contains disallowed characters or patterns');
+      }
+
+      // SECURITY: Verify path is absolute and within allowed boundaries
+      const absolutePath = path.resolve(sanitized);
+
+      // Block paths that could escape to sensitive directories
+      if (absolutePath.startsWith('/etc') ||
+          absolutePath.startsWith('/sys') ||
+          absolutePath.startsWith('/proc') ||
+          absolutePath.startsWith('/var/log')) {
+        logger.error('docsPath points to system directory - blocked', { docsPath, absolutePath });
+        throw new Error('Invalid docsPath: cannot use system directories');
+      }
+
+      this.docsPath = absolutePath;
+      logger.info('docsPath validated and set', { docsPath: this.docsPath });
+    }
+
+    // SECURITY: Validate repository URL is HTTPS
+    if (!this.docsRepoUrl.startsWith('https://')) {
+      logger.error('docsRepoUrl must use HTTPS protocol', { url: this.docsRepoUrl });
+      throw new Error('Invalid repository URL: must use HTTPS protocol');
+    }
+  }
+
+  /**
+   * Sanitize path input to prevent command injection and directory traversal
+   * SECURITY: Part of fix for command injection vulnerability
+   */
+  private sanitizePath(inputPath: string): string | null {
+    // SECURITY: Reject paths containing any shell metacharacters or control characters
+    // This prevents command injection even before attempting to sanitize
+    const dangerousChars = /[;&|`$(){}[\]<>'"\\#\n\r\t]/;
+    if (dangerousChars.test(inputPath)) {
+      logger.warn('Path contains shell metacharacters - rejected', { path: inputPath });
+      return null;
+    }
+
+    // Block directory traversal attempts
+    if (inputPath.includes('..') || inputPath.startsWith('.')) {
+      logger.warn('Path traversal attempt blocked', { path: inputPath });
+      return null;
+    }
+
+    return inputPath;
   }
 
   /**
    * Clone or update the n8n-docs repository
+   * SECURITY: Uses spawnSync with argument arrays to prevent command injection
+   * See: https://github.com/czlonkowski/n8n-mcp/issues/265 (CRITICAL-01 Part 2)
    */
   async ensureDocsRepository(): Promise<void> {
     try {
       const exists = await fs.access(this.docsPath).then(() => true).catch(() => false);
-      
+
       if (!exists) {
-        logger.info('Cloning n8n-docs repository...');
-        await fs.mkdir(path.dirname(this.docsPath), { recursive: true });
-        execSync(`git clone --depth 1 ${this.docsRepoUrl} ${this.docsPath}`, {
-          stdio: 'pipe'
+        logger.info('Cloning n8n-docs repository...', {
+          url: this.docsRepoUrl,
+          path: this.docsPath
         });
+        await fs.mkdir(path.dirname(this.docsPath), { recursive: true });
+
+        // SECURITY: Use spawnSync with argument array instead of string interpolation
+        // This prevents command injection even if docsPath or docsRepoUrl are compromised
+        const cloneResult = spawnSync('git', [
+          'clone',
+          '--depth', '1',
+          this.docsRepoUrl,
+          this.docsPath
+        ], {
+          stdio: 'pipe',
+          encoding: 'utf-8'
+        });
+
+        if (cloneResult.status !== 0) {
+          const error = cloneResult.stderr || cloneResult.error?.message || 'Unknown error';
+          logger.error('Git clone failed', {
+            status: cloneResult.status,
+            stderr: error,
+            url: this.docsRepoUrl,
+            path: this.docsPath
+          });
+          throw new Error(`Git clone failed: ${error}`);
+        }
+
         logger.info('n8n-docs repository cloned successfully');
       } else {
-        logger.info('Updating n8n-docs repository...');
-        execSync('git pull --ff-only', {
+        logger.info('Updating n8n-docs repository...', { path: this.docsPath });
+
+        // SECURITY: Use spawnSync with argument array and cwd option
+        const pullResult = spawnSync('git', [
+          'pull',
+          '--ff-only'
+        ], {
           cwd: this.docsPath,
-          stdio: 'pipe'
+          stdio: 'pipe',
+          encoding: 'utf-8'
         });
+
+        if (pullResult.status !== 0) {
+          const error = pullResult.stderr || pullResult.error?.message || 'Unknown error';
+          logger.error('Git pull failed', {
+            status: pullResult.status,
+            stderr: error,
+            cwd: this.docsPath
+          });
+          throw new Error(`Git pull failed: ${error}`);
+        }
+
         logger.info('n8n-docs repository updated');
       }
-      
+
       this.cloned = true;
     } catch (error) {
       logger.error('Failed to clone/update n8n-docs repository:', error);
