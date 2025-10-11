@@ -231,6 +231,7 @@ export class PropertyExtractor {
       required: prop.required,
       displayOptions: prop.displayOptions,
       typeOptions: prop.typeOptions,
+      modes: prop.modes, // For resourceLocator type properties - modes are at top level
       noDataExpression: prop.noDataExpression
     }));
   }

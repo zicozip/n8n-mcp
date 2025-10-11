@@ -270,12 +270,13 @@ export class ConfigValidator {
               message: `resourceLocator '${key}.mode' must be a string, got ${typeof value.mode}`,
               fix: `Set mode to a valid string value`
             });
-          } else if (prop.typeOptions?.resourceLocator?.modes) {
+          } else if (prop.modes) {
             // Schema-based validation: Check if mode exists in the modes definition
+            // In n8n, modes are defined at the top level of resourceLocator properties
             // Modes can be defined in different ways:
-            // 1. Object with mode keys: { list: {...}, id: {...}, url: {...}, name: {...} }
-            // 2. Array of mode objects: [{name: 'list', ...}, {name: 'id', ...}]
-            const modes = prop.typeOptions.resourceLocator.modes;
+            // 1. Array of mode objects: [{name: 'list', ...}, {name: 'id', ...}, {name: 'name', ...}]
+            // 2. Object with mode keys: { list: {...}, id: {...}, url: {...}, name: {...} }
+            const modes = prop.modes;
 
             // Validate modes structure before processing to prevent crashes
             if (!modes || typeof modes !== 'object') {
@@ -286,7 +287,7 @@ export class ConfigValidator {
             let allowedModes: string[] = [];
 
             if (Array.isArray(modes)) {
-              // Array format: extract name property from each mode object
+              // Array format (most common in n8n): extract name property from each mode object
               allowedModes = modes
                 .map(m => (typeof m === 'object' && m !== null) ? m.name : m)
                 .filter(m => typeof m === 'string' && m.length > 0);
@@ -305,7 +306,7 @@ export class ConfigValidator {
               });
             }
           }
-          // If no typeOptions.resourceLocator.modes defined, skip mode validation
+          // If no modes defined at property level, skip mode validation
           // This prevents false positives for nodes with dynamic/runtime-determined modes
 
           if (value.value === undefined) {

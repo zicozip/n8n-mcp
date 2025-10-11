@@ -691,15 +691,12 @@ describe('ConfigValidator - Basic Validation', () => {
           name: 'model',
           type: 'resourceLocator',
           required: true,
-          typeOptions: {
-            resourceLocator: {
-              modes: {
-                list: { displayName: 'List' },
-                id: { displayName: 'ID' },
-                url: { displayName: 'URL' }
-              }
-            }
-          }
+          // In real n8n, modes are at top level, not in typeOptions
+          modes: [
+            { name: 'list', displayName: 'List' },
+            { name: 'id', displayName: 'ID' },
+            { name: 'url', displayName: 'URL' }
+          ]
         }
       ];
 
@@ -726,15 +723,12 @@ describe('ConfigValidator - Basic Validation', () => {
           name: 'model',
           type: 'resourceLocator',
           required: true,
-          typeOptions: {
-            resourceLocator: {
-              modes: [
-                { name: 'list', displayName: 'List' },
-                { name: 'id', displayName: 'ID' },
-                { name: 'custom', displayName: 'Custom' }
-              ]
-            }
-          }
+          // Array format at top level (real n8n structure)
+          modes: [
+            { name: 'list', displayName: 'List' },
+            { name: 'id', displayName: 'ID' },
+            { name: 'custom', displayName: 'Custom' }
+          ]
         }
       ];
 
@@ -757,11 +751,7 @@ describe('ConfigValidator - Basic Validation', () => {
           name: 'model',
           type: 'resourceLocator',
           required: true,
-          typeOptions: {
-            resourceLocator: {
-              modes: 'invalid-string' // Malformed schema
-            }
-          }
+          modes: 'invalid-string' // Malformed schema at top level
         }
       ];
 
@@ -785,11 +775,7 @@ describe('ConfigValidator - Basic Validation', () => {
           name: 'model',
           type: 'resourceLocator',
           required: true,
-          typeOptions: {
-            resourceLocator: {
-              modes: {} // Empty object
-            }
-          }
+          modes: {} // Empty object at top level
         }
       ];
 
@@ -800,7 +786,7 @@ describe('ConfigValidator - Basic Validation', () => {
       expect(result.errors.some(e => e.property === 'model.mode')).toBe(false);
     });
 
-    it('should skip mode validation when typeOptions not provided', () => {
+    it('should skip mode validation when modes not provided', () => {
       const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
       const config = {
         model: {
@@ -813,7 +799,7 @@ describe('ConfigValidator - Basic Validation', () => {
           name: 'model',
           type: 'resourceLocator',
           required: true
-          // No typeOptions - schema doesn't define modes
+          // No modes property - schema doesn't define modes
         }
       ];
 
