@@ -334,6 +334,15 @@ jobs:
           const pkg = require('./package.json');
           pkg.name = 'n8n-mcp';
           pkg.description = 'Integration between n8n workflow automation and Model Context Protocol (MCP)';
+          pkg.main = 'dist/index.js';
+          pkg.types = 'dist/index.d.ts';
+          pkg.exports = {
+            '.': {
+              types: './dist/index.d.ts',
+              require: './dist/index.js',
+              import: './dist/index.js'
+            }
+          };
           pkg.bin = { 'n8n-mcp': './dist/mcp/index.js' };
           pkg.repository = { type: 'git', url: 'git+https://github.com/czlonkowski/n8n-mcp.git' };
           pkg.keywords = ['n8n', 'mcp', 'model-context-protocol', 'ai', 'workflow', 'automation'];
