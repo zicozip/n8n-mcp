@@ -268,16 +268,46 @@ export class ConfigValidator {
               type: 'invalid_type',
               property: `${key}.mode`,
               message: `resourceLocator '${key}.mode' must be a string, got ${typeof value.mode}`,
-              fix: `Set mode to "list" or "id"`
+              fix: `Set mode to a valid string value`
             });
-          } else if (!['list', 'id', 'url'].includes(value.mode)) {
-            errors.push({
-              type: 'invalid_value',
-              property: `${key}.mode`,
-              message: `resourceLocator '${key}.mode' must be 'list', 'id', or 'url', got '${value.mode}'`,
-              fix: `Change mode to "list", "id", or "url"`
-            });
+          } else if (prop.modes) {
+            // Schema-based validation: Check if mode exists in the modes definition
+            // In n8n, modes are defined at the top level of resourceLocator properties
+            // Modes can be defined in different ways:
+            // 1. Array of mode objects: [{name: 'list', ...}, {name: 'id', ...}, {name: 'name', ...}]
+            // 2. Object with mode keys: { list: {...}, id: {...}, url: {...}, name: {...} }
+            const modes = prop.modes;
+
+            // Validate modes structure before processing to prevent crashes
+            if (!modes || typeof modes !== 'object') {
+              // Invalid schema structure - skip validation to prevent false positives
+              continue;
+            }
+
+            let allowedModes: string[] = [];
+
+            if (Array.isArray(modes)) {
+              // Array format (most common in n8n): extract name property from each mode object
+              allowedModes = modes
+                .map(m => (typeof m === 'object' && m !== null) ? m.name : m)
+                .filter(m => typeof m === 'string' && m.length > 0);
+            } else {
+              // Object format: extract keys as mode names
+              allowedModes = Object.keys(modes).filter(k => k.length > 0);
+            }
+
+            // Only validate if we successfully extracted modes
+            if (allowedModes.length > 0 && !allowedModes.includes(value.mode)) {
+              errors.push({
+                type: 'invalid_value',
+                property: `${key}.mode`,
+                message: `resourceLocator '${key}.mode' must be one of [${allowedModes.join(', ')}], got '${value.mode}'`,
+                fix: `Change mode to one of: ${allowedModes.join(', ')}`
+              });
+            }
           }
+          // If no modes defined at property level, skip mode validation
+          // This prevents false positives for nodes with dynamic/runtime-determined modes
 
           if (value.value === undefined) {
             errors.push({

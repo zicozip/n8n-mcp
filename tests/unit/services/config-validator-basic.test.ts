@@ -678,7 +678,7 @@ describe('ConfigValidator - Basic Validation', () => {
       expect(result.errors[0].fix).toContain('{ mode: "id", value: "gpt-4o-mini" }');
     });
 
-    it('should reject invalid mode values', () => {
+    it('should reject invalid mode values when schema defines allowed modes', () => {
       const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
       const config = {
         model: {
@@ -690,7 +690,13 @@ describe('ConfigValidator - Basic Validation', () => {
         {
           name: 'model',
           type: 'resourceLocator',
-          required: true
+          required: true,
+          // In real n8n, modes are at top level, not in typeOptions
+          modes: [
+            { name: 'list', displayName: 'List' },
+            { name: 'id', displayName: 'ID' },
+            { name: 'url', displayName: 'URL' }
+          ]
         }
       ];
 
@@ -700,8 +706,108 @@ describe('ConfigValidator - Basic Validation', () => {
       expect(result.errors.some(e =>
         e.property === 'model.mode' &&
         e.type === 'invalid_value' &&
-        e.message.includes("must be 'list', 'id', or 'url'")
+        e.message.includes('must be one of [list, id, url]')
       )).toBe(true);
+    });
+
+    it('should handle modes defined as array format', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'custom',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true,
+          // Array format at top level (real n8n structure)
+          modes: [
+            { name: 'list', displayName: 'List' },
+            { name: 'id', displayName: 'ID' },
+            { name: 'custom', displayName: 'Custom' }
+          ]
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should handle malformed modes schema gracefully', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'any-mode',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true,
+          modes: 'invalid-string' // Malformed schema at top level
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      // Should NOT crash, should skip validation
+      expect(result.valid).toBe(true);
+      expect(result.errors.some(e => e.property === 'model.mode')).toBe(false);
+    });
+
+    it('should handle empty modes definition gracefully', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'any-mode',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true,
+          modes: {} // Empty object at top level
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      // Should skip validation with empty modes
+      expect(result.valid).toBe(true);
+      expect(result.errors.some(e => e.property === 'model.mode')).toBe(false);
+    });
+
+    it('should skip mode validation when modes not provided', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'custom-mode',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true
+          // No modes property - schema doesn't define modes
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      // Should accept any mode when schema doesn't define them
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('should accept resourceLocator with mode "url"', () => {

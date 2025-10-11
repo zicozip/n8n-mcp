@@ -269,13 +269,15 @@ export class NodeSpecificValidators {
   
   private static validateGoogleSheetsAppend(context: NodeValidationContext): void {
     const { config, errors, warnings, autofix } = context;
-    
-    if (!config.range) {
+
+    // In Google Sheets v4+, range is only required if NOT using the columns resourceMapper
+    // The columns parameter is a resourceMapper introduced in v4 that handles range automatically
+    if (!config.range && !config.columns) {
       errors.push({
         type: 'missing_required',
         property: 'range',
-        message: 'Range is required for append operation',
-        fix: 'Specify range like "Sheet1!A:B" or "Sheet1!A1:B10"'
+        message: 'Range or columns mapping is required for append operation',
+        fix: 'Specify range like "Sheet1!A:B" OR use columns with mappingMode'
       });
     }
     
@@ -1554,6 +1556,61 @@ export class NodeSpecificValidators {
         message: 'File system and process access not available in Code nodes',
         suggestion: 'Use other n8n nodes for file operations (e.g., Read/Write Files node)'
       });
+    }
+  }
+
+  /**
+   * Validate Set node configuration
+   */
+  static validateSet(context: NodeValidationContext): void {
+    const { config, errors, warnings } = context;
+
+    // Validate jsonOutput when present (used in JSON mode or when directly setting JSON)
+    if (config.jsonOutput !== undefined && config.jsonOutput !== null && config.jsonOutput !== '') {
+      try {
+        const parsed = JSON.parse(config.jsonOutput);
+
+        // Set node with JSON input expects an OBJECT {}, not an ARRAY []
+        // This is a common mistake that n8n UI catches but our validator should too
+        if (Array.isArray(parsed)) {
+          errors.push({
+            type: 'invalid_value',
+            property: 'jsonOutput',
+            message: 'Set node expects a JSON object {}, not an array []',
+            fix: 'Either wrap array items as object properties: {"items": [...]}, OR use a different approach for multiple items'
+          });
+        }
+
+        // Warn about empty objects
+        if (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length === 0) {
+          warnings.push({
+            type: 'inefficient',
+            property: 'jsonOutput',
+            message: 'jsonOutput is an empty object - this node will output no data',
+            suggestion: 'Add properties to the object or remove this node if not needed'
+          });
+        }
+      } catch (e) {
+        errors.push({
+          type: 'syntax_error',
+          property: 'jsonOutput',
+          message: `Invalid JSON in jsonOutput: ${e instanceof Error ? e.message : 'Syntax error'}`,
+          fix: 'Ensure jsonOutput contains valid JSON syntax'
+        });
+      }
+    }
+
+    // Validate mode-specific requirements
+    if (config.mode === 'manual') {
+      // In manual mode, at least one field should be defined
+      const hasFields = config.values && Object.keys(config.values).length > 0;
+      if (!hasFields && !config.jsonOutput) {
+        warnings.push({
+          type: 'missing_common',
+          message: 'Set node has no fields configured - will output empty items',
+          suggestion: 'Add fields in the Values section or use JSON mode'
+        });
+      }
     }
   }
 }

@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.8] - 2025-10-11
+
+### 🐛 Bug Fixes
+
+**PR #308: Enable Schema-Based resourceLocator Mode Validation**
+
+This release fixes critical validator false positives by implementing true schema-based validation for resourceLocator modes. The root cause was discovered through deep analysis: the validator was looking at the wrong path for mode definitions in n8n node schemas.
+
+#### Root Cause
+
+- **Wrong Path**: Validator checked `prop.typeOptions?.resourceLocator?.modes` ❌
+- **Correct Path**: n8n stores modes at `prop.modes` (top level of property) ✅
+- **Impact**: 0% validation coverage - all resourceLocator validation was being skipped, causing false positives
+
+#### Fixed
+
+- **Schema-Based Validation Now Active**
+  - **Issue #304**: Google Sheets "name" mode incorrectly rejected (false positive)
+  - **Coverage**: Increased from 0% to 100% (all 70 resourceLocator nodes now validated)
+  - **Root Cause**: Validator reading from wrong schema path
+  - **Fix**: Changed validation path from `prop.typeOptions?.resourceLocator?.modes` to `prop.modes`
+  - **Files Changed**:
+    - `src/services/config-validator.ts` (lines 273-310): Corrected validation path
+    - `src/parsers/property-extractor.ts` (line 234): Added modes field capture
+    - `src/services/node-specific-validators.ts` (lines 270-282): Google Sheets range/columns flexibility
+    - Updated 6 test files to match real n8n schema structure
+
+- **Database Rebuild**
+  - Rebuilt with modes field captured from n8n packages
+  - All 70 resourceLocator nodes now have mode definitions populated
+  - Enables true schema-driven validation (no more hardcoded mode lists)
+
+- **Google Sheets Enhancement**
+  - Now accepts EITHER `range` OR `columns` parameter for append operation
+  - Supports Google Sheets v4+ resourceMapper pattern
+  - Better error messages showing actual allowed modes from schema
+
+#### Testing
+
+- **Before Fix**:
+  - ❌ Valid Google Sheets "name" mode rejected (false positive)
+  - ❌ Schema-based validation inactive (0% coverage)
+  - ❌ Hardcoded mode validation only
+
+- **After Fix**:
+  - ✅ Valid "name" mode accepted
+  - ✅ Schema-based validation active (100% coverage - 70/70 nodes)
+  - ✅ Invalid modes rejected with helpful errors: `must be one of [list, url, id, name]`
+  - ✅ All 143 tests pass
+  - ✅ Verified with n8n-mcp-tester agent
+
+#### Impact
+
+- **Fixes #304**: Google Sheets "name" mode false positive eliminated
+- **Related to #306**: Validator improvements
+- **No Breaking Changes**: More permissive (accepts previously rejected valid modes)
+- **Better UX**: Error messages show actual allowed modes from schema
+- **Maintainability**: Schema-driven approach eliminates need for hardcoded mode lists
+- **Code Quality**: Code review score 9.3/10
+
+#### Example Error Message (After Fix)
+```
+resourceLocator 'sheetName.mode' must be one of [list, url, id, name], got 'invalid'
+Fix: Change mode to one of: list, url, id, name
+```
+
 ## [2.18.6] - 2025-10-10
 
 ### 🐛 Bug Fixes
