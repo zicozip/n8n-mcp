@@ -347,14 +347,14 @@ describe('NodeSpecificValidators', () => {
         };
       });
 
-      it('should require range for append', () => {
+      it('should require range or columns for append', () => {
         NodeSpecificValidators.validateGoogleSheets(context);
-        
+
         expect(context.errors).toContainEqual({
           type: 'missing_required',
           property: 'range',
-          message: 'Range is required for append operation',
-          fix: 'Specify range like "Sheet1!A:B" or "Sheet1!A1:B10"'
+          message: 'Range or columns mapping is required for append operation',
+          fix: 'Specify range like "Sheet1!A:B" OR use columns with mappingMode'
         });
       });
 
