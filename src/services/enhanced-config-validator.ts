@@ -318,7 +318,11 @@ export class EnhancedConfigValidator extends ConfigValidator {
       case 'nodes-base.mysql':
         NodeSpecificValidators.validateMySQL(context);
         break;
-        
+
+      case 'nodes-base.set':
+        NodeSpecificValidators.validateSet(context);
+        break;
+
       case 'nodes-base.switch':
         this.validateSwitchNodeStructure(config, result);
         break;

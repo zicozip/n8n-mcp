@@ -268,16 +268,36 @@ export class ConfigValidator {
               type: 'invalid_type',
               property: `${key}.mode`,
               message: `resourceLocator '${key}.mode' must be a string, got ${typeof value.mode}`,
-              fix: `Set mode to "list" or "id"`
+              fix: `Set mode to a valid string value`
             });
-          } else if (!['list', 'id', 'url'].includes(value.mode)) {
-            errors.push({
-              type: 'invalid_value',
-              property: `${key}.mode`,
-              message: `resourceLocator '${key}.mode' must be 'list', 'id', or 'url', got '${value.mode}'`,
-              fix: `Change mode to "list", "id", or "url"`
-            });
+          } else if (prop.typeOptions?.resourceLocator?.modes) {
+            // Schema-based validation: Check if mode exists in the modes definition
+            // Modes can be defined in different ways:
+            // 1. Object with mode keys: { list: {...}, id: {...}, url: {...}, name: {...} }
+            // 2. Array of mode objects: [{name: 'list', ...}, {name: 'id', ...}]
+            const modes = prop.typeOptions.resourceLocator.modes;
+            let allowedModes: string[] = [];
+
+            if (typeof modes === 'object' && !Array.isArray(modes)) {
+              // Extract keys from modes object
+              allowedModes = Object.keys(modes);
+            } else if (Array.isArray(modes)) {
+              // Extract name property from array of mode objects
+              allowedModes = modes.map(m => typeof m === 'string' ? m : m.name).filter(Boolean);
+            }
+
+            // Only validate if we found allowed modes
+            if (allowedModes.length > 0 && !allowedModes.includes(value.mode)) {
+              errors.push({
+                type: 'invalid_value',
+                property: `${key}.mode`,
+                message: `resourceLocator '${key}.mode' must be one of [${allowedModes.join(', ')}], got '${value.mode}'`,
+                fix: `Change mode to one of: ${allowedModes.join(', ')}`
+              });
+            }
           }
+          // If no typeOptions.resourceLocator.modes defined, skip mode validation
+          // This prevents false positives for nodes with dynamic/runtime-determined modes
 
           if (value.value === undefined) {
             errors.push({

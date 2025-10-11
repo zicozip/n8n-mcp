@@ -678,7 +678,7 @@ describe('ConfigValidator - Basic Validation', () => {
       expect(result.errors[0].fix).toContain('{ mode: "id", value: "gpt-4o-mini" }');
     });
 
-    it('should reject invalid mode values', () => {
+    it('should reject invalid mode values when schema defines allowed modes', () => {
       const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
       const config = {
         model: {
@@ -690,7 +690,16 @@ describe('ConfigValidator - Basic Validation', () => {
         {
           name: 'model',
           type: 'resourceLocator',
-          required: true
+          required: true,
+          typeOptions: {
+            resourceLocator: {
+              modes: {
+                list: { displayName: 'List' },
+                id: { displayName: 'ID' },
+                url: { displayName: 'URL' }
+              }
+            }
+          }
         }
       ];
 
@@ -700,7 +709,7 @@ describe('ConfigValidator - Basic Validation', () => {
       expect(result.errors.some(e =>
         e.property === 'model.mode' &&
         e.type === 'invalid_value' &&
-        e.message.includes("must be 'list', 'id', or 'url'")
+        e.message.includes('must be one of [list, id, url]')
       )).toBe(true);
     });
 
