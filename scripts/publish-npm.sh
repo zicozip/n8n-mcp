@@ -11,29 +11,8 @@ NC='\033[0m' # No Color
 
 echo "🚀 Preparing n8n-mcp for npm publish..."
 
-# Run tests first to ensure quality
-echo "🧪 Running tests..."
-TEST_OUTPUT=$(npm test 2>&1)
-TEST_EXIT_CODE=$?
-
-# Check test results - look for actual test failures vs coverage issues
-if echo "$TEST_OUTPUT" | grep -q "Tests.*failed"; then
-    # Extract failed count using sed (portable)
-    FAILED_COUNT=$(echo "$TEST_OUTPUT" | sed -n 's/.*Tests.*\([0-9]*\) failed.*/\1/p' | head -1)
-    if [ "$FAILED_COUNT" != "0" ] && [ "$FAILED_COUNT" != "" ]; then
-        echo -e "${RED}❌ $FAILED_COUNT test(s) failed. Aborting publish.${NC}"
-        echo "$TEST_OUTPUT" | tail -20
-        exit 1
-    fi
-fi
-
-# If we got here, tests passed - check coverage
-if echo "$TEST_OUTPUT" | grep -q "Coverage.*does not meet global threshold"; then
-    echo -e "${YELLOW}⚠️  All tests passed but coverage is below threshold${NC}"
-    echo -e "${YELLOW}   Consider improving test coverage before next release${NC}"
-else
-    echo -e "${GREEN}✅ All tests passed with good coverage!${NC}"
-fi
+# Skip tests - they already run in CI before merge/publish
+echo "⏭️  Skipping tests (already verified in CI)"
 
 # Sync version to runtime package first
 echo "🔄 Syncing version to package.runtime.json..."
@@ -80,6 +59,15 @@ node -e "
 const pkg = require('./package.json');
 pkg.name = 'n8n-mcp';
 pkg.description = 'Integration between n8n workflow automation and Model Context Protocol (MCP)';
+pkg.main = 'dist/index.js';
+pkg.types = 'dist/index.d.ts';
+pkg.exports = {
+  '.': {
+    types: './dist/index.d.ts',
+    require: './dist/index.js',
+    import: './dist/index.js'
+  }
+};
 pkg.bin = { 'n8n-mcp': './dist/mcp/index.js' };
 pkg.repository = { type: 'git', url: 'git+https://github.com/czlonkowski/n8n-mcp.git' };
 pkg.keywords = ['n8n', 'mcp', 'model-context-protocol', 'ai', 'workflow', 'automation'];
