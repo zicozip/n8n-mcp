@@ -10,6 +10,22 @@ export { SingleSessionHTTPServer } from './http-server-single-session';
 export { ConsoleManager } from './utils/console-manager';
 export { N8NDocumentationMCPServer } from './mcp/server';
 
+// Type exports for multi-tenant and library usage
+export type {
+  InstanceContext
+} from './types/instance-context';
+export {
+  validateInstanceContext,
+  isInstanceContext
+} from './types/instance-context';
+
+// Re-export MCP SDK types for convenience
+export type {
+  Tool,
+  CallToolResult,
+  ListToolsResult
+} from '@modelcontextprotocol/sdk/types.js';
+
 // Default export for convenience
 import N8NMCPEngine from './mcp-engine';
 export default N8NMCPEngine;

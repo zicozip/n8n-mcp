@@ -1,8 +1,16 @@
 {
   "name": "n8n-mcp",
-  "version": "2.18.8",
+  "version": "2.18.9",
   "description": "Integration between n8n workflow automation and Model Context Protocol (MCP)",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
     "n8n-mcp": "./dist/mcp/index.js"
   },
