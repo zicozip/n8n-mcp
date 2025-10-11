@@ -188,11 +188,22 @@ export class SingleSessionHTTPServer {
   
   /**
    * Validate session ID format
+   *
+   * Accepts any non-empty string to support various MCP clients:
+   * - UUIDv4 (internal n8n-mcp format)
+   * - instance-{userId}-{hash}-{uuid} (multi-tenant format)
+   * - Custom formats from mcp-remote and other proxies
+   *
+   * Security: Session validation happens via lookup in this.transports,
+   * not format validation. This ensures compatibility with all MCP clients.
+   *
+   * @param sessionId - Session identifier from MCP client
+   * @returns true if valid, false otherwise
    */
   private isValidSessionId(sessionId: string): boolean {
-    // UUID v4 format validation
-    const uuidv4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuidv4Regex.test(sessionId);
+    // Accept any non-empty string as session ID
+    // This ensures compatibility with all MCP clients and proxies
+    return Boolean(sessionId && sessionId.length > 0);
   }
   
   /**
