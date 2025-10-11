@@ -276,17 +276,26 @@ export class ConfigValidator {
             // 1. Object with mode keys: { list: {...}, id: {...}, url: {...}, name: {...} }
             // 2. Array of mode objects: [{name: 'list', ...}, {name: 'id', ...}]
             const modes = prop.typeOptions.resourceLocator.modes;
-            let allowedModes: string[] = [];
 
-            if (typeof modes === 'object' && !Array.isArray(modes)) {
-              // Extract keys from modes object
-              allowedModes = Object.keys(modes);
-            } else if (Array.isArray(modes)) {
-              // Extract name property from array of mode objects
-              allowedModes = modes.map(m => typeof m === 'string' ? m : m.name).filter(Boolean);
+            // Validate modes structure before processing to prevent crashes
+            if (!modes || typeof modes !== 'object') {
+              // Invalid schema structure - skip validation to prevent false positives
+              continue;
             }
 
-            // Only validate if we found allowed modes
+            let allowedModes: string[] = [];
+
+            if (Array.isArray(modes)) {
+              // Array format: extract name property from each mode object
+              allowedModes = modes
+                .map(m => (typeof m === 'object' && m !== null) ? m.name : m)
+                .filter(m => typeof m === 'string' && m.length > 0);
+            } else {
+              // Object format: extract keys as mode names
+              allowedModes = Object.keys(modes).filter(k => k.length > 0);
+            }
+
+            // Only validate if we successfully extracted modes
             if (allowedModes.length > 0 && !allowedModes.includes(value.mode)) {
               errors.push({
                 type: 'invalid_value',

@@ -713,6 +713,117 @@ describe('ConfigValidator - Basic Validation', () => {
       )).toBe(true);
     });
 
+    it('should handle modes defined as array format', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'custom',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true,
+          typeOptions: {
+            resourceLocator: {
+              modes: [
+                { name: 'list', displayName: 'List' },
+                { name: 'id', displayName: 'ID' },
+                { name: 'custom', displayName: 'Custom' }
+              ]
+            }
+          }
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should handle malformed modes schema gracefully', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'any-mode',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true,
+          typeOptions: {
+            resourceLocator: {
+              modes: 'invalid-string' // Malformed schema
+            }
+          }
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      // Should NOT crash, should skip validation
+      expect(result.valid).toBe(true);
+      expect(result.errors.some(e => e.property === 'model.mode')).toBe(false);
+    });
+
+    it('should handle empty modes definition gracefully', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'any-mode',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true,
+          typeOptions: {
+            resourceLocator: {
+              modes: {} // Empty object
+            }
+          }
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      // Should skip validation with empty modes
+      expect(result.valid).toBe(true);
+      expect(result.errors.some(e => e.property === 'model.mode')).toBe(false);
+    });
+
+    it('should skip mode validation when typeOptions not provided', () => {
+      const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
+      const config = {
+        model: {
+          mode: 'custom-mode',
+          value: 'gpt-4o-mini'
+        }
+      };
+      const properties = [
+        {
+          name: 'model',
+          type: 'resourceLocator',
+          required: true
+          // No typeOptions - schema doesn't define modes
+        }
+      ];
+
+      const result = ConfigValidator.validate(nodeType, config, properties);
+
+      // Should accept any mode when schema doesn't define them
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it('should accept resourceLocator with mode "url"', () => {
       const nodeType = '@n8n/n8n-nodes-langchain.lmChatOpenAi';
       const config = {
