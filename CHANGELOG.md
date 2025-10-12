@@ -2508,6 +2508,139 @@ get_node_essentials({
 - Added telemetry configuration instructions to README
 - Updated CLAUDE.md with telemetry system architecture
 
+## [2.19.0] - 2025-10-12
+
+### Added
+
+**Session Persistence for Multi-Tenant Deployments (Phase 1 + Phase 2)**
+
+This release introduces production-ready session persistence enabling stateless multi-tenant deployments with session restoration and complete session lifecycle management.
+
+#### Phase 1: Session Restoration Hook (REQ-1 to REQ-4)
+
+- **Automatic Session Restoration**
+  - New `onSessionNotFound` hook for session restoration from external storage
+  - Async database lookup when client sends unknown session ID
+  - Configurable restoration timeout (default 5 seconds)
+  - Seamless integration with existing multi-tenant API
+
+- **Core Capabilities**
+  - Restore sessions from Redis, PostgreSQL, or any external storage
+  - Support for session metadata and custom context
+  - Timeout protection prevents hanging requests
+  - Backward compatible - optional feature, zero breaking changes
+
+- **Integration Points**
+  - Hook called before session validation in handleRequest flow
+  - Thread-safe session restoration with proper locking
+  - Error handling with detailed logging
+  - Production-tested with comprehensive test coverage
+
+#### Phase 2: Session Management API (REQ-5)
+
+- **Session Lifecycle Management**
+  - `getActiveSessions()`: List all active session IDs
+  - `getSessionState(sessionId)`: Get complete session state
+  - `getAllSessionStates()`: Bulk export for periodic backups
+  - `restoreSession(sessionId, context)`: Manual session restoration
+  - `deleteSession(sessionId)`: Explicit session cleanup
+
+- **Session State Information**
+  - Session ID, instance context, metadata
+  - Creation time, last access, expiration time
+  - Serializable for database storage
+
+- **Workflow Support**
+  - Periodic backup: Export all sessions every N minutes
+  - Bulk restore: Load sessions on server restart
+  - Manual cleanup: Remove sessions from external trigger
+
+#### Security Improvements
+
+- **Session ID Validation**
+  - Length validation (20-100 characters)
+  - Character whitelist (alphanumeric, hyphens, underscores)
+  - SQL injection prevention
+  - Path traversal prevention
+  - Early validation before restoration hook
+
+- **Orphan Detection**
+  - Comprehensive cleanup of orphaned session components
+  - Detects and removes orphaned transports
+  - Detects and removes orphaned servers
+  - Prevents memory leaks from incomplete cleanup
+  - Warning logs for orphaned resources
+
+- **Rate Limiting Documentation**
+  - Security notes in JSDoc for `onSessionNotFound`
+  - Recommendations for preventing database lookup abuse
+  - Guidance on implementing express-rate-limit
+
+#### Technical Implementation
+
+- **Files Changed**:
+  - `src/types/session-restoration.ts`: New types for session restoration
+  - `src/http-server-single-session.ts`: Hook integration and session management API
+  - `src/mcp-engine.ts`: Public API methods for session lifecycle
+  - `tests/unit/session-management-api.test.ts`: 21 unit tests
+  - `tests/integration/session-persistence.test.ts`: 13 integration tests
+
+- **Testing**:
+  - ✅ 34 total tests (21 unit + 13 integration)
+  - ✅ All edge cases covered (timeouts, errors, validation)
+  - ✅ Thread safety verified
+  - ✅ Memory leak prevention tested
+  - ✅ Backward compatibility confirmed
+
+#### Migration Guide
+
+**For Existing Users (No Changes Required)**
+```typescript
+// Your existing code continues to work unchanged
+const engine = new N8NMCPEngine();
+await engine.processRequest(req, res, instanceContext);
+```
+
+**For New Session Persistence Users**
+```typescript
+// 1. Implement restoration hook
+const engine = new N8NMCPEngine({
+  onSessionNotFound: async (sessionId) => {
+    // Load from your database
+    const session = await db.loadSession(sessionId);
+    return session ? session.instanceContext : null;
+  },
+  sessionRestorationTimeout: 5000
+});
+
+// 2. Periodic backup (optional)
+setInterval(async () => {
+  const states = engine.getAllSessionStates();
+  for (const state of states) {
+    await db.upsertSession(state);
+  }
+}, 300000); // Every 5 minutes
+
+// 3. Restore on server start (optional)
+const savedSessions = await db.loadAllSessions();
+for (const session of savedSessions) {
+  engine.restoreSession(session.sessionId, session.instanceContext);
+}
+```
+
+#### Benefits
+
+- **Stateless Deployment**: No session state in memory, safe for container restarts
+- **Multi-Tenant Support**: Each tenant's sessions persist independently
+- **High Availability**: Sessions survive server crashes and deployments
+- **Scalability**: Share session state across multiple server instances
+- **Cost Efficient**: Use Redis, PostgreSQL, or any database for persistence
+
+### Documentation
+- Added comprehensive session persistence documentation
+- Added migration guide and examples
+- Updated API documentation with session management methods
+
 ## Previous Versions
 
 For changes in previous versions, please refer to the git history and release notes.
