@@ -25,6 +25,7 @@ import {
   STANDARD_PROTOCOL_VERSION
 } from './utils/protocol-version';
 import { InstanceContext, validateInstanceContext } from './types/instance-context';
+import { SessionRestoreHook, SessionState } from './types/session-restoration';
 
 dotenv.config();
 
@@ -84,12 +85,30 @@ export class SingleSessionHTTPServer {
   private sessionTimeout = 30 * 60 * 1000; // 30 minutes
   private authToken: string | null = null;
   private cleanupTimer: NodeJS.Timeout | null = null;
-  
-  constructor() {
+
+  // Session restoration options (Phase 1 - v2.19.0)
+  private onSessionNotFound?: SessionRestoreHook;
+  private sessionRestorationTimeout: number;
+
+  constructor(options: {
+    sessionTimeout?: number;
+    onSessionNotFound?: SessionRestoreHook;
+    sessionRestorationTimeout?: number;
+  } = {}) {
     // Validate environment on construction
     this.validateEnvironment();
+
+    // Session restoration configuration
+    this.onSessionNotFound = options.onSessionNotFound;
+    this.sessionRestorationTimeout = options.sessionRestorationTimeout || 5000; // 5 seconds default
+
+    // Override session timeout if provided
+    if (options.sessionTimeout) {
+      this.sessionTimeout = options.sessionTimeout;
+    }
+
     // No longer pre-create session - will be created per initialize request following SDK pattern
-    
+
     // Start periodic session cleanup
     this.startSessionCleanup();
   }
@@ -187,23 +206,52 @@ export class SingleSessionHTTPServer {
   }
   
   /**
-   * Validate session ID format
+   * Validate session ID format (Security-Hardened - REQ-8)
    *
-   * Accepts any non-empty string to support various MCP clients:
-   * - UUIDv4 (internal n8n-mcp format)
-   * - instance-{userId}-{hash}-{uuid} (multi-tenant format)
-   * - Custom formats from mcp-remote and other proxies
+   * Validates session ID format to prevent injection attacks:
+   * - SQL injection
+   * - NoSQL injection
+   * - Path traversal
+   * - DoS via oversized IDs
    *
-   * Security: Session validation happens via lookup in this.transports,
-   * not format validation. This ensures compatibility with all MCP clients.
+   * Accepts multiple formats for MCP client compatibility:
+   * 1. UUIDv4 (internal format): xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+   * 2. Multi-tenant format: instance-{userId}-{hash}-{uuid}
+   * 3. Generic safe format: any alphanumeric string with hyphens/underscores (20-100 chars)
    *
    * @param sessionId - Session identifier from MCP client
    * @returns true if valid, false otherwise
+   * @since 2.19.0 - Enhanced with security validation
+   * @since 2.19.1 - Relaxed validation for MCP proxy compatibility
    */
   private isValidSessionId(sessionId: string): boolean {
-    // Accept any non-empty string as session ID
-    // This ensures compatibility with all MCP clients and proxies
-    return Boolean(sessionId && sessionId.length > 0);
+    if (!sessionId || typeof sessionId !== 'string') {
+      return false;
+    }
+
+    // Length validation (20-100 chars) - DoS protection
+    if (sessionId.length < 20 || sessionId.length > 100) {
+      return false;
+    }
+
+    // Character whitelist (alphanumeric + hyphens + underscores) - Injection protection
+    // Allow underscores for compatibility with some MCP clients (e.g., mcp-remote)
+    if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) {
+      return false;
+    }
+
+    // Format validation - Support known formats or any safe alphanumeric format
+    // UUIDv4: 8-4-4-4-12 hex digits with hyphens
+    const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    // Multi-tenant: instance-{userId}-{hash}-{uuid}
+    // Must start with 'instance-' and have at least 4 parts
+    const multiTenantPattern = /^instance-[a-zA-Z0-9_]+-[a-zA-Z0-9_]+-[a-zA-Z0-9_-]+$/;
+
+    // Accept UUIDv4, multi-tenant, OR any safe alphanumeric format (for flexibility)
+    return uuidV4Pattern.test(sessionId) ||
+           multiTenantPattern.test(sessionId) ||
+           /^[a-zA-Z0-9_-]{20,100}$/.test(sessionId); // Generic safe format
   }
   
   /**
@@ -295,6 +343,155 @@ export class SingleSessionHTTPServer {
         (this.servers[sessionId] as any).instanceContext = newContext;
       }
     }
+  }
+
+  /**
+   * Timeout utility for session restoration
+   * Creates a promise that rejects after the specified milliseconds
+   *
+   * @param ms - Timeout duration in milliseconds
+   * @returns Promise that rejects with TimeoutError
+   * @since 2.19.0
+   */
+  private timeout(ms: number): Promise<never> {
+    return new Promise((_, reject) => {
+      setTimeout(() => {
+        const error = new Error(`Operation timed out after ${ms}ms`);
+        error.name = 'TimeoutError';
+        reject(error);
+      }, ms);
+    });
+  }
+
+  /**
+   * Create a new session (IDEMPOTENT - REQ-2)
+   *
+   * This method is idempotent to prevent race conditions during concurrent
+   * restoration attempts. If the session already exists, returns existing
+   * session ID without creating a duplicate.
+   *
+   * @param instanceContext - Instance-specific configuration
+   * @param sessionId - Optional pre-defined session ID (for restoration)
+   * @returns The session ID (newly created or existing)
+   * @throws Error if session ID format is invalid
+   * @since 2.19.0
+   */
+  private createSession(
+    instanceContext: InstanceContext,
+    sessionId?: string
+  ): string {
+    // Generate session ID if not provided
+    const id = sessionId || this.generateSessionId(instanceContext);
+
+    // CRITICAL: Idempotency check to prevent race conditions
+    if (this.transports[id]) {
+      logger.debug('Session already exists, skipping creation (idempotent)', {
+        sessionId: id
+      });
+      return id;
+    }
+
+    // Validate session ID format if provided externally
+    if (sessionId && !this.isValidSessionId(sessionId)) {
+      logger.error('Invalid session ID format during creation', { sessionId });
+      throw new Error('Invalid session ID format');
+    }
+
+    const server = new N8NDocumentationMCPServer(instanceContext);
+
+    // Create transport and server
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => id,
+      onsessioninitialized: (initializedSessionId: string) => {
+        // Session already stored, this just logs initialization
+        logger.info('Session initialized during explicit creation', {
+          sessionId: initializedSessionId
+        });
+      }
+    });
+
+    // CRITICAL: Store session data immediately (not in callback)
+    // This ensures sessions are available synchronously for tests and direct API calls
+    this.transports[id] = transport;
+    this.servers[id] = server;
+    this.sessionMetadata[id] = {
+      lastAccess: new Date(),
+      createdAt: new Date()
+    };
+    this.sessionContexts[id] = instanceContext;
+
+    // Set up cleanup handlers
+    transport.onclose = () => {
+      if (transport.sessionId) {
+        logger.info('Transport closed during createSession, cleaning up', {
+          sessionId: transport.sessionId
+        });
+        this.removeSession(transport.sessionId, 'transport_closed');
+      }
+    };
+
+    transport.onerror = (error: Error) => {
+      if (transport.sessionId) {
+        logger.error('Transport error during createSession', {
+          sessionId: transport.sessionId,
+          error: error.message
+        });
+        this.removeSession(transport.sessionId, 'transport_error').catch(err => {
+          logger.error('Error during transport error cleanup', { error: err });
+        });
+      }
+    };
+
+    // CRITICAL: Connect server to transport before returning
+    // Without this, the server won't process requests!
+    // Note: We don't await here because createSession is synchronous
+    // The connection will complete asynchronously via onsessioninitialized
+    server.connect(transport).catch(err => {
+      logger.error('Failed to connect server to transport in createSession', {
+        sessionId: id,
+        error: err instanceof Error ? err.message : String(err)
+      });
+      // Clean up on connection failure
+      this.removeSession(id, 'connection_failed').catch(cleanupErr => {
+        logger.error('Error during connection failure cleanup', { error: cleanupErr });
+      });
+    });
+
+    logger.info('Session created successfully (connecting server to transport)', {
+      sessionId: id,
+      hasInstanceContext: !!instanceContext,
+      instanceId: instanceContext?.instanceId
+    });
+
+    return id;
+  }
+
+  /**
+   * Generate session ID based on instance context
+   * Used for multi-tenant mode
+   *
+   * @param instanceContext - Instance-specific configuration
+   * @returns Generated session ID
+   */
+  private generateSessionId(instanceContext?: InstanceContext): string {
+    const isMultiTenantEnabled = process.env.ENABLE_MULTI_TENANT === 'true';
+    const sessionStrategy = process.env.MULTI_TENANT_SESSION_STRATEGY || 'instance';
+
+    if (isMultiTenantEnabled && sessionStrategy === 'instance' && instanceContext?.instanceId) {
+      // Multi-tenant mode with instance strategy
+      const configHash = createHash('sha256')
+        .update(JSON.stringify({
+          url: instanceContext.n8nApiUrl,
+          instanceId: instanceContext.instanceId
+        }))
+        .digest('hex')
+        .substring(0, 8);
+
+      return `instance-${instanceContext.instanceId}-${configHash}-${uuidv4()}`;
+    }
+
+    // Standard UUIDv4
+    return uuidv4();
   }
 
   /**
@@ -556,32 +753,160 @@ export class SingleSessionHTTPServer {
           this.updateSessionAccess(sessionId);
           
         } else {
-          // Invalid request - no session ID and not an initialize request
-          const errorDetails = {
-            hasSessionId: !!sessionId,
-            isInitialize: isInitialize,
-            sessionIdValid: sessionId ? this.isValidSessionId(sessionId) : false,
-            sessionExists: sessionId ? !!this.transports[sessionId] : false
-          };
-          
-          logger.warn('handleRequest: Invalid request - no session ID and not initialize', errorDetails);
-          
-          let errorMessage = 'Bad Request: No valid session ID provided and not an initialize request';
-          if (sessionId && !this.isValidSessionId(sessionId)) {
-            errorMessage = 'Bad Request: Invalid session ID format';
-          } else if (sessionId && !this.transports[sessionId]) {
-            errorMessage = 'Bad Request: Session not found or expired';
+          // Handle unknown session ID - check if we can restore it
+          if (sessionId) {
+            // REQ-8: Validate session ID format FIRST (security)
+            if (!this.isValidSessionId(sessionId)) {
+              logger.warn('handleRequest: Invalid session ID format rejected', {
+                sessionId: sessionId.substring(0, 20)
+              });
+              res.status(400).json({
+                jsonrpc: '2.0',
+                error: {
+                  code: -32602,
+                  message: 'Invalid session ID format'
+                },
+                id: req.body?.id || null
+              });
+              return;
+            }
+
+            // REQ-1: Try session restoration if hook provided
+            if (this.onSessionNotFound) {
+              logger.info('Attempting session restoration', { sessionId });
+
+              try {
+                // Call restoration hook with timeout
+                const restoredContext = await Promise.race([
+                  this.onSessionNotFound(sessionId),
+                  this.timeout(this.sessionRestorationTimeout)
+                ]);
+
+                // Handle both null and undefined defensively
+                // Both indicate the hook declined to restore the session
+                if (restoredContext === null || restoredContext === undefined) {
+                  logger.info('Session restoration declined by hook', {
+                    sessionId,
+                    returnValue: restoredContext === null ? 'null' : 'undefined'
+                  });
+                  res.status(400).json({
+                    jsonrpc: '2.0',
+                    error: {
+                      code: -32000,
+                      message: 'Session not found or expired'
+                    },
+                    id: req.body?.id || null
+                  });
+                  return;
+                }
+
+                // Validate the context returned by the hook
+                const validation = validateInstanceContext(restoredContext);
+                if (!validation.valid) {
+                  logger.error('Invalid context returned from restoration hook', {
+                    sessionId,
+                    errors: validation.errors
+                  });
+                  res.status(400).json({
+                    jsonrpc: '2.0',
+                    error: {
+                      code: -32000,
+                      message: 'Invalid session context'
+                    },
+                    id: req.body?.id || null
+                  });
+                  return;
+                }
+
+                // REQ-2: Create session (idempotent)
+                logger.info('Session restoration successful, creating session', {
+                  sessionId,
+                  instanceId: restoredContext.instanceId
+                });
+
+                this.createSession(restoredContext, sessionId);
+
+                // Verify session was created
+                if (!this.transports[sessionId]) {
+                  logger.error('Session creation failed after restoration', { sessionId });
+                  res.status(500).json({
+                    jsonrpc: '2.0',
+                    error: {
+                      code: -32603,
+                      message: 'Session creation failed'
+                    },
+                    id: req.body?.id || null
+                  });
+                  return;
+                }
+
+                // Use the restored session
+                transport = this.transports[sessionId];
+                logger.info('Using restored session transport', { sessionId });
+
+              } catch (error) {
+                // Handle timeout
+                if (error instanceof Error && error.name === 'TimeoutError') {
+                  logger.error('Session restoration timeout', {
+                    sessionId,
+                    timeout: this.sessionRestorationTimeout
+                  });
+                  res.status(408).json({
+                    jsonrpc: '2.0',
+                    error: {
+                      code: -32000,
+                      message: 'Session restoration timeout'
+                    },
+                    id: req.body?.id || null
+                  });
+                  return;
+                }
+
+                // Handle other errors
+                logger.error('Session restoration failed', {
+                  sessionId,
+                  error: error instanceof Error ? error.message : String(error)
+                });
+                res.status(500).json({
+                  jsonrpc: '2.0',
+                  error: {
+                    code: -32603,
+                    message: 'Session restoration failed'
+                  },
+                  id: req.body?.id || null
+                });
+                return;
+              }
+            } else {
+              // No restoration hook - session not found
+              logger.warn('Session not found and no restoration hook configured', {
+                sessionId
+              });
+              res.status(400).json({
+                jsonrpc: '2.0',
+                error: {
+                  code: -32000,
+                  message: 'Session not found or expired'
+                },
+                id: req.body?.id || null
+              });
+              return;
+            }
+          } else {
+            // No session ID and not initialize - invalid request
+            logger.warn('handleRequest: Invalid request - no session ID and not initialize', {
+              isInitialize
+            });
+            res.status(400).json({
+              jsonrpc: '2.0',
+              error: {
+                code: -32000,
+                message: 'Bad Request: No valid session ID provided and not an initialize request'
+              },
+              id: req.body?.id || null
+            });
+            return;
           }
-          
-          res.status(400).json({
-            jsonrpc: '2.0',
-            error: {
-              code: -32000,
-              message: errorMessage
-            },
-            id: req.body?.id || null
-          });
-          return;
         }
         
         // Handle request with the transport
@@ -1360,9 +1685,9 @@ export class SingleSessionHTTPServer {
   /**
    * Get current session info (for testing/debugging)
    */
-  getSessionInfo(): { 
-    active: boolean; 
-    sessionId?: string; 
+  getSessionInfo(): {
+    active: boolean;
+    sessionId?: string;
     age?: number;
     sessions?: {
       total: number;
@@ -1373,10 +1698,10 @@ export class SingleSessionHTTPServer {
     };
   } {
     const metrics = this.getSessionMetrics();
-    
+
     // Legacy SSE session info
     if (!this.session) {
-      return { 
+      return {
         active: false,
         sessions: {
           total: metrics.totalSessions,
@@ -1387,7 +1712,7 @@ export class SingleSessionHTTPServer {
         }
       };
     }
-    
+
     return {
       active: true,
       sessionId: this.session.sessionId,
@@ -1400,6 +1725,213 @@ export class SingleSessionHTTPServer {
         sessionIds: Object.keys(this.transports)
       }
     };
+  }
+
+  /**
+   * Get all active session IDs (Phase 2 - REQ-5)
+   * Useful for periodic backup to database
+   *
+   * @returns Array of active session IDs
+   * @since 2.19.0
+   *
+   * @example
+   * ```typescript
+   * const sessionIds = server.getActiveSessions();
+   * console.log(`Active sessions: ${sessionIds.length}`);
+   * ```
+   */
+  getActiveSessions(): string[] {
+    return Object.keys(this.transports);
+  }
+
+  /**
+   * Get session state for persistence (Phase 2 - REQ-5)
+   * Returns null if session doesn't exist
+   *
+   * @param sessionId - The session ID to retrieve state for
+   * @returns Session state or null if not found
+   * @since 2.19.0
+   *
+   * @example
+   * ```typescript
+   * const state = server.getSessionState('session-123');
+   * if (state) {
+   *   await database.saveSession(state);
+   * }
+   * ```
+   */
+  getSessionState(sessionId: string): SessionState | null {
+    // Check if session exists
+    if (!this.transports[sessionId]) {
+      return null;
+    }
+
+    const metadata = this.sessionMetadata[sessionId];
+    const instanceContext = this.sessionContexts[sessionId];
+
+    // Defensive check - session should have metadata
+    if (!metadata) {
+      logger.warn('Session exists but missing metadata', { sessionId });
+      return null;
+    }
+
+    // Calculate expiration time
+    const expiresAt = new Date(metadata.lastAccess.getTime() + this.sessionTimeout);
+
+    return {
+      sessionId,
+      instanceContext: instanceContext || {
+        n8nApiUrl: process.env.N8N_API_URL,
+        n8nApiKey: process.env.N8N_API_KEY,
+        instanceId: process.env.N8N_INSTANCE_ID
+      },
+      createdAt: metadata.createdAt,
+      lastAccess: metadata.lastAccess,
+      expiresAt,
+      metadata: instanceContext?.metadata
+    };
+  }
+
+  /**
+   * Get all session states (Phase 2 - REQ-5)
+   * Useful for bulk backup operations
+   *
+   * @returns Array of all session states
+   * @since 2.19.0
+   *
+   * @example
+   * ```typescript
+   * // Periodic backup every 5 minutes
+   * setInterval(async () => {
+   *   const states = server.getAllSessionStates();
+   *   for (const state of states) {
+   *     await database.upsertSession(state);
+   *   }
+   * }, 300000);
+   * ```
+   */
+  getAllSessionStates(): SessionState[] {
+    const sessionIds = this.getActiveSessions();
+    const states: SessionState[] = [];
+
+    for (const sessionId of sessionIds) {
+      const state = this.getSessionState(sessionId);
+      if (state) {
+        states.push(state);
+      }
+    }
+
+    return states;
+  }
+
+  /**
+   * Manually restore a session (Phase 2 - REQ-5)
+   * Creates a session with the given ID and instance context
+   * Idempotent - returns true even if session already exists
+   *
+   * @param sessionId - The session ID to restore
+   * @param instanceContext - Instance configuration for the session
+   * @returns true if session was created or already exists, false on validation error
+   * @since 2.19.0
+   *
+   * @example
+   * ```typescript
+   * // Restore session from database
+   * const restored = server.manuallyRestoreSession(
+   *   'session-123',
+   *   { n8nApiUrl: '...', n8nApiKey: '...', instanceId: 'user-456' }
+   * );
+   * console.log(`Session restored: ${restored}`);
+   * ```
+   */
+  manuallyRestoreSession(sessionId: string, instanceContext: InstanceContext): boolean {
+    try {
+      // Validate session ID format
+      if (!this.isValidSessionId(sessionId)) {
+        logger.error('Invalid session ID format in manual restoration', { sessionId });
+        return false;
+      }
+
+      // Validate instance context
+      const validation = validateInstanceContext(instanceContext);
+      if (!validation.valid) {
+        logger.error('Invalid instance context in manual restoration', {
+          sessionId,
+          errors: validation.errors
+        });
+        return false;
+      }
+
+      // Create session (idempotent - returns existing if already exists)
+      this.createSession(instanceContext, sessionId);
+
+      logger.info('Session manually restored', {
+        sessionId,
+        instanceId: instanceContext.instanceId
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Failed to manually restore session', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Manually delete a session (Phase 2 - REQ-5)
+   * Removes the session and cleans up all resources
+   *
+   * @param sessionId - The session ID to delete
+   * @returns true if session was deleted, false if session didn't exist
+   * @since 2.19.0
+   *
+   * @example
+   * ```typescript
+   * // Delete expired sessions
+   * const deleted = server.manuallyDeleteSession('session-123');
+   * if (deleted) {
+   *   console.log('Session deleted successfully');
+   * }
+   * ```
+   */
+  manuallyDeleteSession(sessionId: string): boolean {
+    // Check if session exists
+    if (!this.transports[sessionId]) {
+      logger.debug('Session not found for manual deletion', { sessionId });
+      return false;
+    }
+
+    // CRITICAL: Delete session data synchronously for unit tests
+    // Close transport asynchronously in background, but remove from maps immediately
+    try {
+      // Close transport asynchronously (non-blocking)
+      if (this.transports[sessionId]) {
+        this.transports[sessionId].close().catch(error => {
+          logger.warn('Error closing transport during manual deletion', {
+            sessionId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        });
+      }
+
+      // Remove session data immediately (synchronous)
+      delete this.transports[sessionId];
+      delete this.servers[sessionId];
+      delete this.sessionMetadata[sessionId];
+      delete this.sessionContexts[sessionId];
+
+      logger.info('Session manually deleted', { sessionId });
+      return true;
+    } catch (error) {
+      logger.error('Error during manual session deletion', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
   }
 }
 
