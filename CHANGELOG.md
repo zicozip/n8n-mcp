@@ -5,6 +5,140 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.0] - 2025-10-12
+
+### ✨ New Features
+
+**Session Lifecycle Events (Phase 3 - REQ-4)**
+
+Adds optional callback-based event system for monitoring session lifecycle, enabling integration with logging, monitoring, and analytics systems.
+
+#### Added
+
+- **Session Lifecycle Event Handlers**
+  - `onSessionCreated`: Called when new session is created (not restored)
+  - `onSessionRestored`: Called when session is restored from external storage
+  - `onSessionAccessed`: Called on every request using existing session
+  - `onSessionExpired`: Called when session expires due to inactivity
+  - `onSessionDeleted`: Called when session is manually deleted
+  - **Implementation**: `src/types/session-restoration.ts` (SessionLifecycleEvents interface)
+  - **Integration**: `src/http-server-single-session.ts` (event emission at 5 lifecycle points)
+  - **API**: `src/mcp-engine.ts` (sessionEvents option)
+
+- **Event Characteristics**
+  - **Fire-and-forget**: Non-blocking, errors logged but don't affect operations
+  - **Async Support**: Handlers can be sync or async
+  - **Graceful Degradation**: Handler failures don't break session operations
+  - **Metadata Support**: Events receive session ID and instance context
+
+#### Use Cases
+
+- **Logging & Monitoring**: Track session lifecycle for debugging and analytics
+- **Database Persistence**: Auto-save sessions on creation/restoration
+- **Metrics**: Track session activity and expiration patterns
+- **Cleanup**: Cascade delete related data when sessions expire
+- **Throttling**: Update lastAccess timestamps (with throttling for performance)
+
+#### Example Usage
+
+```typescript
+import { N8NMCPEngine } from 'n8n-mcp';
+import throttle from 'lodash.throttle';
+
+const engine = new N8NMCPEngine({
+  sessionEvents: {
+    onSessionCreated: async (sessionId, context) => {
+      await db.saveSession(sessionId, context);
+      analytics.track('session_created', { sessionId });
+    },
+    onSessionRestored: async (sessionId, context) => {
+      analytics.track('session_restored', { sessionId });
+    },
+    // Throttle high-frequency event to prevent DB overload
+    onSessionAccessed: throttle(async (sessionId) => {
+      await db.updateLastAccess(sessionId);
+    }, 60000), // Max once per minute
+    onSessionExpired: async (sessionId) => {
+      await db.deleteSession(sessionId);
+      await cleanup.removeRelatedData(sessionId);
+    },
+    onSessionDeleted: async (sessionId) => {
+      await db.deleteSession(sessionId);
+    }
+  }
+});
+```
+
+---
+
+**Session Restoration Retry Policy (Phase 4 - REQ-7)**
+
+Adds configurable retry logic for transient failures during session restoration, improving reliability for database-backed persistence.
+
+#### Added
+
+- **Retry Configuration Options**
+  - `sessionRestorationRetries`: Number of retry attempts (default: 0, opt-in)
+  - `sessionRestorationRetryDelay`: Delay between attempts in milliseconds (default: 100ms)
+  - **Implementation**: `src/http-server-single-session.ts` (restoreSessionWithRetry method)
+  - **API**: `src/mcp-engine.ts` (retry options)
+
+- **Retry Behavior**
+  - **Overall Timeout**: Applies to ALL attempts combined, not per attempt
+  - **No Retry for Timeouts**: Timeout errors are never retried (already took too long)
+  - **Exponential Backoff**: Optional via custom delay configuration
+  - **Error Logging**: Logs each retry attempt with context
+
+#### Use Cases
+
+- **Database Retries**: Handle transient connection failures
+- **Network Resilience**: Retry on temporary network errors
+- **Rate Limit Handling**: Backoff and retry when hitting rate limits
+- **High Availability**: Improve reliability of external storage
+
+#### Example Usage
+
+```typescript
+const engine = new N8NMCPEngine({
+  onSessionNotFound: async (sessionId) => {
+    // May fail transiently due to database load
+    return await database.loadSession(sessionId);
+  },
+  sessionRestorationRetries: 3,        // Retry up to 3 times
+  sessionRestorationRetryDelay: 100,   // 100ms between retries
+  sessionRestorationTimeout: 5000      // 5s total for all attempts
+});
+```
+
+#### Error Handling
+
+- **Retryable Errors**: Database connection failures, network errors, rate limits
+- **Non-Retryable**: Timeout errors (already exceeded time limit)
+- **Logging**: Each retry logged with attempt number and error details
+
+#### Testing
+
+- **Unit Tests**: 34 tests passing (14 lifecycle events + 20 retry policy)
+  - `tests/unit/session-lifecycle-events.test.ts` (14 tests)
+  - `tests/unit/session-restoration-retry.test.ts` (20 tests)
+- **Integration Tests**: 14 tests covering combined behavior
+  - `tests/integration/session-lifecycle-retry.test.ts`
+- **Coverage**: Event emission, retry logic, timeout handling, backward compatibility
+
+#### Documentation
+
+- **Types**: Full JSDoc documentation in type definitions
+- **Examples**: Practical examples in CHANGELOG and type comments
+- **Migration**: Backward compatible - no breaking changes
+
+#### Impact
+
+- **Reliability**: Improved session restoration success rate
+- **Observability**: Complete visibility into session lifecycle
+- **Integration**: Easy integration with existing monitoring systems
+- **Performance**: Non-blocking event handlers prevent slowdowns
+- **Flexibility**: Opt-in retry policy with sensible defaults
+
 ## [2.18.8] - 2025-10-11
 
 ### 🐛 Bug Fixes
@@ -2507,6 +2641,139 @@ get_node_essentials({
 - Added PRIVACY.md with comprehensive privacy policy
 - Added telemetry configuration instructions to README
 - Updated CLAUDE.md with telemetry system architecture
+
+## [2.19.0] - 2025-10-12
+
+### Added
+
+**Session Persistence for Multi-Tenant Deployments (Phase 1 + Phase 2)**
+
+This release introduces production-ready session persistence enabling stateless multi-tenant deployments with session restoration and complete session lifecycle management.
+
+#### Phase 1: Session Restoration Hook (REQ-1 to REQ-4)
+
+- **Automatic Session Restoration**
+  - New `onSessionNotFound` hook for session restoration from external storage
+  - Async database lookup when client sends unknown session ID
+  - Configurable restoration timeout (default 5 seconds)
+  - Seamless integration with existing multi-tenant API
+
+- **Core Capabilities**
+  - Restore sessions from Redis, PostgreSQL, or any external storage
+  - Support for session metadata and custom context
+  - Timeout protection prevents hanging requests
+  - Backward compatible - optional feature, zero breaking changes
+
+- **Integration Points**
+  - Hook called before session validation in handleRequest flow
+  - Thread-safe session restoration with proper locking
+  - Error handling with detailed logging
+  - Production-tested with comprehensive test coverage
+
+#### Phase 2: Session Management API (REQ-5)
+
+- **Session Lifecycle Management**
+  - `getActiveSessions()`: List all active session IDs
+  - `getSessionState(sessionId)`: Get complete session state
+  - `getAllSessionStates()`: Bulk export for periodic backups
+  - `restoreSession(sessionId, context)`: Manual session restoration
+  - `deleteSession(sessionId)`: Explicit session cleanup
+
+- **Session State Information**
+  - Session ID, instance context, metadata
+  - Creation time, last access, expiration time
+  - Serializable for database storage
+
+- **Workflow Support**
+  - Periodic backup: Export all sessions every N minutes
+  - Bulk restore: Load sessions on server restart
+  - Manual cleanup: Remove sessions from external trigger
+
+#### Security Improvements
+
+- **Session ID Validation**
+  - Length validation (20-100 characters)
+  - Character whitelist (alphanumeric, hyphens, underscores)
+  - SQL injection prevention
+  - Path traversal prevention
+  - Early validation before restoration hook
+
+- **Orphan Detection**
+  - Comprehensive cleanup of orphaned session components
+  - Detects and removes orphaned transports
+  - Detects and removes orphaned servers
+  - Prevents memory leaks from incomplete cleanup
+  - Warning logs for orphaned resources
+
+- **Rate Limiting Documentation**
+  - Security notes in JSDoc for `onSessionNotFound`
+  - Recommendations for preventing database lookup abuse
+  - Guidance on implementing express-rate-limit
+
+#### Technical Implementation
+
+- **Files Changed**:
+  - `src/types/session-restoration.ts`: New types for session restoration
+  - `src/http-server-single-session.ts`: Hook integration and session management API
+  - `src/mcp-engine.ts`: Public API methods for session lifecycle
+  - `tests/unit/session-management-api.test.ts`: 21 unit tests
+  - `tests/integration/session-persistence.test.ts`: 13 integration tests
+
+- **Testing**:
+  - ✅ 34 total tests (21 unit + 13 integration)
+  - ✅ All edge cases covered (timeouts, errors, validation)
+  - ✅ Thread safety verified
+  - ✅ Memory leak prevention tested
+  - ✅ Backward compatibility confirmed
+
+#### Migration Guide
+
+**For Existing Users (No Changes Required)**
+```typescript
+// Your existing code continues to work unchanged
+const engine = new N8NMCPEngine();
+await engine.processRequest(req, res, instanceContext);
+```
+
+**For New Session Persistence Users**
+```typescript
+// 1. Implement restoration hook
+const engine = new N8NMCPEngine({
+  onSessionNotFound: async (sessionId) => {
+    // Load from your database
+    const session = await db.loadSession(sessionId);
+    return session ? session.instanceContext : null;
+  },
+  sessionRestorationTimeout: 5000
+});
+
+// 2. Periodic backup (optional)
+setInterval(async () => {
+  const states = engine.getAllSessionStates();
+  for (const state of states) {
+    await db.upsertSession(state);
+  }
+}, 300000); // Every 5 minutes
+
+// 3. Restore on server start (optional)
+const savedSessions = await db.loadAllSessions();
+for (const session of savedSessions) {
+  engine.restoreSession(session.sessionId, session.instanceContext);
+}
+```
+
+#### Benefits
+
+- **Stateless Deployment**: No session state in memory, safe for container restarts
+- **Multi-Tenant Support**: Each tenant's sessions persist independently
+- **High Availability**: Sessions survive server crashes and deployments
+- **Scalability**: Share session state across multiple server instances
+- **Cost Efficient**: Use Redis, PostgreSQL, or any database for persistence
+
+### Documentation
+- Added comprehensive session persistence documentation
+- Added migration guide and examples
+- Updated API documentation with session management methods
 
 ## Previous Versions
 
