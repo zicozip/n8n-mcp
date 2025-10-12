@@ -384,17 +384,6 @@ describe('Session Lifecycle Events & Retry Policy Integration Tests', () => {
       // Give events time to fire
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Debug: Write error details to file for inspection
-      if (mockRes.status.mock.calls.length > 0 && mockRes.status.mock.calls[0][0] === 500) {
-        const fs = await import('fs');
-        const errorDetails = {
-          statusCalls: mockRes.status.mock.calls,
-          jsonCalls: mockRes.json.mock.calls,
-          testName: 'should retry transient failures and eventually succeed'
-        };
-        fs.writeFileSync('/tmp/test-error-debug.json', JSON.stringify(errorDetails, null, 2));
-      }
-
       // Should have succeeded (not 500 error)
       expect(mockRes.status).not.toHaveBeenCalledWith(500);
 
