@@ -156,6 +156,25 @@ export class SingleSessionHTTPServer {
       }
     }
 
+    // Check for orphaned transports (transports without metadata)
+    for (const sessionId in this.transports) {
+      if (!this.sessionMetadata[sessionId]) {
+        logger.warn('Orphaned transport detected, cleaning up', { sessionId });
+        this.removeSession(sessionId, 'orphaned_transport').catch(err => {
+          logger.error('Error cleaning orphaned transport', { sessionId, error: err });
+        });
+      }
+    }
+
+    // Check for orphaned servers (servers without metadata)
+    for (const sessionId in this.servers) {
+      if (!this.sessionMetadata[sessionId]) {
+        logger.warn('Orphaned server detected, cleaning up', { sessionId });
+        delete this.servers[sessionId];
+        logger.debug('Cleaned orphaned server', { sessionId });
+      }
+    }
+
     // Remove expired sessions
     for (const sessionId of expiredSessions) {
       this.removeSession(sessionId, 'expired');

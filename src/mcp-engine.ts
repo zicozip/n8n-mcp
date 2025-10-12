@@ -32,6 +32,10 @@ export interface EngineOptions {
    * Called when a client tries to use an unknown session ID
    * Return instance context to restore the session, or null to reject
    *
+   * @security IMPORTANT: Implement rate limiting in this hook to prevent abuse.
+   * Malicious clients could trigger excessive database lookups by sending random
+   * session IDs. Consider using express-rate-limit or similar middleware.
+   *
    * @since 2.19.0
    */
   onSessionNotFound?: SessionRestoreHook;
