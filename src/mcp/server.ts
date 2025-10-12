@@ -285,18 +285,26 @@ export class N8NDocumentationMCPServer {
         throw new Error('Database is empty. Run "npm run rebuild" to populate node data.');
       }
 
-      // Check if FTS5 table exists
-      const ftsExists = this.db.prepare(`
-        SELECT name FROM sqlite_master
-        WHERE type='table' AND name='nodes_fts'
-      `).get();
+      // Check FTS5 support before attempting FTS5 queries
+      // sql.js doesn't support FTS5, so we need to skip FTS5 validation for sql.js databases
+      const hasFTS5 = this.db.checkFTS5Support();
 
-      if (!ftsExists) {
-        logger.warn('FTS5 table missing - search performance will be degraded. Please run: npm run rebuild');
+      if (!hasFTS5) {
+        logger.warn('FTS5 not supported (likely using sql.js) - search will use basic queries');
       } else {
-        const ftsCount = this.db.prepare('SELECT COUNT(*) as count FROM nodes_fts').get() as { count: number };
-        if (ftsCount.count === 0) {
-          logger.warn('FTS5 index is empty - search will not work properly. Please run: npm run rebuild');
+        // Only check FTS5 table if FTS5 is supported
+        const ftsExists = this.db.prepare(`
+          SELECT name FROM sqlite_master
+          WHERE type='table' AND name='nodes_fts'
+        `).get();
+
+        if (!ftsExists) {
+          logger.warn('FTS5 table missing - search performance will be degraded. Please run: npm run rebuild');
+        } else {
+          const ftsCount = this.db.prepare('SELECT COUNT(*) as count FROM nodes_fts').get() as { count: number };
+          if (ftsCount.count === 0) {
+            logger.warn('FTS5 index is empty - search will not work properly. Please run: npm run rebuild');
+          }
         }
       }
 
