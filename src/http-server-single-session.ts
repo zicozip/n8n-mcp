@@ -546,14 +546,16 @@ export class SingleSessionHTTPServer {
    *
    * @param instanceContext - Instance-specific configuration
    * @param sessionId - Optional pre-defined session ID (for restoration)
+   * @param waitForConnection - If true, waits for server.connect() to complete (for restoration)
    * @returns The session ID (newly created or existing)
    * @throws Error if session ID format is invalid
    * @since 2.19.0
    */
-  private createSession(
+  private async createSession(
     instanceContext: InstanceContext,
-    sessionId?: string
-  ): string {
+    sessionId?: string,
+    waitForConnection: boolean = false
+  ): Promise<string> {
     // Generate session ID if not provided
     const id = sessionId || this.generateSessionId(instanceContext);
 
@@ -571,7 +573,22 @@ export class SingleSessionHTTPServer {
       throw new Error('Invalid session ID format');
     }
 
+    // Store session metadata immediately for synchronous access
+    // This ensures getActiveSessions() works immediately after restoreSession()
+    // Only store if not already stored (idempotency - prevents duplicate storage)
+    if (!this.sessionMetadata[id]) {
+      this.sessionMetadata[id] = {
+        lastAccess: new Date(),
+        createdAt: new Date()
+      };
+      this.sessionContexts[id] = instanceContext;
+    }
+
     const server = new N8NDocumentationMCPServer(instanceContext);
+
+    // CRITICAL: Wait for database initialization before creating transport
+    // The server needs its database ready before it can process requests
+    await (server as any).initialized;
 
     // Create transport and server
     const transport = new StreamableHTTPServerTransport({
@@ -584,15 +601,10 @@ export class SingleSessionHTTPServer {
       }
     });
 
-    // CRITICAL: Store session data immediately (not in callback)
-    // This ensures sessions are available synchronously for tests and direct API calls
+    // CRITICAL: Store transport and server immediately (not in callback)
+    // Metadata was already stored earlier for synchronous access
     this.transports[id] = transport;
     this.servers[id] = server;
-    this.sessionMetadata[id] = {
-      lastAccess: new Date(),
-      createdAt: new Date()
-    };
-    this.sessionContexts[id] = instanceContext;
 
     // Set up cleanup handlers
     transport.onclose = () => {
@@ -617,25 +629,48 @@ export class SingleSessionHTTPServer {
     };
 
     // CRITICAL: Connect server to transport before returning
-    // Without this, the server won't process requests!
-    // Note: We don't await here because createSession is synchronous
-    // The connection will complete asynchronously via onsessioninitialized
-    server.connect(transport).catch(err => {
-      logger.error('Failed to connect server to transport in createSession', {
+    // For session restoration, we MUST wait for connection to complete
+    // For manual restoration via public API, connection happens async
+    if (waitForConnection) {
+      // Wait for connection to complete (used during session restoration)
+      try {
+        await server.connect(transport);
+        logger.info('Session created and connected successfully', {
+          sessionId: id,
+          hasInstanceContext: !!instanceContext,
+          instanceId: instanceContext?.instanceId
+        });
+      } catch (err) {
+        logger.error('Failed to connect server to transport in createSession', {
+          sessionId: id,
+          error: err instanceof Error ? err.message : String(err)
+        });
+        // Clean up on connection failure
+        await this.removeSession(id, 'connection_failed').catch(cleanupErr => {
+          logger.error('Error during connection failure cleanup', { error: cleanupErr });
+        });
+        throw err; // Re-throw to propagate error
+      }
+    } else {
+      // Don't wait for connection (used for manual restoration via public API)
+      // Fire-and-forget: connection errors are logged but don't block
+      server.connect(transport).catch(err => {
+        logger.error('Failed to connect server to transport in createSession (fire-and-forget)', {
+          sessionId: id,
+          error: err instanceof Error ? err.message : String(err)
+        });
+        // Clean up on connection failure
+        this.removeSession(id, 'connection_failed').catch(cleanupErr => {
+          logger.error('Error during connection failure cleanup', { error: cleanupErr });
+        });
+        // Don't throw - this is fire-and-forget
+      });
+      logger.info('Session created successfully (connecting server to transport)', {
         sessionId: id,
-        error: err instanceof Error ? err.message : String(err)
+        hasInstanceContext: !!instanceContext,
+        instanceId: instanceContext?.instanceId
       });
-      // Clean up on connection failure
-      this.removeSession(id, 'connection_failed').catch(cleanupErr => {
-        logger.error('Error during connection failure cleanup', { error: cleanupErr });
-      });
-    });
-
-    logger.info('Session created successfully (connecting server to transport)', {
-      sessionId: id,
-      hasInstanceContext: !!instanceContext,
-      instanceId: instanceContext?.instanceId
-    });
+    }
 
     // Phase 3: Emit onSessionCreated event (REQ-4)
     // Fire-and-forget: don't await or block session creation
@@ -999,13 +1034,15 @@ export class SingleSessionHTTPServer {
                   return;
                 }
 
-                // REQ-2: Create session (idempotent)
+                // REQ-2: Create session (idempotent) and wait for connection
                 logger.info('Session restoration successful, creating session', {
                   sessionId,
                   instanceId: restoredContext.instanceId
                 });
 
-                this.createSession(restoredContext, sessionId);
+                // CRITICAL: Wait for server.connect() to complete before proceeding
+                // This ensures the transport is fully ready to handle requests
+                await this.createSession(restoredContext, sessionId, true);
 
                 // Verify session was created
                 if (!this.transports[sessionId]) {
@@ -1931,7 +1968,9 @@ export class SingleSessionHTTPServer {
    * ```
    */
   getActiveSessions(): string[] {
-    return Object.keys(this.transports);
+    // Use sessionMetadata instead of transports for immediate synchronous access
+    // Metadata is stored immediately, while transports are created asynchronously
+    return Object.keys(this.sessionMetadata);
   }
 
   /**
@@ -2052,8 +2091,27 @@ export class SingleSessionHTTPServer {
         return false;
       }
 
-      // Create session (idempotent - returns existing if already exists)
-      this.createSession(instanceContext, sessionId);
+      // CRITICAL: Store metadata immediately for synchronous access
+      // This ensures getActiveSessions() and deleteSession() work immediately after calling this method
+      // The session is "registered" even though the connection happens asynchronously
+      this.sessionMetadata[sessionId] = {
+        lastAccess: new Date(),
+        createdAt: new Date()
+      };
+      this.sessionContexts[sessionId] = instanceContext;
+
+      // Create session asynchronously (connection happens in background)
+      // Don't wait for connection - this is for public API, connection happens async
+      // Fire-and-forget: start the async operation but don't block
+      this.createSession(instanceContext, sessionId, false).catch(error => {
+        logger.error('Async session creation failed in manual restoration', {
+          sessionId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        // Clean up metadata on error
+        delete this.sessionMetadata[sessionId];
+        delete this.sessionContexts[sessionId];
+      });
 
       logger.info('Session manually restored', {
         sessionId,
@@ -2088,8 +2146,10 @@ export class SingleSessionHTTPServer {
    * ```
    */
   manuallyDeleteSession(sessionId: string): boolean {
-    // Check if session exists
-    if (!this.transports[sessionId]) {
+    // Check if session exists (check metadata, not transport)
+    // Metadata is stored immediately when session is created/restored
+    // Transport is created asynchronously, so it might not exist yet
+    if (!this.sessionMetadata[sessionId]) {
       logger.debug('Session not found for manual deletion', { sessionId });
       return false;
     }
@@ -2097,7 +2157,7 @@ export class SingleSessionHTTPServer {
     // CRITICAL: Delete session data synchronously for unit tests
     // Close transport asynchronously in background, but remove from maps immediately
     try {
-      // Close transport asynchronously (non-blocking)
+      // Close transport asynchronously (non-blocking) if it exists
       if (this.transports[sessionId]) {
         this.transports[sessionId].close().catch(error => {
           logger.warn('Error closing transport during manual deletion', {

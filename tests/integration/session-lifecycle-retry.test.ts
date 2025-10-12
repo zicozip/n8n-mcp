@@ -80,6 +80,9 @@ describe('Session Lifecycle Events & Retry Policy Integration Tests', () => {
     process.env.AUTH_TOKEN = TEST_AUTH_TOKEN;
     process.env.PORT = '0';
     process.env.NODE_ENV = 'test';
+    // Use in-memory database for tests - these tests focus on session lifecycle,
+    // not node queries, so we don't need the full node database
+    process.env.NODE_DB_PATH = ':memory:';
 
     // Clear storage and events
     mockStore = new MockSessionStore();
@@ -96,6 +99,7 @@ describe('Session Lifecycle Events & Retry Policy Integration Tests', () => {
   });
 
   // Helper to create properly mocked Request and Response objects
+  // Simplified to match working session-persistence test - SDK doesn't need full socket mock
   function createMockReqRes(sessionId?: string, body?: any) {
     const req = {
       method: 'POST',
@@ -126,6 +130,13 @@ describe('Session Lifecycle Events & Retry Policy Integration Tests', () => {
       json: vi.fn().mockReturnThis(),
       setHeader: vi.fn(),
       send: vi.fn().mockReturnThis(),
+      writeHead: vi.fn().mockReturnThis(),
+      write: vi.fn(),
+      end: vi.fn(),
+      flushHeaders: vi.fn(),
+      on: vi.fn((event: string, handler: Function) => res),
+      once: vi.fn((event: string, handler: Function) => res),
+      removeListener: vi.fn(),
       headersSent: false,
       finished: false
     } as any as Response;
@@ -367,11 +378,22 @@ describe('Session Lifecycle Events & Retry Policy Integration Tests', () => {
         sessionEvents: events
       });
 
-      const { req: mockReq, res: mockRes } = createMockReqRes(sessionId);
+      const { req: mockReq, res: mockRes} = createMockReqRes(sessionId);
       await engine.processRequest(mockReq, mockRes); // Don't pass context - let it restore
 
       // Give events time to fire
       await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Debug: Write error details to file for inspection
+      if (mockRes.status.mock.calls.length > 0 && mockRes.status.mock.calls[0][0] === 500) {
+        const fs = await import('fs');
+        const errorDetails = {
+          statusCalls: mockRes.status.mock.calls,
+          jsonCalls: mockRes.json.mock.calls,
+          testName: 'should retry transient failures and eventually succeed'
+        };
+        fs.writeFileSync('/tmp/test-error-debug.json', JSON.stringify(errorDetails, null, 2));
+      }
 
       // Should have succeeded (not 500 error)
       expect(mockRes.status).not.toHaveBeenCalledWith(500);
