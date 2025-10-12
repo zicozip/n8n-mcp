@@ -941,7 +941,16 @@ export class SingleSessionHTTPServer {
           // Connect the server to the transport BEFORE handling the request
           logger.info('handleRequest: Connecting server to new transport');
           await server.connect(transport);
-          
+
+          // Phase 3: Emit onSessionCreated event (REQ-4)
+          // Fire-and-forget: don't await or block session creation
+          this.emitEvent('onSessionCreated', sessionIdToUse, instanceContext).catch(eventErr => {
+            logger.error('Failed to emit onSessionCreated event (non-blocking)', {
+              sessionId: sessionIdToUse,
+              error: eventErr instanceof Error ? eventErr.message : String(eventErr)
+            });
+          });
+
         } else if (sessionId && this.transports[sessionId]) {
           // Validate session ID format
           if (!this.isValidSessionId(sessionId)) {

@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.1] - 2025-10-12
+
+### 🐛 Bug Fixes
+
+**Session Lifecycle Event Emission**
+
+Fixes issue where `onSessionCreated` event was not being emitted during standard session initialization flow (when sessions are created directly without restoration).
+
+#### Fixed
+
+- **onSessionCreated Event Missing in Standard Flow**
+  - **Issue**: `onSessionCreated` event was only emitted during restoration failure fallback, not during normal session creation
+  - **Impact**: Applications relying on `onSessionCreated` for logging, monitoring, or persistence didn't receive events for directly created sessions
+  - **Root Cause**: Event emission was only present in restoration error handler, not in standard `initialize()` flow
+  - **Fix**: Added `onSessionCreated` event emission in `http-server-single-session.ts:436` during standard initialization
+  - **Location**: `src/http-server-single-session.ts` (initialize method)
+  - **Verification**: All session lifecycle tests passing (14 tests)
+
+#### Impact
+
+- **Event Consistency**: `onSessionCreated` now fires reliably for all new sessions (whether created directly or after restoration failure)
+- **Monitoring**: Complete session lifecycle visibility for logging and analytics systems
+- **Backward Compatible**: No breaking changes, only adds missing event emission
+
 ## [2.19.0] - 2025-10-12
 
 ### ✨ New Features
