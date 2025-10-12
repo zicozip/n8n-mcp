@@ -60,11 +60,14 @@ vi.mock('@modelcontextprotocol/sdk/server/sse.js', () => ({
   }))
 }));
 
-vi.mock('../../src/mcp/server', () => ({
-  N8NDocumentationMCPServer: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined)
-  }))
-}));
+vi.mock('../../src/mcp/server', () => {
+  class MockN8NDocumentationMCPServer {
+    connect = vi.fn().mockResolvedValue(undefined);
+  }
+  return {
+    N8NDocumentationMCPServer: MockN8NDocumentationMCPServer
+  };
+});
 
 const mockConsoleManager = {
   wrapOperation: vi.fn().mockImplementation(async (fn: () => Promise<any>) => {
@@ -310,18 +313,21 @@ describe('Session Restoration (Phase 1 - REQ-1, REQ-2, REQ-8)', () => {
       }
     });
 
-    it('should reject session IDs that are too short (DoS protection)', () => {
+    it('should accept short session IDs (relaxed for MCP proxy compatibility)', () => {
       server = new SingleSessionHTTPServer();
 
-      const tooShortIds = [
+      // Short session IDs are now accepted for MCP proxy compatibility
+      // Security is maintained via character whitelist and max length
+      const shortIds = [
         'a',
         'ab',
         '123',
-        '12345678901234567'  // 17 chars (minimum is 20)
+        '12345',
+        'short-id'
       ];
 
-      for (const sessionId of tooShortIds) {
-        expect((server as any).isValidSessionId(sessionId)).toBe(false);
+      for (const sessionId of shortIds) {
+        expect((server as any).isValidSessionId(sessionId)).toBe(true);
       }
     });
 

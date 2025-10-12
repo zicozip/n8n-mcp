@@ -259,44 +259,36 @@ export class SingleSessionHTTPServer {
    * - Path traversal
    * - DoS via oversized IDs
    *
-   * Accepts multiple formats for MCP client compatibility:
-   * 1. UUIDv4 (internal format): xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-   * 2. Multi-tenant format: instance-{userId}-{hash}-{uuid}
-   * 3. Generic safe format: any alphanumeric string with hyphens/underscores (20-100 chars)
+   * Accepts any non-empty string with safe characters for MCP client compatibility.
+   * Security protections:
+   * - Character whitelist: Only alphanumeric, hyphens, and underscores allowed
+   * - Maximum length: 100 characters (DoS protection)
+   * - Rejects empty strings
    *
    * @param sessionId - Session identifier from MCP client
    * @returns true if valid, false otherwise
    * @since 2.19.0 - Enhanced with security validation
-   * @since 2.19.1 - Relaxed validation for MCP proxy compatibility
+   * @since 2.19.1 - Relaxed to accept any non-empty safe string
    */
   private isValidSessionId(sessionId: string): boolean {
     if (!sessionId || typeof sessionId !== 'string') {
       return false;
     }
 
-    // Length validation (20-100 chars) - DoS protection
-    if (sessionId.length < 20 || sessionId.length > 100) {
-      return false;
-    }
-
     // Character whitelist (alphanumeric + hyphens + underscores) - Injection protection
-    // Allow underscores for compatibility with some MCP clients (e.g., mcp-remote)
+    // Prevents SQL/NoSQL injection and path traversal attacks
     if (!/^[a-zA-Z0-9_-]+$/.test(sessionId)) {
       return false;
     }
 
-    // Format validation - Support known formats or any safe alphanumeric format
-    // UUIDv4: 8-4-4-4-12 hex digits with hyphens
-    const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    // Maximum length validation for DoS protection
+    // Prevents memory exhaustion from oversized session IDs
+    if (sessionId.length > 100) {
+      return false;
+    }
 
-    // Multi-tenant: instance-{userId}-{hash}-{uuid}
-    // Must start with 'instance-' and have at least 4 parts
-    const multiTenantPattern = /^instance-[a-zA-Z0-9_]+-[a-zA-Z0-9_]+-[a-zA-Z0-9_-]+$/;
-
-    // Accept UUIDv4, multi-tenant, OR any safe alphanumeric format (for flexibility)
-    return uuidV4Pattern.test(sessionId) ||
-           multiTenantPattern.test(sessionId) ||
-           /^[a-zA-Z0-9_-]{20,100}$/.test(sessionId); // Generic safe format
+    // Accept any non-empty string that passes the security checks above
+    return true;
   }
   
   /**
