@@ -192,16 +192,32 @@ describe('Session Management API (Phase 2 - REQ-5)', () => {
 
     it('should return false for invalid session ID format', () => {
       const invalidSessionIds = [
-        'short',                      // Too short (5 chars)
-        'a'.repeat(101),              // Too long (101 chars)
-        "'; DROP TABLE sessions--",  // SQL injection attempt (invalid characters)
-        '../../../etc/passwd',        // Path traversal attempt (invalid characters)
-        'only-nineteen-chars'         // Too short (19 chars, need 20+)
+        '',                           // Empty string
+        'a'.repeat(101),              // Too long (101 chars, exceeds max)
+        "'; DROP TABLE sessions--",  // SQL injection attempt (invalid characters: ', ;, space)
+        '../../../etc/passwd',        // Path traversal attempt (invalid characters: ., /)
+        'has spaces here',            // Invalid character (space)
+        'special@chars#here'          // Invalid characters (@, #)
       ];
 
       invalidSessionIds.forEach(sessionId => {
         const result = engine.restoreSession(sessionId, testContext);
         expect(result).toBe(false);
+      });
+    });
+
+    it('should accept short session IDs (relaxed for MCP proxy compatibility)', () => {
+      const validShortIds = [
+        'short',                      // 5 chars - now valid
+        'a',                          // 1 char - now valid
+        'only-nineteen-chars',        // 19 chars - now valid
+        '12345'                       // 5 digit ID - now valid
+      ];
+
+      validShortIds.forEach(sessionId => {
+        const result = engine.restoreSession(sessionId, testContext);
+        expect(result).toBe(true);
+        expect(engine.getActiveSessions()).toContain(sessionId);
       });
     });
 
