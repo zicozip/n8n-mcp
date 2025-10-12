@@ -25,7 +25,7 @@ import {
   STANDARD_PROTOCOL_VERSION
 } from './utils/protocol-version';
 import { InstanceContext, validateInstanceContext } from './types/instance-context';
-import { SessionRestoreHook, SessionState } from './types/session-restoration';
+import { SessionRestoreHook, SessionState, SessionLifecycleEvents } from './types/session-restoration';
 
 dotenv.config();
 
@@ -90,10 +90,20 @@ export class SingleSessionHTTPServer {
   private onSessionNotFound?: SessionRestoreHook;
   private sessionRestorationTimeout: number;
 
+  // Session lifecycle events (Phase 3 - v2.19.0)
+  private sessionEvents?: SessionLifecycleEvents;
+
+  // Retry policy (Phase 4 - v2.19.0)
+  private sessionRestorationRetries: number;
+  private sessionRestorationRetryDelay: number;
+
   constructor(options: {
     sessionTimeout?: number;
     onSessionNotFound?: SessionRestoreHook;
     sessionRestorationTimeout?: number;
+    sessionEvents?: SessionLifecycleEvents;
+    sessionRestorationRetries?: number;
+    sessionRestorationRetryDelay?: number;
   } = {}) {
     // Validate environment on construction
     this.validateEnvironment();
@@ -101,6 +111,13 @@ export class SingleSessionHTTPServer {
     // Session restoration configuration
     this.onSessionNotFound = options.onSessionNotFound;
     this.sessionRestorationTimeout = options.sessionRestorationTimeout || 5000; // 5 seconds default
+
+    // Lifecycle events configuration
+    this.sessionEvents = options.sessionEvents;
+
+    // Retry policy configuration
+    this.sessionRestorationRetries = options.sessionRestorationRetries ?? 0; // Default: no retries
+    this.sessionRestorationRetryDelay = options.sessionRestorationRetryDelay || 100; // Default: 100ms
 
     // Override session timeout if provided
     if (options.sessionTimeout) {
@@ -177,6 +194,15 @@ export class SingleSessionHTTPServer {
 
     // Remove expired sessions
     for (const sessionId of expiredSessions) {
+      // Phase 3: Emit onSessionExpired event BEFORE removal (REQ-4)
+      // Fire-and-forget: don't await or block cleanup
+      this.emitEvent('onSessionExpired', sessionId).catch(err => {
+        logger.error('Failed to emit onSessionExpired event (non-blocking)', {
+          sessionId,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
+
       this.removeSession(sessionId, 'expired');
     }
 
@@ -313,6 +339,16 @@ export class SingleSessionHTTPServer {
   private updateSessionAccess(sessionId: string): void {
     if (this.sessionMetadata[sessionId]) {
       this.sessionMetadata[sessionId].lastAccess = new Date();
+
+      // Phase 3: Emit onSessionAccessed event (REQ-4)
+      // Fire-and-forget: don't await or block request processing
+      // IMPORTANT: This fires on EVERY request - implement throttling in your handler!
+      this.emitEvent('onSessionAccessed', sessionId).catch(err => {
+        logger.error('Failed to emit onSessionAccessed event (non-blocking)', {
+          sessionId,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
     }
   }
 
@@ -380,6 +416,133 @@ export class SingleSessionHTTPServer {
         reject(error);
       }, ms);
     });
+  }
+
+  /**
+   * Emit a session lifecycle event (Phase 3 - REQ-4)
+   * Errors in event handlers are logged but don't break session operations
+   *
+   * @param eventName - The event to emit
+   * @param args - Arguments to pass to the event handler
+   * @since 2.19.0
+   */
+  private async emitEvent(
+    eventName: keyof SessionLifecycleEvents,
+    ...args: [string, InstanceContext?]
+  ): Promise<void> {
+    const handler = this.sessionEvents?.[eventName] as (((...args: any[]) => void | Promise<void>) | undefined);
+    if (!handler) return;
+
+    try {
+      // Support both sync and async handlers
+      await Promise.resolve(handler(...args));
+    } catch (error) {
+      logger.error(`Session event handler failed: ${eventName}`, {
+        error: error instanceof Error ? error.message : String(error),
+        sessionId: args[0] // First arg is always sessionId
+      });
+      // DON'T THROW - event failures shouldn't break session operations
+    }
+  }
+
+  /**
+   * Restore session with retry policy (Phase 4 - REQ-7)
+   *
+   * Attempts to restore a session using the onSessionNotFound hook,
+   * with configurable retry logic for transient failures.
+   *
+   * Timeout applies to ALL attempts combined (not per attempt).
+   * Timeout errors are never retried.
+   *
+   * @param sessionId - Session ID to restore
+   * @returns Restored instance context or null
+   * @throws TimeoutError if overall timeout exceeded
+   * @throws Error from hook if all retry attempts failed
+   * @since 2.19.0
+   */
+  private async restoreSessionWithRetry(sessionId: string): Promise<InstanceContext | null> {
+    if (!this.onSessionNotFound) {
+      throw new Error('onSessionNotFound hook not configured');
+    }
+
+    const maxRetries = this.sessionRestorationRetries;
+    const retryDelay = this.sessionRestorationRetryDelay;
+    const overallTimeout = this.sessionRestorationTimeout;
+    const startTime = Date.now();
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Calculate remaining time for this attempt
+        const remainingTime = overallTimeout - (Date.now() - startTime);
+
+        if (remainingTime <= 0) {
+          const error = new Error(`Session restoration timed out after ${overallTimeout}ms`);
+          error.name = 'TimeoutError';
+          throw error;
+        }
+
+        // Log retry attempt (except first attempt)
+        if (attempt > 0) {
+          logger.debug('Retrying session restoration', {
+            sessionId,
+            attempt: attempt,
+            maxRetries: maxRetries,
+            remainingTime: remainingTime + 'ms'
+          });
+        }
+
+        // Call hook with remaining time as timeout
+        const context = await Promise.race([
+          this.onSessionNotFound(sessionId),
+          this.timeout(remainingTime)
+        ]);
+
+        // Success!
+        if (attempt > 0) {
+          logger.info('Session restoration succeeded after retry', {
+            sessionId,
+            attempts: attempt + 1
+          });
+        }
+
+        return context;
+
+      } catch (error) {
+        // Don't retry timeout errors (already took too long)
+        if (error instanceof Error && error.name === 'TimeoutError') {
+          logger.error('Session restoration timeout (no retry)', {
+            sessionId,
+            timeout: overallTimeout
+          });
+          throw error;
+        }
+
+        // Last attempt - don't delay, just throw
+        if (attempt === maxRetries) {
+          logger.error('Session restoration failed after all retries', {
+            sessionId,
+            attempts: attempt + 1,
+            error: error instanceof Error ? error.message : String(error)
+          });
+          throw error;
+        }
+
+        // Log retry-eligible failure
+        logger.warn('Session restoration failed, will retry', {
+          sessionId,
+          attempt: attempt + 1,
+          maxRetries: maxRetries,
+          error: error instanceof Error ? error.message : String(error),
+          nextRetryIn: retryDelay + 'ms'
+        });
+
+        // Delay before next attempt
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
+
+    // Should never reach here, but TypeScript needs it
+    throw new Error('Unexpected state in restoreSessionWithRetry');
   }
 
   /**
@@ -480,6 +643,15 @@ export class SingleSessionHTTPServer {
       sessionId: id,
       hasInstanceContext: !!instanceContext,
       instanceId: instanceContext?.instanceId
+    });
+
+    // Phase 3: Emit onSessionCreated event (REQ-4)
+    // Fire-and-forget: don't await or block session creation
+    this.emitEvent('onSessionCreated', id, instanceContext).catch(err => {
+      logger.error('Failed to emit onSessionCreated event (non-blocking)', {
+        sessionId: id,
+        error: err instanceof Error ? err.message : String(err)
+      });
     });
 
     return id;
@@ -795,11 +967,9 @@ export class SingleSessionHTTPServer {
               logger.info('Attempting session restoration', { sessionId });
 
               try {
-                // Call restoration hook with timeout
-                const restoredContext = await Promise.race([
-                  this.onSessionNotFound(sessionId),
-                  this.timeout(this.sessionRestorationTimeout)
-                ]);
+                // REQ-7: Call restoration with retry policy (Phase 4)
+                // restoreSessionWithRetry handles timeout and retries internally
+                const restoredContext = await this.restoreSessionWithRetry(sessionId);
 
                 // Handle both null and undefined defensively
                 // Both indicate the hook declined to restore the session
@@ -858,6 +1028,15 @@ export class SingleSessionHTTPServer {
                   });
                   return;
                 }
+
+                // Phase 3: Emit onSessionRestored event (REQ-4)
+                // Fire-and-forget: don't await or block request processing
+                this.emitEvent('onSessionRestored', sessionId, restoredContext).catch(err => {
+                  logger.error('Failed to emit onSessionRestored event (non-blocking)', {
+                    sessionId,
+                    error: err instanceof Error ? err.message : String(err)
+                  });
+                });
 
                 // Use the restored session
                 transport = this.transports[sessionId];
@@ -1935,6 +2114,15 @@ export class SingleSessionHTTPServer {
           });
         });
       }
+
+      // Phase 3: Emit onSessionDeleted event BEFORE removal (REQ-4)
+      // Fire-and-forget: don't await or block deletion
+      this.emitEvent('onSessionDeleted', sessionId).catch(err => {
+        logger.error('Failed to emit onSessionDeleted event (non-blocking)', {
+          sessionId,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
 
       // Remove session data immediately (synchronous)
       delete this.transports[sessionId];

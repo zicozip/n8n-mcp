@@ -67,6 +67,38 @@ export interface SessionRestorationOptions {
    * - Hook returns invalid context → 400 Bad Request (invalid context)
    */
   onSessionNotFound?: SessionRestoreHook;
+
+  /**
+   * Number of retry attempts for failed session restoration
+   *
+   * When the restoration hook throws an error, the system will retry
+   * up to this many times with a delay between attempts.
+   *
+   * Timeout errors are NOT retried (already took too long).
+   *
+   * Note: The overall timeout (sessionRestorationTimeout) applies to
+   * ALL retry attempts combined, not per attempt.
+   *
+   * @default 0 (no retries)
+   * @example
+   * ```typescript
+   * const engine = new N8NMCPEngine({
+   *   onSessionNotFound: async (id) => db.loadSession(id),
+   *   sessionRestorationRetries: 2, // Retry up to 2 times
+   *   sessionRestorationRetryDelay: 100 // 100ms between retries
+   * });
+   * ```
+   * @since 2.19.0
+   */
+  sessionRestorationRetries?: number;
+
+  /**
+   * Delay between retry attempts in milliseconds
+   *
+   * @default 100 (100 milliseconds)
+   * @since 2.19.0
+   */
+  sessionRestorationRetryDelay?: number;
 }
 
 /**
@@ -108,4 +140,103 @@ export interface SessionState {
    * Optional metadata for application-specific use
    */
   metadata?: Record<string, any>;
+}
+
+/**
+ * Session lifecycle event handlers
+ *
+ * These callbacks are called at various points in the session lifecycle.
+ * All callbacks are optional and should not throw errors.
+ *
+ * ⚠️ Performance Note: onSessionAccessed is called on EVERY request.
+ * Consider implementing throttling if you need database updates.
+ *
+ * @example
+ * ```typescript
+ * import throttle from 'lodash.throttle';
+ *
+ * const engine = new N8NMCPEngine({
+ *   sessionEvents: {
+ *     onSessionCreated: async (sessionId, context) => {
+ *       await db.saveSession(sessionId, context);
+ *     },
+ *     onSessionAccessed: throttle(async (sessionId) => {
+ *       await db.updateLastAccess(sessionId);
+ *     }, 60000) // Max once per minute per session
+ *   }
+ * });
+ * ```
+ *
+ * @since 2.19.0
+ */
+export interface SessionLifecycleEvents {
+  /**
+   * Called when a new session is created (not restored)
+   *
+   * Use cases:
+   * - Save session to database for persistence
+   * - Track session creation metrics
+   * - Initialize session-specific resources
+   *
+   * @param sessionId - The newly created session ID
+   * @param instanceContext - The instance context for this session
+   */
+  onSessionCreated?: (sessionId: string, instanceContext: InstanceContext) => void | Promise<void>;
+
+  /**
+   * Called when a session is restored from external storage
+   *
+   * Use cases:
+   * - Track session restoration metrics
+   * - Log successful recovery after restart
+   * - Update database restoration timestamp
+   *
+   * @param sessionId - The restored session ID
+   * @param instanceContext - The restored instance context
+   */
+  onSessionRestored?: (sessionId: string, instanceContext: InstanceContext) => void | Promise<void>;
+
+  /**
+   * Called on EVERY request that uses an existing session
+   *
+   * ⚠️ HIGH FREQUENCY: This event fires for every MCP tool call.
+   * For a busy session, this could be 100+ calls per minute.
+   *
+   * Recommended: Implement throttling if you need database updates
+   *
+   * Use cases:
+   * - Update session last_access timestamp (throttled)
+   * - Track session activity metrics
+   * - Extend session TTL in database
+   *
+   * @param sessionId - The session ID that was accessed
+   */
+  onSessionAccessed?: (sessionId: string) => void | Promise<void>;
+
+  /**
+   * Called when a session expires due to inactivity
+   *
+   * Called during cleanup cycle (every 5 minutes) BEFORE session removal.
+   * This allows you to perform cleanup operations before the session is gone.
+   *
+   * Use cases:
+   * - Delete session from database
+   * - Log session expiration metrics
+   * - Cleanup session-specific resources
+   *
+   * @param sessionId - The session ID that expired
+   */
+  onSessionExpired?: (sessionId: string) => void | Promise<void>;
+
+  /**
+   * Called when a session is manually deleted
+   *
+   * Use cases:
+   * - Delete session from database
+   * - Cascade delete related data
+   * - Log manual session termination
+   *
+   * @param sessionId - The session ID that was deleted
+   */
+  onSessionDeleted?: (sessionId: string) => void | Promise<void>;
 }

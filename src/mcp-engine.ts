@@ -46,6 +46,51 @@ export interface EngineOptions {
    * @since 2.19.0
    */
   sessionRestorationTimeout?: number;
+
+  /**
+   * Session lifecycle event handlers (Phase 3 - REQ-4)
+   *
+   * Optional callbacks for session lifecycle events:
+   * - onSessionCreated: Called when a new session is created
+   * - onSessionRestored: Called when a session is restored from storage
+   * - onSessionAccessed: Called on EVERY request (consider throttling!)
+   * - onSessionExpired: Called when a session expires
+   * - onSessionDeleted: Called when a session is manually deleted
+   *
+   * All handlers are fire-and-forget (non-blocking).
+   * Errors are logged but don't affect session operations.
+   *
+   * @since 2.19.0
+   */
+  sessionEvents?: {
+    onSessionCreated?: (sessionId: string, instanceContext: InstanceContext) => void | Promise<void>;
+    onSessionRestored?: (sessionId: string, instanceContext: InstanceContext) => void | Promise<void>;
+    onSessionAccessed?: (sessionId: string) => void | Promise<void>;
+    onSessionExpired?: (sessionId: string) => void | Promise<void>;
+    onSessionDeleted?: (sessionId: string) => void | Promise<void>;
+  };
+
+  /**
+   * Number of retry attempts for failed session restoration (Phase 4 - REQ-7)
+   *
+   * When the restoration hook throws an error, the system will retry
+   * up to this many times with a delay between attempts.
+   *
+   * Timeout errors are NOT retried (already took too long).
+   * The overall timeout applies to ALL retry attempts combined.
+   *
+   * @default 0 (no retries, opt-in)
+   * @since 2.19.0
+   */
+  sessionRestorationRetries?: number;
+
+  /**
+   * Delay between retry attempts in milliseconds (Phase 4 - REQ-7)
+   *
+   * @default 100 (100 milliseconds)
+   * @since 2.19.0
+   */
+  sessionRestorationRetryDelay?: number;
 }
 
 export class N8NMCPEngine {

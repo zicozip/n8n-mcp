@@ -5,6 +5,140 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.0] - 2025-10-12
+
+### ✨ New Features
+
+**Session Lifecycle Events (Phase 3 - REQ-4)**
+
+Adds optional callback-based event system for monitoring session lifecycle, enabling integration with logging, monitoring, and analytics systems.
+
+#### Added
+
+- **Session Lifecycle Event Handlers**
+  - `onSessionCreated`: Called when new session is created (not restored)
+  - `onSessionRestored`: Called when session is restored from external storage
+  - `onSessionAccessed`: Called on every request using existing session
+  - `onSessionExpired`: Called when session expires due to inactivity
+  - `onSessionDeleted`: Called when session is manually deleted
+  - **Implementation**: `src/types/session-restoration.ts` (SessionLifecycleEvents interface)
+  - **Integration**: `src/http-server-single-session.ts` (event emission at 5 lifecycle points)
+  - **API**: `src/mcp-engine.ts` (sessionEvents option)
+
+- **Event Characteristics**
+  - **Fire-and-forget**: Non-blocking, errors logged but don't affect operations
+  - **Async Support**: Handlers can be sync or async
+  - **Graceful Degradation**: Handler failures don't break session operations
+  - **Metadata Support**: Events receive session ID and instance context
+
+#### Use Cases
+
+- **Logging & Monitoring**: Track session lifecycle for debugging and analytics
+- **Database Persistence**: Auto-save sessions on creation/restoration
+- **Metrics**: Track session activity and expiration patterns
+- **Cleanup**: Cascade delete related data when sessions expire
+- **Throttling**: Update lastAccess timestamps (with throttling for performance)
+
+#### Example Usage
+
+```typescript
+import { N8NMCPEngine } from 'n8n-mcp';
+import throttle from 'lodash.throttle';
+
+const engine = new N8NMCPEngine({
+  sessionEvents: {
+    onSessionCreated: async (sessionId, context) => {
+      await db.saveSession(sessionId, context);
+      analytics.track('session_created', { sessionId });
+    },
+    onSessionRestored: async (sessionId, context) => {
+      analytics.track('session_restored', { sessionId });
+    },
+    // Throttle high-frequency event to prevent DB overload
+    onSessionAccessed: throttle(async (sessionId) => {
+      await db.updateLastAccess(sessionId);
+    }, 60000), // Max once per minute
+    onSessionExpired: async (sessionId) => {
+      await db.deleteSession(sessionId);
+      await cleanup.removeRelatedData(sessionId);
+    },
+    onSessionDeleted: async (sessionId) => {
+      await db.deleteSession(sessionId);
+    }
+  }
+});
+```
+
+---
+
+**Session Restoration Retry Policy (Phase 4 - REQ-7)**
+
+Adds configurable retry logic for transient failures during session restoration, improving reliability for database-backed persistence.
+
+#### Added
+
+- **Retry Configuration Options**
+  - `sessionRestorationRetries`: Number of retry attempts (default: 0, opt-in)
+  - `sessionRestorationRetryDelay`: Delay between attempts in milliseconds (default: 100ms)
+  - **Implementation**: `src/http-server-single-session.ts` (restoreSessionWithRetry method)
+  - **API**: `src/mcp-engine.ts` (retry options)
+
+- **Retry Behavior**
+  - **Overall Timeout**: Applies to ALL attempts combined, not per attempt
+  - **No Retry for Timeouts**: Timeout errors are never retried (already took too long)
+  - **Exponential Backoff**: Optional via custom delay configuration
+  - **Error Logging**: Logs each retry attempt with context
+
+#### Use Cases
+
+- **Database Retries**: Handle transient connection failures
+- **Network Resilience**: Retry on temporary network errors
+- **Rate Limit Handling**: Backoff and retry when hitting rate limits
+- **High Availability**: Improve reliability of external storage
+
+#### Example Usage
+
+```typescript
+const engine = new N8NMCPEngine({
+  onSessionNotFound: async (sessionId) => {
+    // May fail transiently due to database load
+    return await database.loadSession(sessionId);
+  },
+  sessionRestorationRetries: 3,        // Retry up to 3 times
+  sessionRestorationRetryDelay: 100,   // 100ms between retries
+  sessionRestorationTimeout: 5000      // 5s total for all attempts
+});
+```
+
+#### Error Handling
+
+- **Retryable Errors**: Database connection failures, network errors, rate limits
+- **Non-Retryable**: Timeout errors (already exceeded time limit)
+- **Logging**: Each retry logged with attempt number and error details
+
+#### Testing
+
+- **Unit Tests**: 34 tests passing (14 lifecycle events + 20 retry policy)
+  - `tests/unit/session-lifecycle-events.test.ts` (14 tests)
+  - `tests/unit/session-restoration-retry.test.ts` (20 tests)
+- **Integration Tests**: 14 tests covering combined behavior
+  - `tests/integration/session-lifecycle-retry.test.ts`
+- **Coverage**: Event emission, retry logic, timeout handling, backward compatibility
+
+#### Documentation
+
+- **Types**: Full JSDoc documentation in type definitions
+- **Examples**: Practical examples in CHANGELOG and type comments
+- **Migration**: Backward compatible - no breaking changes
+
+#### Impact
+
+- **Reliability**: Improved session restoration success rate
+- **Observability**: Complete visibility into session lifecycle
+- **Integration**: Easy integration with existing monitoring systems
+- **Performance**: Non-blocking event handlers prevent slowdowns
+- **Flexibility**: Opt-in retry policy with sensible defaults
+
 ## [2.18.8] - 2025-10-11
 
 ### 🐛 Bug Fixes
