@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.2] - 2025-10-13
+
+### 🐛 Critical Bug Fixes
+
+**Session Cleanup Stack Overflow (P0 - CRITICAL)**
+
+Fixes critical stack overflow bug that caused service to become unresponsive after container restart.
+
+#### Fixed
+
+- **Stack Overflow During Session Cleanup**
+  - **Issue**: Missing `await` in cleanup loop caused concurrent async operations and recursive cleanup cascade
+  - **Impact**: Stack overflow errors during container restart, all subsequent tool calls hang indefinitely
+  - **Severity**: CRITICAL - makes service unusable after restart for all users with session persistence
+  - **Root Causes**:
+    1. `cleanupExpiredSessions()` line 206 called `removeSession()` without `await`, causing overlapping cleanup attempts
+    2. Transport event handlers (`onclose`, `onerror`) triggered recursive cleanup during shutdown
+    3. No recursion guard to prevent concurrent cleanup of same session
+  - **Fixes Applied**:
+    1. Added `cleanupInProgress: Set<string>` recursion guard to prevent concurrent cleanup
+    2. Added `isShuttingDown` flag to prevent recursive event handlers during shutdown
+    3. Implemented `safeCloseTransport()` helper with timeout protection (3 seconds)
+    4. Updated `removeSession()` to check recursion guard and use safe transport closing
+    5. Fixed `cleanupExpiredSessions()` to properly `await` with error isolation
+    6. Updated all transport event handlers to check shutdown flag before cleanup
+    7. Enhanced `shutdown()` method to set flag and use proper sequential cleanup
+  - **Location**: `src/http-server-single-session.ts`
+  - **Verification**: All 77 session lifecycle tests passing
+
+#### Technical Details
+
+**Recursion Chain (Before Fix):**
+```
+cleanupExpiredSessions()
+  └─> removeSession(session, 'expired') [NOT AWAITED]
+      └─> transport.close()
+          └─> transport.onclose handler
+              └─> removeSession(session, 'transport_closed')
+                  └─> transport.close() [AGAIN!]
+                      └─> Stack overflow!
+```
+
+**Protection Added:**
+- **Recursion Guard**: Prevents same session from being cleaned up concurrently
+- **Shutdown Flag**: Disables event handlers during shutdown to break recursion chain
+- **Safe Transport Close**: Removes event handlers before closing, uses timeout protection
+- **Error Isolation**: Each session cleanup failure doesn't affect others
+- **Sequential Cleanup**: Properly awaits each operation to prevent race conditions
+
+#### Impact
+
+- **Reliability**: Service survives container restarts without stack overflow
+- **Stability**: No more hanging requests after restart
+- **Resilience**: Individual session cleanup failures don't cascade
+- **Backward Compatible**: No breaking changes, all existing tests pass
+
 ## [2.19.1] - 2025-10-12
 
 ### 🐛 Bug Fixes

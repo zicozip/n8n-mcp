@@ -86,6 +86,12 @@ export class SingleSessionHTTPServer {
   private authToken: string | null = null;
   private cleanupTimer: NodeJS.Timeout | null = null;
 
+  // Recursion guard to prevent concurrent cleanup of same session
+  private cleanupInProgress = new Set<string>();
+
+  // Shutdown flag to prevent recursive event handlers during cleanup
+  private isShuttingDown = false;
+
   // Session restoration options (Phase 1 - v2.19.0)
   private onSessionNotFound?: SessionRestoreHook;
   private sessionRestorationTimeout: number;
@@ -151,8 +157,9 @@ export class SingleSessionHTTPServer {
   
   /**
    * Clean up expired sessions based on last access time
+   * CRITICAL: Now async to properly await cleanup operations
    */
-  private cleanupExpiredSessions(): void {
+  private async cleanupExpiredSessions(): Promise<void> {
     const now = Date.now();
     const expiredSessions: string[] = [];
 
@@ -177,9 +184,15 @@ export class SingleSessionHTTPServer {
     for (const sessionId in this.transports) {
       if (!this.sessionMetadata[sessionId]) {
         logger.warn('Orphaned transport detected, cleaning up', { sessionId });
-        this.removeSession(sessionId, 'orphaned_transport').catch(err => {
-          logger.error('Error cleaning orphaned transport', { sessionId, error: err });
-        });
+        try {
+          // Await cleanup to prevent concurrent operations
+          await this.removeSession(sessionId, 'orphaned_transport');
+        } catch (err) {
+          logger.error('Error cleaning orphaned transport', {
+            sessionId,
+            error: err instanceof Error ? err.message : String(err)
+          });
+        }
       }
     }
 
@@ -192,47 +205,115 @@ export class SingleSessionHTTPServer {
       }
     }
 
-    // Remove expired sessions
-    for (const sessionId of expiredSessions) {
-      // Phase 3: Emit onSessionExpired event BEFORE removal (REQ-4)
-      // Fire-and-forget: don't await or block cleanup
-      this.emitEvent('onSessionExpired', sessionId).catch(err => {
-        logger.error('Failed to emit onSessionExpired event (non-blocking)', {
-          sessionId,
-          error: err instanceof Error ? err.message : String(err)
-        });
-      });
+    // Remove expired sessions SEQUENTIALLY with error isolation
+    // CRITICAL: Must await each removeSession call to prevent concurrent cleanup
+    // and stack overflow from recursive cleanup attempts
+    let successCount = 0;
+    let failureCount = 0;
 
-      this.removeSession(sessionId, 'expired');
+    for (const sessionId of expiredSessions) {
+      try {
+        // Phase 3: Emit onSessionExpired event BEFORE removal (REQ-4)
+        // Await the event to ensure it completes before cleanup
+        await this.emitEvent('onSessionExpired', sessionId);
+
+        // CRITICAL: MUST await to prevent concurrent cleanup
+        await this.removeSession(sessionId, 'expired');
+        successCount++;
+      } catch (error) {
+        // Isolate error - don't let one session failure stop cleanup of others
+        failureCount++;
+        logger.error('Failed to cleanup expired session (isolated)', {
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        // Continue with next session - cleanup must be resilient
+      }
     }
 
     if (expiredSessions.length > 0) {
-      logger.info('Cleaned up expired sessions', {
-        removed: expiredSessions.length,
+      logger.info('Expired session cleanup completed', {
+        total: expiredSessions.length,
+        successful: successCount,
+        failed: failureCount,
         remaining: this.getActiveSessionCount()
       });
     }
   }
   
   /**
+   * Safely close a transport without triggering recursive cleanup
+   * Removes event handlers and uses timeout to prevent hanging
+   */
+  private async safeCloseTransport(sessionId: string): Promise<void> {
+    const transport = this.transports[sessionId];
+    if (!transport) return;
+
+    try {
+      // Remove event handlers to prevent recursion during cleanup
+      // This is critical to break the circular call chain
+      transport.onclose = undefined;
+      transport.onerror = undefined;
+
+      // Close with timeout protection (3 seconds)
+      const closePromise = transport.close();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Transport close timeout')), 3000)
+      );
+
+      await Promise.race([closePromise, timeoutPromise]);
+      logger.debug('Transport closed safely', { sessionId });
+    } catch (error) {
+      // Log but don't throw - cleanup must continue even if close fails
+      logger.warn('Transport close error (non-fatal)', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
    * Remove a session and clean up resources
+   * Protected against concurrent cleanup attempts via recursion guard
    */
   private async removeSession(sessionId: string, reason: string): Promise<void> {
+    // CRITICAL: Guard against concurrent cleanup of the same session
+    // This prevents stack overflow from recursive cleanup attempts
+    if (this.cleanupInProgress.has(sessionId)) {
+      logger.debug('Cleanup already in progress, skipping duplicate', {
+        sessionId,
+        reason
+      });
+      return;
+    }
+
+    // Mark session as being cleaned up
+    this.cleanupInProgress.add(sessionId);
+
     try {
-      // Close transport if exists
+      // Close transport safely if exists (with timeout and no recursion)
       if (this.transports[sessionId]) {
-        await this.transports[sessionId].close();
+        await this.safeCloseTransport(sessionId);
         delete this.transports[sessionId];
       }
-      
+
       // Remove server, metadata, and context
       delete this.servers[sessionId];
       delete this.sessionMetadata[sessionId];
       delete this.sessionContexts[sessionId];
-      
-      logger.info('Session removed', { sessionId, reason });
+
+      logger.info('Session removed successfully', { sessionId, reason });
     } catch (error) {
-      logger.warn('Error removing session', { sessionId, reason, error });
+      logger.warn('Error during session removal', {
+        sessionId,
+        reason,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    } finally {
+      // CRITICAL: Always remove from cleanup set, even on error
+      // This prevents sessions from being permanently stuck in "cleaning" state
+      this.cleanupInProgress.delete(sessionId);
     }
   }
   
@@ -601,6 +682,14 @@ export class SingleSessionHTTPServer {
     // Set up cleanup handlers
     transport.onclose = () => {
       if (transport.sessionId) {
+        // Prevent recursive cleanup during shutdown
+        if (this.isShuttingDown) {
+          logger.debug('Ignoring transport close event during shutdown', {
+            sessionId: transport.sessionId
+          });
+          return;
+        }
+
         logger.info('Transport closed during createSession, cleaning up', {
           sessionId: transport.sessionId
         });
@@ -615,6 +704,14 @@ export class SingleSessionHTTPServer {
 
     transport.onerror = (error: Error) => {
       if (transport.sessionId) {
+        // Prevent recursive cleanup during shutdown
+        if (this.isShuttingDown) {
+          logger.debug('Ignoring transport error event during shutdown', {
+            sessionId: transport.sessionId
+          });
+          return;
+        }
+
         logger.error('Transport error during createSession', {
           sessionId: transport.sessionId,
           error: error.message
@@ -922,16 +1019,33 @@ export class SingleSessionHTTPServer {
           transport.onclose = () => {
             const sid = transport.sessionId;
             if (sid) {
+              // Prevent recursive cleanup during shutdown
+              if (this.isShuttingDown) {
+                logger.debug('Ignoring transport close event during shutdown', { sessionId: sid });
+                return;
+              }
+
               logger.info('handleRequest: Transport closed, cleaning up', { sessionId: sid });
-              this.removeSession(sid, 'transport_closed');
+              this.removeSession(sid, 'transport_closed').catch(err => {
+                logger.error('Error during transport close cleanup', {
+                  sessionId: sid,
+                  error: err instanceof Error ? err.message : String(err)
+                });
+              });
             }
           };
-          
+
           // Handle transport errors to prevent connection drops
           transport.onerror = (error: Error) => {
             const sid = transport.sessionId;
-            logger.error('Transport error', { sessionId: sid, error: error.message });
             if (sid) {
+              // Prevent recursive cleanup during shutdown
+              if (this.isShuttingDown) {
+                logger.debug('Ignoring transport error event during shutdown', { sessionId: sid });
+                return;
+              }
+
+              logger.error('Transport error', { sessionId: sid, error: error.message });
               this.removeSession(sid, 'transport_error').catch(err => {
                 logger.error('Error during transport error cleanup', { error: err });
               });
@@ -1873,28 +1987,50 @@ export class SingleSessionHTTPServer {
   
   /**
    * Graceful shutdown
+   * CRITICAL: Sets isShuttingDown flag to prevent recursive cleanup
    */
   async shutdown(): Promise<void> {
     logger.info('Shutting down Single-Session HTTP server...');
-    
+
+    // CRITICAL: Set shutdown flag FIRST to prevent recursive event handlers
+    // This stops transport.onclose/onerror from triggering removeSession during cleanup
+    this.isShuttingDown = true;
+    logger.info('Shutdown flag set - recursive cleanup prevention enabled');
+
     // Stop session cleanup timer
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
       logger.info('Session cleanup timer stopped');
     }
-    
-    // Close all active transports (SDK pattern)
+
+    // Close all active transports (SDK pattern) with error isolation
     const sessionIds = Object.keys(this.transports);
     logger.info(`Closing ${sessionIds.length} active sessions`);
-    
+
+    let successCount = 0;
+    let failureCount = 0;
+
     for (const sessionId of sessionIds) {
       try {
         logger.info(`Closing transport for session ${sessionId}`);
         await this.removeSession(sessionId, 'server_shutdown');
+        successCount++;
       } catch (error) {
-        logger.warn(`Error closing transport for session ${sessionId}:`, error);
+        failureCount++;
+        logger.warn(`Error closing transport for session ${sessionId}:`, {
+          error: error instanceof Error ? error.message : String(error)
+        });
+        // Continue with next session - shutdown must complete
       }
+    }
+
+    if (sessionIds.length > 0) {
+      logger.info('Session shutdown completed', {
+        total: sessionIds.length,
+        successful: successCount,
+        failed: failureCount
+      });
     }
     
     // Clean up legacy session (for SSE compatibility)
