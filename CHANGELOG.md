@@ -5,6 +5,82 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.3] - 2025-10-13
+
+### 🐛 Critical Bug Fixes
+
+**Session Restoration Transport Layer (P0 - CRITICAL)**
+
+Fixes critical bug where session restoration successfully restored InstanceContext but failed to reconnect the transport layer, causing all requests on restored sessions to hang indefinitely.
+
+#### Fixed
+
+- **Transport Layer Not Reconnected During Session Restoration**
+  - **Issue**: Session restoration successfully restored InstanceContext (session state) but failed to connect transport layer (HTTP req/res binding), causing requests to hang indefinitely
+  - **Impact**: Zero-downtime deployments broken - users cannot continue work after container restart without restarting their MCP client (Claude Desktop, Cursor, Windsurf)
+  - **Severity**: CRITICAL - session persistence completely non-functional for production use
+  - **Root Cause**:
+    - The `handleRequest()` method's session restoration flow (lines 1119-1197) called `createSession()` which creates a NEW transport separate from the current HTTP request
+    - This separate transport is not linked to the current req/res pair, so responses cannot be sent back through the active HTTP connection
+    - The initialize flow (lines 946-1055) correctly creates transport inline for the current request, but restoration flow did not follow this pattern
+  - **Fix Applied**:
+    - Replace `createSession()` call with inline transport creation that mirrors the initialize flow
+    - Create `StreamableHTTPServerTransport` directly for the current HTTP req/res context
+    - Ensure transport is connected to server BEFORE handling request
+    - This makes restored sessions work identically to fresh sessions
+  - **Location**: `src/http-server-single-session.ts:1163-1244`
+  - **Tests Added**:
+    - Integration tests: `tests/integration/session-persistence.test.ts` (13 tests all passing)
+  - **Verification**: All session persistence integration tests passing
+
+#### Technical Details
+
+**Before Fix (Broken):**
+```typescript
+// Session restoration (WRONG - creates separate transport)
+await this.createSession(restoredContext, sessionId, true);
+transport = this.transports[sessionId]; // Transport NOT linked to current req/res!
+```
+
+**After Fix (Working):**
+```typescript
+// Session restoration (CORRECT - inline transport for current request)
+const server = new N8NDocumentationMCPServer(restoredContext);
+transport = new StreamableHTTPServerTransport({
+  sessionIdGenerator: () => sessionId,
+  onsessioninitialized: (id) => {
+    this.transports[id] = transport; // Store for future requests
+    this.servers[id] = server;
+    // ... metadata storage
+  }
+});
+await server.connect(transport); // Connect BEFORE handling request
+```
+
+**Why This Matters:**
+- The `StreamableHTTPServerTransport` class from MCP SDK links a specific HTTP req/res pair to the MCP server
+- Creating transport in `createSession()` binds it to the wrong req/res (or no req/res at all)
+- Responses sent through the wrong transport never reach the client
+- The initialize flow got this right, but restoration flow did not
+
+**Impact on Zero-Downtime Deployments:**
+- ✅ **After fix**: Container restart → Client reconnects with old session ID → Session restored → Requests work normally
+- ❌ **Before fix**: Container restart → Client reconnects with old session ID → Session restored → Requests hang forever
+
+#### Migration Notes
+
+This is a **patch release** with no breaking changes:
+- No API changes
+- No configuration changes required
+- Existing code continues to work
+- Session restoration now actually works as designed
+
+#### Files Changed
+
+- `src/http-server-single-session.ts`: Fixed session restoration to create transport inline (lines 1163-1244)
+- `package.json`, `package.runtime.json`, `src/mcp-engine.ts`: Version bump to 2.19.3
+- `tests/integration/session-persistence.test.ts`: Existing tests verify restoration works correctly
+
 ## [2.19.2] - 2025-10-13
 
 ### 🐛 Critical Bug Fixes

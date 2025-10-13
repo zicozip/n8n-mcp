@@ -1160,29 +1160,77 @@ export class SingleSessionHTTPServer {
                   return;
                 }
 
-                // REQ-2: Create session (idempotent) and wait for connection
-                logger.info('Session restoration successful, creating session', {
+                // REQ-2: Create transport and server inline for THIS REQUEST (like initialize flow)
+                // CRITICAL FIX: Don't use createSession() as it creates a separate transport
+                // not linked to the current HTTP req/res pair. We MUST create the transport
+                // for the current request context, just like the initialize flow does.
+                logger.info('Session restoration successful, creating transport inline', {
                   sessionId,
                   instanceId: restoredContext.instanceId
                 });
 
-                // CRITICAL: Wait for server.connect() to complete before proceeding
-                // This ensures the transport is fully ready to handle requests
-                await this.createSession(restoredContext, sessionId, true);
+                // Create server and transport for THIS REQUEST
+                const server = new N8NDocumentationMCPServer(restoredContext);
 
-                // Verify session was created
-                if (!this.transports[sessionId]) {
-                  logger.error('Session creation failed after restoration', { sessionId });
-                  res.status(500).json({
-                    jsonrpc: '2.0',
-                    error: {
-                      code: -32603,
-                      message: 'Session creation failed'
-                    },
-                    id: req.body?.id || null
-                  });
-                  return;
-                }
+                transport = new StreamableHTTPServerTransport({
+                  sessionIdGenerator: () => sessionId,
+                  onsessioninitialized: (initializedSessionId: string) => {
+                    // Store both transport and server by session ID when session is initialized
+                    logger.info('Session initialized after restoration', {
+                      sessionId: initializedSessionId
+                    });
+                    this.transports[initializedSessionId] = transport;
+                    this.servers[initializedSessionId] = server;
+
+                    // Store session metadata and context
+                    this.sessionMetadata[initializedSessionId] = {
+                      lastAccess: new Date(),
+                      createdAt: new Date()
+                    };
+                    this.sessionContexts[initializedSessionId] = restoredContext;
+                  }
+                });
+
+                // Set up cleanup handlers (same as initialize flow)
+                transport.onclose = () => {
+                  const sid = transport.sessionId;
+                  if (sid) {
+                    // Prevent recursive cleanup during shutdown
+                    if (this.isShuttingDown) {
+                      logger.debug('Ignoring transport close event during shutdown', { sessionId: sid });
+                      return;
+                    }
+
+                    logger.info('Restored transport closed, cleaning up', { sessionId: sid });
+                    this.removeSession(sid, 'transport_closed').catch(err => {
+                      logger.error('Error during transport close cleanup', {
+                        sessionId: sid,
+                        error: err instanceof Error ? err.message : String(err)
+                      });
+                    });
+                  }
+                };
+
+                // Handle transport errors to prevent connection drops
+                transport.onerror = (error: Error) => {
+                  const sid = transport.sessionId;
+                  if (sid) {
+                    // Prevent recursive cleanup during shutdown
+                    if (this.isShuttingDown) {
+                      logger.debug('Ignoring transport error event during shutdown', { sessionId: sid });
+                      return;
+                    }
+
+                    logger.error('Restored transport error', { sessionId: sid, error: error.message });
+                    this.removeSession(sid, 'transport_error').catch(err => {
+                      logger.error('Error during transport error cleanup', { error: err });
+                    });
+                  }
+                };
+
+                // Connect the server to the transport BEFORE handling the request
+                logger.info('Connecting server to restored session transport');
+                await server.connect(transport);
 
                 // Phase 3: Emit onSessionRestored event (REQ-4)
                 // Fire-and-forget: don't await or block request processing
@@ -1193,9 +1241,7 @@ export class SingleSessionHTTPServer {
                   });
                 });
 
-                // Use the restored session
-                transport = this.transports[sessionId];
-                logger.info('Using restored session transport', { sessionId });
+                logger.info('Restored session transport ready', { sessionId });
 
               } catch (error) {
                 // Handle timeout
