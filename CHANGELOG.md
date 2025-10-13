@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.5] - 2025-10-13
+
+### 🐛 Critical Bug Fixes
+
+**Session Restoration Handshake (P0 - CRITICAL)**
+
+Fixes critical bug in session restoration where synthetic MCP initialization had no HTTP connection to respond through, causing timeouts. Implements warm start pattern that handles the current request immediately.
+
+#### Fixed
+
+- **Synthetic MCP Initialization Failed Due to Missing HTTP Context**
+  - **Issue**: v2.19.4's `initializeMCPServerForSession()` attempted to synthetically initialize restored MCP servers, but had no active HTTP req/res pair to send responses through, causing all restoration attempts to timeout
+  - **Impact**: Session restoration completely broken - zero-downtime deployments non-functional
+  - **Severity**: CRITICAL - v2.19.4 introduced a regression that broke session restoration
+  - **Root Cause**:
+    - `StreamableHTTPServerTransport` requires a live HTTP req/res pair to send responses
+    - Synthetic initialization called `server.request()` but had no transport attached to current request
+    - Transport's `_initialized` flag stayed false because no actual GET/POST went through it
+    - Retrying with backoff didn't help - the transport had nothing to talk to
+  - **Fix Applied**:
+    - **Deleted broken synthetic initialization method** (`initializeMCPServerForSession()`)
+    - **Implemented warm start pattern**:
+      1. Restore session by calling existing `createSession()` with restored context
+      2. Immediately handle current request through new transport: `transport.handleRequest(req, res, req.body)`
+      3. Client receives standard MCP error `-32000` (Server not initialized)
+      4. Client auto-retries with initialize on same connection (standard MCP behavior)
+      5. Session fully restored and client continues normally
+    - **Added idempotency guards** to prevent concurrent restoration from creating duplicate sessions
+    - **Added cleanup on failure** to remove sessions when restoration fails
+    - **Added early return** after handling request to prevent double processing
+  - **Location**: `src/http-server-single-session.ts:1118-1247` (simplified restoration flow)
+  - **Tests Added**: `tests/integration/session-restoration-warmstart.test.ts` (11 comprehensive tests)
+  - **Documentation**: `docs/MULTI_APP_INTEGRATION.md` (warm start behavior explained)
+
+#### Technical Details
+
+**Warm Start Pattern Flow:**
+1. Client sends request with unknown session ID (after restart)
+2. Server detects unknown session, calls `onSessionNotFound` hook
+3. Hook loads session context from database
+4. Server creates session using existing `createSession()` flow
+5. Server immediately handles current request through new transport
+6. Client receives `-32000` error, auto-retries with initialize
+7. Session fully restored, client continues normally
+
+**Benefits:**
+- **Zero client changes**: Standard MCP clients auto-retry on -32000
+- **Single HTTP round-trip**: No extra network requests needed
+- **Concurrent-safe**: Idempotency guards prevent race conditions
+- **Automatic cleanup**: Failed restorations clean up resources
+- **Standard MCP**: Uses official error code, not custom solutions
+
+**Code Changes:**
+```typescript
+// Before (v2.19.4 - BROKEN):
+await server.connect(transport);
+await this.initializeMCPServerForSession(sessionId, server, context); // NO req/res to respond!
+
+// After (v2.19.5 - WORKING):
+this.createSession(restoredContext, sessionId, false);
+transport = this.transports[sessionId];
+await transport.handleRequest(req, res, req.body); // Handle current request immediately
+return; // Early return prevents double processing
+```
+
+#### Migration Notes
+
+This is a **patch release** with no breaking changes:
+- No API changes to public interfaces
+- Existing session restoration hooks work unchanged
+- Internal implementation simplified (80 fewer lines of code)
+- Session restoration now works correctly with standard MCP protocol
+
+#### Files Changed
+
+- `src/http-server-single-session.ts`: Deleted synthetic init, implemented warm start (lines 1118-1247)
+- `tests/integration/session-restoration-warmstart.test.ts`: New integration tests (11 tests)
+- `docs/MULTI_APP_INTEGRATION.md`: Documentation for warm start pattern
+- `package.json`, `package.runtime.json`: Version bump to 2.19.5
+
 ## [2.19.4] - 2025-10-13
 
 ### 🐛 Critical Bug Fixes

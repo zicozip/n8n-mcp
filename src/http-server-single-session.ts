@@ -18,7 +18,7 @@ import { getStartupBaseUrl, formatEndpointUrls, detectBaseUrl } from './utils/ur
 import { PROJECT_VERSION } from './utils/version';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
-import { isInitializeRequest, InitializeRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import {
   negotiateProtocolVersion,
   logProtocolNegotiation,
@@ -515,92 +515,6 @@ export class SingleSessionHTTPServer {
         sessionId: args[0] // First arg is always sessionId
       });
       // DON'T THROW - event failures shouldn't break session operations
-    }
-  }
-
-  /**
-   * Initialize MCP server for a restored session (v2.19.4)
-   *
-   * When restoring a session, we create a new MCP Server instance, but the client
-   * thinks it already initialized (it did, with the old instance before restart).
-   * This method sends a synthetic initialize request to bring the new server
-   * instance into initialized state, enabling it to handle tool calls.
-   *
-   * @param sessionId - Session ID being restored
-   * @param server - The N8NDocumentationMCPServer instance to initialize
-   * @param instanceContext - Instance configuration
-   * @throws Error if initialization fails or times out
-   * @since 2.19.4
-   */
-  private async initializeMCPServerForSession(
-    sessionId: string,
-    server: N8NDocumentationMCPServer,
-    instanceContext?: InstanceContext
-  ): Promise<void> {
-    const initStartTime = Date.now();
-    const initTimeout = 5000; // 5 seconds max for initialization
-
-    try {
-      logger.info('Initializing MCP server for restored session', {
-        sessionId,
-        instanceId: instanceContext?.instanceId
-      });
-
-      // Create synthetic initialize request matching MCP protocol spec
-      const initializeRequest = {
-        jsonrpc: '2.0' as const,
-        id: `init-${sessionId}`,
-        method: 'initialize',
-        params: {
-          protocolVersion: STANDARD_PROTOCOL_VERSION,
-          capabilities: {
-            // Client capabilities - basic tool support
-            tools: {}
-          },
-          clientInfo: {
-            name: 'n8n-mcp-restored-session',
-            version: PROJECT_VERSION
-          }
-        }
-      };
-
-      // Call the server's initialize handler directly
-      // The server was already created with setupHandlers() in constructor
-      // So the initialize handler is registered and ready
-      const initPromise = (server as any).server.request(initializeRequest, InitializeRequestSchema);
-
-      // Race against timeout
-      const timeoutPromise = this.timeout(initTimeout);
-
-      const response = await Promise.race([initPromise, timeoutPromise]);
-
-      const duration = Date.now() - initStartTime;
-
-      logger.info('MCP server initialized successfully for restored session', {
-        sessionId,
-        duration: `${duration}ms`,
-        protocolVersion: response.protocolVersion
-      });
-
-    } catch (error) {
-      const duration = Date.now() - initStartTime;
-
-      if (error instanceof Error && error.name === 'TimeoutError') {
-        logger.error('MCP server initialization timeout for restored session', {
-          sessionId,
-          timeout: initTimeout,
-          duration: `${duration}ms`
-        });
-        throw new Error(`MCP server initialization timeout after ${initTimeout}ms`);
-      }
-
-      logger.error('MCP server initialization failed for restored session', {
-        sessionId,
-        error: error instanceof Error ? error.message : String(error),
-        duration: `${duration}ms`
-      });
-
-      throw new Error(`MCP server initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -1246,112 +1160,31 @@ export class SingleSessionHTTPServer {
                   return;
                 }
 
-                // REQ-2: Create transport and server inline for THIS REQUEST (like initialize flow)
-                // CRITICAL FIX: Don't use createSession() as it creates a separate transport
-                // not linked to the current HTTP req/res pair. We MUST create the transport
-                // for the current request context, just like the initialize flow does.
-                logger.info('Session restoration successful, creating transport inline', {
-                  sessionId,
-                  instanceId: restoredContext.instanceId
-                });
-
-                // Create server and transport for THIS REQUEST
-                const server = new N8NDocumentationMCPServer(restoredContext);
-
-                transport = new StreamableHTTPServerTransport({
-                  sessionIdGenerator: () => sessionId,
-                  onsessioninitialized: (initializedSessionId: string) => {
-                    // Store both transport and server by session ID when session is initialized
-                    logger.info('Session initialized after restoration', {
-                      sessionId: initializedSessionId
-                    });
-                    this.transports[initializedSessionId] = transport;
-                    this.servers[initializedSessionId] = server;
-
-                    // Store session metadata and context
-                    this.sessionMetadata[initializedSessionId] = {
-                      lastAccess: new Date(),
-                      createdAt: new Date()
-                    };
-                    this.sessionContexts[initializedSessionId] = restoredContext;
-                  }
-                });
-
-                // Set up cleanup handlers (same as initialize flow)
-                transport.onclose = () => {
-                  const sid = transport.sessionId;
-                  if (sid) {
-                    // Prevent recursive cleanup during shutdown
-                    if (this.isShuttingDown) {
-                      logger.debug('Ignoring transport close event during shutdown', { sessionId: sid });
-                      return;
-                    }
-
-                    logger.info('Restored transport closed, cleaning up', { sessionId: sid });
-                    this.removeSession(sid, 'transport_closed').catch(err => {
-                      logger.error('Error during transport close cleanup', {
-                        sessionId: sid,
-                        error: err instanceof Error ? err.message : String(err)
-                      });
-                    });
-                  }
-                };
-
-                // Handle transport errors to prevent connection drops
-                transport.onerror = (error: Error) => {
-                  const sid = transport.sessionId;
-                  if (sid) {
-                    // Prevent recursive cleanup during shutdown
-                    if (this.isShuttingDown) {
-                      logger.debug('Ignoring transport error event during shutdown', { sessionId: sid });
-                      return;
-                    }
-
-                    logger.error('Restored transport error', { sessionId: sid, error: error.message });
-                    this.removeSession(sid, 'transport_error').catch(err => {
-                      logger.error('Error during transport error cleanup', { error: err });
-                    });
-                  }
-                };
-
-                // Connect the server to the transport BEFORE handling the request
-                logger.info('Connecting server to restored session transport');
-                await server.connect(transport);
-
-                // CRITICAL FIX v2.19.4: Initialize MCP server for restored session
-                // The MCP protocol requires an initialize handshake before tool calls.
-                // Since the client already initialized with the old server instance
-                // (before restart), we need to synthetically initialize the new server
-                // instance to bring it into the initialized state.
-                //
-                // Graceful degradation: Skip initialization in test mode with empty database
-                // and make initialization non-fatal in production to prevent session restoration
-                // from failing due to MCP init errors (e.g., empty databases).
-                const isTestMemory = process.env.NODE_ENV === 'test' &&
-                                     process.env.NODE_DB_PATH === ':memory:';
-
-                if (!isTestMemory) {
-                  try {
-                    logger.info('Initializing MCP server for restored session', { sessionId });
-                    await this.initializeMCPServerForSession(sessionId, server, restoredContext);
-                  } catch (initError) {
-                    // Log but don't fail - server.connect() succeeded, and client can retry tool calls
-                    // MCP initialization may fail in edge cases (e.g., database issues), but session
-                    // restoration should still succeed to maintain availability
-                    logger.warn('MCP server initialization failed during restoration (non-fatal)', {
-                      sessionId,
-                      error: initError instanceof Error ? initError.message : String(initError)
-                    });
-                    // Continue anyway - the transport is connected, and the session is restored
-                  }
+                // Warm Start: Guard against concurrent restoration attempts
+                // If another request is already creating this session, reuse it
+                if (this.transports[sessionId]) {
+                  logger.info('Session already restored by concurrent request', { sessionId });
+                  transport = this.transports[sessionId];
                 } else {
-                  logger.debug('Skipping MCP server initialization in test mode with :memory: database', {
-                    sessionId
+                  // Create session using existing createSession() flow
+                  // This creates transport and server with all proper event handlers
+                  logger.info('Session restoration successful, creating session', {
+                    sessionId,
+                    instanceId: restoredContext.instanceId
                   });
+
+                  // Create session (returns sessionId synchronously)
+                  // The transport is stored immediately in this.transports[sessionId]
+                  this.createSession(restoredContext, sessionId, false);
+
+                  // Get the transport that was just created
+                  transport = this.transports[sessionId];
+                  if (!transport) {
+                    throw new Error('Transport not found after session creation');
+                  }
                 }
 
-                // Phase 3: Emit onSessionRestored event (REQ-4)
-                // Fire-and-forget: don't await or block request processing
+                // Emit onSessionRestored event (fire-and-forget, non-blocking)
                 this.emitEvent('onSessionRestored', sessionId, restoredContext).catch(err => {
                   logger.error('Failed to emit onSessionRestored event (non-blocking)', {
                     sessionId,
@@ -1359,9 +1192,27 @@ export class SingleSessionHTTPServer {
                   });
                 });
 
-                logger.info('Restored session transport ready', { sessionId });
+                // Handle current request through the new transport immediately
+                // This allows the client to re-initialize on the same connection
+                logger.info('Handling request through restored session transport', { sessionId });
+                await transport.handleRequest(req, res, req.body);
+
+                // CRITICAL: Early return to prevent double processing
+                // The transport has already sent the response
+                return;
 
               } catch (error) {
+                // Clean up session on restoration failure
+                if (this.transports[sessionId]) {
+                  logger.info('Cleaning up failed session restoration', { sessionId });
+                  await this.removeSession(sessionId, 'restoration_failed').catch(cleanupErr => {
+                    logger.error('Error during restoration failure cleanup', {
+                      sessionId,
+                      error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)
+                    });
+                  });
+                }
+
                 // Handle timeout
                 if (error instanceof Error && error.name === 'TimeoutError') {
                   logger.error('Session restoration timeout', {
