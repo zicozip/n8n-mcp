@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.4] - 2025-10-13
+
+### 🐛 Critical Bug Fixes
+
+**MCP Server Initialization for Restored Sessions (P0 - CRITICAL)**
+
+Completes the session restoration feature by initializing MCP server instances for restored sessions, enabling tool calls to work after server restart.
+
+#### Fixed
+
+- **MCP Server Not Initialized During Session Restoration**
+  - **Issue**: Session restoration successfully restored InstanceContext (v2.19.0) and transport layer (v2.19.3), but failed to initialize the MCP Server instance, causing all tool calls on restored sessions to fail with "Server not initialized" error
+  - **Impact**: Zero-downtime deployments still broken - users cannot use tools after container restart without manually restarting their MCP client
+  - **Severity**: CRITICAL - session persistence incomplete without MCP server initialization
+  - **Root Cause**:
+    - MCP protocol requires an `initialize` handshake before accepting tool calls
+    - When restoring a session, we create a NEW MCP Server instance (uninitialized state)
+    - Client thinks it already initialized (it did, with the old instance before restart)
+    - Client sends tool call, new server rejects it: "Server not initialized"
+    - The three layers of a session: (1) Data (InstanceContext) ✅, (2) Transport (HTTP) ✅ v2.19.3, (3) Protocol (MCP Server) ❌ not initialized
+  - **Fix Applied**:
+    - Created `initializeMCPServerForSession()` method that sends synthetic initialize request to new MCP server instance
+    - Brings server into initialized state without requiring client to re-initialize
+    - Called after `server.connect(transport)` during session restoration flow
+    - Includes 5-second timeout and comprehensive error handling
+  - **Location**: `src/http-server-single-session.ts:521-605` (new method), `src/http-server-single-session.ts:1321-1327` (application)
+  - **Tests**: Compilation verified, ready for integration testing
+  - **Verification**: Build successful, no TypeScript errors
+
+#### Technical Details
+
+**The Three Layers of Session State:**
+1. **Data Layer** (InstanceContext): Session configuration and state ✅ v2.19.0
+2. **Transport Layer** (HTTP Connection): Request/response binding ✅ v2.19.3
+3. **Protocol Layer** (MCP Server Instance): Initialize handshake ✅ v2.19.4
+
+**Implementation:**
+```typescript
+// After connecting transport, initialize the MCP server
+await server.connect(transport);
+await this.initializeMCPServerForSession(sessionId, server, restoredContext);
+```
+
+The synthetic initialize request:
+- Uses standard MCP protocol version
+- Includes client info: `n8n-mcp-restored-session`
+- Calls server's initialize handler directly
+- Waits for initialization to complete (5 second timeout)
+- Brings server into initialized state
+
+#### Dependencies
+
+- Requires: v2.19.3 (transport layer fix)
+- Completes: Session persistence feature (v2.19.0-v2.19.4)
+- Enables: True zero-downtime deployments for HTTP-based deployments
+
 ## [2.19.3] - 2025-10-13
 
 ### 🐛 Critical Bug Fixes
