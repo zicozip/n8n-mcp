@@ -19,13 +19,6 @@ export {
   isInstanceContext
 } from './types/instance-context';
 
-// Session restoration types (v2.19.0)
-export type {
-  SessionRestoreHook,
-  SessionRestorationOptions,
-  SessionState
-} from './types/session-restoration';
-
 // Re-export MCP SDK types for convenience
 export type {
   Tool,
