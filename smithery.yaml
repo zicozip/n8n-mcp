@@ -1,0 +1,19 @@
+name: n8n-mcp
+description: Self-hosted n8n docs & validation MCP
+
+# Smithery uses this to call your server
+transport:
+  type: http
+  endpoint: "${SERVER_URL}/mcp"   # IMPORTANT: ends with /mcp
+
+# Optional health check shown in your logs and Smithery
+health:
+  url: "${SERVER_URL}/health"
+
+# Send auth during scans using env var substitution
+session:
+  profiles:
+    - id: test
+      request:
+        headers:
+          Authorization: "Bearer ${AUTH_TOKEN}"
