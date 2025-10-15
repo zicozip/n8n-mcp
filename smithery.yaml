@@ -1,29 +1,30 @@
+# smithery.yaml  (commit at repo root)
 name: n8n-mcp
-description: Self-hosted n8n docs & validation MCP (czlonkowski fork)
+description: Self-hosted n8n docs & validation MCP
 
-# Smithery needs a runtime + startCommand per its schema
+# 1) Tell Smithery how to build/run it (container runtime)
 runtime: container
-
-# Tell Smithery how to build (uses your repo's Dockerfile)
 build:
   dockerfile: Dockerfile
 
-# Tell Smithery how the server exposes MCP (Streamable HTTP)
-# path '/mcp' avoids 404s; '/health' is used for health checks
+# 2) Tell Smithery how to TALK to it once running
+#    Streamable HTTP endpoint is POST /mcp; health is GET /health
 startCommand:
   type: http
   path: /mcp
   health: /health
+  # Smithery will attach these headers when scanning (from config below):
+  headers:
+    Authorization: "Bearer ${AUTH_TOKEN}"
 
-# Declare configuration Smithery must provide at deploy/scan time
+# 3) Declare the config the “Connect” form should ask for (Session Config)
+#    Smithery will render a form and persist it as your "test" profile.
 configSchema:
   type: object
   required: [AUTH_TOKEN]
   properties:
     AUTH_TOKEN:
       type: string
-      description: Bearer token used by the server to authenticate requests
-
-# Example shown in Smithery UI to help you fill envs
+      description: Bearer token required by the server
 exampleConfig:
-  AUTH_TOKEN: "replace-with-long-random-token"
+  AUTH_TOKEN: "paste-a-long-random-token-here"
