@@ -1,19 +1,29 @@
 name: n8n-mcp
-description: Self-hosted n8n docs & validation MCP
+description: Self-hosted n8n docs & validation MCP (czlonkowski fork)
 
-# Smithery uses this to call your server
-transport:
+# Smithery needs a runtime + startCommand per its schema
+runtime: container
+
+# Tell Smithery how to build (uses your repo's Dockerfile)
+build:
+  dockerfile: Dockerfile
+
+# Tell Smithery how the server exposes MCP (Streamable HTTP)
+# path '/mcp' avoids 404s; '/health' is used for health checks
+startCommand:
   type: http
-  endpoint: "${SERVER_URL}/mcp"   # IMPORTANT: ends with /mcp
+  path: /mcp
+  health: /health
 
-# Optional health check shown in your logs and Smithery
-health:
-  url: "${SERVER_URL}/health"
+# Declare configuration Smithery must provide at deploy/scan time
+configSchema:
+  type: object
+  required: [AUTH_TOKEN]
+  properties:
+    AUTH_TOKEN:
+      type: string
+      description: Bearer token used by the server to authenticate requests
 
-# Send auth during scans using env var substitution
-session:
-  profiles:
-    - id: test
-      request:
-        headers:
-          Authorization: "Bearer ${AUTH_TOKEN}"
+# Example shown in Smithery UI to help you fill envs
+exampleConfig:
+  AUTH_TOKEN: "replace-with-long-random-token"
